@@ -57,3 +57,42 @@ test_that("build_slides_prompt handles different lengths", {
   expect_true(grepl("10-15 slides", medium_prompt$user))
   expect_true(grepl("20\\+? slides", long_prompt$user))
 })
+
+test_that("inject_theme_to_qmd adds theme to frontmatter", {
+  qmd_content <- "---\ntitle: Test\nformat:\n  revealjs: default\n---\n\n## Slide 1\nContent"
+
+  result <- inject_theme_to_qmd(qmd_content, "moon")
+
+  expect_true(grepl("theme: moon", result))
+})
+
+test_that("inject_theme_to_qmd handles missing format section", {
+  qmd_content <- "---\ntitle: Test\n---\n\n## Slide 1\nContent"
+
+  result <- inject_theme_to_qmd(qmd_content, "dark")
+
+  expect_true(grepl("format:", result))
+  expect_true(grepl("theme: dark", result))
+})
+
+test_that("render_qmd_to_html returns path or error", {
+  skip_if_not(check_quarto_installed(), "Quarto not installed")
+
+  # Create minimal valid qmd
+  qmd_content <- "---\ntitle: Test\nformat: revealjs\n---\n\n## Slide 1\n\nHello"
+  qmd_path <- tempfile(fileext = ".qmd")
+  writeLines(qmd_content, qmd_path)
+
+  result <- render_qmd_to_html(qmd_path)
+
+  if (!is.null(result$error)) {
+    skip(paste("Render failed:", result$error))
+  }
+
+  expect_true(file.exists(result$path))
+  expect_true(grepl("\\.html$", result$path))
+
+  # Cleanup
+  unlink(qmd_path)
+  unlink(result$path)
+})

@@ -93,3 +93,105 @@ build_slides_prompt <- function(chunks, options) {
 
   list(system = system_prompt, user = user_prompt)
 }
+
+#' Inject theme into QMD frontmatter
+#' @param qmd_content Raw QMD string
+#' @param theme RevealJS theme name
+#' @return Modified QMD string with theme
+inject_theme_to_qmd <- function(qmd_content, theme) {
+  if (is.null(theme) || theme == "default") {
+    return(qmd_content)
+  }
+
+  # Check if format section exists
+  if (grepl("format:\\s*\\n\\s*revealjs:", qmd_content)) {
+    # Add theme under revealjs section
+    qmd_content <- sub(
+      "(format:\\s*\\n\\s*revealjs:)",
+      paste0("\\1\n    theme: ", theme),
+      qmd_content
+    )
+  } else if (grepl("format:\\s*revealjs", qmd_content)) {
+    # Convert simple format to expanded with theme
+    qmd_content <- sub(
+      "format:\\s*revealjs",
+      paste0("format:\n  revealjs:\n    theme: ", theme),
+      qmd_content
+    )
+  } else if (grepl("^---", qmd_content)) {
+    # No format section, add one before closing ---
+    qmd_content <- sub(
+      "\n---\n",
+      paste0("\nformat:\n  revealjs:\n    theme: ", theme, "\n---\n"),
+      qmd_content
+    )
+  }
+
+  qmd_content
+}
+
+#' Render QMD file to HTML
+#' @param qmd_path Path to .qmd file
+#' @param timeout Timeout in seconds
+#' @return List with path (on success) or error (on failure)
+render_qmd_to_html <- function(qmd_path, timeout = 120) {
+  if (!check_quarto_installed()) {
+    return(list(path = NULL, error = "Quarto is not installed"))
+  }
+
+  output_path <- sub("\\.qmd$", ".html", qmd_path)
+
+  result <- tryCatch({
+    processx::run(
+      "quarto",
+      c("render", qmd_path, "--to", "html"),
+      timeout = timeout,
+      error_on_status = FALSE
+    )
+  }, error = function(e) {
+    return(list(status = -1, stderr = e$message))
+  })
+
+  if (result$status != 0) {
+    return(list(path = NULL, error = paste("Render failed:", result$stderr)))
+  }
+
+  if (!file.exists(output_path)) {
+    return(list(path = NULL, error = "Output file not created"))
+  }
+
+  list(path = output_path, error = NULL)
+}
+
+#' Render QMD file to PDF
+#' @param qmd_path Path to .qmd file
+#' @param timeout Timeout in seconds
+#' @return List with path (on success) or error (on failure)
+render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
+  if (!check_quarto_installed()) {
+    return(list(path = NULL, error = "Quarto is not installed"))
+  }
+
+  output_path <- sub("\\.qmd$", ".pdf", qmd_path)
+
+  result <- tryCatch({
+    processx::run(
+      "quarto",
+      c("render", qmd_path, "--to", "pdf"),
+      timeout = timeout,
+      error_on_status = FALSE
+    )
+  }, error = function(e) {
+    return(list(status = -1, stderr = e$message))
+  })
+
+  if (result$status != 0) {
+    return(list(path = NULL, error = paste("PDF render failed:", result$stderr)))
+  }
+
+  if (!file.exists(output_path)) {
+    return(list(path = NULL, error = "PDF file not created"))
+  }
+
+  list(path = output_path, error = NULL)
+}
