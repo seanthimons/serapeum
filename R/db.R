@@ -1,0 +1,326 @@
+library(duckdb)
+library(DBI)
+
+#' Get DuckDB connection
+#' @param path Path to database file
+#' @return DuckDB connection object
+get_db_connection <- function(path = "data/notebooks.duckdb") {
+  dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
+  con <- dbConnect(duckdb(), dbdir = path)
+  con
+}
+
+#' Initialize database schema
+#' @param con DuckDB connection
+init_schema <- function(con) {
+  # Notebooks table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS notebooks (
+      id VARCHAR PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      type VARCHAR NOT NULL,
+      search_query VARCHAR,
+      search_filters JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
+  # Documents table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS documents (
+      id VARCHAR PRIMARY KEY,
+      notebook_id VARCHAR NOT NULL,
+      filename VARCHAR NOT NULL,
+      filepath VARCHAR NOT NULL,
+      full_text VARCHAR,
+      page_count INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
+  # Abstracts table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS abstracts (
+      id VARCHAR PRIMARY KEY,
+      notebook_id VARCHAR NOT NULL,
+      paper_id VARCHAR NOT NULL,
+      title VARCHAR NOT NULL,
+      authors JSON,
+      abstract VARCHAR,
+      year INTEGER,
+      venue VARCHAR,
+      pdf_url VARCHAR,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
+  # Chunks table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS chunks (
+      id VARCHAR PRIMARY KEY,
+      source_id VARCHAR NOT NULL,
+      source_type VARCHAR NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      content VARCHAR NOT NULL,
+      embedding FLOAT[],
+      page_number INTEGER
+    )
+  ")
+
+  # Settings table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS settings (
+      key VARCHAR PRIMARY KEY,
+      value JSON
+    )
+  ")
+}
+
+#' Create a new notebook
+#' @param con DuckDB connection
+#' @param name Notebook name
+#' @param type "document" or "search"
+#' @param search_query Query string (for search notebooks)
+#' @param search_filters Filter list (for search notebooks)
+#' @return Notebook ID
+create_notebook <- function(con, name, type, search_query = NULL, search_filters = NULL) {
+  id <- uuid::UUIDgenerate()
+  filters_json <- if (!is.null(search_filters)) jsonlite::toJSON(search_filters, auto_unbox = TRUE) else NA
+
+  dbExecute(con, "
+    INSERT INTO notebooks (id, name, type, search_query, search_filters)
+    VALUES (?, ?, ?, ?, ?)
+  ", list(id, name, type, search_query, filters_json))
+
+  id
+}
+
+#' List all notebooks
+#' @param con DuckDB connection
+#' @return Data frame of notebooks
+list_notebooks <- function(con) {
+  dbGetQuery(con, "SELECT * FROM notebooks ORDER BY created_at DESC")
+}
+
+#' Get a single notebook by ID
+#' @param con DuckDB connection
+#' @param id Notebook ID
+#' @return Single row data frame or NULL
+get_notebook <- function(con, id) {
+  result <- dbGetQuery(con, "SELECT * FROM notebooks WHERE id = ?", list(id))
+  if (nrow(result) == 0) return(NULL)
+  result
+}
+
+#' Delete a notebook and its contents
+#' @param con DuckDB connection
+#' @param id Notebook ID
+delete_notebook <- function(con, id) {
+  # Delete chunks for documents in this notebook
+  dbExecute(con, "
+    DELETE FROM chunks WHERE source_id IN (
+      SELECT id FROM documents WHERE notebook_id = ?
+    )
+  ", list(id))
+
+  # Delete chunks for abstracts in this notebook
+  dbExecute(con, "
+    DELETE FROM chunks WHERE source_id IN (
+      SELECT id FROM abstracts WHERE notebook_id = ?
+    )
+  ", list(id))
+
+  # Delete documents
+  dbExecute(con, "DELETE FROM documents WHERE notebook_id = ?", list(id))
+
+  # Delete abstracts
+  dbExecute(con, "DELETE FROM abstracts WHERE notebook_id = ?", list(id))
+
+  # Delete notebook
+  dbExecute(con, "DELETE FROM notebooks WHERE id = ?", list(id))
+}
+
+#' Create a document record
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param filename Original filename
+#' @param filepath Storage path
+#' @param full_text Extracted text
+#' @param page_count Number of pages
+#' @return Document ID
+create_document <- function(con, notebook_id, filename, filepath, full_text, page_count) {
+  id <- uuid::UUIDgenerate()
+
+  dbExecute(con, "
+    INSERT INTO documents (id, notebook_id, filename, filepath, full_text, page_count)
+    VALUES (?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, filename, filepath, full_text, page_count))
+
+  id
+}
+
+#' List documents in a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame of documents
+list_documents <- function(con, notebook_id) {
+  dbGetQuery(con, "
+    SELECT * FROM documents WHERE notebook_id = ? ORDER BY created_at DESC
+  ", list(notebook_id))
+}
+
+#' Get a single document by ID
+#' @param con DuckDB connection
+#' @param id Document ID
+#' @return Single row data frame or NULL
+get_document <- function(con, id) {
+  result <- dbGetQuery(con, "SELECT * FROM documents WHERE id = ?", list(id))
+  if (nrow(result) == 0) return(NULL)
+  result
+}
+
+#' Delete a document
+#' @param con DuckDB connection
+#' @param id Document ID
+delete_document <- function(con, id) {
+  dbExecute(con, "DELETE FROM chunks WHERE source_id = ?", list(id))
+  dbExecute(con, "DELETE FROM documents WHERE id = ?", list(id))
+}
+
+#' Create a chunk record
+#' @param con DuckDB connection
+#' @param source_id Document or abstract ID
+#' @param source_type "document" or "abstract"
+#' @param chunk_index Chunk position
+#' @param content Chunk text
+#' @param embedding Vector embedding (optional)
+#' @param page_number Page number (optional)
+#' @return Chunk ID
+create_chunk <- function(con, source_id, source_type, chunk_index, content,
+                         embedding = NULL, page_number = NULL) {
+  id <- uuid::UUIDgenerate()
+
+  dbExecute(con, "
+    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number)
+    VALUES (?, ?, ?, ?, ?, ?)
+  ", list(id, source_id, source_type, chunk_index, content, page_number))
+
+  id
+}
+
+#' List chunks for a source
+#' @param con DuckDB connection
+#' @param source_id Document or abstract ID
+#' @return Data frame of chunks
+list_chunks <- function(con, source_id) {
+  dbGetQuery(con, "
+    SELECT * FROM chunks WHERE source_id = ? ORDER BY chunk_index
+  ", list(source_id))
+}
+
+#' Update chunk embedding
+#' @param con DuckDB connection
+#' @param chunk_id Chunk ID
+#' @param embedding Numeric vector
+update_chunk_embedding <- function(con, chunk_id, embedding) {
+  embedding_str <- paste0("[", paste(embedding, collapse = ","), "]")
+  dbExecute(con, sprintf("
+    UPDATE chunks SET embedding = %s::FLOAT[] WHERE id = ?
+  ", embedding_str), list(chunk_id))
+}
+
+#' Search chunks by embedding similarity
+#' @param con DuckDB connection
+#' @param query_embedding Query vector
+#' @param notebook_id Limit to specific notebook
+#' @param limit Number of results
+#' @return Data frame of matching chunks with source info
+search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
+  embedding_str <- paste0("[", paste(query_embedding, collapse = ","), "]")
+
+  notebook_filter <- ""
+  params <- list()
+
+  if (!is.null(notebook_id)) {
+    notebook_filter <- "AND (d.notebook_id = ? OR a.notebook_id = ?)"
+    params <- list(notebook_id, notebook_id)
+  }
+
+  query <- sprintf("
+    SELECT
+      c.*,
+      d.filename as doc_name,
+      d.notebook_id as doc_notebook_id,
+      a.title as abstract_title,
+      a.notebook_id as abstract_notebook_id,
+      array_cosine_similarity(c.embedding, %s::FLOAT[]) as similarity
+    FROM chunks c
+    LEFT JOIN documents d ON c.source_id = d.id AND c.source_type = 'document'
+    LEFT JOIN abstracts a ON c.source_id = a.id AND c.source_type = 'abstract'
+    WHERE c.embedding IS NOT NULL
+    %s
+    ORDER BY similarity DESC
+    LIMIT %d
+  ", embedding_str, notebook_filter, limit)
+
+  dbGetQuery(con, query, params)
+}
+
+#' Create an abstract record
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param paper_id OpenAlex paper ID
+#' @param title Paper title
+#' @param authors List of author names
+#' @param abstract Abstract text
+#' @param year Publication year
+#' @param venue Publication venue
+#' @param pdf_url URL to PDF
+#' @return Abstract ID
+create_abstract <- function(con, notebook_id, paper_id, title, authors,
+                            abstract, year, venue, pdf_url) {
+  id <- uuid::UUIDgenerate()
+  authors_json <- jsonlite::toJSON(authors, auto_unbox = TRUE)
+
+  dbExecute(con, "
+    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, year, venue, pdf_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract, year, venue, pdf_url))
+
+  id
+}
+
+#' List abstracts in a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame of abstracts
+list_abstracts <- function(con, notebook_id) {
+  dbGetQuery(con, "
+    SELECT * FROM abstracts WHERE notebook_id = ? ORDER BY year DESC, created_at DESC
+  ", list(notebook_id))
+}
+
+#' Save a setting to the database
+#' @param con DuckDB connection
+#' @param key Setting key
+#' @param value Setting value
+save_db_setting <- function(con, key, value) {
+  value_json <- jsonlite::toJSON(value, auto_unbox = TRUE)
+  dbExecute(con, "
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  ", list(key, value_json))
+}
+
+#' Get a setting from the database
+#' @param con DuckDB connection
+#' @param key Setting key
+#' @return Setting value or NULL
+get_db_setting <- function(con, key) {
+  result <- dbGetQuery(con, "SELECT value FROM settings WHERE key = ?", list(key))
+  if (nrow(result) == 0) return(NULL)
+  jsonlite::fromJSON(result$value[1])
+}
