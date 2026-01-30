@@ -20,7 +20,7 @@ init_schema <- function(con) {
       name VARCHAR NOT NULL,
       type VARCHAR NOT NULL,
       search_query VARCHAR,
-      search_filters JSON,
+      search_filters VARCHAR,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -47,7 +47,7 @@ init_schema <- function(con) {
       notebook_id VARCHAR NOT NULL,
       paper_id VARCHAR NOT NULL,
       title VARCHAR NOT NULL,
-      authors JSON,
+      authors VARCHAR,
       abstract VARCHAR,
       year INTEGER,
       venue VARCHAR,
@@ -74,7 +74,7 @@ init_schema <- function(con) {
   dbExecute(con, "
     CREATE TABLE IF NOT EXISTS settings (
       key VARCHAR PRIMARY KEY,
-      value JSON
+      value VARCHAR
     )
   ")
 }
