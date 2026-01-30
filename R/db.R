@@ -57,7 +57,7 @@ init_schema <- function(con) {
     )
   ")
 
-  # Chunks table
+  # Chunks table (embedding stored as comma-separated string for portability)
   dbExecute(con, "
     CREATE TABLE IF NOT EXISTS chunks (
       id VARCHAR PRIMARY KEY,
@@ -65,7 +65,7 @@ init_schema <- function(con) {
       source_type VARCHAR NOT NULL,
       chunk_index INTEGER NOT NULL,
       content VARCHAR NOT NULL,
-      embedding FLOAT[],
+      embedding VARCHAR,
       page_number INTEGER
     )
   ")
@@ -229,10 +229,34 @@ list_chunks <- function(con, source_id) {
 #' @param chunk_id Chunk ID
 #' @param embedding Numeric vector
 update_chunk_embedding <- function(con, chunk_id, embedding) {
-  embedding_str <- paste0("[", paste(embedding, collapse = ","), "]")
-  dbExecute(con, sprintf("
-    UPDATE chunks SET embedding = %s::FLOAT[] WHERE id = ?
-  ", embedding_str), list(chunk_id))
+  # Store as comma-separated string for portability
+  embedding_str <- paste(embedding, collapse = ",")
+  dbExecute(con, "UPDATE chunks SET embedding = ? WHERE id = ?", list(embedding_str, chunk_id))
+}
+
+#' Calculate cosine similarity between two vectors
+#' @param a First vector
+#' @param b Second vector
+#' @return Cosine similarity score
+cosine_similarity <- function(a, b) {
+  if (length(a) != length(b)) return(0)
+  dot_product <- sum(a * b)
+  norm_a <- sqrt(sum(a^2))
+  norm_b <- sqrt(sum(b^2))
+  if (norm_a == 0 || norm_b == 0) return(0)
+  dot_product / (norm_a * norm_b)
+}
+
+#' Parse embedding string from database
+#' @param embedding_str Comma-separated string like "0.1,0.2,0.3"
+#' @return Numeric vector
+parse_embedding <- function(embedding_str) {
+  if (is.na(embedding_str) || is.null(embedding_str) || embedding_str == "") {
+    return(NULL)
+  }
+  # Handle both formats: with or without brackets
+  cleaned <- gsub("^\\[|\\]$", "", embedding_str)
+  as.numeric(strsplit(cleaned, ",")[[1]])
 }
 
 #' Search chunks by embedding similarity
@@ -242,34 +266,55 @@ update_chunk_embedding <- function(con, chunk_id, embedding) {
 #' @param limit Number of results
 #' @return Data frame of matching chunks with source info
 search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
-  embedding_str <- paste0("[", paste(query_embedding, collapse = ","), "]")
-
-  notebook_filter <- ""
-  params <- list()
-
+  # Build query to get chunks with their source info
   if (!is.null(notebook_id)) {
-    notebook_filter <- "AND (d.notebook_id = ? OR a.notebook_id = ?)"
-    params <- list(notebook_id, notebook_id)
+    query <- "
+      SELECT
+        c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+        c.embedding,
+        d.filename as doc_name,
+        a.title as abstract_title
+      FROM chunks c
+      LEFT JOIN documents d ON c.source_id = d.id AND c.source_type = 'document'
+      LEFT JOIN abstracts a ON c.source_id = a.id AND c.source_type = 'abstract'
+      WHERE c.embedding IS NOT NULL
+        AND (d.notebook_id = ? OR a.notebook_id = ?)
+    "
+    chunks <- dbGetQuery(con, query, list(notebook_id, notebook_id))
+  } else {
+    query <- "
+      SELECT
+        c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+        c.embedding,
+        d.filename as doc_name,
+        a.title as abstract_title
+      FROM chunks c
+      LEFT JOIN documents d ON c.source_id = d.id AND c.source_type = 'document'
+      LEFT JOIN abstracts a ON c.source_id = a.id AND c.source_type = 'abstract'
+      WHERE c.embedding IS NOT NULL
+    "
+    chunks <- dbGetQuery(con, query)
   }
 
-  query <- sprintf("
-    SELECT
-      c.*,
-      d.filename as doc_name,
-      d.notebook_id as doc_notebook_id,
-      a.title as abstract_title,
-      a.notebook_id as abstract_notebook_id,
-      array_cosine_similarity(c.embedding, %s::FLOAT[]) as similarity
-    FROM chunks c
-    LEFT JOIN documents d ON c.source_id = d.id AND c.source_type = 'document'
-    LEFT JOIN abstracts a ON c.source_id = a.id AND c.source_type = 'abstract'
-    WHERE c.embedding IS NOT NULL
-    %s
-    ORDER BY similarity DESC
-    LIMIT %d
-  ", embedding_str, notebook_filter, limit)
+  if (nrow(chunks) == 0) {
+    return(chunks)
+  }
 
-  dbGetQuery(con, query, params)
+  # Calculate similarity for each chunk in R
+  chunks$similarity <- sapply(chunks$embedding, function(emb_str) {
+    emb <- parse_embedding(emb_str)
+    if (is.null(emb)) return(0)
+    cosine_similarity(query_embedding, emb)
+  })
+
+  # Sort by similarity and return top results
+  chunks <- chunks[order(chunks$similarity, decreasing = TRUE), ]
+  chunks <- head(chunks, limit)
+
+  # Remove the raw embedding column to reduce memory
+  chunks$embedding <- NULL
+
+  chunks
 }
 
 #' Create an abstract record
