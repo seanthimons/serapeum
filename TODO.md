@@ -60,6 +60,34 @@ Re-add Semantic Scholar as an alternative/additional paper source.
 
 ---
 
+## 4. DuckDB Native Vector Search (Moonshot Prep)
+
+**Priority:** Low (prep for large-scale use)
+
+Current approach calculates cosine similarity in R by loading all chunks into memory. This works for small/medium collections but will crash R with large datasets (e.g., full OpenAlex corpus).
+
+### Problem
+- R loads ALL chunks for a notebook into memory
+- Calculates similarity one-by-one
+- 100k+ embeddings × 1536 dimensions = memory explosion
+
+### Solution
+- [ ] Properly install DuckDB `vss` extension (may need manual install on Windows)
+- [ ] Use `array_cosine_similarity()` in SQL for in-database vector search
+- [ ] Investigate DuckDB HNSW index for approximate nearest neighbor search
+- [ ] Benchmark: R-based vs DuckDB-native at various scales
+
+### References
+- DuckDB VSS extension: https://duckdb.org/docs/extensions/vss.html
+- Manual extension install: https://duckdb.org/docs/extensions/overview.html#installing-extensions
+
+### Workaround for Now
+Current R-based approach is fine for:
+- Personal use with <10k chunks
+- Testing and development
+
+---
+
 ## Completed
 
 - [x] Basic document notebooks with PDF upload
