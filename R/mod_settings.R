@@ -35,12 +35,22 @@ mod_settings_ui <- function(id) {
           h5(icon("robot"), " Models"),
           selectInput(ns("chat_model"), "Chat Model",
                       choices = c(
+                        # Budget options
+                        "DeepSeek V3 (budget)" = "deepseek/deepseek-chat",
+                        "Gemini 2.0 Flash (budget)" = "google/gemini-2.0-flash-001",
+                        "GPT-4o Mini (budget)" = "openai/gpt-4o-mini",
+                        # Mid-tier
+                        "Kimi K2 0905 (recommended)" = "moonshotai/kimi-k2-0905",
+                        "Claude 3.5 Haiku" = "anthropic/claude-3-5-haiku",
+                        "Llama 3.3 70B" = "meta-llama/llama-3.3-70b-instruct",
+                        # Premium
                         "Claude Sonnet 4" = "anthropic/claude-sonnet-4",
-                        "Claude Haiku 3.5" = "anthropic/claude-3-5-haiku",
                         "GPT-4o" = "openai/gpt-4o",
-                        "GPT-4o Mini" = "openai/gpt-4o-mini",
-                        "Llama 3.1 70B" = "meta-llama/llama-3.1-70b-instruct"
-                      )),
+                        "Gemini 2.5 Pro" = "google/gemini-2.5-pro-preview"
+                      ),
+                      selected = "moonshotai/kimi-k2-0905"),
+          p(class = "text-muted small mb-3",
+            "Budget < $0.50/M tokens | Mid-tier $0.50-$2/M | Premium > $2/M"),
           div(
             class = "d-flex align-items-end gap-2",
             div(
@@ -71,7 +81,13 @@ mod_settings_ui <- function(id) {
           ),
           p(class = "text-muted small",
             "Chunk settings affect how documents are split for processing. ",
-            "Changes only apply to newly uploaded documents.")
+            "Changes only apply to newly uploaded documents."),
+          hr(),
+          h5(icon("magnifying-glass"), " Search"),
+          numericInput(ns("abstracts_per_search"), "Abstracts per Search",
+                       value = 25, min = 5, max = 100, step = 5),
+          p(class = "text-muted small",
+            "Number of paper abstracts to fetch from OpenAlex per search (max 100).")
         )
       )
     )
@@ -88,12 +104,20 @@ mod_settings_server <- function(id, con, config_rv) {
     # Reactive value to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
 
-    # Track if we've initialized the embed model dropdown
-    embed_initialized <- reactiveVal(FALSE)
-
     # Helper function to update embedding model choices
     update_embed_model_choices <- function(api_key, current_selection = NULL) {
-      models <- list_embedding_models(api_key)
+      # Always get models - list_embedding_models returns defaults if API key invalid
+      models <- tryCatch({
+        list_embedding_models(api_key)
+      }, error = function(e) {
+        get_default_embedding_models()
+      })
+
+      # Ensure we have valid data
+      if (is.null(models) || nrow(models) == 0) {
+        models <- get_default_embedding_models()
+      }
+
       choices <- setNames(models$id, models$name)
 
       # Preserve current selection if it exists in new choices
@@ -110,11 +134,8 @@ mod_settings_server <- function(id, con, config_rv) {
                            selected = selected)
     }
 
-    # Load settings when embed_model input becomes available (UI is rendered)
+    # Load current settings on init
     observe({
-      req(input$embed_model)  # Wait for UI to exist
-      if (embed_initialized()) return()  # Only run once
-
       cfg <- config_rv()
 
       # API Keys - prefer DB settings, fall back to config file
@@ -129,21 +150,14 @@ mod_settings_server <- function(id, con, config_rv) {
       # Models
       chat_model <- get_db_setting(con(), "chat_model") %||%
                     get_setting(cfg, "defaults", "chat_model") %||%
-                    "anthropic/claude-sonnet-4"
+                    "moonshotai/kimi-k2-0905"
       updateSelectInput(session, "chat_model", selected = chat_model)
 
-      # Embedding model - get saved selection then populate dropdown with API models
+      # Embedding model - get saved selection then populate dropdown
       embed_model <- get_db_setting(con(), "embedding_model") %||%
                      get_setting(cfg, "defaults", "embedding_model") %||%
                      "openai/text-embedding-3-small"
-
-      # If we have an API key, fetch dynamic model list
-      if (nchar(or_key) >= 10) {
-        update_embed_model_choices(or_key, embed_model)
-      } else {
-        # Just select the saved model from defaults
-        updateSelectizeInput(session, "embed_model", selected = embed_model)
-      }
+      update_embed_model_choices(or_key, embed_model)
 
       # Advanced
       chunk_size <- get_db_setting(con(), "chunk_size") %||%
@@ -154,19 +168,20 @@ mod_settings_server <- function(id, con, config_rv) {
                        get_setting(cfg, "app", "chunk_overlap") %||% 50
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
 
-      embed_initialized(TRUE)
-    })
+      # Search settings
+      abstracts_per_search <- get_db_setting(con(), "abstracts_per_search") %||%
+                              get_setting(cfg, "app", "abstracts_per_search") %||% 25
+      updateNumericInput(session, "abstracts_per_search", value = abstracts_per_search)
+    }) |> bindEvent(config_rv(), once = TRUE)
 
-    # Refresh embedding models when API key changes (debounced)
+    # Refresh embedding models when API key changes or refresh button clicked
     observe({
       api_key <- input$openrouter_key
       refresh_embed_trigger()  # Also trigger on manual refresh
 
-      # Only refresh if API key looks valid and we're initialized
-      if (embed_initialized() && !is.null(api_key) && nchar(api_key) >= 10) {
-        current <- input$embed_model
-        update_embed_model_choices(api_key, current)
-      }
+      # Always update - will use defaults if API key is invalid
+      current <- input$embed_model
+      update_embed_model_choices(api_key, current)
     }) |> bindEvent(input$openrouter_key, refresh_embed_trigger(), ignoreInit = TRUE)
 
     # Handle refresh button click
@@ -184,6 +199,7 @@ mod_settings_server <- function(id, con, config_rv) {
         save_db_setting(con(), "embedding_model", input$embed_model)
         save_db_setting(con(), "chunk_size", input$chunk_size)
         save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
+        save_db_setting(con(), "abstracts_per_search", input$abstracts_per_search)
 
         showNotification("Settings saved!", type = "message")
       }, error = function(e) {
@@ -209,7 +225,7 @@ mod_settings_server <- function(id, con, config_rv) {
         defaults = list(
           chat_model = get_db_setting(con(), "chat_model") %||%
                        get_setting(cfg, "defaults", "chat_model") %||%
-                       "anthropic/claude-sonnet-4",
+                       "moonshotai/kimi-k2-0905",
           embedding_model = get_db_setting(con(), "embedding_model") %||%
                             get_setting(cfg, "defaults", "embedding_model") %||%
                             "openai/text-embedding-3-small"
@@ -218,7 +234,9 @@ mod_settings_server <- function(id, con, config_rv) {
           chunk_size = get_db_setting(con(), "chunk_size") %||%
                        get_setting(cfg, "app", "chunk_size") %||% 500,
           chunk_overlap = get_db_setting(con(), "chunk_overlap") %||%
-                          get_setting(cfg, "app", "chunk_overlap") %||% 50
+                          get_setting(cfg, "app", "chunk_overlap") %||% 50,
+          abstracts_per_search = get_db_setting(con(), "abstracts_per_search") %||%
+                                 get_setting(cfg, "app", "abstracts_per_search") %||% 25
         )
       )
     })

@@ -1,53 +1,99 @@
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
+
   ns <- NS(id)
 
-  layout_columns(
-    col_widths = c(4, 8),
-    # Left: Paper list
-    card(
-      card_header(
-        class = "d-flex justify-content-between align-items-center",
-        span("Papers"),
-        actionButton(ns("refresh_search"), "Refresh",
-                     class = "btn-sm btn-outline-secondary",
-                     icon = icon("rotate"))
-      ),
-      card_body(
-        div(
-          id = ns("paper_list_container"),
-          style = "max-height: 350px; overflow-y: auto;",
-          uiOutput(ns("paper_list"))
+  tagList(
+    layout_columns(
+      col_widths = c(4, 8),
+      # Left: Paper list
+      card(
+        card_header(
+          class = "d-flex justify-content-between align-items-center",
+          span("Papers"),
+          actionButton(ns("refresh_search"), "Refresh",
+                       class = "btn-sm btn-outline-secondary",
+                       icon = icon("rotate"))
         ),
-        hr(),
-        uiOutput(ns("selection_info")),
-        actionButton(ns("import_selected"), "Import Selected to Notebook",
-                     class = "btn-primary w-100",
-                     icon = icon("download"))
+        card_body(
+          div(
+            id = ns("paper_list_container"),
+            style = "max-height: 400px; overflow-y: auto;",
+            uiOutput(ns("paper_list"))
+          ),
+          hr(),
+          uiOutput(ns("selection_info")),
+          actionButton(ns("import_selected"), "Import Selected to Notebook",
+                       class = "btn-primary w-100",
+                       icon = icon("download"))
+        )
+      ),
+      # Right: Abstract detail view
+      card(
+        card_header(
+          class = "d-flex justify-content-between align-items-center",
+          span("Abstract Details"),
+          uiOutput(ns("detail_actions"))
+        ),
+        card_body(
+          style = "height: 500px; overflow-y: auto;",
+          uiOutput(ns("abstract_detail"))
+        )
       )
     ),
-    # Right: Chat
-    card(
-      card_header("Chat with Abstracts"),
-      card_body(
-        class = "d-flex flex-column",
-        style = "height: 500px;",
+
+    # Floating chat button with dynamic badge
+    div(
+      style = "position: fixed; bottom: 24px; right: 24px; z-index: 1000;",
+      uiOutput(ns("chat_button"))
+    ),
+
+    # Offcanvas chat panel
+    div(
+      id = ns("chat_offcanvas"),
+      class = "offcanvas offcanvas-end",
+      style = "width: 400px;",
+      `data-bs-scroll` = "true",
+      `data-bs-backdrop` = "false",
+      tabindex = "-1",
+
+      # Header
+      div(
+        class = "offcanvas-header border-bottom",
+        h5(class = "offcanvas-title", "Chat with Abstracts"),
+        tags$button(
+          type = "button",
+          class = "btn-close",
+          `data-bs-dismiss` = "offcanvas",
+          `aria-label` = "Close"
+        )
+      ),
+
+      # Body
+      div(
+        class = "offcanvas-body d-flex flex-column p-0",
+        # Messages area
         div(
           id = ns("chat_messages"),
-          class = "flex-grow-1 overflow-auto mb-3 p-2",
-          style = "background-color: var(--bs-light); border-radius: 0.5rem;",
+          class = "flex-grow-1 overflow-auto p-3",
+          style = "background-color: var(--bs-light);",
           uiOutput(ns("messages"))
         ),
+        # Input area
         div(
-          class = "d-flex gap-2",
+          class = "border-top p-3",
           div(
-            class = "flex-grow-1",
-            textInput(ns("user_input"), NULL,
-                      placeholder = "Ask about these papers...",
-                      width = "100%")
-          ),
-          actionButton(ns("send"), "Send", class = "btn-primary")
+            class = "d-flex gap-2",
+            div(
+              class = "flex-grow-1",
+              textInput(ns("user_input"), NULL,
+                        placeholder = "Ask about these papers...",
+                        width = "100%")
+            ),
+            actionButton(ns("send"), NULL, class = "btn-primary",
+                         icon = icon("paper-plane"))
+          )
         )
       )
     )
@@ -65,6 +111,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     messages <- reactiveVal(list())
     selected_papers <- reactiveVal(character())
+    viewed_paper <- reactiveVal(NULL)
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
 
@@ -86,6 +133,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Paper list
     output$paper_list <- renderUI({
       papers <- papers_data()
+      current_viewed <- viewed_paper()
 
       if (nrow(papers) == 0) {
         return(
@@ -115,29 +163,48 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
 
         checkbox_id <- paste0("select_", paper$id)
+        is_viewed <- !is.null(current_viewed) && current_viewed == paper$id
 
         div(
-          class = "border-bottom py-2",
+          class = paste("border-bottom py-2", if (is_viewed) "bg-light"),
           div(
             class = "d-flex align-items-start gap-2",
             checkboxInput(ns(checkbox_id), label = NULL, width = "25px"),
-            div(
-              class = "flex-grow-1",
-              style = "min-width: 0;",
-              div(class = "fw-semibold text-truncate", title = paper$title,
-                  paper$title),
-              div(class = "text-muted small",
-                  paste(author_str, "-", paper$year %||% "N/A")),
-              if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
-                div(class = "text-muted small fst-italic", paper$venue)
-              }
+            actionLink(
+              ns(paste0("view_", paper$id)),
+              div(
+                class = "flex-grow-1",
+                style = "min-width: 0; cursor: pointer;",
+                div(
+                  class = paste("fw-semibold", if (is_viewed) "text-primary"),
+                  style = "word-wrap: break-word;",
+                  paper$title
+                ),
+                div(class = "text-muted small",
+                    paste(author_str, "-", paper$year %||% "N/A")),
+                if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
+                  div(class = "text-muted small fst-italic text-truncate", paper$venue)
+                }
+              )
             )
           )
         )
       })
     })
 
-    # Track selected papers
+    # Observe paper view clicks
+    observe({
+      papers <- papers_data()
+      if (nrow(papers) == 0) return()
+
+      lapply(papers$id, function(paper_id) {
+        observeEvent(input[[paste0("view_", paper_id)]], {
+          viewed_paper(paper_id)
+        }, ignoreInit = TRUE)
+      })
+    })
+
+    # Track selected papers (for import)
     observe({
       papers <- papers_data()
       if (nrow(papers) == 0) return()
@@ -164,6 +231,139 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
     })
 
+    # Abstract detail view
+    output$abstract_detail <- renderUI({
+      paper_id <- viewed_paper()
+
+      if (is.null(paper_id)) {
+        return(
+          div(
+            class = "text-center text-muted py-5",
+            icon("file-lines", class = "fa-3x mb-3"),
+            h5("No paper selected"),
+            p("Click on a paper title to view its abstract")
+          )
+        )
+      }
+
+      papers <- papers_data()
+      paper <- papers[papers$id == paper_id, ]
+
+      if (nrow(paper) == 0) {
+        viewed_paper(NULL)
+        return(NULL)
+      }
+
+      paper <- paper[1, ]
+
+      # Parse authors
+      authors <- tryCatch({
+        jsonlite::fromJSON(paper$authors)
+      }, error = function(e) {
+        character()
+      })
+
+      author_str <- if (length(authors) == 0) {
+        "Unknown authors"
+      } else {
+        paste(authors, collapse = ", ")
+      }
+
+      tagList(
+        # Title
+        h5(class = "mb-3", paper$title),
+
+        # Metadata
+        div(
+          class = "mb-3",
+          div(
+            class = "d-flex flex-wrap gap-2 mb-2",
+            if (!is.null(paper$year) && !is.na(paper$year)) {
+              span(class = "badge bg-secondary", paper$year)
+            },
+            if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
+              span(class = "badge bg-light text-dark border", paper$venue)
+            }
+          ),
+          div(class = "text-muted", author_str)
+        ),
+
+        hr(),
+
+        # Abstract
+        if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+          div(
+            h6(class = "text-muted mb-2", "Abstract"),
+            p(style = "line-height: 1.6;", paper$abstract)
+          )
+        } else {
+          div(
+            class = "alert alert-light",
+            icon("circle-info", class = "me-2"),
+            "No abstract available for this paper."
+          )
+        },
+
+        # PDF link if available (opens external URL)
+        if (!is.na(paper$pdf_url) && nchar(paper$pdf_url) > 0) {
+          div(
+            class = "mt-3",
+            tags$a(
+              href = paper$pdf_url,
+              target = "_blank",
+              rel = "noopener noreferrer",
+              class = "btn btn-outline-primary btn-sm",
+              icon("file-pdf", class = "me-1"),
+              "View PDF ",
+              icon("arrow-up-right-from-square", class = "ms-1 small")
+            )
+          )
+        }
+      )
+    })
+
+    # Detail actions (close button)
+    output$detail_actions <- renderUI({
+      if (is.null(viewed_paper())) return(NULL)
+
+      actionButton(
+        ns("close_detail"),
+        icon("xmark"),
+        class = "btn-sm btn-outline-secondary"
+      )
+    })
+
+    observeEvent(input$close_detail, {
+      viewed_paper(NULL)
+    })
+
+    # Chat button with message count badge
+    output$chat_button <- renderUI({
+      msgs <- messages()
+      msg_count <- length(msgs)
+
+      # Badge showing message count (only if there are messages)
+      badge <- if (msg_count > 0) {
+        span(
+          class = "position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger",
+          msg_count,
+          span(class = "visually-hidden", "messages")
+        )
+      }
+
+      tags$button(
+        id = ns("toggle_chat"),
+        class = "btn btn-primary btn-lg rounded-pill shadow position-relative",
+        onclick = sprintf("
+          var offcanvas = new bootstrap.Offcanvas(document.getElementById('%s'));
+          offcanvas.toggle();
+        ", ns("chat_offcanvas")),
+        icon("comments"),
+        " Chat",
+        badge
+      )
+    })
+
     # Refresh search
     observeEvent(input$refresh_search, {
       nb_id <- notebook_id()
@@ -187,6 +387,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         incProgress(0.2, detail = "Querying API")
 
+        # Get configured abstracts per search
+        abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 25
+
         papers <- tryCatch({
           search_papers(
             nb$search_query,
@@ -194,7 +397,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             api_key,
             from_year = filters$from_year,
             to_year = filters$to_year,
-            per_page = 25
+            per_page = abstracts_count
           )
         }, error = function(e) {
           showNotification(paste("Search error:", e$message),
@@ -357,15 +560,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (!has_api_key()) {
         return(
           div(
-            class = "text-center py-5",
+            class = "text-center py-4",
             div(
-              class = "alert alert-warning",
+              class = "alert alert-warning mb-0",
               icon("triangle-exclamation", class = "me-2"),
-              strong("OpenRouter API key not configured"),
+              strong("API key not configured"),
               p(class = "mb-0 mt-2 small",
-                "Go to Settings to add your API key. ",
-                "Get one at ", tags$a(href = "https://openrouter.ai/keys",
-                                      target = "_blank", "openrouter.ai/keys"))
+                "Go to Settings to add your OpenRouter API key.")
             )
           )
         )
@@ -374,32 +575,47 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (length(msgs) == 0) {
         return(
           div(
-            class = "text-center text-muted py-5",
+            class = "text-center text-muted py-4",
             icon("comments", class = "fa-2x mb-2"),
             p("Ask questions about these papers"),
-            p(class = "small", "Query across all abstracts in this collection")
+            p(class = "small", "Query across all abstracts")
           )
         )
       }
 
-      tagList(
-        lapply(msgs, function(msg) {
-          if (msg$role == "user") {
+      # Build message list
+      msg_list <- lapply(msgs, function(msg) {
+        if (msg$role == "user") {
+          div(
+            class = "d-flex justify-content-end mb-2",
+            div(class = "bg-primary text-white p-2 rounded",
+                style = "max-width: 85%;", msg$content)
+          )
+        } else {
+          div(
+            class = "d-flex justify-content-start mb-2",
+            div(class = "bg-white border p-2 rounded",
+                style = "max-width: 90%;",
+                HTML(gsub("\n", "<br/>", msg$content)))
+          )
+        }
+      })
+
+      # Add loading spinner if processing
+      if (is_processing()) {
+        msg_list <- c(msg_list, list(
+          div(
+            class = "d-flex justify-content-start mb-2",
             div(
-              class = "d-flex justify-content-end mb-2",
-              div(class = "bg-primary text-white p-2 rounded",
-                  style = "max-width: 80%;", msg$content)
+              class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
+              div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
+              span(class = "text-muted", "Thinking...")
             )
-          } else {
-            div(
-              class = "d-flex justify-content-start mb-2",
-              div(class = "bg-white border p-2 rounded",
-                  style = "max-width: 90%;",
-                  HTML(gsub("\n", "<br/>", msg$content)))
-            )
-          }
-        })
-      )
+          )
+        ))
+      }
+
+      tagList(msg_list)
     })
 
     # Send message
