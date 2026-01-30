@@ -1,0 +1,19 @@
+# API Keys
+openrouter:
+  api_key: "your-openrouter-api-key"
+
+openalex:
+  api_key: "your-openalex-api-key"
+  email: "your-email@example.com"
+
+# Default Models
+defaults:
+  chat_model: "anthropic/claude-sonnet-4"
+  embedding_model: "openai/text-embedding-3-small"
+
+# App Settings
+app:
+  port: 8080
+  storage_path: "storage/"
+  chunk_size: 500
+  chunk_overlap: 50
