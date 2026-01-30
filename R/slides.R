@@ -195,3 +195,45 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 
   list(path = output_path, error = NULL)
 }
+
+#' Generate slides from document chunks
+#' @param api_key OpenRouter API key
+#' @param model Model ID to use
+#' @param chunks Data frame with content, doc_name, page_number
+#' @param options List with length, audience, citation_style, include_notes, theme, custom_instructions
+#' @param notebook_name Name of notebook (for title)
+#' @return List with qmd (content string), qmd_path (temp file), or error
+generate_slides <- function(api_key, model, chunks, options, notebook_name = "Presentation") {
+  # Build prompt
+  prompt <- build_slides_prompt(chunks, options)
+
+  # Call LLM
+  messages <- format_chat_messages(prompt$system, prompt$user)
+
+  qmd_content <- tryCatch({
+    chat_completion(api_key, model, messages)
+  }, error = function(e) {
+    return(list(qmd = NULL, error = paste("LLM error:", e$message)))
+  })
+
+  if (is.list(qmd_content) && !is.null(qmd_content$error)) {
+    return(qmd_content)
+  }
+
+  # Clean up response - remove markdown code fences if present
+  qmd_content <- gsub("^```(qmd|markdown|yaml)?\\n?", "", qmd_content)
+  qmd_content <- gsub("\\n?```$", "", qmd_content)
+  qmd_content <- trimws(qmd_content)
+
+  # Inject theme if specified
+  theme <- options$theme %||% "default"
+  if (theme != "default") {
+    qmd_content <- inject_theme_to_qmd(qmd_content, theme)
+  }
+
+  # Save to temp file
+  qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
+  writeLines(qmd_content, qmd_path)
+
+  list(qmd = qmd_content, qmd_path = qmd_path, error = NULL)
+}

@@ -96,3 +96,33 @@ test_that("render_qmd_to_html returns path or error", {
   unlink(qmd_path)
   unlink(result$path)
 })
+
+test_that("generate_slides returns qmd content", {
+  skip("Integration test - requires API key")
+
+  # This test documents the expected interface
+  chunks <- data.frame(
+    content = "Test content about machine learning.",
+    doc_name = "ml_paper.pdf",
+    page_number = 1,
+    stringsAsFactors = FALSE
+  )
+
+  options <- list(
+    length = "short",
+    audience = "general",
+    citation_style = "none",
+    include_notes = FALSE,
+    theme = "default"
+  )
+
+  result <- generate_slides(
+    api_key = "test-key",
+    model = "anthropic/claude-sonnet-4",
+    chunks = chunks,
+    options = options
+  )
+
+  expect_type(result, "list")
+  expect_true("qmd" %in% names(result) || "error" %in% names(result))
+})
