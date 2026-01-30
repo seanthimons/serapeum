@@ -109,3 +109,77 @@ list_models <- function(api_key) {
     stringsAsFactors = FALSE
   )
 }
+
+#' Get fallback embedding model list when API unavailable
+#' @return Data frame of embedding models with id, name, price_per_million
+get_default_embedding_models <- function() {
+  data.frame(
+    id = c("openai/text-embedding-3-small",
+           "openai/text-embedding-3-large",
+           "google/gemini-embedding-001",
+           "qwen/qwen3-embedding-8b",
+           "mistralai/mistral-embed-2312"),
+    name = c("OpenAI text-embedding-3-small ($0.02/M)",
+             "OpenAI text-embedding-3-large ($0.13/M)",
+             "Google Gemini Embedding ($0.15/M) - MTEB #1",
+             "Qwen3 Embedding 8B ($0.01/M) - Budget",
+             "Mistral Embed ($0.10/M)"),
+    price_per_million = c(0.02, 0.13, 0.15, 0.01, 0.10),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' List available embedding models from OpenRouter
+#' @param api_key API key
+#' @return Data frame of embedding models with id, name, price_per_million
+list_embedding_models <- function(api_key) {
+  if (is.null(api_key) || nchar(api_key) < 10) {
+    return(get_default_embedding_models())
+  }
+
+  req <- build_openrouter_request(api_key, "models")
+
+  resp <- tryCatch({
+    req_perform(req)
+  }, error = function(e) {
+    return(NULL)
+  })
+
+  if (is.null(resp)) {
+    return(get_default_embedding_models())
+  }
+
+  body <- resp_body_json(resp)
+
+  if (is.null(body$data)) {
+    return(get_default_embedding_models())
+  }
+
+  # Filter to embedding models only (architecture contains "embedding" or modality includes "embedding")
+  embedding_models <- Filter(function(m) {
+    arch <- tolower(m$architecture$modality %||% "")
+    id <- tolower(m$id %||% "")
+    grepl("embed", arch) || grepl("embed", id)
+  }, body$data)
+
+  if (length(embedding_models) == 0) {
+    return(get_default_embedding_models())
+  }
+
+  # Extract pricing info and format display names
+  df <- data.frame(
+    id = sapply(embedding_models, function(x) x$id),
+    name = sapply(embedding_models, function(x) {
+      price <- as.numeric(x$pricing$prompt %||% 0) * 1000000
+      price_str <- if (price > 0) sprintf("$%.2f/M", price) else "Free"
+      paste0(x$name %||% x$id, " (", price_str, ")")
+    }),
+    price_per_million = sapply(embedding_models, function(x) {
+      as.numeric(x$pricing$prompt %||% 0) * 1000000
+    }),
+    stringsAsFactors = FALSE
+  )
+
+  # Sort by price (cheapest first)
+  df[order(df$price_per_million), ]
+}

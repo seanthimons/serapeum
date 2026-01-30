@@ -41,11 +41,20 @@ mod_settings_ui <- function(id) {
                         "GPT-4o Mini" = "openai/gpt-4o-mini",
                         "Llama 3.1 70B" = "meta-llama/llama-3.1-70b-instruct"
                       )),
-          selectInput(ns("embed_model"), "Embedding Model",
-                      choices = c(
-                        "OpenAI text-embedding-3-small" = "openai/text-embedding-3-small",
-                        "OpenAI text-embedding-3-large" = "openai/text-embedding-3-large"
-                      )),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              selectizeInput(ns("embed_model"), "Embedding Model",
+                             choices = NULL,
+                             options = list(placeholder = "Loading models..."))
+            ),
+            actionButton(ns("refresh_embed_models"), NULL,
+                         icon = icon("refresh"),
+                         class = "btn-outline-secondary btn-sm",
+                         title = "Refresh model list",
+                         style = "margin-bottom: 15px;")
+          ),
           hr(),
           h5(icon("sliders"), " Advanced"),
           layout_columns(
@@ -71,6 +80,28 @@ mod_settings_ui <- function(id) {
 mod_settings_server <- function(id, con, config_rv) {
   moduleServer(id, function(input, output, session) {
 
+    # Reactive value to trigger model refresh
+    refresh_embed_trigger <- reactiveVal(0)
+
+    # Helper function to update embedding model choices
+    update_embed_model_choices <- function(api_key, current_selection = NULL) {
+      models <- list_embedding_models(api_key)
+      choices <- setNames(models$id, models$name)
+
+      # Preserve current selection if it exists in new choices
+      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+        current_selection
+      } else if (length(choices) > 0) {
+        choices[[1]]
+      } else {
+        NULL
+      }
+
+      updateSelectizeInput(session, "embed_model",
+                           choices = choices,
+                           selected = selected)
+    }
+
     # Load current settings on init
     observe({
       cfg <- config_rv()
@@ -90,10 +121,11 @@ mod_settings_server <- function(id, con, config_rv) {
                     "anthropic/claude-sonnet-4"
       updateSelectInput(session, "chat_model", selected = chat_model)
 
+      # Embedding model - get saved selection then populate dropdown
       embed_model <- get_db_setting(con(), "embedding_model") %||%
                      get_setting(cfg, "defaults", "embedding_model") %||%
                      "openai/text-embedding-3-small"
-      updateSelectInput(session, "embed_model", selected = embed_model)
+      update_embed_model_choices(or_key, embed_model)
 
       # Advanced
       chunk_size <- get_db_setting(con(), "chunk_size") %||%
@@ -104,6 +136,24 @@ mod_settings_server <- function(id, con, config_rv) {
                        get_setting(cfg, "app", "chunk_overlap") %||% 50
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
     }) |> bindEvent(config_rv(), once = TRUE)
+
+    # Refresh embedding models when API key changes (debounced)
+    observe({
+      api_key <- input$openrouter_key
+      refresh_embed_trigger()  # Also trigger on manual refresh
+
+      # Only refresh if API key looks valid
+      if (!is.null(api_key) && nchar(api_key) >= 10) {
+        current <- input$embed_model
+        update_embed_model_choices(api_key, current)
+      }
+    }) |> bindEvent(input$openrouter_key, refresh_embed_trigger(), ignoreInit = TRUE)
+
+    # Handle refresh button click
+    observeEvent(input$refresh_embed_models, {
+      refresh_embed_trigger(refresh_embed_trigger() + 1)
+      showNotification("Refreshing embedding models...", type = "message", duration = 2)
+    })
 
     # Save settings
     observeEvent(input$save, {
