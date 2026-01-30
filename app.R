@@ -2,6 +2,10 @@ library(shiny)
 library(bslib)
 library(DBI)
 library(duckdb)
+library(connections)
+
+# Options
+options("duckdb.enable_rstudio_connection_pane" = TRUE)
 
 # Source all R files
 for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
@@ -63,9 +67,7 @@ server <- function(input, output, session) {
 
   # Clean up on session end
   session$onSessionEnded(function() {
-    tryCatch({
-      DBI::dbDisconnect(con, shutdown = TRUE)
-    }, error = function(e) {})
+    close_db_connection(con)
   })
 
   # Startup notification for config file

@@ -46,8 +46,13 @@ mod_settings_ui <- function(id) {
             div(
               style = "flex-grow: 1;",
               selectizeInput(ns("embed_model"), "Embedding Model",
-                             choices = NULL,
-                             options = list(placeholder = "Loading models..."))
+                             choices = c(
+                               "OpenAI text-embedding-3-small ($0.02/M)" = "openai/text-embedding-3-small",
+                               "OpenAI text-embedding-3-large ($0.13/M)" = "openai/text-embedding-3-large",
+                               "Google Gemini Embedding ($0.15/M) - MTEB #1" = "google/gemini-embedding-001",
+                               "Qwen3 Embedding 8B ($0.01/M) - Budget" = "qwen/qwen3-embedding-8b",
+                               "Mistral Embed ($0.10/M)" = "mistralai/mistral-embed-2312"
+                             ))
             ),
             actionButton(ns("refresh_embed_models"), NULL,
                          icon = icon("refresh"),
@@ -83,6 +88,9 @@ mod_settings_server <- function(id, con, config_rv) {
     # Reactive value to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
 
+    # Track if we've initialized the embed model dropdown
+    embed_initialized <- reactiveVal(FALSE)
+
     # Helper function to update embedding model choices
     update_embed_model_choices <- function(api_key, current_selection = NULL) {
       models <- list_embedding_models(api_key)
@@ -102,8 +110,11 @@ mod_settings_server <- function(id, con, config_rv) {
                            selected = selected)
     }
 
-    # Load current settings on init
+    # Load settings when embed_model input becomes available (UI is rendered)
     observe({
+      req(input$embed_model)  # Wait for UI to exist
+      if (embed_initialized()) return()  # Only run once
+
       cfg <- config_rv()
 
       # API Keys - prefer DB settings, fall back to config file
@@ -121,11 +132,18 @@ mod_settings_server <- function(id, con, config_rv) {
                     "anthropic/claude-sonnet-4"
       updateSelectInput(session, "chat_model", selected = chat_model)
 
-      # Embedding model - get saved selection then populate dropdown
+      # Embedding model - get saved selection then populate dropdown with API models
       embed_model <- get_db_setting(con(), "embedding_model") %||%
                      get_setting(cfg, "defaults", "embedding_model") %||%
                      "openai/text-embedding-3-small"
-      update_embed_model_choices(or_key, embed_model)
+
+      # If we have an API key, fetch dynamic model list
+      if (nchar(or_key) >= 10) {
+        update_embed_model_choices(or_key, embed_model)
+      } else {
+        # Just select the saved model from defaults
+        updateSelectizeInput(session, "embed_model", selected = embed_model)
+      }
 
       # Advanced
       chunk_size <- get_db_setting(con(), "chunk_size") %||%
@@ -135,15 +153,17 @@ mod_settings_server <- function(id, con, config_rv) {
       chunk_overlap <- get_db_setting(con(), "chunk_overlap") %||%
                        get_setting(cfg, "app", "chunk_overlap") %||% 50
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
-    }) |> bindEvent(config_rv(), once = TRUE)
+
+      embed_initialized(TRUE)
+    })
 
     # Refresh embedding models when API key changes (debounced)
     observe({
       api_key <- input$openrouter_key
       refresh_embed_trigger()  # Also trigger on manual refresh
 
-      # Only refresh if API key looks valid
-      if (!is.null(api_key) && nchar(api_key) >= 10) {
+      # Only refresh if API key looks valid and we're initialized
+      if (embed_initialized() && !is.null(api_key) && nchar(api_key) >= 10) {
         current <- input$embed_model
         update_embed_model_choices(api_key, current)
       }

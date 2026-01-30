@@ -6,8 +6,28 @@ library(DBI)
 #' @return DuckDB connection object
 get_db_connection <- function(path = "data/notebooks.duckdb") {
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
-  con <- dbConnect(duckdb(), dbdir = path)
+
+  # Use connections package if available (shows in Connections pane for easier management)
+  if (requireNamespace("connections", quietly = TRUE)) {
+    con <- connections::connection_open(duckdb::duckdb(), path)
+  } else {
+    con <- dbConnect(duckdb(), dbdir = path)
+  }
   con
+}
+
+#' Close DuckDB connection safely
+#' @param con DuckDB connection (may be connConnection or standard DBI)
+close_db_connection <- function(con) {
+  tryCatch({
+    if (inherits(con, "connConnection") && requireNamespace("connections", quietly = TRUE)) {
+      connections::connection_close(con)
+    } else {
+      DBI::dbDisconnect(con, shutdown = TRUE)
+    }
+  }, error = function(e) {
+    message("Note: ", e$message)
+  })
 }
 
 #' Initialize database schema
