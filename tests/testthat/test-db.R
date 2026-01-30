@@ -118,3 +118,44 @@ test_that("settings operations work", {
   DBI::dbDisconnect(con, shutdown = TRUE)
   unlink(db_path)
 })
+
+test_that("get_chunks_for_documents returns chunks with source info", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  # Create notebook and document
+  nb_id <- create_notebook(con, "Test", "document")
+  doc_id <- create_document(con, nb_id, "test.pdf", "/path/test.pdf", "Full text", 5)
+
+  # Create chunks
+  create_chunk(con, doc_id, "document", 1, "Chunk one content", page_number = 1)
+  create_chunk(con, doc_id, "document", 2, "Chunk two content", page_number = 2)
+
+  # Fetch chunks
+  chunks <- get_chunks_for_documents(con, doc_id)
+
+  expect_equal(nrow(chunks), 2)
+  expect_true("doc_name" %in% names(chunks))
+  expect_true("page_number" %in% names(chunks))
+  expect_equal(chunks$doc_name[1], "test.pdf")
+})
+
+test_that("get_chunks_for_documents handles multiple document IDs", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- create_notebook(con, "Test", "document")
+  doc1_id <- create_document(con, nb_id, "doc1.pdf", "/path/doc1.pdf", "Text 1", 3)
+  doc2_id <- create_document(con, nb_id, "doc2.pdf", "/path/doc2.pdf", "Text 2", 2)
+
+  create_chunk(con, doc1_id, "document", 1, "Doc1 chunk", page_number = 1)
+  create_chunk(con, doc2_id, "document", 1, "Doc2 chunk", page_number = 1)
+
+  chunks <- get_chunks_for_documents(con, c(doc1_id, doc2_id))
+
+  expect_equal(nrow(chunks), 2)
+  expect_true("doc1.pdf" %in% chunks$doc_name)
+  expect_true("doc2.pdf" %in% chunks$doc_name)
+})

@@ -451,3 +451,39 @@ get_db_setting <- function(con, key) {
   if (nrow(result) == 0) return(NULL)
   jsonlite::fromJSON(result$value[1])
 }
+
+#' Get all chunks for specific documents with source info
+#' @param con DuckDB connection
+#' @param document_ids Vector of document IDs
+#' @return Data frame of chunks with document metadata
+get_chunks_for_documents <- function(con, document_ids) {
+  if (length(document_ids) == 0) {
+    return(data.frame(
+      id = character(),
+      source_id = character(),
+      chunk_index = integer(),
+      content = character(),
+      page_number = integer(),
+      doc_name = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Build parameterized query
+  placeholders <- paste(rep("?", length(document_ids)), collapse = ", ")
+  query <- sprintf("
+    SELECT
+      c.id,
+      c.source_id,
+      c.chunk_index,
+      c.content,
+      c.page_number,
+      d.filename as doc_name
+    FROM chunks c
+    JOIN documents d ON c.source_id = d.id
+    WHERE c.source_id IN (%s)
+    ORDER BY d.filename, c.chunk_index
+  ", placeholders)
+
+  dbGetQuery(con, query, as.list(document_ids))
+}
