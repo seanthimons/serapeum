@@ -1,0 +1,24 @@
+# Worktrees
+.worktrees/
+
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Environment
+.env
+config.yml
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Storage
+storage/
+
+# OS
+.DS_Store
+Thumbs.db
