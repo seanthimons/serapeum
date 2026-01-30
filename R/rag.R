@@ -2,22 +2,46 @@
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string
 build_context <- function(chunks) {
-  if (nrow(chunks) == 0) return("")
+  if (!is.data.frame(chunks) || nrow(chunks) == 0) return("")
 
-  contexts <- sapply(seq_len(nrow(chunks)), function(i) {
-    chunk <- chunks[i, ]
+  contexts <- vapply(seq_len(nrow(chunks)), function(i) {
+    chunk <- chunks[i, , drop = FALSE]
 
-    # Determine source label
-    if (!is.na(chunk$doc_name) && nchar(chunk$doc_name) > 0) {
-      source <- sprintf("[%s, p.%d]", chunk$doc_name, chunk$page_number)
-    } else if (!is.na(chunk$abstract_title) && nchar(chunk$abstract_title) > 0) {
-      source <- sprintf("[%s]", chunk$abstract_title)
-    } else {
-      source <- "[Source]"
+    # Safely extract scalar values (handle potential vector/NULL cases)
+    doc_name <- NA_character_
+    if ("doc_name" %in% names(chunk)) {
+      val <- chunk$doc_name
+      if (length(val) > 0) doc_name <- as.character(val)[1]
     }
 
-    sprintf("Source %s:\n%s", source, chunk$content)
-  })
+    abstract_title <- NA_character_
+    if ("abstract_title" %in% names(chunk)) {
+      val <- chunk$abstract_title
+      if (length(val) > 0) abstract_title <- as.character(val)[1]
+    }
+
+    page_number <- NA_integer_
+    if ("page_number" %in% names(chunk)) {
+      val <- chunk$page_number
+      if (length(val) > 0) page_number <- as.integer(val)[1]
+    }
+
+    content <- ""
+    if ("content" %in% names(chunk)) {
+      val <- chunk$content
+      if (length(val) > 0) content <- as.character(val)[1]
+    }
+
+    # Determine source label using safe scalar checks
+    source <- "[Source]"
+    if (!isTRUE(is.na(doc_name)) && isTRUE(nchar(doc_name) > 0)) {
+      source <- sprintf("[%s, p.%d]", doc_name, page_number)
+    } else if (!isTRUE(is.na(abstract_title)) && isTRUE(nchar(abstract_title) > 0)) {
+      source <- sprintf("[%s]", abstract_title)
+    }
+
+    sprintf("Source %s:\n%s", source, content)
+  }, FUN.VALUE = character(1))
 
   paste(contexts, collapse = "\n\n---\n\n")
 }
@@ -29,34 +53,56 @@ build_context <- function(chunks) {
 #' @param notebook_id Notebook to query
 #' @return Generated response with citations
 rag_query <- function(con, config, question, notebook_id) {
+  # Extract settings with defensive scalar checks
   api_key <- get_setting(config, "openrouter", "api_key")
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  if (length(api_key) > 1) api_key <- api_key[1]
 
-  if (is.null(api_key) || nchar(api_key) == 0) {
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(chat_model) > 1) chat_model <- chat_model[1]
+
+  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  if (length(embed_model) > 1) embed_model <- embed_model[1]
+
+  # Safely check api_key
+  api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
+                   (is.character(api_key) && nchar(api_key) == 0)
+  if (api_key_empty) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
   # Embed the question
   question_embedding <- tryCatch({
-    get_embeddings(api_key, embed_model, question)[[1]]
+    result <- get_embeddings(api_key, embed_model, question)
+    if (is.list(result) && length(result) > 0) result[[1]] else NULL
   }, error = function(e) {
     return(NULL)
   })
 
-  if (is.null(question_embedding)) {
+  if (is.null(question_embedding) || !is.numeric(question_embedding)) {
     return("Error: Failed to generate embeddings. Please check your API key and try again.")
   }
 
   # Search for relevant chunks
-  chunks <- search_chunks(con, question_embedding, notebook_id, limit = 5)
+  chunks <- tryCatch({
+    search_chunks(con, question_embedding, notebook_id, limit = 5)
+  }, error = function(e) {
+    return(data.frame())
+  })
 
-  if (nrow(chunks) == 0) {
+  if (!is.data.frame(chunks) || nrow(chunks) == 0) {
     return("I couldn't find any relevant information in your documents to answer this question. Make sure your documents have been processed and embedded.")
   }
 
   # Build context
-  context <- build_context(chunks)
+  context <- tryCatch({
+    build_context(chunks)
+  }, error = function(e) {
+    return("")
+  })
+
+  if (nchar(context) == 0) {
+    return("Error: Failed to build context from documents.")
+  }
 
   # Build prompt
   system_prompt <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. Always cite your sources using the format [Document Name, p.X] or [Paper Title]. If the sources don't contain enough information to fully answer the question, say so clearly."
@@ -95,9 +141,15 @@ generate_preset <- function(con, config, notebook_id, preset_type) {
   }
 
   api_key <- get_setting(config, "openrouter", "api_key")
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(api_key) > 1) api_key <- api_key[1]
 
-  if (is.null(api_key) || nchar(api_key) == 0) {
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(chat_model) > 1) chat_model <- chat_model[1]
+
+  # Safely check api_key
+  api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
+                   (is.character(api_key) && nchar(api_key) == 0)
+  if (api_key_empty) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
@@ -108,9 +160,11 @@ generate_preset <- function(con, config, notebook_id, preset_type) {
   }
 
   # Get chunks based on notebook type
+  # Select explicit columns to avoid pulling large embedding data
   if (notebook$type == "document") {
     chunks <- dbGetQuery(con, "
-      SELECT c.*, d.filename as doc_name
+      SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+             d.filename as doc_name, NULL as abstract_title
       FROM chunks c
       JOIN documents d ON c.source_id = d.id
       WHERE d.notebook_id = ?
@@ -119,7 +173,8 @@ generate_preset <- function(con, config, notebook_id, preset_type) {
     ", list(notebook_id))
   } else {
     chunks <- dbGetQuery(con, "
-      SELECT c.*, a.title as abstract_title
+      SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+             NULL as doc_name, a.title as abstract_title
       FROM chunks c
       JOIN abstracts a ON c.source_id = a.id
       WHERE a.notebook_id = ?

@@ -88,6 +88,59 @@ Current R-based approach is fine for:
 
 ---
 
+## 5. Quarto Slide Deck Generation
+
+**Priority:** Medium-High
+
+Generate presentation slides from notebook content using Quarto RevealJS.
+
+### Core Features
+- [ ] "Generate Slides" button in notebook view
+- [ ] LLM extracts key points, findings, and structure from chunks
+- [ ] Generate Quarto `.qmd` file with RevealJS format
+- [ ] Support different slide styles/themes
+- [ ] Include citations from source documents
+
+### Slide Generation Options
+- [ ] Presentation length (5/10/15 min estimates → slide count)
+- [ ] Audience level (technical, executive, general)
+- [ ] Focus area (select specific documents/abstracts to include)
+- [ ] Include/exclude speaker notes
+
+### Output
+- [ ] Preview rendered slides in-app (iframe or new tab)
+- [ ] Download `.qmd` source file for customization
+- [ ] Export to PDF/HTML directly
+
+### Technical Approach
+- [ ] Use LLM to structure content into logical sections
+- [ ] Generate YAML frontmatter with RevealJS options
+- [ ] Create hierarchical slides (# for sections, ## for slides)
+- [ ] Auto-generate speaker notes from fuller context
+- [ ] Handle images/figures from PDFs (stretch goal)
+
+### References
+- Quarto RevealJS: https://quarto.org/docs/presentations/revealjs/
+- RevealJS themes: https://quarto.org/docs/presentations/revealjs/#themes
+
+---
+
+## 6. Audio Overview Generation (Future)
+
+**Priority:** Low
+
+Generate podcast-style audio summaries of notebook content.
+
+- [ ] Research TTS APIs (ElevenLabs, OpenAI TTS, Azure)
+- [ ] Generate conversational script from content
+- [ ] Multi-voice dialogue option (NotebookLM style)
+- [ ] Background music/transitions
+- [ ] Export as MP3/WAV
+
+**Note:** More complex than slides - requires TTS API integration and audio processing.
+
+---
+
 ## Completed
 
 - [x] Basic document notebooks with PDF upload

@@ -59,7 +59,7 @@ mod_search_notebook_ui <- function(id) {
 #' @param con Database connection (reactive)
 #' @param notebook_id Reactive notebook ID
 #' @param config App config (reactive)
-mod_search_notebook_server <- function(id, con, notebook_id, config) {
+mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_refresh = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -314,6 +314,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config) {
       if (target == "__new__") {
         req(input$new_nb_name)
         target <- create_notebook(con(), input$new_nb_name, "document")
+        # Trigger sidebar refresh if callback provided
+        if (!is.null(notebook_refresh)) {
+          notebook_refresh(notebook_refresh() + 1)
+        }
       }
 
       # Get selected abstracts

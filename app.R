@@ -334,7 +334,7 @@ server <- function(input, output, session) {
   mod_document_notebook_server("doc_notebook", con_r, current_notebook, effective_config)
 
   # Search notebook module
-  mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config)
+  mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh)
 
   # Delete notebook
   observeEvent(input$delete_nb, {

@@ -88,12 +88,15 @@ init_schema <- function(con) {
 #' @return Notebook ID
 create_notebook <- function(con, name, type, search_query = NULL, search_filters = NULL) {
   id <- uuid::UUIDgenerate()
-  filters_json <- if (!is.null(search_filters)) jsonlite::toJSON(search_filters, auto_unbox = TRUE) else NA
+
+  # Convert NULL to NA for database binding (NULL has length 0, NA has length 1)
+  search_query_val <- if (is.null(search_query)) NA_character_ else search_query
+  filters_json <- if (!is.null(search_filters)) jsonlite::toJSON(search_filters, auto_unbox = TRUE) else NA_character_
 
   dbExecute(con, "
     INSERT INTO notebooks (id, name, type, search_query, search_filters)
     VALUES (?, ?, ?, ?, ?)
-  ", list(id, name, type, search_query, filters_json))
+  ", list(id, name, type, search_query_val, filters_json))
 
   id
 }
@@ -239,11 +242,18 @@ update_chunk_embedding <- function(con, chunk_id, embedding) {
 #' @param b Second vector
 #' @return Cosine similarity score
 cosine_similarity <- function(a, b) {
+  # Validate inputs are numeric vectors
+  if (!is.numeric(a) || !is.numeric(b)) return(0)
   if (length(a) != length(b)) return(0)
+  if (length(a) == 0) return(0)
+
   dot_product <- sum(a * b)
   norm_a <- sqrt(sum(a^2))
   norm_b <- sqrt(sum(b^2))
-  if (norm_a == 0 || norm_b == 0) return(0)
+
+  # Use single value comparison safely
+  if (isTRUE(norm_a == 0) || isTRUE(norm_b == 0)) return(0)
+
   dot_product / (norm_a * norm_b)
 }
 
@@ -251,12 +261,40 @@ cosine_similarity <- function(a, b) {
 #' @param embedding_str Comma-separated string like "0.1,0.2,0.3"
 #' @return Numeric vector
 parse_embedding <- function(embedding_str) {
-  if (is.na(embedding_str) || is.null(embedding_str) || embedding_str == "") {
+  # Handle NULL
+  if (is.null(embedding_str)) {
+    return(NULL)
+  }
+  # If already a numeric vector, return as-is
+  if (is.numeric(embedding_str)) {
+    return(embedding_str)
+  }
+  # Ensure we have a single string value
+  if (length(embedding_str) != 1) {
+    return(NULL)
+  }
+  # Handle NA and empty string (use isTRUE to safely check single value)
+  if (isTRUE(is.na(embedding_str)) || isTRUE(embedding_str == "")) {
     return(NULL)
   }
   # Handle both formats: with or without brackets
   cleaned <- gsub("^\\[|\\]$", "", embedding_str)
-  as.numeric(strsplit(cleaned, ",")[[1]])
+  # Split and trim whitespace from each element
+  parts <- trimws(strsplit(cleaned, ",")[[1]])
+  # Remove any empty strings
+  parts <- parts[nchar(parts) > 0]
+  if (length(parts) == 0) {
+    return(NULL)
+  }
+  # Convert to numeric, suppressing warnings for malformed data
+  result <- suppressWarnings(as.numeric(parts))
+  # If too many NAs, the data is likely corrupt - return NULL
+  if (sum(is.na(result)) > length(result) * 0.1) {
+    return(NULL)
+  }
+  # Replace any remaining NAs with 0
+  result[is.na(result)] <- 0
+  result
 }
 
 #' Search chunks by embedding similarity
@@ -301,11 +339,20 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
   }
 
   # Calculate similarity for each chunk in R
-  chunks$similarity <- sapply(chunks$embedding, function(emb_str) {
+  # Access embedding column as vector, then iterate
+  embedding_col <- as.character(chunks$embedding)
+  similarities <- numeric(nrow(chunks))
+
+  for (i in seq_len(nrow(chunks))) {
+    emb_str <- embedding_col[i]
     emb <- parse_embedding(emb_str)
-    if (is.null(emb)) return(0)
-    cosine_similarity(query_embedding, emb)
-  })
+    if (is.null(emb)) {
+      similarities[i] <- 0
+    } else {
+      similarities[i] <- cosine_similarity(query_embedding, emb)
+    }
+  }
+  chunks$similarity <- similarities
 
   # Sort by similarity and return top results
   chunks <- chunks[order(chunks$similarity, decreasing = TRUE), ]
