@@ -1,6 +1,8 @@
-# Notebook
+# Serapeum
 
-A local-first, self-hosted research tool inspired by NotebookLM. Built with R and Shiny.
+A local-first, self-hosted research assistant inspired by NotebookLM. Built with R and Shiny.
+
+*Named after the [Serapeum of Alexandria](https://en.wikipedia.org/wiki/Serapeum_of_Alexandria), the daughter library of the ancient Library of Alexandria.*
 
 ## Features
 
@@ -35,8 +37,8 @@ A local-first, self-hosted research tool inspired by NotebookLM. Built with R an
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/notebook.git
-cd notebook
+git clone https://github.com/seanthimons/serapeum.git
+cd serapeum
 
 # Install renv if not already installed
 install.packages("renv")
@@ -106,7 +108,7 @@ Open http://localhost:8080 in your browser.
 ## Project Structure
 
 ```
-notebook/
+serapeum/
 ├── app.R                 # Main Shiny app
 ├── config.yml            # Your config (gitignored)
 ├── config.example.yml    # Config template

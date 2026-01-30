@@ -23,7 +23,7 @@ ui <- page_sidebar(
   title = div(
     class = "d-flex align-items-center gap-2",
     icon("book-open"),
-    "Notebook"
+    "Serapeum"
   ),
   theme = bs_theme(
     preset = "shiny",
@@ -291,7 +291,7 @@ server <- function(input, output, session) {
           card_body(
             class = "text-center py-5",
             icon("book-open", class = "fa-4x text-primary mb-4"),
-            h2("Welcome to Notebook"),
+            h2("Welcome to Serapeum"),
             p(class = "lead text-muted",
               "Your AI-powered research assistant"),
             hr(class = "my-4"),

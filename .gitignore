@@ -22,3 +22,9 @@ storage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Dot folders
+.*/
+
+# Allow
+!.gitignore
