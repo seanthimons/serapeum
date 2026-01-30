@@ -68,6 +68,24 @@ server <- function(input, output, session) {
     }, error = function(e) {})
   })
 
+  # Startup notification for config file
+  observe({
+    if (!is.null(config_file)) {
+      has_openrouter <- !is.null(get_setting(config_file, "openrouter", "api_key")) &&
+                        nchar(get_setting(config_file, "openrouter", "api_key") %||% "") > 0
+      has_openalex <- !is.null(get_setting(config_file, "openalex", "email")) &&
+                      nchar(get_setting(config_file, "openalex", "email") %||% "") > 0
+
+      if (has_openrouter || has_openalex) {
+        msg <- "Config file detected. Loaded:"
+        if (has_openrouter) msg <- paste(msg, "OpenRouter API key")
+        if (has_openrouter && has_openalex) msg <- paste(msg, "+")
+        if (has_openalex) msg <- paste(msg, "OpenAlex email")
+        showNotification(msg, type = "message", duration = 5)
+      }
+    }
+  }) |> bindEvent(TRUE, once = TRUE)
+
   # Reactive: wrap connection for modules
   con_r <- reactive(con)
 

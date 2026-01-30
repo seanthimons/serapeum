@@ -68,6 +68,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config) {
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
 
+    # Reactive: check if API key is configured
+    has_api_key <- reactive({
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      !is.null(api_key) && nchar(api_key) > 0
+    })
+
     # Get papers for this notebook
     papers_data <- reactive({
       paper_refresh()
@@ -342,6 +349,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config) {
     output$messages <- renderUI({
       msgs <- messages()
 
+      # Check for API key first
+      if (!has_api_key()) {
+        return(
+          div(
+            class = "text-center py-5",
+            div(
+              class = "alert alert-warning",
+              icon("triangle-exclamation", class = "me-2"),
+              strong("OpenRouter API key not configured"),
+              p(class = "mb-0 mt-2 small",
+                "Go to Settings to add your API key. ",
+                "Get one at ", tags$a(href = "https://openrouter.ai/keys",
+                                      target = "_blank", "openrouter.ai/keys"))
+            )
+          )
+        )
+      }
+
       if (length(msgs) == 0) {
         return(
           div(
@@ -377,6 +402,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$send, {
       req(input$user_input)
       req(!is_processing())
+      req(has_api_key())
 
       user_msg <- trimws(input$user_input)
       if (nchar(user_msg) == 0) return()
