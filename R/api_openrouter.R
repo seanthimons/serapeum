@@ -149,9 +149,13 @@ list_embedding_models <- function(api_key) {
     return(get_default_embedding_models())
   }
 
-  body <- resp_body_json(resp)
+  body <- tryCatch({
+    resp_body_json(resp)
+  }, error = function(e) {
+    return(NULL)
+  })
 
-  if (is.null(body$data)) {
+  if (is.null(body) || is.null(body$data)) {
     return(get_default_embedding_models())
   }
 

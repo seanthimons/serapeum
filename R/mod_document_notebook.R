@@ -242,29 +242,44 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
-      tagList(
-        lapply(msgs, function(msg) {
-          if (msg$role == "user") {
+      # Build message list
+      msg_list <- lapply(msgs, function(msg) {
+        if (msg$role == "user") {
+          div(
+            class = "d-flex justify-content-end mb-2",
             div(
-              class = "d-flex justify-content-end mb-2",
-              div(
-                class = "bg-primary text-white p-2 rounded",
-                style = "max-width: 80%;",
-                msg$content
-              )
+              class = "bg-primary text-white p-2 rounded",
+              style = "max-width: 80%;",
+              msg$content
             )
-          } else {
+          )
+        } else {
+          div(
+            class = "d-flex justify-content-start mb-2",
             div(
-              class = "d-flex justify-content-start mb-2",
-              div(
-                class = "bg-white border p-2 rounded",
-                style = "max-width: 90%;",
-                HTML(gsub("\n", "<br/>", msg$content))
-              )
+              class = "bg-white border p-2 rounded",
+              style = "max-width: 90%;",
+              HTML(gsub("\n", "<br/>", msg$content))
             )
-          }
-        })
-      )
+          )
+        }
+      })
+
+      # Add loading spinner if processing
+      if (is_processing()) {
+        msg_list <- c(msg_list, list(
+          div(
+            class = "d-flex justify-content-start mb-2",
+            div(
+              class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
+              div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
+              span(class = "text-muted", "Thinking...")
+            )
+          )
+        ))
+      }
+
+      tagList(msg_list)
     })
 
     # Send message

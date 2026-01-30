@@ -46,9 +46,36 @@ ui <- page_sidebar(
       uiOutput("notebook_list")
     ),
     hr(),
-    # Settings link
-    actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
-               class = "text-muted")
+    # Settings and dark mode
+    div(
+      class = "d-flex justify-content-between align-items-center",
+      actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
+                 class = "text-muted"),
+      tags$button(
+        id = "dark_mode_toggle",
+        class = "btn btn-sm btn-outline-secondary",
+        onclick = "
+          const html = document.documentElement;
+          const current = html.getAttribute('data-bs-theme');
+          const next = current === 'dark' ? 'light' : 'dark';
+          html.setAttribute('data-bs-theme', next);
+          localStorage.setItem('theme', next);
+          this.innerHTML = next === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
+        ",
+        icon("moon")
+      )
+    ),
+    # Script to restore theme preference on load
+    tags$script(HTML("
+      document.addEventListener('DOMContentLoaded', function() {
+        const saved = localStorage.getItem('theme');
+        if (saved) {
+          document.documentElement.setAttribute('data-bs-theme', saved);
+          const btn = document.getElementById('dark_mode_toggle');
+          if (btn) btn.innerHTML = saved === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
+        }
+      });
+    "))
   ),
   # Main content
   uiOutput("main_content")
