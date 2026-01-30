@@ -6,6 +6,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.Renviron
 *.Rproj
 
 # Environment
