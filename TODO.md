@@ -90,34 +90,36 @@ Current R-based approach is fine for:
 
 ## 5. Quarto Slide Deck Generation
 
-**Priority:** Medium-High
+**Priority:** ~~Medium-High~~ **COMPLETED**
 
 Generate presentation slides from notebook content using Quarto RevealJS.
 
 ### Core Features
-- [ ] "Generate Slides" button in notebook view
-- [ ] LLM extracts key points, findings, and structure from chunks
-- [ ] Generate Quarto `.qmd` file with RevealJS format
-- [ ] Support different slide styles/themes
-- [ ] Include citations from source documents
+- [x] "Generate Slides" button in notebook view
+- [x] LLM extracts key points, findings, and structure from chunks
+- [x] Generate Quarto `.qmd` file with RevealJS format
+- [x] Support different slide styles/themes (11 RevealJS themes)
+- [x] Include citations from source documents (configurable style)
 
 ### Slide Generation Options
-- [ ] Presentation length (5/10/15 min estimates → slide count)
-- [ ] Audience level (technical, executive, general)
-- [ ] Focus area (select specific documents/abstracts to include)
-- [ ] Include/exclude speaker notes
+- [x] Presentation length (short/medium/long → slide count)
+- [x] Audience level (technical, executive, general)
+- [x] Focus area (select specific documents to include)
+- [x] Include/exclude speaker notes
+- [x] Model selection for generation
+- [x] Custom instructions field
 
 ### Output
-- [ ] Preview rendered slides in-app (iframe or new tab)
-- [ ] Download `.qmd` source file for customization
-- [ ] Export to PDF/HTML directly
+- [x] Preview rendered slides in-app (iframe)
+- [x] Download `.qmd` source file for customization
+- [x] Export to PDF/HTML directly
 
 ### Technical Approach
-- [ ] Use LLM to structure content into logical sections
-- [ ] Generate YAML frontmatter with RevealJS options
-- [ ] Create hierarchical slides (# for sections, ## for slides)
-- [ ] Auto-generate speaker notes from fuller context
-- [ ] Handle images/figures from PDFs (stretch goal)
+- [x] Use LLM to structure content into logical sections
+- [x] Generate YAML frontmatter with RevealJS options
+- [x] Create hierarchical slides (# for sections, ## for slides)
+- [x] Auto-generate speaker notes from fuller context
+- [ ] Handle images/figures from PDFs (stretch goal - not implemented)
 
 ### References
 - Quarto RevealJS: https://quarto.org/docs/presentations/revealjs/
@@ -148,3 +150,4 @@ Generate podcast-style audio summaries of notebook content.
 - [x] RAG chat with citations
 - [x] Preset generation (summary, key points, etc.)
 - [x] Settings page with model configuration
+- [x] Quarto slide deck generation
