@@ -286,12 +286,24 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
 create_abstract <- function(con, notebook_id, paper_id, title, authors,
                             abstract, year, venue, pdf_url) {
   id <- uuid::UUIDgenerate()
-  authors_json <- jsonlite::toJSON(authors, auto_unbox = TRUE)
+
+ # Handle edge cases
+  authors_json <- if (is.null(authors) || length(authors) == 0) {
+    "[]"
+  } else {
+    jsonlite::toJSON(authors, auto_unbox = TRUE)
+  }
+
+  # Convert NULL/empty to NA for proper binding
+  abstract_val <- if (is.null(abstract) || (is.character(abstract) && is.na(abstract))) NA_character_ else abstract
+  year_val <- if (is.null(year) || (is.numeric(year) && is.na(year))) NA_integer_ else as.integer(year)
+  venue_val <- if (is.null(venue) || (is.character(venue) && is.na(venue))) NA_character_ else venue
+  pdf_url_val <- if (is.null(pdf_url) || (is.character(pdf_url) && is.na(pdf_url))) NA_character_ else pdf_url
 
   dbExecute(con, "
     INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, year, venue, pdf_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, paper_id, title, authors_json, abstract, year, venue, pdf_url))
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, year_val, venue_val, pdf_url_val))
 
   id
 }
