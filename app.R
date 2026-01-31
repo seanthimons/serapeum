@@ -190,7 +190,9 @@ server <- function(input, output, session) {
   })
 
   # Observe notebook selection clicks
+  # Re-run when notebook_refresh changes (e.g., after creating/importing notebooks)
   observe({
+    notebook_refresh()
     notebooks <- list_notebooks(con)
     lapply(notebooks$id, function(nb_id) {
       observeEvent(input[[paste0("select_nb_", nb_id)]], {

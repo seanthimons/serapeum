@@ -35,7 +35,10 @@ mod_document_notebook_ui <- function(id) {
           actionButton(ns("btn_studyguide"), "Study Guide",
                        class = "btn-sm btn-outline-primary"),
           actionButton(ns("btn_outline"), "Outline",
-                       class = "btn-sm btn-outline-primary")
+                       class = "btn-sm btn-outline-primary"),
+          actionButton(ns("btn_slides"), "Slides",
+                       class = "btn-sm btn-outline-primary",
+                       icon = icon("file-powerpoint"))
         )
       ),
       card_body(
@@ -79,6 +82,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
+
+    # Reactive: slides trigger
+    slides_trigger <- reactiveVal(0)
 
     # Reactive: check if API key is configured
     has_api_key <- reactive({
@@ -347,5 +353,13 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_keypoints, handle_preset("keypoints", "Key Points"))
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
     observeEvent(input$btn_outline, handle_preset("outline", "Outline"))
+
+    # Slides module
+    mod_slides_server("slides", con, notebook_id, config, slides_trigger)
+
+    # Slides button
+    observeEvent(input$btn_slides, {
+      slides_trigger(slides_trigger() + 1)
+    })
   })
 }
