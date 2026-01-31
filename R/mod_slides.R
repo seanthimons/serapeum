@@ -265,9 +265,11 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       showModal(mod_slides_results_ui(ns))
 
       # Get chunks for selected documents
+      showNotification("Preparing content...", id = "slides_progress", duration = NULL, type = "message")
       chunks <- get_chunks_for_documents(con(), doc_ids)
 
       if (nrow(chunks) == 0) {
+        removeNotification("slides_progress")
         generation_state$error <- "No content found in selected documents"
         showModal(mod_slides_results_ui(ns, error = generation_state$error))
         return()
@@ -278,6 +280,10 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       notebook_name <- nb$name %||% "Presentation"
 
       # Generate slides
+      showNotification(
+        paste0("Generating slides with ", input$model, "..."),
+        id = "slides_progress", duration = NULL, type = "message"
+      )
       api_key <- get_setting(cfg, "openrouter", "api_key")
 
       result <- generate_slides(
@@ -289,6 +295,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       )
 
       if (!is.null(result$error)) {
+        removeNotification("slides_progress")
         generation_state$error <- result$error
         showModal(mod_slides_results_ui(ns, error = result$error))
         return()
@@ -298,9 +305,11 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       generation_state$qmd_path <- result$qmd_path
 
       # Render to HTML for preview
+      showNotification("Rendering preview with Quarto...", id = "slides_progress", duration = NULL, type = "message")
       html_result <- render_qmd_to_html(result$qmd_path)
 
       if (!is.null(html_result$error)) {
+        removeNotification("slides_progress")
         # Still show modal but with error, offer qmd download
         generation_state$error <- html_result$error
         showModal(mod_slides_results_ui(ns, error = paste("Preview failed:", html_result$error, "- You can still download the .qmd file")))
@@ -314,6 +323,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       addResourcePath("slides_preview", dirname(html_result$path))
       preview_url <- paste0("slides_preview/", preview_name)
 
+      removeNotification("slides_progress")
       showModal(mod_slides_results_ui(ns, preview_url = preview_url))
     })
 
