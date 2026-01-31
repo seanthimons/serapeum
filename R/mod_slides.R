@@ -1,18 +1,16 @@
 # R/mod_slides.R
 #' Slides Generation Modal UI
-#' @param id Module namespace ID
+#' @param ns Namespace function from session$ns
 #' @param documents Data frame of documents (id, filename)
 #' @param models Data frame of available models (id, name)
 #' @param current_model Currently selected model ID
-mod_slides_modal_ui <- function(id, documents, models, current_model) {
-  ns <- NS(id)
-
+mod_slides_modal_ui <- function(ns, documents, models, current_model) {
   # RevealJS themes
   themes <- c("default", "beige", "blood", "dark", "league",
               "moon", "night", "serif", "simple", "sky", "solarized")
 
   modalDialog(
-    title = tagList(icon("presentation-screen"), "Generate Slides"),
+    title = tagList(icon("file-powerpoint"), "Generate Slides"),
     size = "l",
     easyClose = FALSE,
 
@@ -115,11 +113,10 @@ mod_slides_modal_ui <- function(id, documents, models, current_model) {
 }
 
 #' Slides Results Modal UI
-#' @param id Module namespace ID
+#' @param ns Namespace function from session$ns
 #' @param preview_url URL to preview HTML (or NULL)
 #' @param error Error message (or NULL)
-mod_slides_results_ui <- function(id, preview_url = NULL, error = NULL) {
-  ns <- NS(id)
+mod_slides_results_ui <- function(ns, preview_url = NULL, error = NULL) {
 
   content <- if (!is.null(error)) {
     div(
@@ -153,7 +150,7 @@ mod_slides_results_ui <- function(id, preview_url = NULL, error = NULL) {
   }
 
   modalDialog(
-    title = tagList(icon("presentation-screen"), "Generated Slides"),
+    title = tagList(icon("file-powerpoint"), "Generated Slides"),
     size = "xl",
     easyClose = FALSE,
     content,
@@ -236,7 +233,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       generation_state$html_path <- NULL
       generation_state$error <- NULL
 
-      showModal(mod_slides_modal_ui(id, docs, models, current_model))
+      showModal(mod_slides_modal_ui(ns, docs, models, current_model))
     }, ignoreInit = TRUE)
 
     # Handle generation
@@ -265,14 +262,14 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       )
 
       # Show loading modal
-      showModal(mod_slides_results_ui(id))
+      showModal(mod_slides_results_ui(ns))
 
       # Get chunks for selected documents
       chunks <- get_chunks_for_documents(con(), doc_ids)
 
       if (nrow(chunks) == 0) {
         generation_state$error <- "No content found in selected documents"
-        showModal(mod_slides_results_ui(id, error = generation_state$error))
+        showModal(mod_slides_results_ui(ns, error = generation_state$error))
         return()
       }
 
@@ -293,7 +290,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       if (!is.null(result$error)) {
         generation_state$error <- result$error
-        showModal(mod_slides_results_ui(id, error = result$error))
+        showModal(mod_slides_results_ui(ns, error = result$error))
         return()
       }
 
@@ -306,7 +303,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       if (!is.null(html_result$error)) {
         # Still show modal but with error, offer qmd download
         generation_state$error <- html_result$error
-        showModal(mod_slides_results_ui(id, error = paste("Preview failed:", html_result$error, "- You can still download the .qmd file")))
+        showModal(mod_slides_results_ui(ns, error = paste("Preview failed:", html_result$error, "- You can still download the .qmd file")))
         return()
       }
 
@@ -317,7 +314,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       addResourcePath("slides_preview", dirname(html_result$path))
       preview_url <- paste0("slides_preview/", preview_name)
 
-      showModal(mod_slides_results_ui(id, preview_url = preview_url))
+      showModal(mod_slides_results_ui(ns, preview_url = preview_url))
     })
 
     # Handle regeneration
@@ -339,7 +336,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
                        get_setting(cfg, "defaults", "chat_model") %||%
                        "anthropic/claude-sonnet-4"
 
-      showModal(mod_slides_modal_ui(id, docs, models, current_model))
+      showModal(mod_slides_modal_ui(ns, docs, models, current_model))
     })
 
     # Download handlers
