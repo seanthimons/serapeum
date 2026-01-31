@@ -138,7 +138,7 @@ mod_slides_results_ui <- function(ns, preview_url = NULL, error = NULL) {
         class = "d-flex gap-2 justify-content-center",
         downloadButton(ns("download_qmd"), "Download .qmd", class = "btn-outline-primary"),
         downloadButton(ns("download_html"), "Download HTML", class = "btn-outline-primary"),
-        downloadButton(ns("download_pdf"), "Download PDF", class = "btn-outline-secondary")
+        downloadButton(ns("download_pdf"), "Download PDF", class = "btn-outline-primary")
       )
     )
   } else {
@@ -388,7 +388,15 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
           pdf_result <- render_qmd_to_pdf(generation_state$qmd_path)
 
           if (!is.null(pdf_result$error)) {
-            showNotification(paste("PDF export failed:", pdf_result$error), type = "error")
+            showNotification(
+              tagList(
+                "PDF export failed: ", pdf_result$error,
+                tags$br(),
+                "Tip: Run ", tags$code("quarto install tinytex"), " in your terminal to enable PDF export."
+              ),
+              type = "error",
+              duration = 10
+            )
             return()
           }
 
