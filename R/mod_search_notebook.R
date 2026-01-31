@@ -12,9 +12,16 @@ mod_search_notebook_ui <- function(id) {
         card_header(
           class = "d-flex justify-content-between align-items-center",
           span("Papers"),
-          actionButton(ns("refresh_search"), "Refresh",
-                       class = "btn-sm btn-outline-secondary",
-                       icon = icon("rotate"))
+          div(
+            class = "d-flex gap-2",
+            actionButton(ns("edit_search"), NULL,
+                         class = "btn-sm btn-outline-secondary",
+                         icon = icon("pen-to-square"),
+                         title = "Edit Search"),
+            actionButton(ns("refresh_search"), "Refresh",
+                         class = "btn-sm btn-outline-secondary",
+                         icon = icon("rotate"))
+          )
         ),
         card_body(
           div(
@@ -364,8 +371,129 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
-    # Refresh search
-    observeEvent(input$refresh_search, {
+    # Edit search modal
+    observeEvent(input$edit_search, {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      nb <- get_notebook(con(), nb_id)
+      req(nb$type == "search")
+
+      # Parse existing filters
+      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      } else {
+        list()
+      }
+
+      showModal(modalDialog(
+        title = tagList(icon("pen-to-square"), " Edit Search"),
+        size = "m",
+
+        # Search terms
+        textInput(ns("edit_query"), "Search Terms",
+                  value = nb$search_query %||% "",
+                  placeholder = "e.g., deep learning medical imaging"),
+
+        # Search field selector
+        selectInput(ns("edit_search_field"), "Search In",
+                    choices = c(
+                      "All Fields" = "default",
+                      "Title Only" = "title",
+                      "Abstract Only" = "abstract",
+                      "Title & Abstract" = "title_and_abstract"
+                    ),
+                    selected = filters$search_field %||% "default"),
+
+        # Year range
+        layout_columns(
+          col_widths = c(6, 6),
+          numericInput(ns("edit_from_year"), "From Year",
+                       value = filters$from_year %||% 2020,
+                       min = 1900, max = 2030),
+          numericInput(ns("edit_to_year"), "To Year",
+                       value = filters$to_year %||% 2025,
+                       min = 1900, max = 2030)
+        ),
+
+        # Open access filter
+        checkboxInput(ns("edit_is_oa"), "Open Access Only",
+                      value = isTRUE(filters$is_oa)),
+
+        # Query preview (collapsible)
+        tags$details(
+          class = "mt-3",
+          tags$summary(class = "text-muted small cursor-pointer", "Show API Query"),
+          div(
+            class = "mt-2 p-2 bg-light rounded small font-monospace",
+            style = "word-break: break-all;",
+            uiOutput(ns("query_preview"))
+          )
+        ),
+
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("save_search"), "Save & Refresh", class = "btn-primary")
+        )
+      ))
+    })
+
+    # Query preview (reactive)
+    output$query_preview <- renderUI({
+      query <- input$edit_query %||% ""
+      from_year <- input$edit_from_year
+      to_year <- input$edit_to_year
+      search_field <- input$edit_search_field %||% "default"
+      is_oa <- input$edit_is_oa %||% FALSE
+
+      preview <- build_query_preview(query, from_year, to_year, search_field, is_oa)
+
+      tagList(
+        if (!is.null(preview$search)) {
+          div(tags$strong("search="), preview$search)
+        },
+        div(tags$strong("filter="), preview$filter)
+      )
+    })
+
+    # Trigger for programmatic refresh
+    search_refresh_trigger <- reactiveVal(0)
+
+    # Save edited search
+    observeEvent(input$save_search, {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      query <- trimws(input$edit_query %||% "")
+      if (nchar(query) == 0) {
+        showNotification("Search query cannot be empty", type = "error")
+        return()
+      }
+
+      filters <- list(
+        from_year = input$edit_from_year,
+        to_year = input$edit_to_year,
+        search_field = input$edit_search_field %||% "default",
+        is_oa = input$edit_is_oa %||% FALSE
+      )
+
+      # Update notebook
+      update_notebook(con(), nb_id, search_query = query, search_filters = filters)
+
+      removeModal()
+      showNotification("Search updated", type = "message")
+
+      # Trigger main content refresh (updates the header query display)
+      if (!is.null(notebook_refresh)) {
+        notebook_refresh(notebook_refresh() + 1)
+      }
+
+      # Trigger search refresh
+      search_refresh_trigger(search_refresh_trigger() + 1)
+    })
+
+    # Refresh search (triggered by button or save)
+    observeEvent(list(input$refresh_search, search_refresh_trigger()), ignoreInit = TRUE, {
       nb_id <- notebook_id()
       req(nb_id)
 
@@ -397,7 +525,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             api_key,
             from_year = filters$from_year,
             to_year = filters$to_year,
-            per_page = abstracts_count
+            per_page = abstracts_count,
+            search_field = filters$search_field %||% "default",
+            is_oa = filters$is_oa %||% FALSE
           )
         }, error = function(e) {
           showNotification(paste("Search error:", e$message),

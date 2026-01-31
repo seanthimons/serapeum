@@ -101,26 +101,59 @@ parse_openalex_work <- function(work) {
 #' @param from_year Filter by start year
 #' @param to_year Filter by end year
 #' @param per_page Results per page (max 200)
+#' @param search_field Field to search: "default", "title", "abstract", "title_and_abstract"
+#' @param is_oa Filter to open access only (boolean)
 #' @return List of parsed works
 search_papers <- function(query, email, api_key = NULL,
-                          from_year = NULL, to_year = NULL, per_page = 25) {
+                          from_year = NULL, to_year = NULL, per_page = 25,
+                          search_field = "default", is_oa = FALSE) {
 
-  # Build filter string
+  # Build filter components
   filters <- c("has_abstract:true")
+
   if (!is.null(from_year)) {
     filters <- c(filters, paste0("from_publication_date:", from_year, "-01-01"))
   }
   if (!is.null(to_year)) {
     filters <- c(filters, paste0("to_publication_date:", to_year, "-12-31"))
   }
+
+  # Open access filter
+  if (isTRUE(is_oa)) {
+    filters <- c(filters, "is_oa:true")
+  }
+
+  # Field-specific search - add to filters instead of using search param
+  use_search_param <- TRUE
+  if (!is.null(search_field) && search_field != "default" && nchar(query) > 0) {
+    if (search_field == "title") {
+      filters <- c(filters, paste0("title.search:", query))
+      use_search_param <- FALSE
+    } else if (search_field == "abstract") {
+      filters <- c(filters, paste0("abstract.search:", query))
+      use_search_param <- FALSE
+    } else if (search_field == "title_and_abstract") {
+      # OpenAlex doesn't support OR in filter, so we use title.search
+      # and let abstract.search be additive (AND). For true OR, we'd need
+      # to use the default search param. So for "title_and_abstract",
+      # use the default fulltext search which covers both.
+      use_search_param <- TRUE
+    }
+  }
+
   filter_str <- paste(filters, collapse = ",")
 
-  req <- build_openalex_request("works", email, api_key) |>
-    req_url_query(
-      search = query,
-      filter = filter_str,
-      per_page = per_page
-    )
+  # Build request
+  req <- build_openalex_request("works", email, api_key)
+
+  if (use_search_param && nchar(query) > 0) {
+    req <- req |> req_url_query(search = query)
+  }
+
+  req <- req |> req_url_query(
+    filter = filter_str,
+    per_page = per_page
+  )
 
   resp <- tryCatch({
     req_perform(req)
@@ -135,6 +168,47 @@ search_papers <- function(query, email, api_key = NULL,
   }
 
   lapply(body$results, parse_openalex_work)
+}
+
+#' Build API query preview string (for UI display)
+#' @param query Search query
+#' @param from_year Start year
+#' @param to_year End year
+#' @param search_field Field to search
+#' @param is_oa Open access filter
+#' @return List with search and filter strings
+build_query_preview <- function(query, from_year = NULL, to_year = NULL,
+                                 search_field = "default", is_oa = FALSE) {
+  filters <- c("has_abstract:true")
+
+  if (!is.null(from_year)) {
+    filters <- c(filters, paste0("from_publication_date:", from_year, "-01-01"))
+  }
+  if (!is.null(to_year)) {
+    filters <- c(filters, paste0("to_publication_date:", to_year, "-12-31"))
+  }
+
+  if (isTRUE(is_oa)) {
+    filters <- c(filters, "is_oa:true")
+  }
+
+  search_param <- NULL
+  if (!is.null(search_field) && search_field != "default" && nchar(query) > 0) {
+    if (search_field == "title") {
+      filters <- c(filters, paste0("title.search:", query))
+    } else if (search_field == "abstract") {
+      filters <- c(filters, paste0("abstract.search:", query))
+    } else {
+      search_param <- query
+    }
+  } else if (nchar(query) > 0) {
+    search_param <- query
+  }
+
+  list(
+    search = search_param,
+    filter = paste(filters, collapse = ",")
+  )
 }
 
 #' Get a single paper by ID

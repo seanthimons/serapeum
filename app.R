@@ -240,6 +240,17 @@ server <- function(input, output, session) {
                 placeholder = "e.g., Machine Learning Papers"),
       textInput("new_search_query", "Search Query",
                 placeholder = "e.g., deep learning medical imaging"),
+
+      # Search field selector
+      selectInput("search_field", "Search In",
+                  choices = c(
+                    "All Fields" = "default",
+                    "Title Only" = "title",
+                    "Abstract Only" = "abstract",
+                    "Title & Abstract" = "title_and_abstract"
+                  ),
+                  selected = "default"),
+
       layout_columns(
         col_widths = c(6, 6),
         numericInput("search_from_year", "From Year", value = 2020,
@@ -247,11 +258,44 @@ server <- function(input, output, session) {
         numericInput("search_to_year", "To Year", value = 2025,
                      min = 1900, max = 2030)
       ),
+
+      # Open access filter
+      checkboxInput("search_is_oa", "Open Access Only", value = FALSE),
+
+      # Query preview
+      tags$details(
+        class = "mt-3",
+        tags$summary(class = "text-muted small", "Show API Query"),
+        div(
+          class = "mt-2 p-2 bg-light rounded small font-monospace",
+          style = "word-break: break-all;",
+          uiOutput("create_query_preview")
+        )
+      ),
+
       footer = tagList(
         modalButton("Cancel"),
         actionButton("create_search_nb", "Create & Search", class = "btn-primary")
       )
     ))
+  })
+
+  # Query preview for create modal
+  output$create_query_preview <- renderUI({
+    query <- input$new_search_query %||% ""
+    from_year <- input$search_from_year
+    to_year <- input$search_to_year
+    search_field <- input$search_field %||% "default"
+    is_oa <- input$search_is_oa %||% FALSE
+
+    preview <- build_query_preview(query, from_year, to_year, search_field, is_oa)
+
+    tagList(
+      if (!is.null(preview$search)) {
+        div(tags$strong("search="), preview$search)
+      },
+      div(tags$strong("filter="), preview$filter)
+    )
   })
 
   # Create search notebook
@@ -263,7 +307,9 @@ server <- function(input, output, session) {
 
     filters <- list(
       from_year = input$search_from_year,
-      to_year = input$search_to_year
+      to_year = input$search_to_year,
+      search_field = input$search_field %||% "default",
+      is_oa = input$search_is_oa %||% FALSE
     )
 
     id <- create_notebook(con, name, "search",
@@ -277,6 +323,9 @@ server <- function(input, output, session) {
 
   # Main content switching
   output$main_content <- renderUI({
+    # Re-render when notebook is updated (e.g., search query changed)
+    notebook_refresh()
+
     view <- current_view()
     nb_id <- current_notebook()
 

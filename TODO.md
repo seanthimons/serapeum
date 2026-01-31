@@ -60,7 +60,37 @@ Re-add Semantic Scholar as an alternative/additional paper source.
 
 ---
 
-## 4. DuckDB Native Vector Search (Moonshot Prep)
+## 4. Enhanced OpenAlex Search Filters
+
+**Priority:** Medium
+
+Add more granular filtering options to the abstract search feature.
+
+### High Priority Filters
+- [ ] Document type (`type`: article, preprint, review, book, dissertation)
+- [ ] Author institution country (`authorships.institutions.country_code`)
+- [ ] Minimum citations (`cited_by_count:>N`)
+- [ ] Granular OA status (`oa_status`: gold, green, hybrid, bronze, closed)
+- [ ] Language filter (`language`: ISO codes like en, es, zh)
+
+### Medium Priority Filters
+- [ ] Journal/Source by ISSN (`primary_location.source.issn`)
+- [ ] Topics/Concepts (`primary_topic.id`, `concepts.id`)
+- [ ] Keywords (`keywords.keyword`)
+
+### Limitations to Note
+- No direct author name text search (requires OpenAlex ID or ORCID)
+- Journal search requires ID/ISSN, no text search for journal names
+
+### UI Considerations
+- Keep the modal clean - consider "Advanced" expandable section
+- Query preview already shows constructed filter string
+
+**Reference:** https://docs.openalex.org/api-entities/works/filter-works
+
+---
+
+## 5. DuckDB Native Vector Search (Moonshot Prep)
 
 **Priority:** Low (prep for large-scale use)
 
@@ -88,7 +118,7 @@ Current R-based approach is fine for:
 
 ---
 
-## 5. Quarto Slide Deck Generation
+## 6. Quarto Slide Deck Generation
 
 **Priority:** Medium-High
 
@@ -125,7 +155,7 @@ Generate presentation slides from notebook content using Quarto RevealJS.
 
 ---
 
-## 6. Audio Overview Generation (Future)
+## 7. Audio Overview Generation (Future)
 
 **Priority:** Low
 

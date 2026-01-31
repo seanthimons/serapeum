@@ -27,5 +27,8 @@ Thumbs.db
 # Dot folders
 .*/
 
+# Output/ Render files
+output/
+
 # Allow
 !.gitignore

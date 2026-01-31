@@ -451,3 +451,37 @@ get_db_setting <- function(con, key) {
   if (nrow(result) == 0) return(NULL)
   jsonlite::fromJSON(result$value[1])
 }
+
+#' Update a notebook's search query and filters
+#' @param con DuckDB connection
+#' @param id Notebook ID
+#' @param search_query New search query (NULL to keep existing)
+#' @param search_filters New filter list (NULL to keep existing)
+#' @return TRUE on success
+update_notebook <- function(con, id, search_query = NULL, search_filters = NULL) {
+  # Build dynamic update
+  updates <- c()
+  params <- list()
+
+  if (!is.null(search_query)) {
+    updates <- c(updates, "search_query = ?")
+    params <- c(params, list(search_query))
+  }
+
+  if (!is.null(search_filters)) {
+    filters_json <- jsonlite::toJSON(search_filters, auto_unbox = TRUE)
+    updates <- c(updates, "search_filters = ?")
+    params <- c(params, list(filters_json))
+  }
+
+  if (length(updates) == 0) return(TRUE)
+
+  # Always update timestamp
+  updates <- c(updates, "updated_at = CURRENT_TIMESTAMP")
+
+  sql <- paste0("UPDATE notebooks SET ", paste(updates, collapse = ", "), " WHERE id = ?")
+  params <- c(params, list(id))
+
+  dbExecute(con, sql, params)
+  TRUE
+}
