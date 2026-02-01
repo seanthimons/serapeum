@@ -439,7 +439,7 @@ server <- function(input, output, session) {
     req(nb_id)
 
     # Delete files
-    storage_dir <- file.path("storage", nb_id)
+    storage_dir <- file.path(".temp", "pdfs", nb_id)
     if (dir.exists(storage_dir)) {
       unlink(storage_dir, recursive = TRUE)
     }

@@ -142,8 +142,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       file <- input$upload_pdf
       cfg <- config()
 
-      # Create storage directory
-      storage_dir <- file.path("storage", nb_id)
+      # Create storage directory (.temp/pdfs for easy access and future image extraction)
+      storage_dir <- file.path(".temp", "pdfs", nb_id)
       dir.create(storage_dir, showWarnings = FALSE, recursive = TRUE)
 
       # Copy file to storage
