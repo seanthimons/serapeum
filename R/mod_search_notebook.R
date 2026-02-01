@@ -180,6 +180,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         checkbox_id <- paste0("select_", paper$id)
         is_viewed <- !is.null(current_viewed) && current_viewed == paper$id
 
+        # Check if PDF is available
+        has_pdf <- !is.na(paper$pdf_url) && nchar(paper$pdf_url) > 0
+
         div(
           class = paste("border-bottom py-2", if (is_viewed) "bg-light"),
           div(
@@ -201,7 +204,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                   div(class = "text-muted small fst-italic text-truncate", paper$venue)
                 }
               )
-            )
+            ),
+            # PDF download link (if available)
+            if (has_pdf) {
+              tags$a(
+                href = paper$pdf_url,
+                target = "_blank",
+                class = "btn btn-sm btn-outline-danger py-0 px-1 ms-1",
+                title = "View PDF",
+                icon("file-pdf")
+              )
+            }
           )
         )
       })
