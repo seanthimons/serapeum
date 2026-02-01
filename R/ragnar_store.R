@@ -6,7 +6,8 @@
 #' Check if ragnar is available
 #' @return TRUE if ragnar is installed and loadable
 ragnar_available <- function() {
- requireNamespace("ragnar", quietly = TRUE)
+ requireNamespace("ragnar", quietly = TRUE) &&
+   requireNamespace("digest", quietly = TRUE)
 }
 
 #' Get or create RagnarStore for chunk embeddings
@@ -179,15 +180,35 @@ retrieve_with_ragnar <- function(store, query, top_k = 5) {
   results <- ragnar::ragnar_retrieve(store, query, top_k = top_k)
 
   # Results come back with: text, origin, score (potentially)
-  # We need to parse page numbers from origin (format: "filename#page=N")
+  # Parse metadata from origin field based on format:
+  # - Documents: "filename#page=N"
+  # - Abstracts: "abstract:id"
   if (nrow(results) > 0 && "origin" %in% names(results)) {
+    results$source_type <- vapply(results$origin, function(o) {
+      if (grepl("^abstract:", o)) "abstract" else "document"
+    }, character(1))
+
     results$page_number <- vapply(results$origin, function(o) {
       match <- regmatches(o, regexec("#page=(\\d+)$", o))[[1]]
       if (length(match) >= 2) as.integer(match[2]) else NA_integer_
     }, integer(1))
 
     results$doc_name <- vapply(results$origin, function(o) {
-      sub("#page=\\d+$", "", o)
+      if (grepl("^abstract:", o)) {
+        NA_character_  # Abstracts don't have doc_name
+      } else {
+        sub("#page=\\d+$", "", o)
+      }
+    }, character(1))
+
+    results$abstract_title <- vapply(results$origin, function(o) {
+      if (grepl("^abstract:", o)) {
+        # For abstracts, we'd need to look up the title from DB
+        # For now, just mark as abstract
+        "[Abstract]"
+      } else {
+        NA_character_
+      }
     }, character(1))
   }
 

@@ -1,3 +1,11 @@
+#' Check if ragnar is available (local definition for sourcing order)
+#' @return TRUE if ragnar is installed and loadable
+if (!exists("ragnar_available")) {
+  ragnar_available <- function() {
+    requireNamespace("ragnar", quietly = TRUE)
+  }
+}
+
 #' Document Notebook Module UI
 #' @param id Module ID
 mod_document_notebook_ui <- function(id) {
@@ -174,6 +182,27 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                          chunk$chunk_index, chunk$content,
                          page_number = chunk$page_number)
           }
+        }
+
+        # Insert into ragnar store if available (for hybrid VSS+BM25 search)
+        incProgress(0.45, detail = "Building search index")
+        if (ragnar_available() && nrow(result$chunks) > 0) {
+          tryCatch({
+            # Get or create ragnar store
+            ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
+                                           "serapeum.ragnar.duckdb")
+            store <- get_ragnar_store(ragnar_store_path)
+
+            # Insert chunks (ragnar handles embedding internally)
+            insert_chunks_to_ragnar(store, result$chunks, doc_id, "document")
+
+            # Build/update the search index
+            build_ragnar_index(store)
+
+            message("Ragnar store updated for document: ", file$name)
+          }, error = function(e) {
+            message("Ragnar indexing skipped: ", e$message)
+          })
         }
 
         incProgress(0.5, detail = "Generating embeddings")

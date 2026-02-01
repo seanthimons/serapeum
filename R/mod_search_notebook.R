@@ -1,3 +1,11 @@
+#' Check if ragnar is available (local definition for sourcing order)
+#' @return TRUE if ragnar is installed and loadable
+if (!exists("ragnar_available")) {
+  ragnar_available <- function() {
+    requireNamespace("ragnar", quietly = TRUE)
+  }
+}
+
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
@@ -594,6 +602,44 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               }
             }
           }
+        }
+
+        # Index abstracts in ragnar store if available
+        incProgress(0.9, detail = "Building search index")
+        if (ragnar_available()) {
+          tryCatch({
+            # Get all abstracts for this notebook that have content
+            abstracts_to_index <- dbGetQuery(con(), "
+              SELECT a.id, a.title, a.abstract
+              FROM abstracts a
+              WHERE a.notebook_id = ? AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
+            ", list(nb_id))
+
+            if (nrow(abstracts_to_index) > 0) {
+              ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
+                                             "serapeum.ragnar.duckdb")
+              store <- get_ragnar_store(ragnar_store_path)
+
+              for (i in seq_len(nrow(abstracts_to_index))) {
+                abs_row <- abstracts_to_index[i, ]
+                # Create a simple chunk structure for abstracts
+                abs_chunks <- data.frame(
+                  content = abs_row$abstract,
+                  page_number = 1L,
+                  chunk_index = 0L,
+                  context = abs_row$title,
+                  origin = paste0("abstract:", abs_row$id),
+                  stringsAsFactors = FALSE
+                )
+                insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
+              }
+
+              build_ragnar_index(store)
+              message("Ragnar store updated with ", nrow(abstracts_to_index), " abstracts")
+            }
+          }, error = function(e) {
+            message("Ragnar indexing skipped: ", e$message)
+          })
         }
 
         incProgress(1, detail = "Done!")

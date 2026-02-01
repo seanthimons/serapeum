@@ -558,9 +558,26 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
             SELECT filename FROM documents WHERE notebook_id = ?
           ", list(notebook_id))
 
-          if (nrow(notebook_docs) > 0) {
-            results <- results[results$doc_name %in% notebook_docs$filename, ]
-          }
+          # Get abstract IDs for this notebook
+          notebook_abstracts <- dbGetQuery(con, "
+            SELECT id FROM abstracts WHERE notebook_id = ?
+          ", list(notebook_id))
+
+          # Filter results to only include items from this notebook
+          keep_rows <- vapply(seq_len(nrow(results)), function(i) {
+            origin <- results$origin[i]
+            if (grepl("^abstract:", origin)) {
+              # Extract abstract ID and check if it belongs to this notebook
+              abstract_id <- sub("^abstract:", "", origin)
+              abstract_id %in% notebook_abstracts$id
+            } else {
+              # Check if document filename belongs to this notebook
+              doc_name <- results$doc_name[i]
+              !is.na(doc_name) && doc_name %in% notebook_docs$filename
+            }
+          }, logical(1))
+
+          results <- results[keep_rows, , drop = FALSE]
         }
 
         # Limit and return
