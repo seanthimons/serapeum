@@ -53,8 +53,9 @@ Integrate ragnar's improved chunking and VSS-powered retrieval while preserving 
 - [x] Create `get_ragnar_store()` for store management
 - [x] Add `search_chunks_hybrid()` using ragnar retrieval
 - [x] Fallback to legacy `search_chunks()` when ragnar unavailable
-- [ ] Modify `create_chunk()` to insert into ragnar store (TODO)
-- [ ] Build ragnar index after document upload (TODO)
+- [x] Wire up PDF upload to insert into ragnar store (mod_document_notebook.R)
+- [x] Wire up abstract save to insert into ragnar store (mod_search_notebook.R)
+- [x] Build ragnar index after document/abstract upload
 
 ### Phase 4: Update RAG queries (R/rag.R) ✅ DONE
 - [x] Update `rag_query()` to try ragnar first, fallback to legacy
@@ -71,6 +72,56 @@ Integrate ragnar's improved chunking and VSS-powered retrieval while preserving 
 - [ ] Test full workflow: upload PDF → chunk → embed → query
 - [ ] Benchmark retrieval speed: ragnar vs legacy
 - [ ] Compare answer quality with identical questions
+
+---
+
+## How to Test
+
+### Prerequisites
+```r
+# Install ragnar (if not already installed)
+install.packages("ragnar")
+
+# Install digest (for hashing)
+install.packages("digest")
+
+# Set OpenAI API key for ragnar embeddings
+Sys.setenv(OPENAI_API_KEY = "sk-...")
+```
+
+### Test Steps
+
+1. **Start the app** from the experiment worktree:
+   ```r
+   setwd("C:/Users/sxthi/Documents/serapeum-ragnar-experiment")
+   shiny::runApp()
+   ```
+
+2. **Upload a PDF** to a document notebook:
+   - Should see "Building search index" in progress
+   - Check for `data/serapeum.ragnar.duckdb` file created
+
+3. **Ask a question** in the chat:
+   - Should use ragnar hybrid search if available
+   - Check console for "Ragnar search" vs "legacy embedding search" messages
+
+4. **Compare results** with main branch:
+   - Open main in separate R session
+   - Ask same question
+   - Compare answer quality and speed
+
+### Troubleshooting
+
+- If ragnar isn't being used, check:
+  - `ragnar_available()` returns TRUE
+  - OPENAI_API_KEY environment variable is set
+  - `data/serapeum.ragnar.duckdb` exists and has data
+
+- View ragnar store contents:
+  ```r
+  store <- ragnar::ragnar_store_connect("data/serapeum.ragnar.duckdb")
+  dplyr::tbl(store@con, "chunks")
+  ```
 
 ---
 
