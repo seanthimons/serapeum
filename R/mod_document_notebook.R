@@ -120,15 +120,39 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      # Register resource path for PDF downloads
+      pdf_dir <- file.path(".temp", "pdfs", nb_id)
+      if (dir.exists(pdf_dir)) {
+        resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
+        addResourcePath(resource_name, normalizePath(pdf_dir))
+      }
+
       lapply(seq_len(nrow(docs)), function(i) {
         doc <- docs[i, ]
+
+        # Build download URL
+        resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
+        download_url <- file.path(resource_name, doc$filename)
+
         div(
           class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom",
           div(
+            class = "d-flex align-items-center flex-grow-1 overflow-hidden",
             icon("file-pdf", class = "text-danger me-2"),
-            span(doc$filename, class = "text-truncate", style = "max-width: 150px;")
+            span(doc$filename, class = "text-truncate", style = "max-width: 120px;",
+                 title = doc$filename)
           ),
-          span(paste(doc$page_count, "pg"), class = "text-muted small")
+          div(
+            class = "d-flex align-items-center gap-2",
+            span(paste(doc$page_count, "pg"), class = "text-muted small"),
+            tags$a(
+              href = download_url,
+              download = doc$filename,
+              class = "btn btn-sm btn-outline-secondary py-0 px-1",
+              title = "Download PDF",
+              icon("download")
+            )
+          )
         )
       })
     })
