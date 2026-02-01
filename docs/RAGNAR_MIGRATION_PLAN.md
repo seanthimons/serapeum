@@ -85,8 +85,7 @@ install.packages("ragnar")
 # Install digest (for hashing)
 install.packages("digest")
 
-# Set OpenAI API key for ragnar embeddings
-Sys.setenv(OPENAI_API_KEY = "sk-...")
+# No separate OpenAI key needed - ragnar uses your existing OpenRouter API key!
 ```
 
 ### Test Steps
@@ -114,7 +113,7 @@ Sys.setenv(OPENAI_API_KEY = "sk-...")
 
 - If ragnar isn't being used, check:
   - `ragnar_available()` returns TRUE
-  - OPENAI_API_KEY environment variable is set
+  - OpenRouter API key is configured in Settings
   - `data/serapeum.ragnar.duckdb` exists and has data
 
 - View ragnar store contents:
