@@ -184,16 +184,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           }
         }
 
+        incProgress(0.5, detail = "Generating embeddings")
+
+        api_key <- get_setting(cfg, "openrouter", "api_key")
+        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
         # Insert into ragnar store if available (for hybrid VSS+BM25 search)
-        incProgress(0.45, detail = "Building search index")
-        if (ragnar_available() && nrow(result$chunks) > 0) {
+        # Uses same OpenRouter API key for embeddings
+        if (ragnar_available() && nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
+          incProgress(0.55, detail = "Building search index")
           tryCatch({
-            # Get or create ragnar store
             ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
                                            "serapeum.ragnar.duckdb")
-            store <- get_ragnar_store(ragnar_store_path)
+            store <- get_ragnar_store(ragnar_store_path,
+                                       openrouter_api_key = api_key,
+                                       embed_model = embed_model)
 
-            # Insert chunks (ragnar handles embedding internally)
+            # Insert chunks (ragnar handles embedding via OpenRouter)
             insert_chunks_to_ragnar(store, result$chunks, doc_id, "document")
 
             # Build/update the search index
@@ -204,11 +211,6 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             message("Ragnar indexing skipped: ", e$message)
           })
         }
-
-        incProgress(0.5, detail = "Generating embeddings")
-
-        api_key <- get_setting(cfg, "openrouter", "api_key")
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
         if (!is.null(api_key) && nchar(api_key) > 0 && nrow(result$chunks) > 0) {
           chunks_db <- list_chunks(con(), doc_id)

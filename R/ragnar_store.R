@@ -11,32 +11,69 @@ ragnar_available <- function() {
 }
 
 #' Get or create RagnarStore for chunk embeddings
+#'
+#' Uses OpenRouter for embeddings (same API key as chat), so no separate
+#' OpenAI key is required.
+#'
 #' @param path Path to the ragnar store database
-#' @param embed_model Embedding model to use (OpenAI model name)
-#' @param api_key OpenAI API key (if NULL, uses OPENAI_API_KEY env var)
+#' @param openrouter_api_key OpenRouter API key (required for new stores)
+#' @param embed_model Embedding model (OpenRouter format, e.g., "openai/text-embedding-3-small")
 #' @return RagnarStore object
 get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
-                              embed_model = "text-embedding-3-small",
-                              api_key = NULL) {
+                              openrouter_api_key = NULL,
+                              embed_model = "openai/text-embedding-3-small") {
   if (!ragnar_available()) {
     stop("ragnar package is required. Install with: install.packages('ragnar')")
   }
 
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
-  # Set API key in environment if provided
- if (!is.null(api_key)) {
-    Sys.setenv(OPENAI_API_KEY = api_key)
-  }
-
   if (file.exists(path)) {
     ragnar::ragnar_store_connect(path)
   } else {
+    # Require API key for new stores (needed to generate embeddings)
+    if (is.null(openrouter_api_key) || nchar(openrouter_api_key) == 0) {
+      stop("OpenRouter API key required to create new ragnar store")
+    }
+
+    # Create custom embed function using OpenRouter
+    embed_via_openrouter <- function(texts) {
+      # get_embeddings returns a list of numeric vectors
+      embeddings <- get_embeddings(openrouter_api_key, embed_model, texts)
+
+      # Convert to matrix format expected by ragnar (each row is an embedding)
+      do.call(rbind, embeddings)
+    }
+
     ragnar::ragnar_store_create(
       path,
-      embed = function(x) ragnar::embed_openai(x, model = embed_model)
+      embed = embed_via_openrouter
     )
   }
+}
+
+#' Connect to existing RagnarStore (for retrieval only)
+#'
+#' Unlike get_ragnar_store(), this only connects to existing stores and
+#' does not create new ones. Use this for search/retrieval operations.
+#'
+#' @param path Path to the ragnar store database
+#' @return RagnarStore object or NULL if store doesn't exist
+connect_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb") {
+  if (!ragnar_available()) {
+    return(NULL)
+  }
+
+  if (!file.exists(path)) {
+    return(NULL)
+  }
+
+  tryCatch({
+    ragnar::ragnar_store_connect(path)
+  }, error = function(e) {
+    message("Failed to connect to ragnar store: ", e$message)
+    NULL
+  })
 }
 
 #' Chunk text using ragnar's semantic chunking

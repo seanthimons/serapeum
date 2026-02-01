@@ -539,11 +539,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
                                   ragnar_store_path = "data/serapeum.ragnar.duckdb") {
 
-  # Try ragnar search if available
+  # Try ragnar search if available (connect only, don't create new store)
   if (ragnar_available() && file.exists(ragnar_store_path)) {
-    store <- ragnar_store %||% tryCatch({
-      get_ragnar_store(ragnar_store_path)
-    }, error = function(e) NULL)
+    store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     if (!is.null(store)) {
       results <- tryCatch({

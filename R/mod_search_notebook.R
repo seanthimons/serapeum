@@ -604,9 +604,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           }
         }
 
-        # Index abstracts in ragnar store if available
-        incProgress(0.9, detail = "Building search index")
-        if (ragnar_available()) {
+        # Index abstracts in ragnar store if available (uses same OpenRouter API key)
+        if (ragnar_available() && !is.null(api_key_or) && nchar(api_key_or) > 0) {
+          incProgress(0.9, detail = "Building search index")
           tryCatch({
             # Get all abstracts for this notebook that have content
             abstracts_to_index <- dbGetQuery(con(), "
@@ -618,7 +618,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             if (nrow(abstracts_to_index) > 0) {
               ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
                                              "serapeum.ragnar.duckdb")
-              store <- get_ragnar_store(ragnar_store_path)
+              store <- get_ragnar_store(ragnar_store_path,
+                                         openrouter_api_key = api_key_or,
+                                         embed_model = embed_model)
 
               for (i in seq_len(nrow(abstracts_to_index))) {
                 abs_row <- abstracts_to_index[i, ]
