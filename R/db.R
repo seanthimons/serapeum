@@ -580,6 +580,32 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           results <- results[keep_rows, , drop = FALSE]
         }
 
+        # Look up actual titles for abstract results
+        if (nrow(results) > 0 && "abstract_title" %in% names(results)) {
+          abstract_origins <- results$origin[grepl("^abstract:", results$origin)]
+          if (length(abstract_origins) > 0) {
+            abstract_ids <- sub("^abstract:", "", abstract_origins)
+            # Fetch titles from database
+            if (length(abstract_ids) > 0) {
+              placeholders <- paste(rep("?", length(abstract_ids)), collapse = ", ")
+              titles_df <- dbGetQuery(con, sprintf("
+                SELECT id, title FROM abstracts WHERE id IN (%s)
+              ", placeholders), as.list(abstract_ids))
+
+              # Update abstract_title for matching rows
+              for (i in seq_len(nrow(results))) {
+                if (grepl("^abstract:", results$origin[i])) {
+                  abs_id <- sub("^abstract:", "", results$origin[i])
+                  title_match <- titles_df$title[titles_df$id == abs_id]
+                  if (length(title_match) > 0) {
+                    results$abstract_title[i] <- title_match[1]
+                  }
+                }
+              }
+            }
+          }
+        }
+
         # Limit and return
         results <- head(results, limit)
 
