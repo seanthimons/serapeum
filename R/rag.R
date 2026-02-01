@@ -1,3 +1,11 @@
+#' Check if ragnar is available (local definition for sourcing order)
+#' @return TRUE if ragnar is installed and loadable
+if (!exists("ragnar_available")) {
+  ragnar_available <- function() {
+    requireNamespace("ragnar", quietly = TRUE)
+  }
+}
+
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string
@@ -47,12 +55,17 @@ build_context <- function(chunks) {
 }
 
 #' Generate RAG response
+#'
+#' Uses ragnar's hybrid VSS + BM25 search when available for improved retrieval.
+#' Falls back to legacy cosine similarity search otherwise.
+#'
 #' @param con Database connection
 #' @param config App config
 #' @param question User question
 #' @param notebook_id Notebook to query
+#' @param use_ragnar Try ragnar hybrid search first (default TRUE)
 #' @return Generated response with citations
-rag_query <- function(con, config, question, notebook_id) {
+rag_query <- function(con, config, question, notebook_id, use_ragnar = TRUE) {
   # Extract settings with defensive scalar checks
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
@@ -70,24 +83,39 @@ rag_query <- function(con, config, question, notebook_id) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
-  # Embed the question
-  question_embedding <- tryCatch({
-    result <- get_embeddings(api_key, embed_model, question)
-    if (is.list(result) && length(result) > 0) result[[1]] else NULL
-  }, error = function(e) {
-    return(NULL)
-  })
+  chunks <- NULL
 
-  if (is.null(question_embedding) || !is.numeric(question_embedding)) {
-    return("Error: Failed to generate embeddings. Please check your API key and try again.")
+  # Try ragnar hybrid search first (no need to pre-embed query)
+  if (use_ragnar && ragnar_available()) {
+    chunks <- tryCatch({
+      search_chunks_hybrid(con, question, notebook_id, limit = 5)
+    }, error = function(e) {
+      message("Ragnar search failed: ", e$message)
+      NULL
+    })
   }
 
-  # Search for relevant chunks
-  chunks <- tryCatch({
-    search_chunks(con, question_embedding, notebook_id, limit = 5)
-  }, error = function(e) {
-    return(data.frame())
-  })
+  # Fall back to legacy embedding-based search
+  if (is.null(chunks) || nrow(chunks) == 0) {
+    # Embed the question for legacy search
+    question_embedding <- tryCatch({
+      result <- get_embeddings(api_key, embed_model, question)
+      if (is.list(result) && length(result) > 0) result[[1]] else NULL
+    }, error = function(e) {
+      return(NULL)
+    })
+
+    if (is.null(question_embedding) || !is.numeric(question_embedding)) {
+      return("Error: Failed to generate embeddings. Please check your API key and try again.")
+    }
+
+    # Search for relevant chunks using legacy method
+    chunks <- tryCatch({
+      search_chunks(con, question_embedding, notebook_id, limit = 5)
+    }, error = function(e) {
+      return(data.frame())
+    })
+  }
 
   if (!is.data.frame(chunks) || nrow(chunks) == 0) {
     return("I couldn't find any relevant information in your documents to answer this question. Make sure your documents have been processed and embedded.")

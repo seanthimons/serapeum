@@ -521,3 +521,76 @@ get_chunks_for_documents <- function(con, document_ids) {
 
   dbGetQuery(con, query, as.list(document_ids))
 }
+
+#' Search chunks using ragnar's hybrid VSS + BM25 retrieval
+#'
+#' Uses ragnar's vector similarity search combined with BM25 text matching
+#' for improved retrieval quality. Falls back to legacy cosine similarity
+#' if ragnar is not available.
+#'
+#' @param con DuckDB connection (for metadata lookup)
+#' @param query Text query to search for
+#' @param notebook_id Limit to specific notebook
+#' @param limit Number of results
+#' @param ragnar_store Optional RagnarStore object (created if NULL and ragnar available)
+#' @param ragnar_store_path Path to ragnar store database
+#' @return Data frame of matching chunks with source info
+search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
+                                  ragnar_store = NULL,
+                                  ragnar_store_path = "data/serapeum.ragnar.duckdb") {
+
+  # Try ragnar search if available
+  if (ragnar_available() && file.exists(ragnar_store_path)) {
+    store <- ragnar_store %||% tryCatch({
+      get_ragnar_store(ragnar_store_path)
+    }, error = function(e) NULL)
+
+    if (!is.null(store)) {
+      results <- tryCatch({
+        retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
+      }, error = function(e) NULL)
+
+      if (!is.null(results) && nrow(results) > 0) {
+        # Filter by notebook if specified
+        if (!is.null(notebook_id)) {
+          # Get document filenames for this notebook
+          notebook_docs <- dbGetQuery(con, "
+            SELECT filename FROM documents WHERE notebook_id = ?
+          ", list(notebook_id))
+
+          if (nrow(notebook_docs) > 0) {
+            results <- results[results$doc_name %in% notebook_docs$filename, ]
+          }
+        }
+
+        # Limit and return
+        results <- head(results, limit)
+
+        # Ensure consistent column names
+        if (!"content" %in% names(results) && "text" %in% names(results)) {
+          results$content <- results$text
+        }
+
+        return(results)
+      }
+    }
+  }
+
+  # Fallback to legacy search (requires pre-computed embeddings)
+  message("Ragnar search not available, using legacy embedding search")
+  message("Note: Legacy search requires query to be pre-embedded")
+
+  # Return empty frame with expected structure
+  data.frame(
+    id = character(),
+    source_id = character(),
+    source_type = character(),
+    chunk_index = integer(),
+    content = character(),
+    page_number = integer(),
+    doc_name = character(),
+    abstract_title = character(),
+    similarity = numeric(),
+    stringsAsFactors = FALSE
+  )
+}
