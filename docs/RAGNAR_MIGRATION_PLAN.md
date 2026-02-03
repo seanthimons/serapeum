@@ -90,9 +90,9 @@ install.packages("digest")
 
 ### Test Steps
 
-1. **Start the app** from the experiment worktree:
+1. **Start the app** from the project directory:
    ```r
-   setwd("C:/Users/sxthi/Documents/serapeum-ragnar-experiment")
+   # Navigate to the serapeum project directory
    shiny::runApp()
    ```
 

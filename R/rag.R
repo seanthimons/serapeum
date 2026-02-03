@@ -1,10 +1,4 @@
-#' Check if ragnar is available (local definition for sourcing order)
-#' @return TRUE if ragnar is installed and loadable
-if (!exists("ragnar_available")) {
-  ragnar_available <- function() {
-    requireNamespace("ragnar", quietly = TRUE)
-  }
-}
+# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
 
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks

@@ -7,7 +7,7 @@ test_that("ragnar_available returns boolean", {
   expect_length(result, 1)
 })
 
-test_that("chunk_with_ragnar returns expected structure when ragnar unavailable", {
+test_that("chunk_with_ragnar returns expected structure when ragnar available", {
   skip_if_not(ragnar_available(), "ragnar not installed")
 
   # Simple test with mock pages
@@ -29,7 +29,7 @@ test_that("process_pdf falls back to word-based chunking without ragnar", {
   skip_if_not(file.exists("../../testdata/sample.pdf"), "No test PDF available")
 
   # Force fallback by setting use_ragnar = FALSE
- result <- process_pdf("../../testdata/sample.pdf", use_ragnar = FALSE)
+  result <- process_pdf("../../testdata/sample.pdf", use_ragnar = FALSE)
 
   expect_type(result, "list")
   expect_true("chunks" %in% names(result))
@@ -71,15 +71,25 @@ test_that("search_chunks_hybrid returns expected structure", {
   expect_true("content" %in% names(result) || nrow(result) == 0)
 })
 
-test_that("get_ragnar_store creates store when ragnar available", {
+test_that("get_ragnar_store requires API key for new stores", {
   skip_if_not(ragnar_available(), "ragnar not installed")
 
   tmp_store <- tempfile(fileext = ".ragnar.duckdb")
   on.exit(unlink(tmp_store))
 
-  # This should create a new store
-  store <- get_ragnar_store(tmp_store)
+  # Creating a new store without API key should error
+ expect_error(
+    get_ragnar_store(tmp_store),
+    "OpenRouter API key required"
+  )
+})
 
-  expect_true(!is.null(store))
-  expect_true(file.exists(tmp_store))
+test_that("connect_ragnar_store returns NULL for non-existent store", {
+  skip_if_not(ragnar_available(), "ragnar not installed")
+
+  tmp_store <- tempfile(fileext = ".ragnar.duckdb")
+
+  # Connecting to non-existent store should return NULL
+  result <- connect_ragnar_store(tmp_store)
+  expect_null(result)
 })

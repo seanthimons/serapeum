@@ -1,10 +1,4 @@
-#' Check if ragnar is available (local definition for sourcing order)
-#' @return TRUE if ragnar is installed and loadable
-if (!exists("ragnar_available")) {
-  ragnar_available <- function() {
-    requireNamespace("ragnar", quietly = TRUE)
-  }
-}
+# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
 
 #' Document Notebook Module UI
 #' @param id Module ID
@@ -213,6 +207,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         api_key <- get_setting(cfg, "openrouter", "api_key")
         embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
+        # Track if ragnar indexing succeeds (to avoid double embedding)
+        ragnar_indexed <- FALSE
+
         # Insert into ragnar store if available (for hybrid VSS+BM25 search)
         # Uses same OpenRouter API key for embeddings
         if (ragnar_available() && nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
@@ -230,13 +227,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             # Build/update the search index
             build_ragnar_index(store)
 
+            ragnar_indexed <- TRUE
             message("Ragnar store updated for document: ", file$name)
           }, error = function(e) {
             message("Ragnar indexing skipped: ", e$message)
           })
         }
 
-        if (!is.null(api_key) && nchar(api_key) > 0 && nrow(result$chunks) > 0) {
+        # Only generate legacy embeddings if ragnar indexing failed
+        # This avoids double API calls for the same content
+        if (!ragnar_indexed && !is.null(api_key) && nchar(api_key) > 0 && nrow(result$chunks) > 0) {
           chunks_db <- list_chunks(con(), doc_id)
 
           # Batch embed

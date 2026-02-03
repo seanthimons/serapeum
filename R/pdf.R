@@ -1,12 +1,6 @@
 library(pdftools)
 
-#' Check if ragnar is available (local definition for sourcing order)
-#' @return TRUE if ragnar is installed and loadable
-if (!exists("ragnar_available")) {
-  ragnar_available <- function() {
-    requireNamespace("ragnar", quietly = TRUE)
-  }
-}
+# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
 
 #' Extract text from PDF file
 #' @param path Path to PDF file
