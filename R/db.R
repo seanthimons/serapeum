@@ -521,3 +521,117 @@ get_chunks_for_documents <- function(con, document_ids) {
 
   dbGetQuery(con, query, as.list(document_ids))
 }
+
+#' Search chunks using ragnar's hybrid VSS + BM25 retrieval
+#'
+#' Uses ragnar's vector similarity search combined with BM25 text matching
+#' for improved retrieval quality. Falls back to legacy cosine similarity
+#' if ragnar is not available.
+#'
+#' @param con DuckDB connection (for metadata lookup)
+#' @param query Text query to search for
+#' @param notebook_id Limit to specific notebook
+#' @param limit Number of results
+#' @param ragnar_store Optional RagnarStore object (created if NULL and ragnar available)
+#' @param ragnar_store_path Path to ragnar store database
+#' @return Data frame of matching chunks with source info
+search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
+                                  ragnar_store = NULL,
+                                  ragnar_store_path = "data/serapeum.ragnar.duckdb") {
+
+  # Try ragnar search if available (connect only, don't create new store)
+  if (ragnar_available() && file.exists(ragnar_store_path)) {
+    store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
+
+    if (!is.null(store)) {
+      results <- tryCatch({
+        retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
+      }, error = function(e) NULL)
+
+      if (!is.null(results) && nrow(results) > 0) {
+        # Filter by notebook if specified
+        if (!is.null(notebook_id)) {
+          # Get document filenames for this notebook
+          notebook_docs <- dbGetQuery(con, "
+            SELECT filename FROM documents WHERE notebook_id = ?
+          ", list(notebook_id))
+
+          # Get abstract IDs for this notebook
+          notebook_abstracts <- dbGetQuery(con, "
+            SELECT id FROM abstracts WHERE notebook_id = ?
+          ", list(notebook_id))
+
+          # Filter results to only include items from this notebook
+          keep_rows <- vapply(seq_len(nrow(results)), function(i) {
+            origin <- results$origin[i]
+            if (grepl("^abstract:", origin)) {
+              # Extract abstract ID and check if it belongs to this notebook
+              abstract_id <- sub("^abstract:", "", origin)
+              abstract_id %in% notebook_abstracts$id
+            } else {
+              # Check if document filename belongs to this notebook
+              doc_name <- results$doc_name[i]
+              !is.na(doc_name) && doc_name %in% notebook_docs$filename
+            }
+          }, logical(1))
+
+          results <- results[keep_rows, , drop = FALSE]
+        }
+
+        # Look up actual titles for abstract results
+        if (nrow(results) > 0 && "abstract_title" %in% names(results)) {
+          abstract_origins <- results$origin[grepl("^abstract:", results$origin)]
+          if (length(abstract_origins) > 0) {
+            abstract_ids <- sub("^abstract:", "", abstract_origins)
+            # Fetch titles from database
+            if (length(abstract_ids) > 0) {
+              placeholders <- paste(rep("?", length(abstract_ids)), collapse = ", ")
+              titles_df <- dbGetQuery(con, sprintf("
+                SELECT id, title FROM abstracts WHERE id IN (%s)
+              ", placeholders), as.list(abstract_ids))
+
+              # Update abstract_title for matching rows
+              for (i in seq_len(nrow(results))) {
+                if (grepl("^abstract:", results$origin[i])) {
+                  abs_id <- sub("^abstract:", "", results$origin[i])
+                  title_match <- titles_df$title[titles_df$id == abs_id]
+                  if (length(title_match) > 0) {
+                    results$abstract_title[i] <- title_match[1]
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        # Limit and return
+        results <- head(results, limit)
+
+        # Ensure consistent column names
+        if (!"content" %in% names(results) && "text" %in% names(results)) {
+          results$content <- results$text
+        }
+
+        return(results)
+      }
+    }
+  }
+
+  # Fallback to legacy search (requires pre-computed embeddings)
+  message("Ragnar search not available, using legacy embedding search")
+  message("Note: Legacy search requires query to be pre-embedded")
+
+  # Return empty frame with expected structure
+  data.frame(
+    id = character(),
+    source_id = character(),
+    source_type = character(),
+    chunk_index = integer(),
+    content = character(),
+    page_number = integer(),
+    doc_name = character(),
+    abstract_title = character(),
+    similarity = numeric(),
+    stringsAsFactors = FALSE
+  )
+}

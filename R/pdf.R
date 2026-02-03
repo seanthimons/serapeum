@@ -1,5 +1,7 @@
 library(pdftools)
 
+# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
+
 #' Extract text from PDF file
 #' @param path Path to PDF file
 #' @return List with text (character vector per page) and page_count
@@ -56,13 +58,55 @@ chunk_text <- function(text, chunk_size = 500, overlap = 50) {
 }
 
 #' Process PDF into chunks with page numbers
+#'
+#' Uses ragnar's semantic chunking when available, falls back to word-based
+#' chunking otherwise. Preserves page numbers for citation accuracy.
+#'
 #' @param path Path to PDF
-#' @param chunk_size Words per chunk
-#' @param overlap Words of overlap
+#' @param chunk_size Words per chunk (legacy) or target characters (ragnar)
+#' @param overlap Words of overlap (legacy) or fraction (ragnar)
+#' @param use_ragnar Use ragnar semantic chunking if available (default TRUE)
+#' @param origin Document origin identifier for ragnar (defaults to filename)
 #' @return List with chunks data frame, full_text, and page_count
-process_pdf <- function(path, chunk_size = 500, overlap = 50) {
+process_pdf <- function(path, chunk_size = 500, overlap = 50,
+                        use_ragnar = TRUE, origin = NULL) {
   extracted <- extract_pdf_text(path)
 
+  # Default origin to filename
+  if (is.null(origin)) {
+    origin <- basename(path)
+  }
+
+  # Try ragnar semantic chunking if available and requested
+  if (use_ragnar && ragnar_available()) {
+    all_chunks <- tryCatch({
+      # Convert word-based params to ragnar's character-based params
+      # Approximate: 500 words ~= 2500 characters, 50 words overlap ~= 10%
+      target_size <- chunk_size * 5  # ~5 chars per word
+      target_overlap <- min(overlap / chunk_size, 0.5)  # fraction, cap at 0.5
+
+      chunk_with_ragnar(
+        pages = extracted$text,
+        origin = origin,
+        target_size = target_size,
+        target_overlap = target_overlap
+      )
+    }, error = function(e) {
+      message("Ragnar chunking failed, falling back to word-based: ", e$message)
+      NULL
+    })
+
+    if (!is.null(all_chunks) && nrow(all_chunks) > 0) {
+      return(list(
+        chunks = all_chunks,
+        full_text = paste(extracted$text, collapse = "\n\n"),
+        page_count = extracted$page_count,
+        chunking_method = "ragnar"
+      ))
+    }
+  }
+
+  # Fallback: original word-based chunking
   all_chunks <- data.frame(
     content = character(),
     page_number = integer(),
@@ -96,6 +140,7 @@ process_pdf <- function(path, chunk_size = 500, overlap = 50) {
   list(
     chunks = all_chunks,
     full_text = paste(extracted$text, collapse = "\n\n"),
-    page_count = extracted$page_count
+    page_count = extracted$page_count,
+    chunking_method = "word_based"
   )
 }

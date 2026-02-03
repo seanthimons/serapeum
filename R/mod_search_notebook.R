@@ -1,3 +1,13 @@
+# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
+
+#' Validate URL is safe for use in href (HTTP/HTTPS only)
+#' @param url URL to validate
+#' @return TRUE if URL is safe, FALSE otherwise
+is_safe_url <- function(url) {
+  if (is.na(url) || is.null(url) || nchar(url) == 0) return(FALSE)
+  grepl("^https?://", url, ignore.case = TRUE)
+}
+
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
@@ -172,6 +182,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         checkbox_id <- paste0("select_", paper$id)
         is_viewed <- !is.null(current_viewed) && current_viewed == paper$id
 
+        # Check if PDF is available (validate URL is safe HTTP/HTTPS)
+        has_pdf <- is_safe_url(paper$pdf_url)
+
         div(
           class = paste("border-bottom py-2", if (is_viewed) "bg-light"),
           div(
@@ -193,7 +206,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                   div(class = "text-muted small fst-italic text-truncate", paper$venue)
                 }
               )
-            )
+            ),
+            # PDF download link (if available)
+            if (has_pdf) {
+              tags$a(
+                href = paper$pdf_url,
+                target = "_blank",
+                class = "btn btn-sm btn-outline-danger py-0 px-1 ms-1",
+                title = "View PDF",
+                icon("file-pdf")
+              )
+            }
           )
         )
       })
@@ -311,8 +334,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           )
         },
 
-        # PDF link if available (opens external URL)
-        if (!is.na(paper$pdf_url) && nchar(paper$pdf_url) > 0) {
+        # PDF link if available (validate URL is safe HTTP/HTTPS)
+        if (is_safe_url(paper$pdf_url)) {
           div(
             class = "mt-3",
             tags$a(
@@ -565,11 +588,57 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         incProgress(0.8, detail = "Generating embeddings")
 
-        # Embed new abstracts
         api_key_or <- get_setting(cfg, "openrouter", "api_key")
         embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
-        if (!is.null(api_key_or) && nchar(api_key_or) > 0) {
+        # Track if ragnar indexing succeeds (to avoid double embedding)
+        ragnar_indexed <- FALSE
+
+        # Index abstracts in ragnar store if available (uses same OpenRouter API key)
+        if (ragnar_available() && !is.null(api_key_or) && nchar(api_key_or) > 0) {
+          incProgress(0.85, detail = "Building search index")
+          tryCatch({
+            # Get all abstracts for this notebook that have content
+            abstracts_to_index <- dbGetQuery(con(), "
+              SELECT a.id, a.title, a.abstract
+              FROM abstracts a
+              WHERE a.notebook_id = ? AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
+            ", list(nb_id))
+
+            if (nrow(abstracts_to_index) > 0) {
+              ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
+                                             "serapeum.ragnar.duckdb")
+              store <- get_ragnar_store(ragnar_store_path,
+                                         openrouter_api_key = api_key_or,
+                                         embed_model = embed_model)
+
+              for (i in seq_len(nrow(abstracts_to_index))) {
+                abs_row <- abstracts_to_index[i, ]
+                # Create a simple chunk structure for abstracts
+                abs_chunks <- data.frame(
+                  content = abs_row$abstract,
+                  page_number = 1L,
+                  chunk_index = 0L,
+                  context = abs_row$title,
+                  origin = paste0("abstract:", abs_row$id),
+                  stringsAsFactors = FALSE
+                )
+                insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
+              }
+
+              build_ragnar_index(store)
+              ragnar_indexed <- TRUE
+              message("Ragnar store updated with ", nrow(abstracts_to_index), " abstracts")
+            }
+          }, error = function(e) {
+            message("Ragnar indexing skipped: ", e$message)
+          })
+        }
+
+        # Only generate legacy embeddings if ragnar indexing failed
+        # This avoids double API calls for the same content
+        if (!ragnar_indexed && !is.null(api_key_or) && nchar(api_key_or) > 0) {
+          incProgress(0.9, detail = "Generating embeddings")
           # Get chunks without embeddings
           chunks <- dbGetQuery(con(), "
             SELECT c.* FROM chunks c

@@ -1,3 +1,5 @@
+# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
+
 #' Document Notebook Module UI
 #' @param id Module ID
 mod_document_notebook_ui <- function(id) {
@@ -112,15 +114,39 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      # Register resource path for PDF downloads
+      pdf_dir <- file.path(".temp", "pdfs", nb_id)
+      if (dir.exists(pdf_dir)) {
+        resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
+        addResourcePath(resource_name, normalizePath(pdf_dir))
+      }
+
       lapply(seq_len(nrow(docs)), function(i) {
         doc <- docs[i, ]
+
+        # Build download URL
+        resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
+        download_url <- file.path(resource_name, doc$filename)
+
         div(
           class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom",
           div(
+            class = "d-flex align-items-center flex-grow-1 overflow-hidden",
             icon("file-pdf", class = "text-danger me-2"),
-            span(doc$filename, class = "text-truncate", style = "max-width: 150px;")
+            span(doc$filename, class = "text-truncate", style = "max-width: 120px;",
+                 title = doc$filename)
           ),
-          span(paste(doc$page_count, "pg"), class = "text-muted small")
+          div(
+            class = "d-flex align-items-center gap-2",
+            span(paste(doc$page_count, "pg"), class = "text-muted small"),
+            tags$a(
+              href = download_url,
+              download = doc$filename,
+              class = "btn btn-sm btn-outline-secondary py-0 px-1",
+              title = "Download PDF",
+              icon("download")
+            )
+          )
         )
       })
     })
@@ -134,8 +160,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       file <- input$upload_pdf
       cfg <- config()
 
-      # Create storage directory
-      storage_dir <- file.path("storage", nb_id)
+      # Create storage directory (.temp/pdfs for easy access and future image extraction)
+      storage_dir <- file.path(".temp", "pdfs", nb_id)
       dir.create(storage_dir, showWarnings = FALSE, recursive = TRUE)
 
       # Copy file to storage
@@ -181,7 +207,36 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         api_key <- get_setting(cfg, "openrouter", "api_key")
         embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
-        if (!is.null(api_key) && nchar(api_key) > 0 && nrow(result$chunks) > 0) {
+        # Track if ragnar indexing succeeds (to avoid double embedding)
+        ragnar_indexed <- FALSE
+
+        # Insert into ragnar store if available (for hybrid VSS+BM25 search)
+        # Uses same OpenRouter API key for embeddings
+        if (ragnar_available() && nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
+          incProgress(0.55, detail = "Building search index")
+          tryCatch({
+            ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
+                                           "serapeum.ragnar.duckdb")
+            store <- get_ragnar_store(ragnar_store_path,
+                                       openrouter_api_key = api_key,
+                                       embed_model = embed_model)
+
+            # Insert chunks (ragnar handles embedding via OpenRouter)
+            insert_chunks_to_ragnar(store, result$chunks, doc_id, "document")
+
+            # Build/update the search index
+            build_ragnar_index(store)
+
+            ragnar_indexed <- TRUE
+            message("Ragnar store updated for document: ", file$name)
+          }, error = function(e) {
+            message("Ragnar indexing skipped: ", e$message)
+          })
+        }
+
+        # Only generate legacy embeddings if ragnar indexing failed
+        # This avoids double API calls for the same content
+        if (!ragnar_indexed && !is.null(api_key) && nchar(api_key) > 0 && nrow(result$chunks) > 0) {
           chunks_db <- list_chunks(con(), doc_id)
 
           # Batch embed
