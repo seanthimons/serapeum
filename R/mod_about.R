@@ -76,7 +76,7 @@ mod_about_ui <- function(id) {
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
                   tags$img(src = "https://raw.githubusercontent.com/rstudio/shiny/main/man/figures/logo.png",
-                           height = "30", alt = "shiny"),
+                           height = "30", alt = "shiny", onerror = "this.style.display='none'"),
                   span("shiny")
                 )
               )
@@ -90,7 +90,7 @@ mod_about_ui <- function(id) {
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
                   tags$img(src = "https://raw.githubusercontent.com/rstudio/bslib/main/man/figures/logo.png",
-                           height = "30", alt = "bslib"),
+                           height = "30", alt = "bslib", onerror = "this.style.display='none'"),
                   span("bslib")
                 )
               )
@@ -104,7 +104,7 @@ mod_about_ui <- function(id) {
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
                   tags$img(src = "https://duckdb.org/images/logo-dl/DuckDB_Logo-horizontal.png",
-                           height = "30", alt = "duckdb"),
+                           height = "30", alt = "duckdb", onerror = "this.style.display='none'"),
                   span("duckdb")
                 )
               )
@@ -118,7 +118,7 @@ mod_about_ui <- function(id) {
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
                   tags$img(src = "https://docs.ropensci.org/pdftools/logo.png",
-                           height = "30", alt = "pdftools"),
+                           height = "30", alt = "pdftools", onerror = "this.style.display='none'"),
                   span("pdftools")
                 )
               )
@@ -132,7 +132,7 @@ mod_about_ui <- function(id) {
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
                   tags$img(src = "https://raw.githubusercontent.com/r-lib/httr2/main/man/figures/logo.png",
-                           height = "30", alt = "httr2"),
+                           height = "30", alt = "httr2", onerror = "this.style.display='none'"),
                   span("httr2")
                 )
               )
@@ -146,7 +146,7 @@ mod_about_ui <- function(id) {
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
                   tags$img(src = "https://raw.githubusercontent.com/tidyverse/tidyverse/main/man/figures/logo.png",
-                           height = "30", alt = "tidyverse"),
+                           height = "30", alt = "tidyverse", onerror = "this.style.display='none'"),
                   span("tidyverse")
                 )
               )
