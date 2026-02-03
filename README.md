@@ -1,5 +1,9 @@
 # Serapeum
 
+[![GitHub](https://img.shields.io/badge/GitHub-seanthimons%2Fserapeum-181717?logo=github)](https://github.com/seanthimons/serapeum)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![R](https://img.shields.io/badge/R-%3E%3D%204.0-276DC3?logo=r)](https://www.r-project.org/)
+
 A local-first, self-hosted research assistant inspired by NotebookLM. Built with R and Shiny.
 
 *Named after the [Serapeum of Alexandria](https://en.wikipedia.org/wiki/Serapeum_of_Alexandria), the daughter library of the ancient Library of Alexandria.*
@@ -119,6 +123,7 @@ serapeum/
 │   ├── api_openalex.R    # OpenAlex client
 │   ├── pdf.R             # PDF utilities
 │   ├── rag.R             # RAG pipeline
+│   ├── mod_about.R       # About page
 │   ├── mod_document_notebook.R
 │   ├── mod_search_notebook.R
 │   └── mod_settings.R

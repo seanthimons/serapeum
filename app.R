@@ -50,11 +50,22 @@ ui <- page_sidebar(
       uiOutput("notebook_list")
     ),
     hr(),
-    # Settings and dark mode
+    # Settings, About, GitHub, and dark mode
     div(
-      class = "d-flex justify-content-between align-items-center",
+      class = "d-flex justify-content-between align-items-center mb-2",
       actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
                  class = "text-muted"),
+      actionLink("about_link", label = tagList(icon("info-circle"), "About"),
+                 class = "text-muted")
+    ),
+    div(
+      class = "d-flex justify-content-between align-items-center",
+      tags$a(
+        href = "https://github.com/seanthimons/serapeum",
+        target = "_blank",
+        class = "text-muted d-flex align-items-center gap-1",
+        icon("github"), "GitHub"
+      ),
       tags$button(
         id = "dark_mode_toggle",
         class = "btn btn-sm btn-outline-secondary",
@@ -208,6 +219,12 @@ server <- function(input, output, session) {
     current_notebook(NULL)
   })
 
+  # About link
+  observeEvent(input$about_link, {
+    current_view("about")
+    current_notebook(NULL)
+  })
+
   # New document notebook modal
   observeEvent(input$new_document_nb, {
     showModal(modalDialog(
@@ -333,6 +350,10 @@ server <- function(input, output, session) {
 
     if (view == "settings") {
       return(mod_settings_ui("settings"))
+    }
+
+    if (view == "about") {
+      return(mod_about_ui("about"))
     }
 
     if (view == "welcome" || is.null(nb_id)) {
