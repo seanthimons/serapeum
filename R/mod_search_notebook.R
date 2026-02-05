@@ -299,6 +299,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         paste(authors, collapse = ", ")
       }
 
+      # Parse keywords
+      keywords_ui <- NULL
+      if (!is.null(paper$keywords) && !is.na(paper$keywords) && nchar(paper$keywords) > 0) {
+        keywords <- tryCatch({
+          jsonlite::fromJSON(paper$keywords)
+        }, error = function(e) character())
+
+        if (length(keywords) > 0) {
+          keywords_ui <- div(
+            class = "mt-2",
+            tags$small(class = "text-muted", "Keywords: "),
+            lapply(keywords, function(k) {
+              span(class = "badge bg-secondary me-1", k)
+            })
+          )
+        }
+      }
+
       tagList(
         # Title
         h5(class = "mb-3", paper$title),
@@ -333,6 +351,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             "No abstract available for this paper."
           )
         },
+
+        # Keywords
+        keywords_ui,
 
         # PDF link if available (validate URL is safe HTTP/HTTPS)
         if (is_safe_url(paper$pdf_url)) {
