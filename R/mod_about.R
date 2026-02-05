@@ -213,6 +213,7 @@ mod_about_ui <- function(id) {
           tags$li(tags$strong("Not an Oracle:"), " AI responses may contain errors or inaccuracies. Always verify important information."),
           tags$li(tags$strong("Not Professional Advice:"), " Not a substitute for professional, medical, legal, or financial advice."),
           tags$li(tags$strong("Makes Mistakes:"), " AI can misinterpret documents and generate plausible but incorrect answers."),
+          tags$li(tags$strong("Not a Flotation Device:"), " Use at your own risk. The authors assume no liability for decisions based on AI-generated content."),
           tags$li(tags$strong("Research Tool Only:"), " Intended for exploratory research. Critical decisions should be based on original sources.")
         )
       ),
