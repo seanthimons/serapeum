@@ -210,7 +210,7 @@ mod_about_ui <- function(id) {
         p(class = "mb-2", tags$strong("Serapeum is a research tool powered by AI language models.")),
         tags$ul(
           class = "small mb-0",
-          tags$li(tags$strong("Not an Oracle:"), " AI responses may contain errors or inaccuracies. Always verify important information."),
+          tags$li(tags$strong("Not an Oracle:"), " AI-generated responses may contain errors, hallucinations, or inaccuracies. Always verify important information from primary sources."),
           tags$li(tags$strong("Not Professional Advice:"), " Not a substitute for professional, medical, legal, financial, or other expert advice."),
           tags$li(tags$strong("Makes Mistakes:"), " AI can misinterpret documents and generate plausible but incorrect answers."),
           tags$li(tags$strong("Not a Flotation Device:"), " Use at your own risk. The authors assume no liability for decisions based on AI-generated content."),
