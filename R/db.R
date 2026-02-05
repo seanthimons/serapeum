@@ -98,6 +98,14 @@ init_schema <- function(con) {
       value VARCHAR
     )
   ")
+
+  # Migrations: Add columns to existing tables if missing
+  # Migration: Add keywords column to abstracts table (added 2026-02-05)
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN keywords VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
 }
 
 #' Create a new notebook
