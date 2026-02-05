@@ -69,6 +69,7 @@ init_schema <- function(con) {
       title VARCHAR NOT NULL,
       authors VARCHAR,
       abstract VARCHAR,
+      keywords VARCHAR,
       year INTEGER,
       venue VARCHAR,
       pdf_url VARCHAR,
@@ -394,9 +395,10 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
 #' @param year Publication year
 #' @param venue Publication venue
 #' @param pdf_url URL to PDF
+#' @param keywords Character vector of keywords (optional)
 #' @return Abstract ID
 create_abstract <- function(con, notebook_id, paper_id, title, authors,
-                            abstract, year, venue, pdf_url) {
+                            abstract, year, venue, pdf_url, keywords = NULL) {
   id <- uuid::UUIDgenerate()
 
  # Handle edge cases
@@ -412,10 +414,17 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
   venue_val <- if (is.null(venue) || (is.character(venue) && is.na(venue))) NA_character_ else venue
   pdf_url_val <- if (is.null(pdf_url) || (is.character(pdf_url) && is.na(pdf_url))) NA_character_ else pdf_url
 
+  # Convert keywords to JSON (empty array if NULL)
+  keywords_json <- if (is.null(keywords) || length(keywords) == 0) {
+    "[]"
+  } else {
+    jsonlite::toJSON(keywords, auto_unbox = FALSE)
+  }
+
   dbExecute(con, "
-    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, year, venue, pdf_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, year_val, venue_val, pdf_url_val))
+    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val))
 
   id
 }

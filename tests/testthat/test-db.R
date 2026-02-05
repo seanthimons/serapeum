@@ -1,8 +1,14 @@
 library(testthat)
 
-# Source required files
-source(file.path(getwd(), "R", "config.R"))
-source(file.path(getwd(), "R", "db.R"))
+# Source required files from project root
+# Navigate up from tests/testthat to project root
+project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
+if (!file.exists(file.path(project_root, "R", "config.R"))) {
+  # Fallback: we may already be in project root (e.g., when run via Rscript from project root)
+  project_root <- getwd()
+}
+source(file.path(project_root, "R", "config.R"))
+source(file.path(project_root, "R", "db.R"))
 
 test_that("get_db_connection creates database file", {
   tmp_dir <- tempdir()
@@ -158,4 +164,48 @@ test_that("get_chunks_for_documents handles multiple document IDs", {
   expect_equal(nrow(chunks), 2)
   expect_true("doc1.pdf" %in% chunks$doc_name)
   expect_true("doc2.pdf" %in% chunks$doc_name)
+})
+
+test_that("create_abstract stores keywords", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  # Create a notebook first
+  nb_id <- create_notebook(con, "Test", "search")
+
+  # Create abstract with keywords
+  keywords <- c("machine learning", "neural networks", "deep learning")
+  create_abstract(
+    con, nb_id, "paper123", "Test Paper", list("Author One"),
+    "This is an abstract.", 2024, "Nature", "https://example.com/pdf",
+    keywords = keywords
+  )
+
+  # Retrieve and verify
+  abstracts <- list_abstracts(con, nb_id)
+  expect_equal(nrow(abstracts), 1)
+  expect_true("keywords" %in% names(abstracts))
+
+  stored_keywords <- jsonlite::fromJSON(abstracts$keywords[1])
+  expect_equal(stored_keywords, keywords)
+})
+
+test_that("create_abstract works without keywords (backward compatible)", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- create_notebook(con, "Test", "search")
+
+  # Create abstract without keywords parameter
+  create_abstract(
+    con, nb_id, "paper456", "Test Paper 2", list("Author Two"),
+    "Another abstract.", 2023, "Science", NULL
+  )
+
+  abstracts <- list_abstracts(con, nb_id)
+  expect_equal(nrow(abstracts), 1)
+  # Keywords should be empty JSON array or NULL
+  expect_true(is.na(abstracts$keywords[1]) || abstracts$keywords[1] == "[]")
 })
