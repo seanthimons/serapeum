@@ -34,6 +34,15 @@ mod_search_notebook_ui <- function(id) {
           )
         ),
         card_body(
+          # Filter controls
+          div(
+            class = "mb-2",
+            checkboxInput(
+              ns("filter_has_abstract"),
+              "Show only papers with abstracts",
+              value = TRUE
+            )
+          ),
           div(
             id = ns("paper_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
@@ -147,9 +156,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       list_abstracts(con(), nb_id)
     })
 
+    # Filtered papers based on "has abstract" checkbox
+    filtered_papers <- reactive({
+      papers <- papers_data()
+      if (nrow(papers) == 0) return(papers)
+
+      if (isTRUE(input$filter_has_abstract)) {
+        papers <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
+      }
+      papers
+    })
+
     # Paper list
     output$paper_list <- renderUI({
-      papers <- papers_data()
+      papers <- filtered_papers()
       current_viewed <- viewed_paper()
 
       if (nrow(papers) == 0) {
@@ -224,7 +244,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Observe paper view clicks
     observe({
-      papers <- papers_data()
+      papers <- filtered_papers()
       if (nrow(papers) == 0) return()
 
       lapply(papers$id, function(paper_id) {
@@ -236,7 +256,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Track selected papers (for import)
     observe({
-      papers <- papers_data()
+      papers <- filtered_papers()
       if (nrow(papers) == 0) return()
 
       selected <- character()
