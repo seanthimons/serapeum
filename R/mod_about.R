@@ -203,6 +203,22 @@ mod_about_ui <- function(id) {
 
       hr(class = "my-4"),
 
+      # Disclaimer
+      div(
+        class = "alert alert-warning",
+        h5(class = "alert-heading", icon("triangle-exclamation"), " Important Disclaimer"),
+        p(class = "mb-2", tags$strong("Serapeum is a research tool powered by AI language models.")),
+        tags$ul(
+          class = "small mb-0",
+          tags$li(tags$strong("Not an Oracle:"), " AI responses may contain errors or inaccuracies. Always verify important information."),
+          tags$li(tags$strong("Not Professional Advice:"), " Not a substitute for professional, medical, legal, or financial advice."),
+          tags$li(tags$strong("Makes Mistakes:"), " AI can misinterpret documents and generate plausible but incorrect answers."),
+          tags$li(tags$strong("Research Tool Only:"), " Intended for exploratory research. Critical decisions should be based on original sources.")
+        )
+      ),
+
+      hr(class = "my-4"),
+
       # Footer with naming
       div(
         class = "text-center text-muted",

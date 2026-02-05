@@ -146,6 +146,16 @@ testthat::test_dir("tests/testthat")
 
 Delete `data/notebooks.duckdb` to start fresh.
 
+## Disclaimer
+
+**Important**: Serapeum is a research tool powered by AI language models.
+
+- **Not an Oracle**: AI-generated responses may contain errors, hallucinations, or inaccuracies. Always verify important information from primary sources.
+- **Not Professional Advice**: This tool is not a substitute for professional, medical, legal, financial, or other expert advice.
+- **Makes Mistakes**: AI models can misinterpret documents, generate plausible-sounding but incorrect answers, and miss important context.
+- **Not a Flotation Device**: Use at your own risk. The authors and contributors assume no liability for decisions made based on AI-generated content.
+- **Research Tool Only**: Intended for exploratory research and learning. Critical decisions should be based on careful review of original sources.
+
 ## License
 
 MIT
