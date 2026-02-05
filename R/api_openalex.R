@@ -83,6 +83,15 @@ parse_openalex_work <- function(work) {
     pdf_url <- work$open_access$oa_url
   }
 
+  # Extract keywords
+  keywords <- character()
+  if (!is.null(work$keywords) && length(work$keywords) > 0) {
+    keywords <- sapply(work$keywords, function(k) {
+      if (!is.null(k$keyword)) k$keyword else ""
+    })
+    keywords <- keywords[keywords != ""]
+  }
+
   list(
     paper_id = paper_id,
     title = work$title %||% "Untitled",
@@ -90,7 +99,8 @@ parse_openalex_work <- function(work) {
     abstract = reconstruct_abstract(work$abstract_inverted_index),
     year = work$publication_year,
     venue = venue,
-    pdf_url = pdf_url
+    pdf_url = pdf_url,
+    keywords = as.list(keywords)
   )
 }
 
