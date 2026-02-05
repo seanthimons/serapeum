@@ -148,6 +148,48 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       !is.null(api_key) && nchar(api_key) > 0
     })
 
+    # Restore filter state when notebook changes
+    observe({
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      nb <- get_notebook(con(), nb_id)
+      req(nb$type == "search")
+
+      # Parse stored filters
+      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      } else {
+        list()
+      }
+
+      # Restore has_abstract filter (default TRUE for backward compatibility)
+      has_abstract <- if (!is.null(filters$has_abstract)) filters$has_abstract else TRUE
+      updateCheckboxInput(session, "filter_has_abstract", value = has_abstract)
+    })
+
+    # Save has_abstract filter when changed
+    observeEvent(input$filter_has_abstract, {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      nb <- get_notebook(con(), nb_id)
+      req(nb$type == "search")
+
+      # Parse existing filters
+      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      } else {
+        list()
+      }
+
+      # Update has_abstract filter
+      filters$has_abstract <- input$filter_has_abstract
+
+      # Save back to database
+      update_notebook(con(), nb_id, search_filters = filters)
+    }, ignoreInit = TRUE)
+
     # Get papers for this notebook
     papers_data <- reactive({
       paper_refresh()
@@ -534,11 +576,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         return()
       }
 
+      # Get existing filters to preserve has_abstract setting
+      nb <- get_notebook(con(), nb_id)
+      existing_filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      } else {
+        list()
+      }
+
       filters <- list(
         from_year = input$edit_from_year,
         to_year = input$edit_to_year,
         search_field = input$edit_search_field %||% "default",
-        is_oa = input$edit_is_oa %||% FALSE
+        is_oa = input$edit_is_oa %||% FALSE,
+        has_abstract = if (!is.null(existing_filters$has_abstract)) existing_filters$has_abstract else TRUE
       )
 
       # Update notebook
