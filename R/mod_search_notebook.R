@@ -577,7 +577,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           abstract_id <- create_abstract(
             con(), nb_id, paper$paper_id, paper$title,
             paper$authors, paper$abstract,
-            paper$year, paper$venue, paper$pdf_url
+            paper$year, paper$venue, paper$pdf_url,
+            keywords = paper$keywords
           )
 
           # Create chunk for abstract if available
