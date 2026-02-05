@@ -214,7 +214,7 @@ mod_about_ui <- function(id) {
           tags$li(tags$strong("Not Professional Advice:"), " Not a substitute for professional, medical, legal, financial, or other expert advice."),
           tags$li(tags$strong("Makes Mistakes:"), " AI models can misinterpret documents, generate plausible-sounding but incorrect answers, and miss important context."),
           tags$li(tags$strong("Not a Flotation Device:"), " Use at your own risk. The authors and contributors assume no liability for decisions made based on AI-generated content."),
-          tags$li(tags$strong("Research Tool Only:"), " Intended for exploratory research. Critical decisions should be based on original sources.")
+          tags$li(tags$strong("Research Tool Only:"), " Intended for exploratory research and learning. Critical decisions should be based on careful review of original sources.")
         )
       ),
 
