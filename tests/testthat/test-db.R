@@ -209,3 +209,32 @@ test_that("create_abstract works without keywords (backward compatible)", {
   # Keywords should be empty JSON array or NULL
   expect_true(is.na(abstracts$keywords[1]) || abstracts$keywords[1] == "[]")
 })
+
+test_that("notebook stores excluded_paper_ids", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- create_notebook(con, "Test", "search")
+
+  # Update with excluded papers
+  excluded <- c("W12345", "W67890")
+  update_notebook(con, nb_id, excluded_paper_ids = excluded)
+
+  # Retrieve and verify
+  nb <- get_notebook(con, nb_id)
+  stored_excluded <- jsonlite::fromJSON(nb$excluded_paper_ids)
+  expect_equal(stored_excluded, excluded)
+})
+
+test_that("notebook excluded_paper_ids defaults to empty array", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- create_notebook(con, "Test", "search")
+
+  nb <- get_notebook(con, nb_id)
+  # Should be NULL, NA, or empty JSON array
+  expect_true(is.na(nb$excluded_paper_ids) || nb$excluded_paper_ids == "[]" || is.null(nb$excluded_paper_ids))
+})

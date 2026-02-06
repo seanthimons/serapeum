@@ -106,6 +106,13 @@ init_schema <- function(con) {
   }, error = function(e) {
     # Column already exists, ignore
   })
+
+  # Migration: Add excluded_paper_ids column to notebooks table (added 2026-02-06)
+  tryCatch({
+    dbExecute(con, "ALTER TABLE notebooks ADD COLUMN excluded_paper_ids VARCHAR DEFAULT '[]'")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
 }
 
 #' Create a new notebook
@@ -474,8 +481,9 @@ get_db_setting <- function(con, key) {
 #' @param id Notebook ID
 #' @param search_query New search query (NULL to keep existing)
 #' @param search_filters New filter list (NULL to keep existing)
+#' @param excluded_paper_ids Character vector of paper IDs to exclude (NULL to keep existing)
 #' @return TRUE on success
-update_notebook <- function(con, id, search_query = NULL, search_filters = NULL) {
+update_notebook <- function(con, id, search_query = NULL, search_filters = NULL, excluded_paper_ids = NULL) {
   # Build dynamic update
   updates <- c()
   params <- list()
@@ -489,6 +497,12 @@ update_notebook <- function(con, id, search_query = NULL, search_filters = NULL)
     filters_json <- jsonlite::toJSON(search_filters, auto_unbox = TRUE)
     updates <- c(updates, "search_filters = ?")
     params <- c(params, list(filters_json))
+  }
+
+  if (!is.null(excluded_paper_ids)) {
+    excluded_json <- jsonlite::toJSON(excluded_paper_ids, auto_unbox = FALSE)
+    updates <- c(updates, "excluded_paper_ids = ?")
+    params <- c(params, list(excluded_json))
   }
 
   if (length(updates) == 0) return(TRUE)
