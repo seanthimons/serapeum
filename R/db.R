@@ -114,6 +114,18 @@ init_schema <- function(con) {
     # Column already exists, ignore
   })
 
+  # Migration: Add work_type columns to abstracts table (added 2026-02-06)
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN work_type VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN work_type_crossref VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+
   # Quality filter cache tables (added 2026-02-06)
   dbExecute(con, "
     CREATE TABLE IF NOT EXISTS predatory_publishers (

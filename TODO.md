@@ -90,27 +90,45 @@ Re-add Semantic Scholar as an alternative/additional paper source.
 
 **Effort:** Medium | **Impact:** High
 
-Add more granular filtering options to the abstract search feature.
+Add more granular filtering and richer metadata extraction from OpenAlex.
 
-### High Priority Filters
-- [ ] Document type (`type`: article, preprint, review, book, dissertation)
-- [ ] Author institution country (`authorships.institutions.country_code`)
-- [ ] Minimum citations (`cited_by_count:>N`)
-- [ ] Granular OA status (`oa_status`: gold, green, hybrid, bronze, closed)
-- [ ] Language filter (`language`: ISO codes like en, es, zh)
+### Phase 1: Document & Paper Type (Current Focus)
+| Item | Effort | Impact | Status |
+|------|--------|--------|--------|
+| Document type filter (`type`: article, preprint, review, book, dissertation) | Low | High | 🔄 In Progress |
+| Extract & display document type in UI | Low | High | 🔄 In Progress |
 
-### Medium Priority Filters
-- [ ] Journal/Source by ISSN (`primary_location.source.issn`)
-- [ ] Topics/Concepts (`primary_topic.id`, `concepts.id`)
-- [ ] Keywords (`keywords.keyword`)
+### Phase 2: OA Status & Citations
+| Item | Effort | Impact | Status |
+|------|--------|--------|--------|
+| Granular OA status filter (`oa_status`: gold, green, hybrid, bronze, closed) | Low | High | Pending |
+| Display OA status badges in paper list | Low | Medium | Pending |
+| Extract `referenced_works_count` (outgoing citations) | Low | Medium | Pending |
+| Extract FWCI (field-weighted citation impact) | Low | Medium | Pending |
+
+### Phase 3: Topics & Discovery
+| Item | Effort | Impact | Status |
+|------|--------|--------|--------|
+| Extract `primary_topic` hierarchy (domain → field → subfield → topic) | Medium | High | Pending |
+| Display topic info in paper detail view | Low | Medium | Pending |
+| Topic-based search suggestions (feeds into #10) | Medium | High | Pending |
+
+### Phase 4: Additional Filters
+| Item | Effort | Impact | Status |
+|------|--------|--------|--------|
+| Language filter (`language`: ISO codes like en, es, zh) | Low | Medium | Pending |
+| Author institution country (`authorships.institutions.country_code`) | Low | Medium | Pending |
+| Journal/Source by ISSN (`primary_location.source.issn`) | Medium | Low | Pending |
 
 ### Limitations to Note
 - No direct author name text search (requires OpenAlex ID or ORCID)
 - Journal search requires ID/ISSN, no text search for journal names
+- FWCI may be null for very recent papers
 
 ### UI Considerations
 - Keep the modal clean - consider "Advanced" expandable section
 - Query preview already shows constructed filter string
+- Use color-coded badges for OA status and document type
 
 **Reference:** https://docs.openalex.org/api-entities/works/filter-works
 
