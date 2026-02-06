@@ -13,7 +13,7 @@ Future enhancements for the Research Notebook tool.
 | #10: Meta-prompt for query building | Medium | High | ★★★★ |
 | #4: Enhanced OpenAlex filters | Medium | High | ★★★★ |
 | **Investments (High Effort, High Impact)** ||||
-| #7: Retraction/junk journal filtering | High | High | ★★★ |
+| ~~#7: Retraction/junk journal filtering~~ | ~~High~~ | ~~High~~ | ✅ DONE |
 | #8: Local model support | High | High | ★★★ |
 | #11: Recursive abstract searching | High | High | ★★★ |
 | **Moderate Value** ||||
@@ -195,14 +195,14 @@ Feature to see a histogram/heatmap of papers for the given year range. Visually 
 
 ---
 
-### #7: Retraction watch / junk journal filtering / journal impact
-**Effort:** High | **Impact:** High
+### ~~#7: Retraction watch / junk journal filtering / journal impact~~ ✅ COMPLETED
 
-Shouldn't include retracted papers. Need reliable source for junk journal registries.
-
-- [ ] Filter out retracted papers (check OpenAlex/Semantic Scholar handling)
-- [ ] Find junk journal registry source, add filter option
-- [ ] Evaluate journal impact/citation counts for "most-relevant" view
+Implemented in PR #16:
+- [x] Exclude retracted papers via OpenAlex API (`is_retracted:false`)
+- [x] Flag predatory journals/publishers with ⚠️ warning icon
+- [x] Local cache of quality data (Retraction Watch ~50k, predatoryjournals.org ~3k)
+- [x] Download quality data from Settings page
+- [x] Optional minimum citations filter
 
 ---
 
@@ -363,3 +363,4 @@ Move from R-based cosine similarity to in-database vector search for 100k+ chunk
 - [x] **#5**: Filter papers without abstracts (checkbox, X button, keyword delete, exclusion tracking)
 - [x] **#13**: Paper keywords from OpenAlex API (keyword panel with counts, click-to-delete)
 - [x] Deferred embedding workflow (Embed Papers button instead of auto-embed)
+- [x] **#7**: Quality filters (retraction exclusion, predatory journal flagging, citation filter)
