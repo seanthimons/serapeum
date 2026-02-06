@@ -83,11 +83,11 @@ parse_openalex_work <- function(work) {
     pdf_url <- work$open_access$oa_url
   }
 
-  # Extract keywords
+  # Extract keywords (OpenAlex uses display_name field)
   keywords <- character()
   if (!is.null(work$keywords) && length(work$keywords) > 0) {
     keywords <- sapply(work$keywords, function(k) {
-      if (!is.null(k$keyword)) k$keyword else ""
+      if (!is.null(k$display_name)) k$display_name else ""
     })
     keywords <- keywords[keywords != ""]
   }

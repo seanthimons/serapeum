@@ -27,9 +27,9 @@ test_that("parse_openalex_work extracts keywords", {
     ),
     open_access = list(oa_url = "https://example.com/paper.pdf"),
     keywords = list(
-      list(keyword = "machine learning"),
-      list(keyword = "artificial intelligence"),
-      list(keyword = "deep learning")
+      list(display_name = "machine learning", id = "kw1", score = 0.9),
+      list(display_name = "artificial intelligence", id = "kw2", score = 0.8),
+      list(display_name = "deep learning", id = "kw3", score = 0.7)
     )
   )
 
