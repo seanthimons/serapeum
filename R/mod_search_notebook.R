@@ -679,86 +679,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           }
         }
 
-        incProgress(0.8, detail = "Generating embeddings")
+        # NOTE: Embedding is now deferred - user must click "Embed Papers" button
+        # Old auto-embedding code removed (2026-02-06)
 
-        api_key_or <- get_setting(cfg, "openrouter", "api_key")
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
-
-        # Track if ragnar indexing succeeds (to avoid double embedding)
-        ragnar_indexed <- FALSE
-
-        # Index abstracts in ragnar store if available (uses same OpenRouter API key)
-        if (ragnar_available() && !is.null(api_key_or) && nchar(api_key_or) > 0) {
-          incProgress(0.85, detail = "Building search index")
-          tryCatch({
-            # Get all abstracts for this notebook that have content
-            abstracts_to_index <- dbGetQuery(con(), "
-              SELECT a.id, a.title, a.abstract
-              FROM abstracts a
-              WHERE a.notebook_id = ? AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
-            ", list(nb_id))
-
-            if (nrow(abstracts_to_index) > 0) {
-              ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
-                                             "serapeum.ragnar.duckdb")
-              store <- get_ragnar_store(ragnar_store_path,
-                                         openrouter_api_key = api_key_or,
-                                         embed_model = embed_model)
-
-              for (i in seq_len(nrow(abstracts_to_index))) {
-                abs_row <- abstracts_to_index[i, ]
-                # Create a simple chunk structure for abstracts
-                abs_chunks <- data.frame(
-                  content = abs_row$abstract,
-                  page_number = 1L,
-                  chunk_index = 0L,
-                  context = abs_row$title,
-                  origin = paste0("abstract:", abs_row$id),
-                  stringsAsFactors = FALSE
-                )
-                insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
-              }
-
-              build_ragnar_index(store)
-              ragnar_indexed <- TRUE
-              message("Ragnar store updated with ", nrow(abstracts_to_index), " abstracts")
-            }
-          }, error = function(e) {
-            message("Ragnar indexing skipped: ", e$message)
-          })
-        }
-
-        # Only generate legacy embeddings if ragnar indexing failed
-        # This avoids double API calls for the same content
-        if (!ragnar_indexed && !is.null(api_key_or) && nchar(api_key_or) > 0) {
-          incProgress(0.9, detail = "Generating embeddings")
-          # Get chunks without embeddings
-          chunks <- dbGetQuery(con(), "
-            SELECT c.* FROM chunks c
-            JOIN abstracts a ON c.source_id = a.id
-            WHERE a.notebook_id = ? AND c.embedding IS NULL
-          ", list(nb_id))
-
-          if (nrow(chunks) > 0) {
-            batch_size <- 10
-            for (i in seq(1, nrow(chunks), by = batch_size)) {
-              batch_end <- min(i + batch_size - 1, nrow(chunks))
-              batch <- chunks[i:batch_end, ]
-
-              embeddings <- tryCatch({
-                get_embeddings(api_key_or, embed_model, batch$content)
-              }, error = function(e) NULL)
-
-              if (!is.null(embeddings)) {
-                for (j in seq_along(embeddings)) {
-                  update_chunk_embedding(con(), batch$id[j], embeddings[[j]])
-                }
-              }
-            }
-          }
-        }
-
-        incProgress(1, detail = "Done!")
+        incProgress(1.0, detail = "Done")
       })
 
       paper_refresh(paper_refresh() + 1)
