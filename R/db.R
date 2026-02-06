@@ -782,22 +782,24 @@ update_quality_cache_meta <- function(con, source, record_count) {
 #' @param normalize_fn Function to normalize names
 #' @return Number of records inserted
 cache_predatory_publishers <- function(con, publishers, normalize_fn) {
-  # Clear existing data
+  message("[quality_cache] Caching ", nrow(publishers), " publishers...")
 
-dbExecute(con, "DELETE FROM predatory_publishers")
+  # Clear existing data
+  dbExecute(con, "DELETE FROM predatory_publishers")
 
   if (nrow(publishers) == 0) return(0)
 
-  # Prepare data
-  publishers$name_normalized <- sapply(publishers$name, normalize_fn)
+  # Prepare data frame for bulk insert
+  publishers_clean <- data.frame(
+    id = seq_len(nrow(publishers)),
+    name = as.character(publishers$name),
+    name_normalized = vapply(publishers$name, normalize_fn, character(1)),
+    updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    stringsAsFactors = FALSE
+  )
 
-  # Insert in batches
-  for (i in seq_len(nrow(publishers))) {
-    dbExecute(con, "
-      INSERT INTO predatory_publishers (id, name, name_normalized)
-      VALUES (?, ?, ?)
-    ", list(i, publishers$name[i], publishers$name_normalized[i]))
-  }
+  # Bulk insert
+  dbWriteTable(con, "predatory_publishers", publishers_clean, append = TRUE)
 
   update_quality_cache_meta(con, "predatory_publishers", nrow(publishers))
   nrow(publishers)
@@ -809,24 +811,29 @@ dbExecute(con, "DELETE FROM predatory_publishers")
 #' @param normalize_fn Function to normalize names
 #' @return Number of records inserted
 cache_predatory_journals <- function(con, journals, normalize_fn) {
+  message("[quality_cache] Caching ", nrow(journals), " journals...")
+
   # Clear existing data
   dbExecute(con, "DELETE FROM predatory_journals")
 
   if (nrow(journals) == 0) return(0)
 
-  # Prepare data
-  journals$name_normalized <- sapply(journals$name, normalize_fn)
+  # Prepare data frame for bulk insert
   if (!"is_hijacked" %in% names(journals)) {
     journals$is_hijacked <- FALSE
   }
 
-  # Insert in batches
-  for (i in seq_len(nrow(journals))) {
-    dbExecute(con, "
-      INSERT INTO predatory_journals (id, name, name_normalized, is_hijacked)
-      VALUES (?, ?, ?, ?)
-    ", list(i, journals$name[i], journals$name_normalized[i], journals$is_hijacked[i]))
-  }
+  journals_clean <- data.frame(
+    id = seq_len(nrow(journals)),
+    name = as.character(journals$name),
+    name_normalized = vapply(journals$name, normalize_fn, character(1)),
+    is_hijacked = as.logical(journals$is_hijacked),
+    updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    stringsAsFactors = FALSE
+  )
+
+  # Bulk insert
+  dbWriteTable(con, "predatory_journals", journals_clean, append = TRUE)
 
   update_quality_cache_meta(con, "predatory_journals", nrow(journals))
   nrow(journals)
@@ -847,44 +854,42 @@ cache_retracted_papers <- function(con, papers) {
     return(0)
   }
 
-  message("[quality_cache] Inserting ", nrow(papers), " retracted papers...")
+  message("[quality_cache] Bulk inserting ", nrow(papers), " retracted papers...")
 
-  # Insert with error handling per row
- inserted <- 0
-  errors <- 0
+  # Prepare data frame with correct column types
+  papers_clean <- data.frame(
+    doi = as.character(papers$doi),
+    title = as.character(papers$title),
+    retraction_date = as.character(papers$retraction_date),
+    reason = as.character(papers$reason),
+    updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    stringsAsFactors = FALSE
+  )
 
-  for (i in seq_len(nrow(papers))) {
-    tryCatch({
-      # Ensure all values are character and handle NAs
-      doi_val <- as.character(papers$doi[i])
-      title_val <- if (is.na(papers$title[i])) NA_character_ else as.character(papers$title[i])
-      date_val <- if (is.na(papers$retraction_date[i])) NA_character_ else as.character(papers$retraction_date[i])
-      reason_val <- if (is.na(papers$reason[i])) NA_character_ else as.character(papers$reason[i])
+  # Remove duplicates by DOI (keep first occurrence)
+  papers_clean <- papers_clean[!duplicated(papers_clean$doi), ]
 
-      dbExecute(con, "
-        INSERT INTO retracted_papers (doi, title, retraction_date, reason)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT (doi) DO NOTHING
-      ", list(doi_val, title_val, date_val, reason_val))
+  # Bulk insert using DuckDB's native support
+  tryCatch({
+    # Use temporary table + INSERT to handle the primary key
+    dbWriteTable(con, "retracted_papers_temp", papers_clean, overwrite = TRUE)
 
-      inserted <- inserted + 1
-    }, error = function(e) {
-      errors <<- errors + 1
-      if (errors <= 5) {
-        message("[quality_cache] Error inserting row ", i, ": ", e$message)
-        message("[quality_cache]   DOI: ", papers$doi[i])
-      } else if (errors == 6) {
-        message("[quality_cache] ... suppressing further error messages")
-      }
-    })
+    dbExecute(con, "
+      INSERT INTO retracted_papers (doi, title, retraction_date, reason, updated_at)
+      SELECT doi, title, retraction_date, reason, updated_at
+      FROM retracted_papers_temp
+      ON CONFLICT (doi) DO NOTHING
+    ")
 
-    # Progress logging every 10000 rows
-    if (i %% 10000 == 0) {
-      message("[quality_cache] Progress: ", i, "/", nrow(papers), " (", errors, " errors)")
-    }
-  }
+    dbExecute(con, "DROP TABLE IF EXISTS retracted_papers_temp")
 
-  message("[quality_cache] Completed: ", inserted, " inserted, ", errors, " errors")
+    inserted <- nrow(papers_clean)
+    message("[quality_cache] Bulk insert completed: ", inserted, " records")
+  }, error = function(e) {
+    message("[quality_cache] Bulk insert error: ", e$message)
+    dbExecute(con, "DROP TABLE IF EXISTS retracted_papers_temp")
+    stop(e)
+  })
 
   update_quality_cache_meta(con, "retraction_watch", inserted)
   inserted
