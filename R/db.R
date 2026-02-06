@@ -444,6 +444,16 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
   id
 }
 
+#' Delete an abstract and its chunks
+#' @param con DuckDB connection
+#' @param id Abstract ID
+delete_abstract <- function(con, id) {
+  # Delete chunks first (foreign key-like behavior)
+  dbExecute(con, "DELETE FROM chunks WHERE source_id = ?", list(id))
+  # Delete the abstract
+  dbExecute(con, "DELETE FROM abstracts WHERE id = ?", list(id))
+}
+
 #' List abstracts in a notebook
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID

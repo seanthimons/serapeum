@@ -238,3 +238,37 @@ test_that("notebook excluded_paper_ids defaults to empty array", {
   # Should be NULL, NA, or empty JSON array
   expect_true(is.na(nb$excluded_paper_ids) || nb$excluded_paper_ids == "[]" || is.null(nb$excluded_paper_ids))
 })
+
+test_that("delete_abstract removes paper and its chunks", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- create_notebook(con, "Test", "search")
+
+  # Create an abstract
+  abstract_id <- create_abstract(
+    con, nb_id, "W12345", "Test Paper", list("Author"),
+    "This is the abstract text.", 2024, "Nature", NULL
+  )
+
+  # Create a chunk for it
+  create_chunk(con, abstract_id, "abstract", 0, "This is the abstract text.")
+
+  # Verify they exist
+  abstracts <- list_abstracts(con, nb_id)
+  expect_equal(nrow(abstracts), 1)
+
+  chunks <- DBI::dbGetQuery(con, "SELECT * FROM chunks WHERE source_id = ?", list(abstract_id))
+  expect_equal(nrow(chunks), 1)
+
+  # Delete the abstract
+  delete_abstract(con, abstract_id)
+
+  # Verify both are gone
+  abstracts_after <- list_abstracts(con, nb_id)
+  expect_equal(nrow(abstracts_after), 0)
+
+  chunks_after <- DBI::dbGetQuery(con, "SELECT * FROM chunks WHERE source_id = ?", list(abstract_id))
+  expect_equal(nrow(chunks_after), 0)
+})
