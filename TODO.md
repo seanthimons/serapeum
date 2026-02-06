@@ -317,6 +317,23 @@ Change tag cloud behavior to support include/exclude filtering by keyword.
 
 High-effort / high-payoff features for the future.
 
+### Bulk DOI Upload (GH #24)
+
+**Effort:** High | **Payoff:** Medium
+
+Allow users to paste/upload a list of DOIs and fetch paper metadata from OpenAlex in bulk.
+
+- [ ] Text area for pasting DOIs (one per line or comma-separated)
+- [ ] CSV/TXT file upload option
+- [ ] Parse and validate DOI format
+- [ ] Batch query OpenAlex API (respect rate limits, ~50 DOIs per request)
+- [ ] Handle missing/invalid DOIs gracefully
+- [ ] Progress indicator for large batches
+
+**Use cases:** Import from Zotero/Mendeley, recreate lit review from bibliography, add syllabus papers.
+
+---
+
 ### Full OpenAlex Corpus Ingestion
 
 **Effort:** Very High | **Payoff:** Very High
