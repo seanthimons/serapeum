@@ -381,6 +381,40 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
+    # Handle individual paper delete (no confirmation needed)
+    observe({
+      papers <- filtered_papers()
+      if (nrow(papers) == 0) return()
+
+      lapply(seq_len(nrow(papers)), function(i) {
+        paper <- papers[i, ]
+        delete_id <- paste0("delete_paper_", paper$id)
+
+        observeEvent(input[[delete_id]], {
+          # Add to exclusion list
+          nb <- get_notebook(con(), notebook_id())
+          existing_excluded <- tryCatch({
+            if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+              jsonlite::fromJSON(nb$excluded_paper_ids)
+            } else {
+              character()
+            }
+          }, error = function(e) character())
+
+          new_excluded <- unique(c(existing_excluded, paper$paper_id))
+          update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
+
+          # Delete from database
+          delete_abstract(con(), paper$id)
+
+          # Trigger refresh
+          paper_refresh(paper_refresh() + 1)
+
+          showNotification("Paper removed", type = "message", duration = 2)
+        }, ignoreInit = TRUE, once = TRUE)
+      })
+    })
+
     # Paper list
     output$paper_list <- renderUI({
       papers <- filtered_papers()
@@ -420,9 +454,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         has_pdf <- is_safe_url(paper$pdf_url)
 
         div(
-          class = paste("border-bottom py-2", if (is_viewed) "bg-light"),
+          class = paste("border-bottom py-2 position-relative", if (is_viewed) "bg-light"),
+          # Delete button (top-right)
+          actionLink(
+            ns(paste0("delete_paper_", paper$id)),
+            icon("xmark"),
+            class = "position-absolute text-muted",
+            style = "top: 4px; right: 4px; cursor: pointer; opacity: 0.5;",
+            title = "Remove paper"
+          ),
           div(
-            class = "d-flex align-items-start gap-2",
+            class = "d-flex align-items-start gap-2 pe-4",
             checkboxInput(ns(checkbox_id), label = NULL, width = "25px"),
             actionLink(
               ns(paste0("view_", paper$id)),
