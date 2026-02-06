@@ -83,6 +83,27 @@ parse_openalex_work <- function(work) {
     pdf_url <- work$open_access$oa_url
   }
 
+  # Get publisher/host organization name (for predatory publisher matching)
+  publisher <- NA_character_
+  if (!is.null(work$primary_location) &&
+      !is.null(work$primary_location$source) &&
+      !is.null(work$primary_location$source$host_organization_name)) {
+    publisher <- work$primary_location$source$host_organization_name
+  }
+
+  # Get DOI (for retraction matching)
+  doi <- NA_character_
+  if (!is.null(work$doi)) {
+    # OpenAlex returns full URL, extract just the DOI
+    doi <- gsub("^https://doi.org/", "", work$doi)
+  }
+
+  # Get citation count
+  cited_by_count <- 0
+  if (!is.null(work$cited_by_count)) {
+    cited_by_count <- work$cited_by_count
+  }
+
   # Extract keywords (OpenAlex uses display_name field)
   keywords <- character()
   if (!is.null(work$keywords) && length(work$keywords) > 0) {
@@ -99,6 +120,9 @@ parse_openalex_work <- function(work) {
     abstract = reconstruct_abstract(work$abstract_inverted_index),
     year = work$publication_year,
     venue = venue,
+    publisher = publisher,
+    doi = doi,
+    cited_by_count = cited_by_count,
     pdf_url = pdf_url,
     keywords = as.list(keywords)
   )
@@ -113,10 +137,13 @@ parse_openalex_work <- function(work) {
 #' @param per_page Results per page (max 200)
 #' @param search_field Field to search: "default", "title", "abstract", "title_and_abstract"
 #' @param is_oa Filter to open access only (boolean)
+#' @param min_citations Minimum citation count (optional)
+#' @param exclude_retracted Exclude retracted papers (boolean)
 #' @return List of parsed works
 search_papers <- function(query, email, api_key = NULL,
                           from_year = NULL, to_year = NULL, per_page = 25,
-                          search_field = "default", is_oa = FALSE) {
+                          search_field = "default", is_oa = FALSE,
+                          min_citations = NULL, exclude_retracted = TRUE) {
 
   # Build filter components
   filters <- c("has_abstract:true")
@@ -131,6 +158,16 @@ search_papers <- function(query, email, api_key = NULL,
   # Open access filter
   if (isTRUE(is_oa)) {
     filters <- c(filters, "is_oa:true")
+  }
+
+  # Citation count filter
+  if (!is.null(min_citations) && !is.na(min_citations) && min_citations > 0) {
+    filters <- c(filters, paste0("cited_by_count:>", as.integer(min_citations) - 1))
+  }
+
+  # Retraction filter (exclude retracted papers)
+  if (isTRUE(exclude_retracted)) {
+    filters <- c(filters, "is_retracted:false")
   }
 
   # Field-specific search - add to filters instead of using search param
@@ -186,9 +223,12 @@ search_papers <- function(query, email, api_key = NULL,
 #' @param to_year End year
 #' @param search_field Field to search
 #' @param is_oa Open access filter
+#' @param min_citations Minimum citation count (optional)
+#' @param exclude_retracted Exclude retracted papers (boolean)
 #' @return List with search and filter strings
 build_query_preview <- function(query, from_year = NULL, to_year = NULL,
-                                 search_field = "default", is_oa = FALSE) {
+                                 search_field = "default", is_oa = FALSE,
+                                 min_citations = NULL, exclude_retracted = TRUE) {
   filters <- c("has_abstract:true")
 
   if (!is.null(from_year)) {
@@ -200,6 +240,16 @@ build_query_preview <- function(query, from_year = NULL, to_year = NULL,
 
   if (isTRUE(is_oa)) {
     filters <- c(filters, "is_oa:true")
+  }
+
+  # Citation count filter
+  if (!is.null(min_citations) && !is.na(min_citations) && min_citations > 0) {
+    filters <- c(filters, paste0("cited_by_count:>", as.integer(min_citations) - 1))
+  }
+
+  # Retraction filter
+  if (isTRUE(exclude_retracted)) {
+    filters <- c(filters, "is_retracted:false")
   }
 
   search_param <- NULL

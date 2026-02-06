@@ -226,6 +226,61 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers
     })
 
+    # Compute quality flags for displayed papers
+    papers_with_quality <- reactive({
+      papers <- filtered_papers()
+      if (nrow(papers) == 0) return(papers)
+
+      # Get current notebook's filter settings
+      nb <- tryCatch(get_notebook(con(), notebook_id()), error = function(e) NULL)
+      if (is.null(nb)) return(papers)
+
+      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      } else {
+        list()
+      }
+
+      flag_predatory <- if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE
+
+      if (!flag_predatory) {
+        papers$quality_flags <- replicate(nrow(papers), character(), simplify = FALSE)
+        papers$is_predatory <- FALSE
+        return(papers)
+      }
+
+      # Get quality lookup sets
+      predatory_journals_set <- tryCatch(get_predatory_journals_set(con()), error = function(e) character())
+      predatory_publishers_set <- tryCatch(get_predatory_publishers_set(con()), error = function(e) character())
+
+      # Compute flags for each paper
+      quality_flags <- vector("list", nrow(papers))
+      is_predatory <- logical(nrow(papers))
+
+      for (i in seq_len(nrow(papers))) {
+        # Build paper object for quality check
+        paper_obj <- list(
+          doi = NA_character_,  # Not stored in abstracts table currently
+          venue = papers$venue[i],
+          publisher = NA_character_  # Would need to add this field
+        )
+
+        quality <- check_paper_quality(
+          paper_obj,
+          retracted_dois = character(),
+          predatory_journals = predatory_journals_set,
+          predatory_publishers = predatory_publishers_set
+        )
+
+        quality_flags[[i]] <- quality$flags
+        is_predatory[i] <- quality$is_predatory_journal || quality$is_predatory_publisher
+      }
+
+      papers$quality_flags <- quality_flags
+      papers$is_predatory <- is_predatory
+      papers
+    })
+
     # Aggregate keywords from all papers
     all_keywords <- reactive({
       papers <- papers_data()
@@ -516,7 +571,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Paper list
     output$paper_list <- renderUI({
-      papers <- filtered_papers()
+      papers <- papers_with_quality()
       current_viewed <- viewed_paper()
 
       if (nrow(papers) == 0) {
@@ -552,6 +607,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Check if PDF is available (validate URL is safe HTTP/HTTPS)
         has_pdf <- is_safe_url(paper$pdf_url)
 
+        # Check quality flags
+        is_flagged <- isTRUE(paper$is_predatory)
+        quality_flags <- paper$quality_flags[[1]] %||% character()
+        flag_tooltip <- if (length(quality_flags) > 0) paste(quality_flags, collapse = "; ") else ""
+
         div(
           class = paste("border-bottom py-2 position-relative", if (is_viewed) "bg-light"),
           # Delete button (top-right)
@@ -565,6 +625,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           div(
             class = "d-flex align-items-start gap-2 pe-4",
             checkboxInput(ns(checkbox_id), label = NULL, width = "25px"),
+            # Warning icon for flagged papers
+            if (is_flagged) {
+              span(
+                class = "text-warning",
+                style = "cursor: help;",
+                title = flag_tooltip,
+                icon("triangle-exclamation")
+              )
+            },
             actionLink(
               ns(paste0("view_", paper$id)),
               div(
@@ -839,6 +908,27 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         checkboxInput(ns("edit_is_oa"), "Open Access Only",
                       value = isTRUE(filters$is_oa)),
 
+        hr(),
+
+        # Quality filters section
+        div(
+          class = "mb-3",
+          h6(class = "text-muted", icon("shield-halved"), " Quality Filters"),
+
+          checkboxInput(ns("edit_exclude_retracted"), "Exclude retracted papers",
+                        value = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE),
+
+          checkboxInput(ns("edit_flag_predatory"), "Flag predatory journals/publishers",
+                        value = if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE),
+
+          numericInput(ns("edit_min_citations"), "Minimum citations (optional)",
+                       value = filters$min_citations,
+                       min = 0, max = 10000, step = 1),
+
+          # Cache status
+          uiOutput(ns("quality_cache_status"))
+        ),
+
         # Query preview (collapsible)
         tags$details(
           class = "mt-3",
@@ -864,8 +954,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       to_year <- input$edit_to_year
       search_field <- input$edit_search_field %||% "default"
       is_oa <- input$edit_is_oa %||% FALSE
+      min_citations <- input$edit_min_citations
+      exclude_retracted <- input$edit_exclude_retracted %||% TRUE
 
-      preview <- build_query_preview(query, from_year, to_year, search_field, is_oa)
+      preview <- build_query_preview(query, from_year, to_year, search_field, is_oa,
+                                      min_citations, exclude_retracted)
 
       tagList(
         if (!is.null(preview$search)) {
@@ -873,6 +966,55 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         },
         div(tags$strong("filter="), preview$filter)
       )
+    })
+
+    # Quality cache status
+    output$quality_cache_status <- renderUI({
+      # Check cache status
+      status <- tryCatch({
+        check_quality_cache_status(con())
+      }, error = function(e) {
+        list(is_empty = TRUE, is_stale = TRUE, last_updated = NULL)
+      })
+
+      status_text <- format_cache_status(status)
+
+      div(
+        class = "mt-2 small",
+        div(
+          class = if (status$is_empty || status$is_stale) "text-warning" else "text-muted",
+          icon(if (status$is_empty || status$is_stale) "triangle-exclamation" else "circle-check"),
+          " ", status_text
+        ),
+        actionLink(ns("refresh_quality_cache"), "Refresh quality data", class = "small")
+      )
+    })
+
+    # Handle quality cache refresh
+    observeEvent(input$refresh_quality_cache, {
+      showNotification("Refreshing quality data...", type = "message", id = "quality_refresh")
+
+      result <- tryCatch({
+        refresh_quality_cache(con(), progress_callback = function(msg, step, total) {
+          showNotification(msg, type = "message", id = "quality_refresh")
+        })
+      }, error = function(e) {
+        list(success = FALSE, error = e$message)
+      })
+
+      removeNotification("quality_refresh")
+
+      if (result$success) {
+        showNotification(
+          sprintf("Quality data updated: %d publishers, %d journals, %d retractions",
+                  result$predatory_publishers$count,
+                  result$predatory_journals$count,
+                  result$retraction_watch$count),
+          type = "message", duration = 5
+        )
+      } else {
+        showNotification("Some quality data failed to update", type = "warning")
+      }
     })
 
     # Trigger for programmatic refresh
@@ -902,7 +1044,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         to_year = input$edit_to_year,
         search_field = input$edit_search_field %||% "default",
         is_oa = input$edit_is_oa %||% FALSE,
-        has_abstract = if (!is.null(existing_filters$has_abstract)) existing_filters$has_abstract else TRUE
+        has_abstract = if (!is.null(existing_filters$has_abstract)) existing_filters$has_abstract else TRUE,
+        # Quality filters
+        exclude_retracted = input$edit_exclude_retracted %||% TRUE,
+        flag_predatory = input$edit_flag_predatory %||% TRUE,
+        min_citations = input$edit_min_citations
       )
 
       # Update notebook
@@ -955,7 +1101,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             to_year = filters$to_year,
             per_page = abstracts_count,
             search_field = filters$search_field %||% "default",
-            is_oa = filters$is_oa %||% FALSE
+            is_oa = filters$is_oa %||% FALSE,
+            min_citations = filters$min_citations,
+            exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE
           )
         }, error = function(e) {
           showNotification(paste("Search error:", e$message),
@@ -968,7 +1116,31 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           return()
         }
 
-        incProgress(0.5, detail = paste("Found", length(papers), "papers"))
+        incProgress(0.4, detail = paste("Found", length(papers), "papers"))
+
+        # Check predatory status if enabled
+        flag_predatory <- if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE
+        if (flag_predatory) {
+          incProgress(0.5, detail = "Checking quality data...")
+
+          # Get quality lookup sets
+          predatory_journals_set <- tryCatch(get_predatory_journals_set(con()), error = function(e) character())
+          predatory_publishers_set <- tryCatch(get_predatory_publishers_set(con()), error = function(e) character())
+
+          # Check each paper and add quality flags
+          for (i in seq_along(papers)) {
+            quality <- check_paper_quality(
+              papers[[i]],
+              retracted_dois = character(),  # Already filtered by API
+              predatory_journals = predatory_journals_set,
+              predatory_publishers = predatory_publishers_set
+            )
+            papers[[i]]$quality_flags <- quality$flags
+            papers[[i]]$is_predatory <- quality$is_predatory_journal || quality$is_predatory_publisher
+          }
+        }
+
+        incProgress(0.6, detail = "Processing papers...")
 
         # Filter out excluded papers
         nb <- get_notebook(con(), nb_id)

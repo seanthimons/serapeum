@@ -113,6 +113,44 @@ init_schema <- function(con) {
   }, error = function(e) {
     # Column already exists, ignore
   })
+
+  # Quality filter cache tables (added 2026-02-06)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS predatory_publishers (
+      id INTEGER PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      name_normalized VARCHAR NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS predatory_journals (
+      id INTEGER PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      name_normalized VARCHAR NOT NULL,
+      is_hijacked BOOLEAN DEFAULT FALSE,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS retracted_papers (
+      doi VARCHAR PRIMARY KEY,
+      title VARCHAR,
+      retraction_date DATE,
+      reason VARCHAR,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS quality_cache_meta (
+      source VARCHAR PRIMARY KEY,
+      last_updated TIMESTAMP,
+      record_count INTEGER
+    )
+  ")
 }
 
 #' Create a new notebook
@@ -675,4 +713,192 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     similarity = numeric(),
     stringsAsFactors = FALSE
   )
+}
+
+# ============================================================================
+# Quality Filter Cache Functions
+# ============================================================================
+
+#' Get quality cache metadata
+#' @param con DuckDB connection
+#' @param source Source name (e.g., "predatory_publishers", "retraction_watch")
+#' @return Data frame with last_updated and record_count, or NULL if not found
+get_quality_cache_meta <- function(con, source = NULL) {
+  if (is.null(source)) {
+    dbGetQuery(con, "SELECT * FROM quality_cache_meta")
+  } else {
+    result <- dbGetQuery(con, "SELECT * FROM quality_cache_meta WHERE source = ?", list(source))
+    if (nrow(result) == 0) return(NULL)
+    result
+  }
+}
+
+#' Update quality cache metadata
+#' @param con DuckDB connection
+#' @param source Source name
+#' @param record_count Number of records
+update_quality_cache_meta <- function(con, source, record_count) {
+  dbExecute(con, "
+    INSERT INTO quality_cache_meta (source, last_updated, record_count)
+    VALUES (?, CURRENT_TIMESTAMP, ?)
+    ON CONFLICT (source) DO UPDATE SET
+      last_updated = CURRENT_TIMESTAMP,
+      record_count = EXCLUDED.record_count
+  ", list(source, as.integer(record_count)))
+}
+
+#' Clear and repopulate predatory publishers cache
+#' @param con DuckDB connection
+#' @param publishers Data frame with 'name' column
+#' @param normalize_fn Function to normalize names
+#' @return Number of records inserted
+cache_predatory_publishers <- function(con, publishers, normalize_fn) {
+  # Clear existing data
+
+dbExecute(con, "DELETE FROM predatory_publishers")
+
+  if (nrow(publishers) == 0) return(0)
+
+  # Prepare data
+  publishers$name_normalized <- sapply(publishers$name, normalize_fn)
+
+  # Insert in batches
+  for (i in seq_len(nrow(publishers))) {
+    dbExecute(con, "
+      INSERT INTO predatory_publishers (id, name, name_normalized)
+      VALUES (?, ?, ?)
+    ", list(i, publishers$name[i], publishers$name_normalized[i]))
+  }
+
+  update_quality_cache_meta(con, "predatory_publishers", nrow(publishers))
+  nrow(publishers)
+}
+
+#' Clear and repopulate predatory journals cache
+#' @param con DuckDB connection
+#' @param journals Data frame with 'name' column and optional 'is_hijacked'
+#' @param normalize_fn Function to normalize names
+#' @return Number of records inserted
+cache_predatory_journals <- function(con, journals, normalize_fn) {
+  # Clear existing data
+  dbExecute(con, "DELETE FROM predatory_journals")
+
+  if (nrow(journals) == 0) return(0)
+
+  # Prepare data
+  journals$name_normalized <- sapply(journals$name, normalize_fn)
+  if (!"is_hijacked" %in% names(journals)) {
+    journals$is_hijacked <- FALSE
+  }
+
+  # Insert in batches
+  for (i in seq_len(nrow(journals))) {
+    dbExecute(con, "
+      INSERT INTO predatory_journals (id, name, name_normalized, is_hijacked)
+      VALUES (?, ?, ?, ?)
+    ", list(i, journals$name[i], journals$name_normalized[i], journals$is_hijacked[i]))
+  }
+
+  update_quality_cache_meta(con, "predatory_journals", nrow(journals))
+  nrow(journals)
+}
+
+#' Clear and repopulate retracted papers cache
+#' @param con DuckDB connection
+#' @param papers Data frame with 'doi', 'title', 'retraction_date', 'reason' columns
+#' @return Number of records inserted
+cache_retracted_papers <- function(con, papers) {
+  # Clear existing data
+  dbExecute(con, "DELETE FROM retracted_papers")
+
+  if (nrow(papers) == 0) return(0)
+
+  # Insert in batches
+  for (i in seq_len(nrow(papers))) {
+    dbExecute(con, "
+      INSERT INTO retracted_papers (doi, title, retraction_date, reason)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT (doi) DO NOTHING
+    ", list(
+      papers$doi[i],
+      papers$title[i] %||% NA_character_,
+      papers$retraction_date[i] %||% NA_character_,
+      papers$reason[i] %||% NA_character_
+    ))
+  }
+
+  update_quality_cache_meta(con, "retraction_watch", nrow(papers))
+  nrow(papers)
+}
+
+#' Check if a DOI is in the retracted papers list
+#' @param con DuckDB connection
+#' @param doi DOI to check
+#' @return TRUE if retracted, FALSE otherwise
+is_paper_retracted <- function(con, doi) {
+  if (is.null(doi) || is.na(doi) || doi == "") return(FALSE)
+
+  result <- dbGetQuery(con, "
+    SELECT 1 FROM retracted_papers WHERE doi = ? LIMIT 1
+  ", list(doi))
+
+  nrow(result) > 0
+}
+
+#' Check if a journal name matches predatory journals list
+#' @param con DuckDB connection
+#' @param journal_name Journal name to check
+#' @param normalize_fn Function to normalize names
+#' @return TRUE if predatory, FALSE otherwise
+is_journal_predatory <- function(con, journal_name, normalize_fn) {
+  if (is.null(journal_name) || is.na(journal_name) || journal_name == "") return(FALSE)
+
+  normalized <- normalize_fn(journal_name)
+
+  result <- dbGetQuery(con, "
+    SELECT 1 FROM predatory_journals WHERE name_normalized = ? LIMIT 1
+  ", list(normalized))
+
+  nrow(result) > 0
+}
+
+#' Check if a publisher name matches predatory publishers list
+#' @param con DuckDB connection
+#' @param publisher_name Publisher name to check
+#' @param normalize_fn Function to normalize names
+#' @return TRUE if predatory, FALSE otherwise
+is_publisher_predatory <- function(con, publisher_name, normalize_fn) {
+  if (is.null(publisher_name) || is.na(publisher_name) || publisher_name == "") return(FALSE)
+
+  normalized <- normalize_fn(publisher_name)
+
+  result <- dbGetQuery(con, "
+    SELECT 1 FROM predatory_publishers WHERE name_normalized = ? LIMIT 1
+  ", list(normalized))
+
+  nrow(result) > 0
+}
+
+#' Get all predatory journal names (normalized) for in-memory matching
+#' @param con DuckDB connection
+#' @return Character vector of normalized journal names
+get_predatory_journals_set <- function(con) {
+  result <- dbGetQuery(con, "SELECT name_normalized FROM predatory_journals")
+  result$name_normalized
+}
+
+#' Get all predatory publisher names (normalized) for in-memory matching
+#' @param con DuckDB connection
+#' @return Character vector of normalized publisher names
+get_predatory_publishers_set <- function(con) {
+  result <- dbGetQuery(con, "SELECT name_normalized FROM predatory_publishers")
+  result$name_normalized
+}
+
+#' Get all retracted DOIs for in-memory matching
+#' @param con DuckDB connection
+#' @return Character vector of DOIs
+get_retracted_dois_set <- function(con) {
+  result <- dbGetQuery(con, "SELECT doi FROM retracted_papers")
+  result$doi
 }
