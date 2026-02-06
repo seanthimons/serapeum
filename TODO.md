@@ -92,11 +92,13 @@ Re-add Semantic Scholar as an alternative/additional paper source.
 
 Add more granular filtering and richer metadata extraction from OpenAlex.
 
-### Phase 1: Document & Paper Type (Current Focus)
+### Phase 1: Document & Paper Type ✅ COMPLETED
 | Item | Effort | Impact | Status |
 |------|--------|--------|--------|
-| Document type filter (`type`: article, preprint, review, book, dissertation) | Low | High | 🔄 In Progress |
-| Extract & display document type in UI | Low | High | 🔄 In Progress |
+| Document type filter (`type`: article, preprint, review, book, dissertation) | Low | High | ✅ Done |
+| Extract & display document type in UI | Low | High | ✅ Done |
+| Type distribution bar chart in Edit Search modal | Low | Medium | ✅ Done |
+| Color-coded type badges in paper list and detail view | Low | Medium | ✅ Done |
 
 ### Phase 2: OA Status & Citations
 | Item | Effort | Impact | Status |
