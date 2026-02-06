@@ -162,55 +162,72 @@ refresh_quality_cache <- function(con, progress_callback = NULL) {
   )
 
   # 1. Predatory Publishers
+  message("[quality_refresh] Step 1/3: Fetching predatory publishers...")
   if (!is.null(progress_callback)) progress_callback("Fetching predatory publishers...", 1, 3)
 
   publishers_result <- tryCatch({
     publishers <- fetch_predatory_publishers()
     if (!is.null(publishers)) {
+      message("[quality_refresh] Fetched ", nrow(publishers), " publishers, caching...")
       count <- cache_predatory_publishers(con, publishers, normalize_name)
+      message("[quality_refresh] Publishers cached successfully: ", count)
       list(success = TRUE, count = count, error = NULL)
     } else {
+      message("[quality_refresh] Publishers fetch returned NULL")
       list(success = FALSE, count = 0, error = "Empty response from Google Sheets")
     }
   }, error = function(e) {
+    message("[quality_refresh] Publishers error: ", e$message)
     list(success = FALSE, count = 0, error = e$message)
   })
   results$predatory_publishers <- publishers_result
   if (!publishers_result$success) results$success <- FALSE
 
   # 2. Predatory Journals
+  message("[quality_refresh] Step 2/3: Fetching predatory journals...")
   if (!is.null(progress_callback)) progress_callback("Fetching predatory journals...", 2, 3)
 
   journals_result <- tryCatch({
     journals <- fetch_predatory_journals()
     if (!is.null(journals)) {
+      message("[quality_refresh] Fetched ", nrow(journals), " journals, caching...")
       count <- cache_predatory_journals(con, journals, normalize_name)
+      message("[quality_refresh] Journals cached successfully: ", count)
       list(success = TRUE, count = count, error = NULL)
     } else {
+      message("[quality_refresh] Journals fetch returned NULL")
       list(success = FALSE, count = 0, error = "Empty response from Google Sheets")
     }
   }, error = function(e) {
+    message("[quality_refresh] Journals error: ", e$message)
     list(success = FALSE, count = 0, error = e$message)
   })
   results$predatory_journals <- journals_result
   if (!journals_result$success) results$success <- FALSE
 
   # 3. Retraction Watch
+  message("[quality_refresh] Step 3/3: Fetching retraction data...")
   if (!is.null(progress_callback)) progress_callback("Fetching retraction data...", 3, 3)
 
   retraction_result <- tryCatch({
     papers <- fetch_retraction_watch()
     if (!is.null(papers)) {
+      message("[quality_refresh] Fetched ", nrow(papers), " retractions, caching...")
       count <- cache_retracted_papers(con, papers)
+      message("[quality_refresh] Retractions cached successfully: ", count)
       list(success = TRUE, count = count, error = NULL)
     } else {
+      message("[quality_refresh] Retractions fetch returned NULL")
       list(success = FALSE, count = 0, error = "Empty response from GitLab")
     }
   }, error = function(e) {
+    message("[quality_refresh] Retractions error: ", e$message)
     list(success = FALSE, count = 0, error = e$message)
   })
   results$retraction_watch <- retraction_result
   if (!retraction_result$success) results$success <- FALSE
+
+  message("[quality_refresh] Complete. Success: ", results$success)
 
   results
 }

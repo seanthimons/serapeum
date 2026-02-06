@@ -138,7 +138,7 @@ init_schema <- function(con) {
     CREATE TABLE IF NOT EXISTS retracted_papers (
       doi VARCHAR PRIMARY KEY,
       title VARCHAR,
-      retraction_date DATE,
+      retraction_date VARCHAR,
       reason VARCHAR,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -151,6 +151,33 @@ init_schema <- function(con) {
       record_count INTEGER
     )
   ")
+
+  # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
+  # This handles the case where the table was created with DATE type
+  tryCatch({
+    # Check if table exists and has wrong column type
+    col_info <- dbGetQuery(con, "
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'retracted_papers' AND column_name = 'retraction_date'
+    ")
+    if (nrow(col_info) > 0 && col_info$data_type[1] == "DATE") {
+      message("[db_migration] Recreating retracted_papers table with VARCHAR date column")
+      dbExecute(con, "DROP TABLE IF EXISTS retracted_papers")
+      dbExecute(con, "
+        CREATE TABLE retracted_papers (
+          doi VARCHAR PRIMARY KEY,
+          title VARCHAR,
+          retraction_date VARCHAR,
+          reason VARCHAR,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      ")
+      # Also clear the cache meta so it gets refreshed
+      dbExecute(con, "DELETE FROM quality_cache_meta WHERE source = 'retraction_watch'")
+    }
+  }, error = function(e) {
+    # Table doesn't exist or other issue, ignore
+  })
 }
 
 #' Create a new notebook
@@ -808,27 +835,57 @@ cache_predatory_journals <- function(con, journals, normalize_fn) {
 #' @param papers Data frame with 'doi', 'title', 'retraction_date', 'reason' columns
 #' @return Number of records inserted
 cache_retracted_papers <- function(con, papers) {
+  message("[quality_cache] Starting retracted papers cache update...")
+
   # Clear existing data
   dbExecute(con, "DELETE FROM retracted_papers")
 
-  if (nrow(papers) == 0) return(0)
-
-  # Insert in batches
-  for (i in seq_len(nrow(papers))) {
-    dbExecute(con, "
-      INSERT INTO retracted_papers (doi, title, retraction_date, reason)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT (doi) DO NOTHING
-    ", list(
-      papers$doi[i],
-      papers$title[i] %||% NA_character_,
-      papers$retraction_date[i] %||% NA_character_,
-      papers$reason[i] %||% NA_character_
-    ))
+  if (nrow(papers) == 0) {
+    message("[quality_cache] No papers to insert")
+    return(0)
   }
 
-  update_quality_cache_meta(con, "retraction_watch", nrow(papers))
-  nrow(papers)
+  message("[quality_cache] Inserting ", nrow(papers), " retracted papers...")
+
+  # Insert with error handling per row
+ inserted <- 0
+  errors <- 0
+
+  for (i in seq_len(nrow(papers))) {
+    tryCatch({
+      # Ensure all values are character and handle NAs
+      doi_val <- as.character(papers$doi[i])
+      title_val <- if (is.na(papers$title[i])) NA_character_ else as.character(papers$title[i])
+      date_val <- if (is.na(papers$retraction_date[i])) NA_character_ else as.character(papers$retraction_date[i])
+      reason_val <- if (is.na(papers$reason[i])) NA_character_ else as.character(papers$reason[i])
+
+      dbExecute(con, "
+        INSERT INTO retracted_papers (doi, title, retraction_date, reason)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (doi) DO NOTHING
+      ", list(doi_val, title_val, date_val, reason_val))
+
+      inserted <- inserted + 1
+    }, error = function(e) {
+      errors <<- errors + 1
+      if (errors <= 5) {
+        message("[quality_cache] Error inserting row ", i, ": ", e$message)
+        message("[quality_cache]   DOI: ", papers$doi[i])
+      } else if (errors == 6) {
+        message("[quality_cache] ... suppressing further error messages")
+      }
+    })
+
+    # Progress logging every 10000 rows
+    if (i %% 10000 == 0) {
+      message("[quality_cache] Progress: ", i, "/", nrow(papers), " (", errors, " errors)")
+    }
+  }
+
+  message("[quality_cache] Completed: ", inserted, " inserted, ", errors, " errors")
+
+  update_quality_cache_meta(con, "retraction_watch", inserted)
+  inserted
 }
 
 #' Check if a DOI is in the retracted papers list
