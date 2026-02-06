@@ -343,6 +343,52 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
+    # Exclusion info
+    output$exclusion_info <- renderUI({
+      paper_refresh()  # Dependency to update when papers change
+      nb <- tryCatch({
+        get_notebook(con(), notebook_id())
+      }, error = function(e) NULL)
+
+      if (is.null(nb)) return(NULL)
+
+      excluded <- tryCatch({
+        if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+          jsonlite::fromJSON(nb$excluded_paper_ids)
+        } else {
+          character()
+        }
+      }, error = function(e) character())
+
+      if (length(excluded) == 0) return(NULL)
+
+      div(
+        class = "text-muted small text-center",
+        paste(length(excluded), "papers excluded"),
+        actionLink(ns("clear_exclusions"), "(clear)", class = "ms-1")
+      )
+    })
+
+    # Clear exclusions - show confirmation
+    observeEvent(input$clear_exclusions, {
+      showModal(modalDialog(
+        title = "Clear Exclusions",
+        "Clear all exclusions? Excluded papers may reappear on next refresh.",
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton(ns("confirm_clear_exclusions"), "Clear", class = "btn-warning")
+        )
+      ))
+    })
+
+    # Handle clear exclusions confirmation
+    observeEvent(input$confirm_clear_exclusions, {
+      removeModal()
+      update_notebook(con(), notebook_id(), excluded_paper_ids = character())
+      paper_refresh(paper_refresh() + 1)
+      showNotification("Exclusions cleared", type = "message")
+    })
+
     # Store for tracking keyword observers
     keyword_observers <- reactiveValues(active = list())
 
