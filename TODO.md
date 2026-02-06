@@ -10,23 +10,24 @@ Future enhancements for the Research Notebook tool.
 | ~~#5: Filter papers without abstracts~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
 | ~~#13: Paper keywords from API~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
 | **Strategic (Medium Effort, High Impact)** ||||
-| #10: Meta-prompt for query building | Medium | High | ★★★★ |
+| #10: Meta-prompt for query building (GH #10) | Medium | High | ★★★★ |
 | #4: Enhanced OpenAlex filters | Medium | High | ★★★★ |
 | **Investments (High Effort, High Impact)** ||||
 | ~~#7: Retraction/junk journal filtering~~ | ~~High~~ | ~~High~~ | ✅ DONE |
-| #8: Local model support | High | High | ★★★ |
-| #11: Recursive abstract searching | High | High | ★★★ |
+| #8: Local model support (GH #8) | High | High | ★★★ |
+| #11: Recursive abstract searching (GH #11) | High | High | ★★★ |
 | **Moderate Value** ||||
-| #1: Cost tracking | Medium | Medium | ★★★ |
-| #2: Expanded model selection | Medium | Medium | ★★★ |
+| #1: Cost tracking (GH #19) | Medium | Medium | ★★★ |
+| #2: Expanded model selection (GH #20) | Medium | Medium | ★★★ |
 | **Low Priority** ||||
-| #6: Timeline heatmap | Medium | Low | ★★ |
-| #9: Versioning | Low | Low | ★★ |
-| #3: Semantic Scholar | High | Low | ★ |
-| #7: Audio overview | Very High | Medium | ★ |
+| #6: Timeline heatmap (GH #6) | Medium | Low | ★★ |
+| #9: Versioning (GH #9) | Low | Low | ★★ |
+| #3: Semantic Scholar (GH #21) | High | Low | ★ |
+| Audio overview (GH #22) | Very High | Medium | ★ |
 | **Research Needed** ||||
-| #12: Evaluate reranker need | Low | TBD | — |
-| #14: API key status indicators | Low | Medium | ★★★ |
+| #12: Evaluate reranker need (GH #12) | Low | TBD | — |
+| #14: API key status indicators (GH #23) | Low | Medium | ★★★ |
+| #17: Enhanced keyword tag behavior (GH #17) | Medium | Medium | ★★★ |
 
 ---
 
@@ -298,6 +299,17 @@ Show visual indicator (checkmark, icon) next to fields that require an API key t
 - [ ] Show checkmark or success icon when key is present/valid
 - [ ] Show warning/empty indicator when key is missing
 - [ ] Consider validation ping to verify key actually works
+
+---
+
+### #17: Enhanced keyword tag behavior
+**Effort:** Medium | **Impact:** Medium
+
+Change tag cloud behavior to support include/exclude filtering by keyword.
+
+- [ ] Remove papers with specific keyword (current: click to delete all with tag)
+- [ ] Keep ONLY papers with specific keyword
+- [ ] Add keyword to search query (relates to #10, #11)
 
 ---
 
