@@ -9,25 +9,33 @@ Future enhancements for the Research Notebook tool.
 | **Quick Wins (Low Effort, High Impact)** ||||
 | ~~#5: Filter papers without abstracts~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
 | ~~#13: Paper keywords from API~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
+| ~~#14: API key status indicators (GH #23)~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
+| ~~#4 Phase 2: OA Status & Citations~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
 | **Strategic (Medium Effort, High Impact)** ||||
 | #10: Meta-prompt for query building (GH #10) | Medium | High | ★★★★ |
-| #4: Enhanced OpenAlex filters | Medium | High | ★★★★ |
+| #4 Phase 3: Topics & Discovery | Medium | High | ★★★★ |
+| #25: Seed paper for searching (GH #25) | Medium | High | ★★★★ |
 | **Investments (High Effort, High Impact)** ||||
 | ~~#7: Retraction/junk journal filtering~~ | ~~High~~ | ~~High~~ | ✅ DONE |
 | #8: Local model support (GH #8) | High | High | ★★★ |
 | #11: Recursive abstract searching (GH #11) | High | High | ★★★ |
+| #27: Conclusion synthesis → future directions (GH #27) | High | High | ★★★ |
 | **Moderate Value** ||||
 | #1: Cost tracking (GH #19) | Medium | Medium | ★★★ |
 | #2: Expanded model selection (GH #20) | Medium | Medium | ★★★ |
+| #17: Enhanced keyword tag behavior (GH #17) | Medium | Medium | ★★★ |
+| #26: Ban/hard filter for suspect journals (GH #26) | Low | Medium | ★★★ |
 | **Low Priority** ||||
 | #6: Timeline heatmap (GH #6) | Medium | Low | ★★ |
 | #9: Versioning (GH #9) | Low | Low | ★★ |
 | #3: Semantic Scholar (GH #21) | High | Low | ★ |
 | Audio overview (GH #22) | Very High | Medium | ★ |
+| #30: Demo mode (GH #30) | Medium | Low | ★★ |
 | **Research Needed** ||||
 | #12: Evaluate reranker need (GH #12) | Low | TBD | — |
-| #14: API key status indicators (GH #23) | Low | Medium | ★★★ |
-| #17: Enhanced keyword tag behavior (GH #17) | Medium | Medium | ★★★ |
+| **Slide Enhancement** ||||
+| #28: Image/table/chart extraction (GH #28) | High | High | ★★★ |
+| #29: Image/chart injection into slides (GH #29) | High | High | ★★★ |
 
 ---
 
@@ -101,13 +109,14 @@ Add more granular filtering and richer metadata extraction from OpenAlex.
 | Type distribution bar chart in Edit Search modal | Low | Medium | ✅ Done |
 | Color-coded type badges in paper list and detail view | Low | Medium | ✅ Done |
 
-### Phase 2: OA Status & Citations
+### Phase 2: OA Status & Citations ✅ COMPLETED
 | Item | Effort | Impact | Status |
 |------|--------|--------|--------|
-| Granular OA status filter (`oa_status`: gold, green, hybrid, bronze, closed) | Low | High | Pending |
-| Display OA status badges in paper list | Low | Medium | Pending |
-| Extract `referenced_works_count` (outgoing citations) | Low | Medium | Pending |
-| Extract FWCI (field-weighted citation impact) | Low | Medium | Pending |
+| Granular OA status filter (`oa_status`: gold, green, hybrid, bronze, closed) | Low | High | ✅ Done (display only, filter in Phase 3) |
+| Display OA status badges in paper list | Low | Medium | ✅ Done |
+| Extract `referenced_works_count` (outgoing citations) | Low | Medium | ✅ Done |
+| Extract FWCI (field-weighted citation impact) | Low | Medium | ✅ Done |
+| Display citation metrics row (cited-by, FWCI, refs) | Low | Medium | ✅ Done |
 
 ### Phase 3: Topics & Discovery
 | Item | Effort | Impact | Status |
@@ -290,15 +299,15 @@ Implemented: Keywords extracted from OpenAlex (display_name field), displayed as
 
 ---
 
-### #14: API key status indicators
-**Effort:** Low | **Impact:** Medium
+### ~~#14: API key status indicators~~ ✅ COMPLETED
 
-Show visual indicator (checkmark, icon) next to fields that require an API key to indicate whether the key is configured/valid.
-
-- [ ] Add status indicator to API key input fields in Settings
-- [ ] Show checkmark or success icon when key is present/valid
-- [ ] Show warning/empty indicator when key is missing
-- [ ] Consider validation ping to verify key actually works
+Implemented in PR #31:
+- [x] Add status indicator to API key input fields in Settings
+- [x] Show checkmark or success icon when key is valid
+- [x] Show red X when key is empty, red ! when invalid
+- [x] Auto-validate on blur with 1-second debounce
+- [x] OpenRouter validates via `/models` endpoint
+- [x] OpenAlex validates via minimal API ping
 
 ---
 
@@ -310,6 +319,76 @@ Change tag cloud behavior to support include/exclude filtering by keyword.
 - [ ] Remove papers with specific keyword (current: click to delete all with tag)
 - [ ] Keep ONLY papers with specific keyword
 - [ ] Add keyword to search query (relates to #10, #11)
+
+---
+
+### #25: Seed paper for searching (GH #25)
+**Effort:** Medium | **Impact:** High
+
+Use a known good paper as a seed to find similar papers.
+
+- [ ] Input a DOI or OpenAlex ID as a seed paper
+- [ ] Fetch cited-by and references from seed paper
+- [ ] Use seed paper's topics/keywords to expand search
+- [ ] Option to find papers that cite the same references
+
+---
+
+### #26: Ban/hard filter for suspect journals (GH #26)
+**Effort:** Low | **Impact:** Medium
+
+Extend quality filtering to allow hard exclusion of flagged papers.
+
+- [ ] Option to completely hide (not just flag) predatory journal papers
+- [ ] User-defined blocklist of journals/publishers
+- [ ] Persist exclusion preferences
+
+---
+
+### #27: Conclusion synthesis → future directions (GH #27)
+**Effort:** High | **Impact:** High
+
+Synthesize conclusions across papers to generate future research directions.
+
+- [ ] Extract conclusion sections from papers
+- [ ] Identify common themes and gaps
+- [ ] Generate "future directions" synthesis
+- [ ] Highlight contradictions or debates in literature
+
+---
+
+### #28: Image/table/chart extraction (GH #28)
+**Effort:** High | **Impact:** High
+
+Extract visual elements from PDFs for reuse.
+
+- [ ] Research PDF image extraction libraries
+- [ ] Extract figures with captions
+- [ ] Extract tables (OCR or structured extraction)
+- [ ] Store extracted visuals with metadata
+
+---
+
+### #29: Image/chart injection into slides (GH #29)
+**Effort:** High | **Impact:** High
+
+Intelligently insert extracted images into generated slide decks.
+
+- [ ] Match figures to relevant slide content
+- [ ] Auto-caption using vision models
+- [ ] Handle image quality and formatting
+- [ ] Generate proper attribution
+
+---
+
+### #30: Demo mode (GH #30)
+**Effort:** Medium | **Impact:** Low
+
+Run app without API keys for demonstration purposes.
+
+- [ ] Mock API responses for demo
+- [ ] Pre-loaded sample notebooks
+- [ ] Clear indication of demo mode limitations
 
 ---
 
@@ -413,3 +492,6 @@ Move from R-based cosine similarity to in-database vector search for 100k+ chunk
 - [x] **#13**: Paper keywords from OpenAlex API (keyword panel with counts, click-to-delete)
 - [x] Deferred embedding workflow (Embed Papers button instead of auto-embed)
 - [x] **#7**: Quality filters (retraction exclusion, predatory journal flagging, citation filter)
+- [x] **#4 Phase 1**: Document type filter and badges (article, review, preprint, etc.)
+- [x] **#14**: API key status indicators (GH #23) - visual validation in Settings
+- [x] **#4 Phase 2**: OA status badges and citation metrics (cited-by, FWCI, refs)
