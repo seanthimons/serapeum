@@ -177,6 +177,68 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     }
 
+    # Helper: Get OA status badge info (Phase 2)
+    get_oa_badge <- function(oa_status) {
+      if (is.null(oa_status) || is.na(oa_status) || oa_status == "") {
+        return(NULL)  # Don't show badge if unknown
+      }
+      switch(oa_status,
+        "diamond" = list(class = "bg-info", icon = "gem", tooltip = "Diamond OA: Free to read & publish"),
+        "gold" = list(class = "bg-warning text-dark", icon = "unlock", tooltip = "Gold OA: Open access journal"),
+        "green" = list(class = "bg-success", icon = "leaf", tooltip = "Green OA: Repository copy"),
+        "hybrid" = list(class = "bg-primary", icon = "code-branch", tooltip = "Hybrid OA: Open in toll-access journal"),
+        "bronze" = list(class = "bg-secondary", icon = "lock-open", tooltip = "Bronze OA: Free but no license"),
+        "closed" = list(class = "bg-dark", icon = "lock", tooltip = "Closed access"),
+        NULL
+      )
+    }
+
+    # Helper: Format citation metrics row (Phase 2)
+    format_citation_metrics <- function(cited_by, fwci, refs) {
+      metrics <- list()
+
+      # Cited by (always show)
+      metrics <- c(metrics, list(
+        span(
+          class = "text-muted",
+          style = "cursor: help;",
+          title = "Cited by count",
+          icon("arrow-down", class = "small me-1"),
+          format(cited_by %||% 0, big.mark = ",")
+        )
+      ))
+
+      # FWCI (only if available)
+      if (!is.null(fwci) && !is.na(fwci)) {
+        fwci_class <- if (fwci >= 1.0) "text-success" else "text-muted"
+        metrics <- c(metrics, list(
+          span(
+            class = fwci_class,
+            style = "cursor: help;",
+            title = "Field-weighted citation impact (>1.0 = above average)",
+            icon("scale-balanced", class = "small me-1"),
+            sprintf("%.1f", fwci)
+          )
+        ))
+      }
+
+      # Referenced works (always show)
+      metrics <- c(metrics, list(
+        span(
+          class = "text-muted",
+          style = "cursor: help;",
+          title = "References (outgoing citations)",
+          icon("arrow-up", class = "small me-1"),
+          format(refs %||% 0, big.mark = ",")
+        )
+      ))
+
+      div(
+        class = "small d-flex gap-2",
+        metrics
+      )
+    }
+
     # Reactive: check if API key is configured
     has_api_key <- reactive({
       cfg <- config()
@@ -634,6 +696,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Get type badge info
         type_badge <- get_type_badge(paper$work_type)
 
+        # Get OA badge info (Phase 2)
+        oa_badge <- get_oa_badge(paper$oa_status)
+
         div(
           class = paste("border-bottom py-2 position-relative", if (is_viewed) "bg-light"),
           # Delete button (top-right)
@@ -667,18 +732,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                   paper$title
                 ),
                 div(
-                  class = "d-flex align-items-center gap-2 small",
+                  class = "d-flex align-items-center gap-2 small flex-wrap",
                   span(class = "text-muted", paste(author_str, "-", paper$year %||% "N/A")),
                   # Type badge
                   span(
                     class = paste("badge", type_badge$class),
                     style = type_badge$style %||% "",
                     type_badge$label
-                  )
+                  ),
+                  # OA badge (Phase 2)
+                  if (!is.null(oa_badge)) {
+                    span(
+                      class = paste("badge", oa_badge$class),
+                      style = "cursor: help;",
+                      title = oa_badge$tooltip,
+                      icon(oa_badge$icon, class = "small")
+                    )
+                  }
                 ),
                 if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
                   div(class = "text-muted small fst-italic text-truncate", paper$venue)
-                }
+                },
+                # Citation metrics (Phase 2)
+                format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count)
               )
             ),
             # PDF download link (if available)
@@ -794,6 +870,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       # Get type badge info
       type_badge <- get_type_badge(paper$work_type)
 
+      # Get OA badge info (Phase 2)
+      oa_badge <- get_oa_badge(paper$oa_status)
+
       tagList(
         # Title
         h5(class = "mb-3", paper$title),
@@ -812,11 +891,23 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               style = type_badge$style %||% "",
               type_badge$label
             ),
+            # OA badge (Phase 2)
+            if (!is.null(oa_badge)) {
+              span(
+                class = paste("badge", oa_badge$class),
+                style = "cursor: help;",
+                title = oa_badge$tooltip,
+                icon(oa_badge$icon, class = "small me-1"),
+                oa_badge$tooltip
+              )
+            },
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
               span(class = "badge bg-light text-dark border", paper$venue)
             }
           ),
-          div(class = "text-muted", author_str)
+          div(class = "text-muted", author_str),
+          # Citation metrics (Phase 2)
+          format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count)
         ),
 
         hr(),
@@ -1352,7 +1443,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             paper$year, paper$venue, paper$pdf_url,
             keywords = paper$keywords,
             work_type = paper$work_type,
-            work_type_crossref = paper$work_type_crossref
+            work_type_crossref = paper$work_type_crossref,
+            oa_status = paper$oa_status,
+            is_oa = paper$is_oa,
+            cited_by_count = paper$cited_by_count,
+            referenced_works_count = paper$referenced_works_count,
+            fwci = paper$fwci
           )
 
           # Create chunk for abstract if available
