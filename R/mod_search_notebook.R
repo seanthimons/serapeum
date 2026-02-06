@@ -290,6 +290,97 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
+    # Store for tracking keyword observers
+    keyword_observers <- reactiveValues(active = list())
+
+    # Handle keyword clicks - show confirmation then delete
+    observe({
+      keywords <- all_keywords()
+      if (nrow(keywords) == 0) return()
+
+      # Limit to top 30 to match the UI
+      keywords <- head(keywords, 30)
+
+      lapply(seq_len(nrow(keywords)), function(i) {
+        kw <- keywords[i, ]
+        input_id <- paste0("kw_", gsub("[^a-zA-Z0-9]", "_", kw$keyword))
+
+        observeEvent(input[[input_id]], {
+          # Store keyword info for the confirmation handler
+          keyword_observers$pending_keyword <- kw$keyword
+          keyword_observers$pending_count <- kw$count
+
+          showModal(modalDialog(
+            title = "Delete Papers",
+            paste0("Delete ", kw$count, " papers tagged '", kw$keyword, "'?"),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("confirm_delete_keyword"), "Delete", class = "btn-danger")
+            )
+          ))
+        }, ignoreInit = TRUE)
+      })
+    })
+
+    # Handle keyword delete confirmation
+    observeEvent(input$confirm_delete_keyword, {
+      removeModal()
+
+      keyword_to_delete <- keyword_observers$pending_keyword
+      if (is.null(keyword_to_delete)) return()
+
+      # Find papers with this keyword
+      papers <- papers_data()
+      papers_to_delete <- character()
+
+      for (j in seq_len(nrow(papers))) {
+        paper_kw <- tryCatch({
+          jsonlite::fromJSON(papers$keywords[j])
+        }, error = function(e) character())
+
+        if (keyword_to_delete %in% paper_kw) {
+          papers_to_delete <- c(papers_to_delete, papers$paper_id[j])
+        }
+      }
+
+      if (length(papers_to_delete) == 0) return()
+
+      # Add to exclusion list
+      nb <- get_notebook(con(), notebook_id())
+      existing_excluded <- tryCatch({
+        if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+          jsonlite::fromJSON(nb$excluded_paper_ids)
+        } else {
+          character()
+        }
+      }, error = function(e) character())
+
+      new_excluded <- unique(c(existing_excluded, papers_to_delete))
+      update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
+
+      # Delete from database
+      for (paper_id in papers_to_delete) {
+        abstract_row <- dbGetQuery(con(),
+          "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+          list(notebook_id(), paper_id))
+        if (nrow(abstract_row) > 0) {
+          delete_abstract(con(), abstract_row$id[1])
+        }
+      }
+
+      # Clear pending
+      keyword_observers$pending_keyword <- NULL
+      keyword_observers$pending_count <- NULL
+
+      # Trigger refresh
+      paper_refresh(paper_refresh() + 1)
+
+      showNotification(
+        paste("Deleted", length(papers_to_delete), "papers tagged '", keyword_to_delete, "'"),
+        type = "message"
+      )
+    })
+
     # Paper list
     output$paper_list <- renderUI({
       papers <- filtered_papers()
