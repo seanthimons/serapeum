@@ -488,9 +488,12 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
 #' @param venue Publication venue
 #' @param pdf_url URL to PDF
 #' @param keywords Character vector of keywords (optional)
+#' @param work_type OpenAlex work type (e.g., "article", "review", "preprint")
+#' @param work_type_crossref Crossref work type (e.g., "journal-article", "posted-content")
 #' @return Abstract ID
 create_abstract <- function(con, notebook_id, paper_id, title, authors,
-                            abstract, year, venue, pdf_url, keywords = NULL) {
+                            abstract, year, venue, pdf_url, keywords = NULL,
+                            work_type = NULL, work_type_crossref = NULL) {
   id <- uuid::UUIDgenerate()
 
  # Handle edge cases
@@ -513,10 +516,14 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
     jsonlite::toJSON(keywords, auto_unbox = FALSE)
   }
 
+  # Convert work_type fields to NA if NULL
+  work_type_val <- if (is.null(work_type) || (is.character(work_type) && is.na(work_type))) NA_character_ else work_type
+  work_type_crossref_val <- if (is.null(work_type_crossref) || (is.character(work_type_crossref) && is.na(work_type_crossref))) NA_character_ else work_type_crossref
+
   dbExecute(con, "
-    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val))
+    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val))
 
   id
 }
