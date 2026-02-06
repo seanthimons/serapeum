@@ -1013,7 +1013,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           type = "message", duration = 5
         )
       } else {
-        showNotification("Some quality data failed to update", type = "warning")
+        # Show which sources failed with reasons
+        failed_msgs <- character()
+        if (!result$predatory_publishers$success) {
+          failed_msgs <- c(failed_msgs, paste("Publishers:", result$predatory_publishers$error %||% "unknown error"))
+        }
+        if (!result$predatory_journals$success) {
+          failed_msgs <- c(failed_msgs, paste("Journals:", result$predatory_journals$error %||% "unknown error"))
+        }
+        if (!result$retraction_watch$success) {
+          failed_msgs <- c(failed_msgs, paste("Retractions:", result$retraction_watch$error %||% "unknown error"))
+        }
+        showNotification(
+          paste("Failed to update:", paste(failed_msgs, collapse = "; ")),
+          type = "error", duration = 10
+        )
       }
     })
 

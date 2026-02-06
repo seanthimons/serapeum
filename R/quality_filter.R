@@ -164,38 +164,53 @@ refresh_quality_cache <- function(con, progress_callback = NULL) {
   # 1. Predatory Publishers
   if (!is.null(progress_callback)) progress_callback("Fetching predatory publishers...", 1, 3)
 
-  publishers <- fetch_predatory_publishers()
-  if (!is.null(publishers)) {
-    count <- cache_predatory_publishers(con, publishers, normalize_name)
-    results$predatory_publishers <- list(success = TRUE, count = count, error = NULL)
-  } else {
-    results$predatory_publishers$error <- "Failed to fetch data"
-    results$success <- FALSE
-  }
+  publishers_result <- tryCatch({
+    publishers <- fetch_predatory_publishers()
+    if (!is.null(publishers)) {
+      count <- cache_predatory_publishers(con, publishers, normalize_name)
+      list(success = TRUE, count = count, error = NULL)
+    } else {
+      list(success = FALSE, count = 0, error = "Empty response from Google Sheets")
+    }
+  }, error = function(e) {
+    list(success = FALSE, count = 0, error = e$message)
+  })
+  results$predatory_publishers <- publishers_result
+  if (!publishers_result$success) results$success <- FALSE
 
   # 2. Predatory Journals
   if (!is.null(progress_callback)) progress_callback("Fetching predatory journals...", 2, 3)
 
-  journals <- fetch_predatory_journals()
-  if (!is.null(journals)) {
-    count <- cache_predatory_journals(con, journals, normalize_name)
-    results$predatory_journals <- list(success = TRUE, count = count, error = NULL)
-  } else {
-    results$predatory_journals$error <- "Failed to fetch data"
-    results$success <- FALSE
-  }
+  journals_result <- tryCatch({
+    journals <- fetch_predatory_journals()
+    if (!is.null(journals)) {
+      count <- cache_predatory_journals(con, journals, normalize_name)
+      list(success = TRUE, count = count, error = NULL)
+    } else {
+      list(success = FALSE, count = 0, error = "Empty response from Google Sheets")
+    }
+  }, error = function(e) {
+    list(success = FALSE, count = 0, error = e$message)
+  })
+  results$predatory_journals <- journals_result
+  if (!journals_result$success) results$success <- FALSE
 
   # 3. Retraction Watch
   if (!is.null(progress_callback)) progress_callback("Fetching retraction data...", 3, 3)
 
-  papers <- fetch_retraction_watch()
-  if (!is.null(papers)) {
-    count <- cache_retracted_papers(con, papers)
-    results$retraction_watch <- list(success = TRUE, count = count, error = NULL)
-  } else {
-    results$retraction_watch$error <- "Failed to fetch data"
-    results$success <- FALSE
-  }
+  retraction_result <- tryCatch({
+    papers <- fetch_retraction_watch()
+    if (!is.null(papers)) {
+      count <- cache_retracted_papers(con, papers)
+      list(success = TRUE, count = count, error = NULL)
+    } else {
+      list(success = FALSE, count = 0, error = "Empty response from GitLab")
+    }
+  }, error = function(e) {
+    list(success = FALSE, count = 0, error = e$message)
+  })
+  results$retraction_watch <- retraction_result
+  if (!retraction_result$success) results$success <- FALSE
 
   results
 }
