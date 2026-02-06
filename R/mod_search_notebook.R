@@ -253,6 +253,27 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       kw_df[order(-kw_df$count), ]
     })
 
+    # Check if papers need embedding
+    papers_need_embedding <- reactive({
+      paper_refresh()  # Dependency to update when papers change
+      papers <- papers_data()
+      if (nrow(papers) == 0) return(0)
+
+      # Count papers with abstracts that don't have embeddings yet
+      # A paper needs embedding if it has an abstract but no chunk with embedding
+      unembedded <- dbGetQuery(con(), "
+        SELECT COUNT(DISTINCT a.id) as count
+        FROM abstracts a
+        LEFT JOIN chunks c ON a.id = c.source_id
+        WHERE a.notebook_id = ?
+          AND a.abstract IS NOT NULL
+          AND LENGTH(a.abstract) > 0
+          AND (c.id IS NULL OR c.embedding IS NULL)
+      ", list(notebook_id()))
+
+      unembedded$count[1]
+    })
+
     # Keyword panel
     output$keyword_panel <- renderUI({
       keywords <- all_keywords()
@@ -287,6 +308,38 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             )
           })
         )
+      )
+    })
+
+    # Embed button
+    output$embed_button <- renderUI({
+      papers <- papers_data()
+      need_embed <- papers_need_embedding()
+
+      if (nrow(papers) == 0) {
+        return(
+          tags$button(
+            class = "btn btn-secondary w-100",
+            disabled = "disabled",
+            "No Papers to Embed"
+          )
+        )
+      }
+
+      if (need_embed == 0) {
+        return(
+          tags$button(
+            class = "btn btn-success w-100",
+            disabled = "disabled",
+            HTML("&#10003; All Papers Embedded")
+          )
+        )
+      }
+
+      actionButton(
+        ns("embed_papers"),
+        HTML(paste0("&#129504; Embed ", need_embed, " Papers")),
+        class = "btn-primary w-100"
       )
     })
 
@@ -924,6 +977,103 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       paper_refresh(paper_refresh() + 1)
       showNotification(paste("Loaded", length(papers), "papers"), type = "message")
+    })
+
+    # Handle embed button click
+    observeEvent(input$embed_papers, {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      withProgress(message = "Embedding papers...", value = 0, {
+        cfg <- config()
+        api_key_or <- get_setting(cfg, "openrouter", "api_key")
+        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
+        if (is.null(api_key_or) || nchar(api_key_or) == 0) {
+          showNotification("OpenRouter API key required for embedding", type = "error")
+          return()
+        }
+
+        incProgress(0.1, detail = "Preparing...")
+
+        ragnar_indexed <- FALSE
+
+        # Index with ragnar if available
+        if (ragnar_available()) {
+          tryCatch({
+            abstracts_to_index <- dbGetQuery(con(), "
+              SELECT a.id, a.title, a.abstract
+              FROM abstracts a
+              WHERE a.notebook_id = ? AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
+            ", list(nb_id))
+
+            if (nrow(abstracts_to_index) > 0) {
+              incProgress(0.2, detail = "Building search index...")
+
+              ragnar_store_path <- file.path(
+                dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
+                "serapeum.ragnar.duckdb")
+              store <- get_ragnar_store(ragnar_store_path,
+                                        openrouter_api_key = api_key_or,
+                                        embed_model = embed_model)
+
+              for (i in seq_len(nrow(abstracts_to_index))) {
+                abs_row <- abstracts_to_index[i, ]
+                abs_chunks <- data.frame(
+                  content = abs_row$abstract,
+                  page_number = 1L,
+                  chunk_index = 0L,
+                  context = abs_row$title,
+                  origin = paste0("abstract:", abs_row$id),
+                  stringsAsFactors = FALSE
+                )
+                insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
+                incProgress(0.6 * i / nrow(abstracts_to_index),
+                           detail = paste0("Indexing ", i, "/", nrow(abstracts_to_index)))
+              }
+
+              build_ragnar_index(store)
+              ragnar_indexed <- TRUE
+              incProgress(0.9, detail = "Finalizing index...")
+            }
+          }, error = function(e) {
+            message("Ragnar indexing error: ", e$message)
+          })
+        }
+
+        # Fallback to legacy embedding if ragnar not available or failed
+        if (!ragnar_indexed) {
+          incProgress(0.3, detail = "Generating embeddings...")
+
+          chunks <- dbGetQuery(con(), "
+            SELECT c.* FROM chunks c
+            JOIN abstracts a ON c.source_id = a.id
+            WHERE a.notebook_id = ? AND c.embedding IS NULL
+          ", list(nb_id))
+
+          if (nrow(chunks) > 0) {
+            for (i in seq_len(nrow(chunks))) {
+              tryCatch({
+                embedding <- get_embedding(chunks$content[i], api_key_or, embed_model)
+                if (!is.null(embedding)) {
+                  embedding_str <- paste(embedding, collapse = ",")
+                  dbExecute(con(), "UPDATE chunks SET embedding = ? WHERE id = ?",
+                           list(embedding_str, chunks$id[i]))
+                }
+              }, error = function(e) {
+                message("Embedding error for chunk ", chunks$id[i], ": ", e$message)
+              })
+              incProgress(0.6 * i / nrow(chunks),
+                         detail = paste0("Embedding ", i, "/", nrow(chunks)))
+            }
+          }
+        }
+
+        incProgress(1.0, detail = "Done!")
+      })
+
+      showNotification("Embedding complete!", type = "message")
+      paper_refresh(paper_refresh() + 1)
     })
 
     # Import selected to document notebook
