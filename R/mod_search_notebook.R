@@ -55,16 +55,33 @@ mod_search_notebook_ui <- function(id) {
                        icon = icon("download"))
         )
       ),
-      # Right: Abstract detail view
-      card(
-        card_header(
-          class = "d-flex justify-content-between align-items-center",
-          span("Abstract Details"),
-          uiOutput(ns("detail_actions"))
+      # Right: Keyword panel + Abstract detail view
+      div(
+        # Keyword filter panel
+        card(
+          card_header("Keywords"),
+          card_body(
+            style = "max-height: 200px; overflow-y: auto;",
+            uiOutput(ns("keyword_panel"))
+          ),
+          card_footer(
+            class = "d-flex flex-column gap-2",
+            uiOutput(ns("embed_button")),
+            uiOutput(ns("exclusion_info"))
+          )
         ),
-        card_body(
-          style = "height: 500px; overflow-y: auto;",
-          uiOutput(ns("abstract_detail"))
+        # Abstract detail view
+        card(
+          class = "mt-2",
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            span("Abstract Details"),
+            uiOutput(ns("detail_actions"))
+          ),
+          card_body(
+            style = "height: 350px; overflow-y: auto;",
+            uiOutput(ns("abstract_detail"))
+          )
         )
       )
     ),
