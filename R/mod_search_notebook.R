@@ -871,6 +871,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         incProgress(0.5, detail = paste("Found", length(papers), "papers"))
 
+        # Filter out excluded papers
+        nb <- get_notebook(con(), nb_id)
+        excluded_ids <- tryCatch({
+          if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+            jsonlite::fromJSON(nb$excluded_paper_ids)
+          } else {
+            character()
+          }
+        }, error = function(e) character())
+
+        if (length(excluded_ids) > 0) {
+          original_count <- length(papers)
+          papers <- Filter(function(p) !(p$paper_id %in% excluded_ids), papers)
+          excluded_count <- original_count - length(papers)
+          if (excluded_count > 0) {
+            message("Filtered out ", excluded_count, " previously excluded papers")
+          }
+          if (length(papers) == 0) {
+            showNotification("All papers were previously excluded", type = "warning")
+            return()
+          }
+        }
+
         # Save papers
         for (paper in papers) {
           # Check if already exists
