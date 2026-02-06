@@ -125,6 +125,26 @@ parse_openalex_work <- function(work) {
     work_type_crossref <- work$type_crossref
   }
 
+  # Extract OA status (Phase 2)
+  oa_status <- NA_character_
+  is_oa <- FALSE
+  if (!is.null(work$open_access)) {
+    oa_status <- work$open_access$oa_status %||% NA_character_
+    is_oa <- isTRUE(work$open_access$is_oa)
+  }
+
+  # Extract referenced works count (outgoing citations)
+  referenced_works_count <- 0
+  if (!is.null(work$referenced_works_count)) {
+    referenced_works_count <- work$referenced_works_count
+  }
+
+  # Extract FWCI (field-weighted citation impact)
+  fwci <- NA_real_
+  if (!is.null(work$fwci)) {
+    fwci <- work$fwci
+  }
+
   list(
     paper_id = paper_id,
     title = work$title %||% "Untitled",
@@ -138,7 +158,11 @@ parse_openalex_work <- function(work) {
     pdf_url = pdf_url,
     keywords = as.list(keywords),
     work_type = work_type,
-    work_type_crossref = work_type_crossref
+    work_type_crossref = work_type_crossref,
+    oa_status = oa_status,
+    is_oa = is_oa,
+    referenced_works_count = referenced_works_count,
+    fwci = fwci
   )
 }
 

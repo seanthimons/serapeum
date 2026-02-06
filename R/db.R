@@ -126,6 +126,33 @@ init_schema <- function(con) {
     # Column already exists, ignore
   })
 
+  # Migration: Add OA status and citation columns to abstracts table (added 2026-02-06, Phase 2)
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN oa_status VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN is_oa BOOLEAN DEFAULT FALSE")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN cited_by_count INTEGER DEFAULT 0")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN referenced_works_count INTEGER DEFAULT 0")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE abstracts ADD COLUMN fwci DOUBLE")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+
   # Quality filter cache tables (added 2026-02-06)
   dbExecute(con, "
     CREATE TABLE IF NOT EXISTS predatory_publishers (
@@ -490,10 +517,18 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
 #' @param keywords Character vector of keywords (optional)
 #' @param work_type OpenAlex work type (e.g., "article", "review", "preprint")
 #' @param work_type_crossref Crossref work type (e.g., "journal-article", "posted-content")
+#' @param oa_status Open access status (e.g., "gold", "green", "hybrid", "bronze", "closed")
+#' @param is_oa Boolean indicating if paper is open access
+#' @param cited_by_count Number of citations this paper has received
+#' @param referenced_works_count Number of references in this paper
+#' @param fwci Field-weighted citation impact
 #' @return Abstract ID
 create_abstract <- function(con, notebook_id, paper_id, title, authors,
                             abstract, year, venue, pdf_url, keywords = NULL,
-                            work_type = NULL, work_type_crossref = NULL) {
+                            work_type = NULL, work_type_crossref = NULL,
+                            oa_status = NULL, is_oa = FALSE,
+                            cited_by_count = 0, referenced_works_count = 0,
+                            fwci = NULL) {
   id <- uuid::UUIDgenerate()
 
  # Handle edge cases
@@ -520,10 +555,17 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
   work_type_val <- if (is.null(work_type) || (is.character(work_type) && is.na(work_type))) NA_character_ else work_type
   work_type_crossref_val <- if (is.null(work_type_crossref) || (is.character(work_type_crossref) && is.na(work_type_crossref))) NA_character_ else work_type_crossref
 
+  # Convert OA and citation fields
+  oa_status_val <- if (is.null(oa_status) || (is.character(oa_status) && is.na(oa_status))) NA_character_ else oa_status
+  is_oa_val <- if (is.null(is_oa)) FALSE else as.logical(is_oa)
+  cited_by_count_val <- if (is.null(cited_by_count) || is.na(cited_by_count)) 0L else as.integer(cited_by_count)
+  referenced_works_count_val <- if (is.null(referenced_works_count) || is.na(referenced_works_count)) 0L else as.integer(referenced_works_count)
+  fwci_val <- if (is.null(fwci) || (is.numeric(fwci) && is.na(fwci))) NA_real_ else as.numeric(fwci)
+
   dbExecute(con, "
-    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val))
+    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref, oa_status, is_oa, cited_by_count, referenced_works_count, fwci)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val, oa_status_val, is_oa_val, cited_by_count_val, referenced_works_count_val, fwci_val))
 
   id
 }
