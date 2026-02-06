@@ -281,6 +281,19 @@ server <- function(input, output, session) {
       # Open access filter
       checkboxInput("search_is_oa", "Open Access Only", value = FALSE),
 
+      hr(),
+
+      # Quality filters
+      div(
+        class = "mb-3",
+        h6(class = "text-muted", icon("shield-halved"), " Quality Filters"),
+        checkboxInput("search_exclude_retracted", "Exclude retracted papers", value = TRUE),
+        checkboxInput("search_flag_predatory", "Flag predatory journals/publishers", value = TRUE),
+        numericInput("search_min_citations", "Minimum citations (optional)",
+                     value = NA, min = 0, max = 10000, step = 1),
+        uiOutput("quality_cache_status_create")
+      ),
+
       # Query preview
       tags$details(
         class = "mt-3",
@@ -306,8 +319,11 @@ server <- function(input, output, session) {
     to_year <- input$search_to_year
     search_field <- input$search_field %||% "default"
     is_oa <- input$search_is_oa %||% FALSE
+    min_citations <- input$search_min_citations
+    exclude_retracted <- input$search_exclude_retracted %||% TRUE
 
-    preview <- build_query_preview(query, from_year, to_year, search_field, is_oa)
+    preview <- build_query_preview(query, from_year, to_year, search_field, is_oa,
+                                    min_citations, exclude_retracted)
 
     tagList(
       if (!is.null(preview$search)) {
@@ -315,6 +331,62 @@ server <- function(input, output, session) {
       },
       div(tags$strong("filter="), preview$filter)
     )
+  })
+
+  # Quality cache status for create modal
+  output$quality_cache_status_create <- renderUI({
+    status <- tryCatch({
+      check_quality_cache_status(con)
+    }, error = function(e) {
+      list(is_empty = TRUE, is_stale = TRUE, last_updated = NULL)
+    })
+
+    status_text <- format_cache_status(status)
+
+    div(
+      class = "mt-2 small",
+      div(
+        class = if (status$is_empty || status$is_stale) "text-warning" else "text-muted",
+        icon(if (status$is_empty || status$is_stale) "triangle-exclamation" else "circle-check"),
+        " ", status_text
+      ),
+      if (status$is_empty || status$is_stale) {
+        actionLink("refresh_quality_cache_create", "Download quality data", class = "small")
+      }
+    )
+  })
+
+  # Handle quality cache refresh from create modal
+  observeEvent(input$refresh_quality_cache_create, {
+    showNotification("Downloading quality data...", type = "message", id = "quality_refresh", duration = NULL)
+
+    result <- tryCatch({
+      refresh_quality_cache(con)
+    }, error = function(e) {
+      list(success = FALSE, error = e$message)
+    })
+
+    removeNotification("quality_refresh")
+
+    if (result$success) {
+      showNotification(
+        sprintf("Quality data ready: %d publishers, %d journals, %d retractions",
+                result$predatory_publishers$count,
+                result$predatory_journals$count,
+                result$retraction_watch$count),
+        type = "message", duration = 5
+      )
+    } else {
+      # Show which sources failed
+      failed <- character()
+      if (!result$predatory_publishers$success) failed <- c(failed, "publishers")
+      if (!result$predatory_journals$success) failed <- c(failed, "journals")
+      if (!result$retraction_watch$success) failed <- c(failed, "retractions")
+      showNotification(
+        paste("Failed to download:", paste(failed, collapse = ", ")),
+        type = "error", duration = 10
+      )
+    }
   })
 
   # Create search notebook
@@ -328,7 +400,11 @@ server <- function(input, output, session) {
       from_year = input$search_from_year,
       to_year = input$search_to_year,
       search_field = input$search_field %||% "default",
-      is_oa = input$search_is_oa %||% FALSE
+      is_oa = input$search_is_oa %||% FALSE,
+      # Quality filters
+      exclude_retracted = input$search_exclude_retracted %||% TRUE,
+      flag_predatory = input$search_flag_predatory %||% TRUE,
+      min_citations = input$search_min_citations
     )
 
     id <- create_notebook(con, name, "search",

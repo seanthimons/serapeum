@@ -87,7 +87,16 @@ mod_settings_ui <- function(id) {
           numericInput(ns("abstracts_per_search"), "Abstracts per Search",
                        value = 25, min = 5, max = 100, step = 5),
           p(class = "text-muted small",
-            "Number of paper abstracts to fetch from OpenAlex per search (max 100).")
+            "Number of paper abstracts to fetch from OpenAlex per search (max 100)."),
+          hr(),
+          h5(icon("shield-halved"), " Quality Data"),
+          p(class = "text-muted small",
+            "Download lists of predatory journals/publishers and retracted papers ",
+            "to flag questionable sources in search results."),
+          uiOutput(ns("quality_data_status")),
+          actionButton(ns("download_quality_data"), "Download Quality Data",
+                       class = "btn-outline-secondary btn-sm mt-2",
+                       icon = icon("download"))
         )
       )
     )
@@ -188,6 +197,90 @@ mod_settings_server <- function(id, con, config_rv) {
     observeEvent(input$refresh_embed_models, {
       refresh_embed_trigger(refresh_embed_trigger() + 1)
       showNotification("Refreshing embedding models...", type = "message", duration = 2)
+    })
+
+    # Quality data status
+    quality_refresh <- reactiveVal(0)
+
+    output$quality_data_status <- renderUI({
+      quality_refresh()  # Dependency for refresh
+
+      status <- tryCatch({
+        check_quality_cache_status(con())
+      }, error = function(e) {
+        list(is_empty = TRUE, is_stale = TRUE, last_updated = NULL, sources = list())
+      })
+
+      if (status$is_empty) {
+        return(div(
+          class = "alert alert-warning py-2 small",
+          icon("triangle-exclamation"), " No quality data downloaded yet."
+        ))
+      }
+
+      # Build status for each source
+      source_items <- lapply(names(status$sources), function(src) {
+        s <- status$sources[[src]]
+        icon_class <- if (s$is_stale) "text-warning" else "text-success"
+        icon_name <- if (s$is_stale) "clock" else "circle-check"
+        tags$li(
+          icon(icon_name, class = icon_class),
+          " ", gsub("_", " ", src), ": ",
+          format(s$record_count, big.mark = ","), " records",
+          if (s$is_stale) span(class = "text-warning", " (stale)")
+        )
+      })
+
+      div(
+        class = "small",
+        tags$ul(class = "list-unstyled mb-1", source_items),
+        div(class = "text-muted",
+            "Last updated: ", format(status$last_updated, "%Y-%m-%d %H:%M"))
+      )
+    })
+
+    # Download quality data
+    observeEvent(input$download_quality_data, {
+      showNotification("Downloading quality data...", type = "message",
+                       id = "quality_download", duration = NULL)
+
+      result <- tryCatch({
+        refresh_quality_cache(con())
+      }, error = function(e) {
+        list(success = FALSE, error = e$message,
+             predatory_publishers = list(success = FALSE, error = e$message),
+             predatory_journals = list(success = FALSE, error = e$message),
+             retraction_watch = list(success = FALSE, error = e$message))
+      })
+
+      removeNotification("quality_download")
+
+      if (result$success) {
+        showNotification(
+          sprintf("Downloaded: %s publishers, %s journals, %s retractions",
+                  format(result$predatory_publishers$count, big.mark = ","),
+                  format(result$predatory_journals$count, big.mark = ","),
+                  format(result$retraction_watch$count, big.mark = ",")),
+          type = "message", duration = 5
+        )
+        quality_refresh(quality_refresh() + 1)
+      } else {
+        # Show detailed error
+        errors <- character()
+        if (!result$predatory_publishers$success) {
+          errors <- c(errors, paste("Publishers:", result$predatory_publishers$error))
+        }
+        if (!result$predatory_journals$success) {
+          errors <- c(errors, paste("Journals:", result$predatory_journals$error))
+        }
+        if (!result$retraction_watch$success) {
+          errors <- c(errors, paste("Retractions:", result$retraction_watch$error))
+        }
+        showNotification(
+          paste("Download failed:", paste(errors, collapse = "; ")),
+          type = "error", duration = 10
+        )
+      }
     })
 
     # Save settings
