@@ -7,8 +7,8 @@ Future enhancements for the Research Notebook tool.
 | Item | Effort | Impact | Priority Score |
 |------|--------|--------|----------------|
 | **Quick Wins (Low Effort, High Impact)** ||||
-| #5: Filter papers without abstracts | Low | High | ★★★★★ |
-| #13: Paper keywords from API | Low | Medium | ★★★★ |
+| ~~#5: Filter papers without abstracts~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
+| ~~#13: Paper keywords from API~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
 | **Strategic (Medium Effort, High Impact)** ||||
 | #10: Meta-prompt for query building | Medium | High | ★★★★ |
 | #4: Enhanced OpenAlex filters | Medium | High | ★★★★ |
@@ -26,6 +26,7 @@ Future enhancements for the Research Notebook tool.
 | #7: Audio overview | Very High | Medium | ★ |
 | **Research Needed** ||||
 | #12: Evaluate reranker need | Low | TBD | — |
+| #14: API key status indicators | Low | Medium | ★★★ |
 
 ---
 
@@ -178,12 +179,9 @@ Generate podcast-style audio summaries of notebook content.
 
 ## GitHub Issues (Open)
 
-### #5: Filter to remove papers without abstracts
-**Effort:** Low | **Impact:** High
+### ~~#5: Filter to remove papers without abstracts~~ ✅ COMPLETED
 
-More relevant for Search Notebook - if you want to chat about a paper and it doesn't have an abstract, probably not great.
-
-- [ ] Add filter at search query or paper list to keep/remove papers without abstracts
+Implemented: Checkbox filter, X button on papers, keyword click-to-delete, exclusion tracking.
 
 ---
 
@@ -262,13 +260,24 @@ Research question: Is there a need? What's the cost vs benefit?
 
 ---
 
-### #13: Get paper keywords from API
-**Effort:** Low | **Impact:** Medium (enables #10)
+### ~~#13: Get paper keywords from API~~ ✅ COMPLETED
 
-Feed into #10 (meta-prompt feature).
+Implemented: Keywords extracted from OpenAlex (display_name field), displayed as clickable badges in keyword panel.
 
 - [ ] Fetch paper keywords from OpenAlex API
 - [ ] Use to help keep/remove abstracts
+
+---
+
+### #14: API key status indicators
+**Effort:** Low | **Impact:** Medium
+
+Show visual indicator (checkmark, icon) next to fields that require an API key to indicate whether the key is configured/valid.
+
+- [ ] Add status indicator to API key input fields in Settings
+- [ ] Show checkmark or success icon when key is present/valid
+- [ ] Show warning/empty indicator when key is missing
+- [ ] Consider validation ping to verify key actually works
 
 ---
 
@@ -351,3 +360,6 @@ Move from R-based cosine similarity to in-database vector search for 100k+ chunk
 - [x] Preset generation (summary, key points, etc.)
 - [x] Settings page with model configuration
 - [x] Quarto slide deck generation
+- [x] **#5**: Filter papers without abstracts (checkbox, X button, keyword delete, exclusion tracking)
+- [x] **#13**: Paper keywords from OpenAlex API (keyword panel with counts, click-to-delete)
+- [x] Deferred embedding workflow (Embed Papers button instead of auto-embed)
