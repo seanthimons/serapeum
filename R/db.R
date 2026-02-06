@@ -765,13 +765,15 @@ get_quality_cache_meta <- function(con, source = NULL) {
 #' @param source Source name
 #' @param record_count Number of records
 update_quality_cache_meta <- function(con, source, record_count) {
+  # Use now() for DuckDB timestamp
+  now_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   dbExecute(con, "
     INSERT INTO quality_cache_meta (source, last_updated, record_count)
-    VALUES (?, CURRENT_TIMESTAMP, ?)
+    VALUES (?, ?, ?)
     ON CONFLICT (source) DO UPDATE SET
-      last_updated = CURRENT_TIMESTAMP,
+      last_updated = EXCLUDED.last_updated,
       record_count = EXCLUDED.record_count
-  ", list(source, as.integer(record_count)))
+  ", list(source, now_ts, as.integer(record_count)))
 }
 
 #' Clear and repopulate predatory publishers cache
