@@ -226,6 +226,70 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers
     })
 
+    # Aggregate keywords from all papers
+    all_keywords <- reactive({
+      papers <- papers_data()
+      if (nrow(papers) == 0) return(data.frame(keyword = character(), count = integer()))
+
+      # Parse keywords from each paper and count
+      keyword_list <- lapply(seq_len(nrow(papers)), function(i) {
+        kw <- papers$keywords[i]
+        if (is.na(kw) || is.null(kw) || nchar(kw) == 0) return(character())
+        tryCatch({
+          jsonlite::fromJSON(kw)
+        }, error = function(e) character())
+      })
+
+      all_kw <- unlist(keyword_list)
+      if (length(all_kw) == 0) return(data.frame(keyword = character(), count = integer()))
+
+      # Count and sort
+      kw_table <- table(all_kw)
+      kw_df <- data.frame(
+        keyword = names(kw_table),
+        count = as.integer(kw_table),
+        stringsAsFactors = FALSE
+      )
+      kw_df[order(-kw_df$count), ]
+    })
+
+    # Keyword panel
+    output$keyword_panel <- renderUI({
+      keywords <- all_keywords()
+      papers <- papers_data()
+
+      if (nrow(papers) == 0) {
+        return(div(class = "text-muted text-center py-2", "No papers loaded"))
+      }
+
+      if (nrow(keywords) == 0) {
+        return(div(class = "text-muted text-center py-2", "No keywords available"))
+      }
+
+      # Limit to top 30 keywords
+      keywords <- head(keywords, 30)
+
+      div(
+        div(class = "mb-2 text-muted small",
+            paste(nrow(papers), "papers")),
+        div(
+          class = "d-flex flex-wrap gap-1",
+          lapply(seq_len(nrow(keywords)), function(i) {
+            kw <- keywords[i, ]
+            actionLink(
+              ns(paste0("kw_", gsub("[^a-zA-Z0-9]", "_", kw$keyword))),
+              span(
+                class = "badge bg-secondary",
+                style = "cursor: pointer;",
+                paste0(kw$keyword, " (", kw$count, ")")
+              ),
+              title = paste("Click to remove", kw$count, "papers")
+            )
+          })
+        )
+      )
+    })
+
     # Paper list
     output$paper_list <- renderUI({
       papers <- filtered_papers()
