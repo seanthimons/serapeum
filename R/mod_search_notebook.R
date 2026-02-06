@@ -158,6 +158,25 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
 
+    # Helper: Get badge class and style for work type
+    get_type_badge <- function(work_type) {
+      if (is.null(work_type) || is.na(work_type) || work_type == "") {
+        return(list(class = "bg-light text-dark", label = "unknown"))
+      }
+      switch(work_type,
+        "article" = list(class = "bg-secondary", label = "article"),
+        "review" = list(class = "bg-info", label = "review"),
+        "preprint" = list(class = "bg-warning text-dark", label = "preprint"),
+        "book" = list(class = "bg-primary", label = "book"),
+        "dissertation" = list(class = "bg-purple text-white", label = "dissertation", style = "background-color: #6f42c1;"),
+        "dataset" = list(class = "bg-success", label = "dataset"),
+        "paratext" = list(class = "bg-light text-dark", label = "paratext"),
+        "letter" = list(class = "bg-light text-dark", label = "letter"),
+        "editorial" = list(class = "bg-light text-dark", label = "editorial"),
+        list(class = "bg-light text-dark", label = work_type)  # default
+      )
+    }
+
     # Reactive: check if API key is configured
     has_api_key <- reactive({
       cfg <- config()
@@ -612,6 +631,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         quality_flags <- paper$quality_flags[[1]] %||% character()
         flag_tooltip <- if (length(quality_flags) > 0) paste(quality_flags, collapse = "; ") else ""
 
+        # Get type badge info
+        type_badge <- get_type_badge(paper$work_type)
+
         div(
           class = paste("border-bottom py-2 position-relative", if (is_viewed) "bg-light"),
           # Delete button (top-right)
@@ -644,8 +666,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                   style = "word-wrap: break-word;",
                   paper$title
                 ),
-                div(class = "text-muted small",
-                    paste(author_str, "-", paper$year %||% "N/A")),
+                div(
+                  class = "d-flex align-items-center gap-2 small",
+                  span(class = "text-muted", paste(author_str, "-", paper$year %||% "N/A")),
+                  # Type badge
+                  span(
+                    class = paste("badge", type_badge$class),
+                    style = type_badge$style %||% "",
+                    type_badge$label
+                  )
+                ),
                 if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
                   div(class = "text-muted small fst-italic text-truncate", paper$venue)
                 }
@@ -761,6 +791,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
       }
 
+      # Get type badge info
+      type_badge <- get_type_badge(paper$work_type)
+
       tagList(
         # Title
         h5(class = "mb-3", paper$title),
@@ -773,6 +806,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             if (!is.null(paper$year) && !is.na(paper$year)) {
               span(class = "badge bg-secondary", paper$year)
             },
+            # Type badge
+            span(
+              class = paste("badge", type_badge$class),
+              style = type_badge$style %||% "",
+              type_badge$label
+            ),
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
               span(class = "badge bg-light text-dark border", paper$venue)
             }
@@ -910,6 +949,37 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         hr(),
 
+        # Document type filters
+        div(
+          class = "mb-3",
+          h6(class = "text-muted", icon("file-lines"), " Document Types"),
+          div(
+            class = "d-flex flex-wrap gap-3",
+            checkboxInput(ns("edit_type_article"), "Articles",
+                          value = if (!is.null(filters$work_types)) "article" %in% filters$work_types else TRUE,
+                          width = "auto"),
+            checkboxInput(ns("edit_type_review"), "Reviews",
+                          value = if (!is.null(filters$work_types)) "review" %in% filters$work_types else TRUE,
+                          width = "auto"),
+            checkboxInput(ns("edit_type_preprint"), "Preprints",
+                          value = if (!is.null(filters$work_types)) "preprint" %in% filters$work_types else TRUE,
+                          width = "auto"),
+            checkboxInput(ns("edit_type_book"), "Books",
+                          value = if (!is.null(filters$work_types)) "book" %in% filters$work_types else TRUE,
+                          width = "auto"),
+            checkboxInput(ns("edit_type_dissertation"), "Dissertations",
+                          value = if (!is.null(filters$work_types)) "dissertation" %in% filters$work_types else TRUE,
+                          width = "auto"),
+            checkboxInput(ns("edit_type_other"), "Other",
+                          value = if (!is.null(filters$work_types)) "other" %in% filters$work_types else TRUE,
+                          width = "auto")
+          ),
+          # Distribution panel (collapsible)
+          uiOutput(ns("type_distribution"))
+        ),
+
+        hr(),
+
         # Quality filters section
         div(
           class = "mb-3",
@@ -947,6 +1017,22 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       ))
     })
 
+    # Helper to collect selected work types from checkboxes
+    get_selected_work_types <- reactive({
+      types <- character()
+      if (isTRUE(input$edit_type_article)) types <- c(types, "article")
+      if (isTRUE(input$edit_type_review)) types <- c(types, "review")
+      if (isTRUE(input$edit_type_preprint)) types <- c(types, "preprint")
+      if (isTRUE(input$edit_type_book)) types <- c(types, "book")
+      if (isTRUE(input$edit_type_dissertation)) types <- c(types, "dissertation")
+      if (isTRUE(input$edit_type_other)) types <- c(types, "other")
+      # If all types selected, return NULL (no filter)
+      all_types <- c("article", "review", "preprint", "book", "dissertation", "other")
+      if (length(types) == length(all_types)) return(NULL)
+      if (length(types) == 0) return(NULL)  # No filter if none selected
+      types
+    })
+
     # Query preview (reactive)
     output$query_preview <- renderUI({
       query <- input$edit_query %||% ""
@@ -956,15 +1042,69 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       is_oa <- input$edit_is_oa %||% FALSE
       min_citations <- input$edit_min_citations
       exclude_retracted <- input$edit_exclude_retracted %||% TRUE
+      work_types <- get_selected_work_types()
 
       preview <- build_query_preview(query, from_year, to_year, search_field, is_oa,
-                                      min_citations, exclude_retracted)
+                                      min_citations, exclude_retracted, work_types)
 
       tagList(
         if (!is.null(preview$search)) {
           div(tags$strong("search="), preview$search)
         },
         div(tags$strong("filter="), preview$filter)
+      )
+    })
+
+    # Type distribution panel (shows bar chart of work types in current results)
+    output$type_distribution <- renderUI({
+      papers <- papers_data()
+      if (nrow(papers) == 0) return(NULL)
+
+      # Count work types (handle missing column gracefully)
+      if (!"work_type" %in% names(papers)) {
+        return(
+          tags$details(
+            class = "mt-2",
+            tags$summary(class = "text-muted small", style = "cursor: pointer;",
+                         icon("chart-bar"), " View distribution in results"),
+            div(class = "mt-2 p-2 bg-light rounded small text-muted",
+                "Type data not available. Re-run search to fetch type information.")
+          )
+        )
+      }
+
+      type_counts <- table(papers$work_type, useNA = "ifany")
+      type_counts <- sort(type_counts, decreasing = TRUE)
+
+      if (length(type_counts) == 0) return(NULL)
+
+      max_count <- max(type_counts)
+
+      tags$details(
+        class = "mt-2",
+        tags$summary(class = "text-muted small", style = "cursor: pointer;",
+                     icon("chart-bar"), " View distribution in results"),
+        div(
+          class = "mt-2 p-2 bg-light rounded",
+          lapply(names(type_counts), function(type_name) {
+            count <- type_counts[[type_name]]
+            pct <- if (max_count > 0) (count / max_count) * 100 else 0
+            display_name <- if (is.na(type_name)) "unknown" else type_name
+
+            div(
+              class = "d-flex align-items-center gap-2 mb-1",
+              span(style = "width: 80px; font-size: 0.85em;", display_name),
+              div(
+                class = "flex-grow-1",
+                div(
+                  class = "bg-secondary rounded",
+                  style = paste0("width: ", pct, "%; height: 8px;")
+                )
+              ),
+              span(class = "text-muted small", style = "width: 30px; text-align: right;", count)
+            )
+          })
+        )
       )
     })
 
@@ -1053,6 +1193,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         list()
       }
 
+      # Collect selected work types
+      work_types <- character()
+      if (isTRUE(input$edit_type_article)) work_types <- c(work_types, "article")
+      if (isTRUE(input$edit_type_review)) work_types <- c(work_types, "review")
+      if (isTRUE(input$edit_type_preprint)) work_types <- c(work_types, "preprint")
+      if (isTRUE(input$edit_type_book)) work_types <- c(work_types, "book")
+      if (isTRUE(input$edit_type_dissertation)) work_types <- c(work_types, "dissertation")
+      if (isTRUE(input$edit_type_other)) work_types <- c(work_types, "other")
+
+      # If all types selected, store NULL (no filter)
+      all_types <- c("article", "review", "preprint", "book", "dissertation", "other")
+      if (length(work_types) == length(all_types) || length(work_types) == 0) {
+        work_types <- NULL
+      }
+
       filters <- list(
         from_year = input$edit_from_year,
         to_year = input$edit_to_year,
@@ -1062,7 +1217,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Quality filters
         exclude_retracted = input$edit_exclude_retracted %||% TRUE,
         flag_predatory = input$edit_flag_predatory %||% TRUE,
-        min_citations = input$edit_min_citations
+        min_citations = input$edit_min_citations,
+        # Document type filter
+        work_types = work_types
       )
 
       # Update notebook
@@ -1117,7 +1274,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             search_field = filters$search_field %||% "default",
             is_oa = filters$is_oa %||% FALSE,
             min_citations = filters$min_citations,
-            exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE
+            exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE,
+            work_types = filters$work_types
           )
         }, error = function(e) {
           showNotification(paste("Search error:", e$message),
@@ -1192,7 +1350,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             con(), nb_id, paper$paper_id, paper$title,
             paper$authors, paper$abstract,
             paper$year, paper$venue, paper$pdf_url,
-            keywords = paper$keywords
+            keywords = paper$keywords,
+            work_type = paper$work_type,
+            work_type_crossref = paper$work_type_crossref
           )
 
           # Create chunk for abstract if available

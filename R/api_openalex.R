@@ -113,6 +113,18 @@ parse_openalex_work <- function(work) {
     keywords <- keywords[keywords != ""]
   }
 
+  # Extract work type (OpenAlex simplified type)
+  work_type <- NA_character_
+  if (!is.null(work$type)) {
+    work_type <- work$type
+  }
+
+  # Extract Crossref type (more granular)
+  work_type_crossref <- NA_character_
+  if (!is.null(work$type_crossref)) {
+    work_type_crossref <- work$type_crossref
+  }
+
   list(
     paper_id = paper_id,
     title = work$title %||% "Untitled",
@@ -124,7 +136,9 @@ parse_openalex_work <- function(work) {
     doi = doi,
     cited_by_count = cited_by_count,
     pdf_url = pdf_url,
-    keywords = as.list(keywords)
+    keywords = as.list(keywords),
+    work_type = work_type,
+    work_type_crossref = work_type_crossref
   )
 }
 
@@ -139,11 +153,13 @@ parse_openalex_work <- function(work) {
 #' @param is_oa Filter to open access only (boolean)
 #' @param min_citations Minimum citation count (optional)
 #' @param exclude_retracted Exclude retracted papers (boolean)
+#' @param work_types Character vector of work types to include (e.g., c("article", "review"))
 #' @return List of parsed works
 search_papers <- function(query, email, api_key = NULL,
                           from_year = NULL, to_year = NULL, per_page = 25,
                           search_field = "default", is_oa = FALSE,
-                          min_citations = NULL, exclude_retracted = TRUE) {
+                          min_citations = NULL, exclude_retracted = TRUE,
+                          work_types = NULL) {
 
   # Build filter components
   filters <- c("has_abstract:true")
@@ -168,6 +184,12 @@ search_papers <- function(query, email, api_key = NULL,
   # Retraction filter (exclude retracted papers)
   if (isTRUE(exclude_retracted)) {
     filters <- c(filters, "is_retracted:false")
+  }
+
+  # Work type filter (e.g., article, review, preprint)
+  if (!is.null(work_types) && length(work_types) > 0) {
+    # OpenAlex uses pipe for OR: type:article|review
+    filters <- c(filters, paste0("type:", paste(work_types, collapse = "|")))
   }
 
   # Field-specific search - add to filters instead of using search param
@@ -225,10 +247,12 @@ search_papers <- function(query, email, api_key = NULL,
 #' @param is_oa Open access filter
 #' @param min_citations Minimum citation count (optional)
 #' @param exclude_retracted Exclude retracted papers (boolean)
+#' @param work_types Character vector of work types to include
 #' @return List with search and filter strings
 build_query_preview <- function(query, from_year = NULL, to_year = NULL,
                                  search_field = "default", is_oa = FALSE,
-                                 min_citations = NULL, exclude_retracted = TRUE) {
+                                 min_citations = NULL, exclude_retracted = TRUE,
+                                 work_types = NULL) {
   filters <- c("has_abstract:true")
 
   if (!is.null(from_year)) {
@@ -250,6 +274,11 @@ build_query_preview <- function(query, from_year = NULL, to_year = NULL,
   # Retraction filter
   if (isTRUE(exclude_retracted)) {
     filters <- c(filters, "is_retracted:false")
+  }
+
+  # Work type filter
+  if (!is.null(work_types) && length(work_types) > 0) {
+    filters <- c(filters, paste0("type:", paste(work_types, collapse = "|")))
   }
 
   search_param <- NULL
