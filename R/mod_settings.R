@@ -16,14 +16,28 @@ mod_settings_ui <- function(id) {
         # Left column
         div(
           h5(icon("key"), " API Keys"),
-          textInput(ns("openrouter_key"), "OpenRouter API Key",
-                    placeholder = "sk-or-..."),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              textInput(ns("openrouter_key"), "OpenRouter API Key",
+                        placeholder = "sk-or-...")
+            ),
+            uiOutput(ns("openrouter_status"))
+          ),
           p(class = "text-muted small",
             "Get your key at ", tags$a(href = "https://openrouter.ai/keys",
                                        target = "_blank", "openrouter.ai/keys")),
           hr(),
-          textInput(ns("openalex_email"), "OpenAlex Email",
-                    placeholder = "your@email.com"),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              textInput(ns("openalex_email"), "OpenAlex Email",
+                        placeholder = "your@email.com")
+            ),
+            uiOutput(ns("openalex_status"))
+          ),
           p(class = "text-muted small",
             "Used for polite pool access. Get an API key at ",
             tags$a(href = "https://openalex.org/settings/api",
@@ -113,6 +127,12 @@ mod_settings_server <- function(id, con, config_rv) {
     # Reactive value to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
 
+    # Reactive values for API key validation status
+    api_status <- reactiveValues(
+      openrouter = list(status = "unknown", message = NULL),
+      openalex = list(status = "unknown", message = NULL)
+    )
+
     # Helper function to update embedding model choices
     update_embed_model_choices <- function(api_key, current_selection = NULL) {
       # Always get models - list_embedding_models returns defaults if API key invalid
@@ -197,6 +217,94 @@ mod_settings_server <- function(id, con, config_rv) {
     observeEvent(input$refresh_embed_models, {
       refresh_embed_trigger(refresh_embed_trigger() + 1)
       showNotification("Refreshing embedding models...", type = "message", duration = 2)
+    })
+
+    # --- API Key Validation ---
+
+    # Helper to render status icon
+    render_status_icon <- function(status, message) {
+      icon_info <- switch(status,
+        "empty" = list(icon = "circle-xmark", class = "text-danger", title = "No value entered"),
+        "validating" = list(icon = "spinner", class = "text-primary", title = "Checking..."),
+        "valid" = list(icon = "circle-check", class = "text-success", title = message %||% "Validated"),
+        "invalid" = list(icon = "circle-exclamation", class = "text-danger", title = message %||% "Invalid"),
+        list(icon = "circle-question", class = "text-muted", title = "Unknown status")
+      )
+
+      div(
+        class = icon_info$class,
+        style = "margin-bottom: 15px; font-size: 1.2em; cursor: help;",
+        title = icon_info$title,
+        icon(icon_info$icon, class = if (status == "validating") "fa-spin" else NULL)
+      )
+    }
+
+    # Debounced OpenRouter key validation (wait 1 second after typing stops)
+    openrouter_key_debounced <- reactive({
+      input$openrouter_key
+    }) |> debounce(1000)
+
+    observe({
+      key <- openrouter_key_debounced()
+
+      if (is.null(key) || nchar(key) == 0) {
+        api_status$openrouter <- list(status = "empty", message = "No API key entered")
+      } else if (nchar(key) < 10) {
+        api_status$openrouter <- list(status = "invalid", message = "Key too short")
+      } else {
+        api_status$openrouter <- list(status = "validating", message = "Checking...")
+
+        result <- tryCatch({
+          validate_openrouter_key(key)
+        }, error = function(e) {
+          list(valid = FALSE, error = e$message)
+        })
+
+        api_status$openrouter <- if (isTRUE(result$valid)) {
+          list(status = "valid", message = "API key validated")
+        } else {
+          list(status = "invalid", message = result$error %||% "Validation failed")
+        }
+      }
+    })
+
+    output$openrouter_status <- renderUI({
+      status <- api_status$openrouter
+      render_status_icon(status$status, status$message)
+    })
+
+    # Debounced OpenAlex email validation
+    openalex_email_debounced <- reactive({
+      input$openalex_email
+    }) |> debounce(1000)
+
+    observe({
+      email <- openalex_email_debounced()
+
+      if (is.null(email) || nchar(email) == 0) {
+        api_status$openalex <- list(status = "empty", message = "No email entered")
+      } else if (!grepl("@", email)) {
+        api_status$openalex <- list(status = "invalid", message = "Invalid email format")
+      } else {
+        api_status$openalex <- list(status = "validating", message = "Checking...")
+
+        result <- tryCatch({
+          validate_openalex_email(email)
+        }, error = function(e) {
+          list(valid = FALSE, error = e$message)
+        })
+
+        api_status$openalex <- if (isTRUE(result$valid)) {
+          list(status = "valid", message = "Polite pool access confirmed")
+        } else {
+          list(status = "invalid", message = result$error %||% "Validation failed")
+        }
+      }
+    })
+
+    output$openalex_status <- renderUI({
+      status <- api_status$openalex
+      render_status_icon(status$status, status$message)
     })
 
     # Quality data status

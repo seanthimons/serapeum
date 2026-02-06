@@ -324,3 +324,21 @@ get_paper <- function(paper_id, email, api_key = NULL) {
   body <- resp_body_json(resp)
   parse_openalex_work(body)
 }
+
+#' Validate OpenAlex email by making a minimal API call
+#' @param email Email address to validate
+#' @return list(valid = TRUE/FALSE, error = NULL or message)
+validate_openalex_email <- function(email) {
+  if (is.null(email) || nchar(email) < 5 || !grepl("@", email)) {
+    return(list(valid = FALSE, error = "Invalid email format"))
+  }
+
+  tryCatch({
+    req <- build_openalex_request("works", email) |>
+      req_url_query(per_page = 1)
+    resp <- req_perform(req)
+    list(valid = TRUE, error = NULL)
+  }, error = function(e) {
+    list(valid = FALSE, error = e$message)
+  })
+}

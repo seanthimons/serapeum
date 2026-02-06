@@ -187,3 +187,19 @@ list_embedding_models <- function(api_key) {
   # Sort by price (cheapest first)
   df[order(df$price_per_million), ]
 }
+
+#' Validate OpenRouter API key
+#' @param api_key API key to validate
+#' @return list(valid = TRUE/FALSE, error = NULL or error message)
+validate_openrouter_key <- function(api_key) {
+  if (is.null(api_key) || nchar(api_key) < 10) {
+    return(list(valid = FALSE, error = "Key too short"))
+  }
+
+  tryCatch({
+    models <- list_models(api_key)
+    list(valid = nrow(models) > 0, error = NULL)
+  }, error = function(e) {
+    list(valid = FALSE, error = e$message)
+  })
+}
