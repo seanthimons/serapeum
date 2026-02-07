@@ -389,25 +389,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       kw_df[order(-kw_df$count), ]
     })
 
-    # Check if papers need embedding
+    # Check if papers need embedding (based on filtered view)
     papers_need_embedding <- reactive({
       paper_refresh()  # Dependency to update when papers change
-      papers <- papers_data()
+      papers <- filtered_papers()  # Use filtered set, not all papers
       if (nrow(papers) == 0) return(0)
 
-      # Count papers with abstracts that don't have embeddings yet
-      # A paper needs embedding if it has an abstract but no chunk with embedding
-      unembedded <- dbGetQuery(con(), "
-        SELECT COUNT(DISTINCT a.id) as count
-        FROM abstracts a
-        LEFT JOIN chunks c ON a.id = c.source_id
-        WHERE a.notebook_id = ?
-          AND a.abstract IS NOT NULL
-          AND LENGTH(a.abstract) > 0
-          AND (c.id IS NULL OR c.embedding IS NULL)
-      ", list(notebook_id()))
+      # Get IDs of papers with abstracts in the filtered set
+      papers_with_abstract <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
+      if (nrow(papers_with_abstract) == 0) return(0)
 
-      unembedded$count[1]
+      paper_ids <- papers_with_abstract$id
+
+      # Count how many of the filtered papers have embeddings
+      placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+      embedded_count <- dbGetQuery(con(), sprintf("
+        SELECT COUNT(DISTINCT c.source_id) as count
+        FROM chunks c
+        WHERE c.source_id IN (%s)
+          AND c.embedding IS NOT NULL
+      ", placeholders), as.list(paper_ids))$count[1]
+
+      # Return count of filtered papers needing embedding
+      length(paper_ids) - embedded_count
     })
 
     # Keyword panel
@@ -1467,10 +1471,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       showNotification(paste("Loaded", length(papers), "papers"), type = "message")
     })
 
-    # Handle embed button click
+    # Handle embed button click (embeds only filtered papers)
     observeEvent(input$embed_papers, {
       nb_id <- notebook_id()
       req(nb_id)
+
+      # Get filtered papers to embed (matches the count shown on button)
+      papers <- filtered_papers()
+      papers_with_abstract <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
+
+      if (nrow(papers_with_abstract) == 0) {
+        showNotification("No papers with abstracts to embed", type = "warning")
+        return()
+      }
+
+      paper_ids <- papers_with_abstract$id
 
       withProgress(message = "Embedding papers...", value = 0, {
         cfg <- config()
@@ -1489,11 +1504,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Index with ragnar if available
         if (ragnar_available()) {
           tryCatch({
-            abstracts_to_index <- dbGetQuery(con(), "
+            # Query only filtered papers (not all papers in notebook)
+            placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+            abstracts_to_index <- dbGetQuery(con(), sprintf("
               SELECT a.id, a.title, a.abstract
               FROM abstracts a
-              WHERE a.notebook_id = ? AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
-            ", list(nb_id))
+              WHERE a.id IN (%s) AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
+            ", placeholders), as.list(paper_ids))
 
             if (nrow(abstracts_to_index) > 0) {
               incProgress(0.2, detail = "Building search index...")
@@ -1533,11 +1550,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         if (!ragnar_indexed) {
           incProgress(0.3, detail = "Generating embeddings...")
 
-          chunks <- dbGetQuery(con(), "
+          # Query only filtered papers (not all papers in notebook)
+          placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+          chunks <- dbGetQuery(con(), sprintf("
             SELECT c.* FROM chunks c
-            JOIN abstracts a ON c.source_id = a.id
-            WHERE a.notebook_id = ? AND c.embedding IS NULL
-          ", list(nb_id))
+            WHERE c.source_id IN (%s) AND c.embedding IS NULL
+          ", placeholders), as.list(paper_ids))
 
           if (nrow(chunks) > 0) {
             for (i in seq_len(nrow(chunks))) {
