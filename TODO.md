@@ -6,31 +6,36 @@ Future enhancements for the Research Notebook tool.
 
 | Item | Effort | Impact | Priority Score |
 |------|--------|--------|----------------|
-| **Quick Wins (Low Effort, High Impact)** ||||
+| **🔴 BUGS (Fix Immediately)** ||||
+| #35: Citation/reference display incorrect (GH #35) | Low | High | 🔍 PR #36 |
+| #34: Embed paper count wrong after filtering (GH #34) | Low | High | 🔍 PR #36 |
+| **✅ Completed** ||||
 | ~~#5: Filter papers without abstracts~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
 | ~~#13: Paper keywords from API~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
 | ~~#14: API key status indicators (GH #23)~~ | ~~Low~~ | ~~Medium~~ | ✅ DONE |
 | ~~#4 Phase 2: OA Status & Citations~~ | ~~Low~~ | ~~High~~ | ✅ DONE |
+| ~~#7: Retraction/junk journal filtering~~ | ~~High~~ | ~~High~~ | ✅ DONE |
+| **Quick Wins (Low Effort)** ||||
+| #33: Favicon (GH #33) | Very Low | Low | ★★ |
+| #26: Ban/hard filter for suspect journals (GH #26) | Low | Medium | ★★★ |
+| #9: Versioning (GH #9) | Low | Low | ★★ |
 | **Strategic (Medium Effort, High Impact)** ||||
-| #10: Meta-prompt for query building (GH #10) | Medium | High | ★★★★ |
+| #10: Meta-prompt for query building (GH #10) | Medium | High | ★★★★★ |
 | #4 Phase 3: Topics & Discovery | Medium | High | ★★★★ |
 | #25: Seed paper for searching (GH #25) | Medium | High | ★★★★ |
 | **Investments (High Effort, High Impact)** ||||
-| ~~#7: Retraction/junk journal filtering~~ | ~~High~~ | ~~High~~ | ✅ DONE |
-| #8: Local model support (GH #8) | High | High | ★★★ |
+| #8: Local model support (GH #8) | High | High | ★★★★ |
 | #11: Recursive abstract searching (GH #11) | High | High | ★★★ |
 | #27: Conclusion synthesis → future directions (GH #27) | High | High | ★★★ |
 | **Moderate Value** ||||
-| #1: Cost tracking (GH #19) | Medium | Medium | ★★★ |
-| #2: Expanded model selection (GH #20) | Medium | Medium | ★★★ |
+| #19: Cost tracking (GH #19) | Medium | Medium | ★★★ |
+| #20: Expanded model selection (GH #20) | Medium | Medium | ★★★ |
 | #17: Enhanced keyword tag behavior (GH #17) | Medium | Medium | ★★★ |
-| #26: Ban/hard filter for suspect journals (GH #26) | Low | Medium | ★★★ |
 | **Low Priority** ||||
 | #6: Timeline heatmap (GH #6) | Medium | Low | ★★ |
-| #9: Versioning (GH #9) | Low | Low | ★★ |
-| #3: Semantic Scholar (GH #21) | High | Low | ★ |
-| Audio overview (GH #22) | Very High | Medium | ★ |
 | #30: Demo mode (GH #30) | Medium | Low | ★★ |
+| #21: Semantic Scholar (GH #21) | High | Low | ★ |
+| #22: Audio overview (GH #22) | Very High | Medium | ★ |
 | **Research Needed** ||||
 | #12: Evaluate reranker need (GH #12) | Low | TBD | — |
 | **Slide Enhancement** ||||
@@ -208,6 +213,28 @@ Generate podcast-style audio summaries of notebook content.
 ---
 
 ## GitHub Issues (Open)
+
+### #35: Citation and outgoing references not correct — 🔍 PR #36
+
+**Status:** Pending review. Code was correct. Issue was stale data from before migration. After purging database and re-fetching papers, new papers correctly store and display `cited_by_count`, `referenced_works_count`, and `fwci`.
+
+---
+
+### #34: Embed number of papers is wrong — 🔍 PR #36
+
+**Status:** Pending review. Fixed in `mod_search_notebook.R`. The `papers_need_embedding()` reactive now uses `filtered_papers()` instead of `papers_data()`, so the count reflects the currently visible papers after filtering. The embed handler also only embeds filtered papers.
+
+---
+
+### #33: Favicon
+**Effort:** Very Low | **Impact:** Low
+
+Add a favicon for the app.
+
+- [ ] Design or select appropriate icon
+- [ ] Add to Shiny app
+
+---
 
 ### ~~#5: Filter to remove papers without abstracts~~ ✅ COMPLETED
 
