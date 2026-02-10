@@ -14,6 +14,7 @@ Bug fixes and high-impact features with low-to-medium effort.
 | [#25](https://github.com/seanthimons/serapeum/issues/25) | feat: Seed paper for searching | Medium | High |
 | [#40](https://github.com/seanthimons/serapeum/issues/40) | feat: OpenAlex Phase 3 - Topics & Discovery | Medium | High |
 | [#43](https://github.com/seanthimons/serapeum/issues/43) | feat: Startup UI for seed papers or search term generation | Medium | High |
+| [#51](https://github.com/seanthimons/serapeum/issues/51) | bugfix: Slide generation citations too large | Low | Medium |
 
 ---
 
@@ -36,6 +37,11 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
 | [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
+| [#48](https://github.com/seanthimons/serapeum/issues/48) | dev: Tighter RAG document retrieval controls | Low | Medium |
+| [#49](https://github.com/seanthimons/serapeum/issues/49) | feat: Export synthesis outputs (document notebooks) | Medium | Medium |
+| [#50](https://github.com/seanthimons/serapeum/issues/50) | feat: Rich output preview (document notebook synthesis) | Medium | Medium |
+| [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
+| [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
 
 ---
 
@@ -52,6 +58,7 @@ Nice-to-have features and research tasks.
 | [#22](https://github.com/seanthimons/serapeum/issues/22) | feat: Audio overview (NotebookLM style) | High | Medium |
 | [#30](https://github.com/seanthimons/serapeum/issues/30) | feat: Demo mode | Medium | Low |
 | [#33](https://github.com/seanthimons/serapeum/issues/33) | ui: Favicon | Low | Low |
+| [#45](https://github.com/seanthimons/serapeum/issues/45) | ui: Overflow on about page | Low | Low |
 
 ---
 
