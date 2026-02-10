@@ -1,0 +1,24 @@
+-- Migration 001: Bootstrap Existing Schema
+--
+-- This is a MARKER migration that represents the baseline schema created by
+-- init_schema() in R/db.R. It includes all tables that existed before the
+-- migration system was introduced:
+--   - notebooks
+--   - documents
+--   - abstracts (with all ad-hoc column additions)
+--   - chunks
+--   - settings
+--   - predatory_publishers
+--   - predatory_journals
+--   - retracted_papers
+--   - quality_cache_meta
+--
+-- For existing databases, this migration is marked as applied during bootstrap
+-- WITHOUT executing the SQL (since init_schema has already done the work).
+--
+-- For fresh databases, init_schema() creates these tables, and this migration
+-- is simply a no-op marker that gets recorded in schema_migrations.
+--
+-- The actual SQL here is harmless - it just verifies the connection works.
+
+SELECT 1;
