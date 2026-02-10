@@ -25,7 +25,7 @@ mod_about_ui <- function(id) {
 
         # Left column - Built With
         div(
-          style = "overflow-wrap: break-word; word-wrap: break-word;",
+          style = "overflow-wrap: break-word;",
           h4(icon("wrench"), " Built With"),
           div(
             class = "d-flex flex-wrap gap-2 mb-4",
@@ -63,7 +63,7 @@ mod_about_ui <- function(id) {
 
         # Right column - Key Packages
         div(
-          style = "overflow-wrap: break-word; word-wrap: break-word;",
+          style = "overflow-wrap: break-word;",
           h4(icon("box"), " Key Packages"),
           div(
             class = "row g-2",
