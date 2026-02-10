@@ -10,8 +10,6 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#34](https://github.com/seanthimons/serapeum/issues/34) | fix: Embed number of papers is wrong | Low | Medium |
-| [#35](https://github.com/seanthimons/serapeum/issues/35) | ui: Citation and outgoing references not correct | Low | Medium |
 | [#10](https://github.com/seanthimons/serapeum/issues/10) | feat: Meta-prompt for query building | Medium | High |
 | [#25](https://github.com/seanthimons/serapeum/issues/25) | feat: Seed paper for searching | Medium | High |
 | [#40](https://github.com/seanthimons/serapeum/issues/40) | feat: OpenAlex Phase 3 - Topics & Discovery | Medium | High |
@@ -37,6 +35,7 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#26](https://github.com/seanthimons/serapeum/issues/26) | feat: Ban/hard filter for suspect journals | Low | Medium |
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
+| [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
 
 ---
 
@@ -82,6 +81,8 @@ High-effort, high-payoff features for the future.
 - [x] OpenAlex Phase 1: Document type filter and badges
 - [x] OpenAlex Phase 2: OA status badges and citation metrics
 - [x] Deferred embedding workflow (Embed Papers button)
+- [x] [#34](https://github.com/seanthimons/serapeum/issues/34): Embed count reflects filtered papers (PR #36)
+- [x] [#35](https://github.com/seanthimons/serapeum/issues/35): Citation/reference display fix (PR #36)
 
 ---
 
