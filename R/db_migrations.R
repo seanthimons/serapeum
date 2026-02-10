@@ -54,14 +54,18 @@ apply_migration <- function(con, version, description, sql) {
     dbWithTransaction(con, {
       # Split SQL on semicolons and execute each statement separately
       # This handles DuckDB's requirement for separate statement execution
-      statements <- strsplit(sql, ";", fixed = TRUE)[[1]]
+      lines <- strsplit(sql, "\n")[[1]]
+
+      # Remove comment-only lines
+      lines <- lines[!grepl("^\\s*--", lines)]
+
+      # Rejoin and split on semicolons
+      clean_sql <- paste(lines, collapse = "\n")
+      statements <- strsplit(clean_sql, ";")[[1]]
 
       # Clean up statements: trim whitespace and remove empty ones
       statements <- trimws(statements)
       statements <- statements[nchar(statements) > 0]
-
-      # Filter out pure comment lines (start with --)
-      statements <- statements[!grepl("^\\s*--", statements)]
 
       # Execute each statement
       for (stmt in statements) {
@@ -97,12 +101,22 @@ apply_migration <- function(con, version, description, sql) {
 #' For fresh databases: does nothing special - init_schema() + migrations will
 #' handle setup.
 #'
-#' @param con DuckDB connection
+#' @param con DuckDB connection (may be connConnection or standard DBI)
 bootstrap_existing_database <- function(con) {
-  # Check if notebooks table exists (indicates existing database)
-  tables <- dbListTables(con)
+  # Check if notebooks table exists using a query that works with both connection types
+  # This avoids needing to extract the underlying connection
+  tables_result <- tryCatch({
+    dbGetQuery(con, "
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'main'
+    ")
+  }, error = function(e) {
+    # Fallback: return empty dataframe
+    data.frame(table_name = character(0), stringsAsFactors = FALSE)
+  })
 
-  if ("notebooks" %in% tables) {
+  if ("notebooks" %in% tables_result$table_name) {
     # Existing database - mark version 001 as already applied
     message("[migration] Detected existing database - bootstrapping at version 001")
 

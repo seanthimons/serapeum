@@ -13,6 +13,10 @@ get_db_connection <- function(path = "data/notebooks.duckdb") {
   } else {
     con <- dbConnect(duckdb(), dbdir = path)
   }
+
+  # Run pending migrations before returning connection
+  run_pending_migrations(con)
+
   con
 }
 

@@ -8,6 +8,7 @@ if (!file.exists(file.path(project_root, "R", "config.R"))) {
   project_root <- getwd()
 }
 source(file.path(project_root, "R", "config.R"))
+source(file.path(project_root, "R", "db_migrations.R"))
 source(file.path(project_root, "R", "db.R"))
 
 test_that("get_db_connection creates database file", {
@@ -17,9 +18,10 @@ test_that("get_db_connection creates database file", {
   con <- get_db_connection(db_path)
 
   expect_true(file.exists(db_path))
-  expect_s4_class(con, "duckdb_connection")
+  # Connection may be wrapped by connections package
+  expect_true(inherits(con, "DBIConnection"))
 
-  DBI::dbDisconnect(con, shutdown = TRUE)
+  close_db_connection(con)
   unlink(db_path)
 })
 
@@ -30,7 +32,13 @@ test_that("init_schema creates required tables", {
   con <- get_db_connection(db_path)
   init_schema(con)
 
-  tables <- DBI::dbListTables(con)
+  # Query tables using information_schema (works with both connection types)
+  tables_result <- DBI::dbGetQuery(con, "
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'main'
+  ")
+  tables <- tables_result$table_name
 
   expect_true("notebooks" %in% tables)
   expect_true("documents" %in% tables)
@@ -38,7 +46,7 @@ test_that("init_schema creates required tables", {
   expect_true("chunks" %in% tables)
   expect_true("settings" %in% tables)
 
-  DBI::dbDisconnect(con, shutdown = TRUE)
+  close_db_connection(con)
   unlink(db_path)
 })
 
@@ -66,7 +74,7 @@ test_that("notebook CRUD operations work", {
   notebooks <- list_notebooks(con)
   expect_equal(nrow(notebooks), 0)
 
-  DBI::dbDisconnect(con, shutdown = TRUE)
+  close_db_connection(con)
   unlink(db_path)
 })
 
@@ -83,7 +91,7 @@ test_that("document operations work", {
   expect_equal(nrow(docs), 1)
   expect_equal(docs$filename[1], "paper.pdf")
 
-  DBI::dbDisconnect(con, shutdown = TRUE)
+  close_db_connection(con)
   unlink(db_path)
 })
 
@@ -102,7 +110,7 @@ test_that("chunk operations work", {
   chunks <- list_chunks(con, doc_id)
   expect_equal(nrow(chunks), 2)
 
-  DBI::dbDisconnect(con, shutdown = TRUE)
+  close_db_connection(con)
   unlink(db_path)
 })
 
@@ -121,7 +129,7 @@ test_that("settings operations work", {
   result <- get_db_setting(con, "test_key")
   expect_equal(result, "new_value")
 
-  DBI::dbDisconnect(con, shutdown = TRUE)
+  close_db_connection(con)
   unlink(db_path)
 })
 
