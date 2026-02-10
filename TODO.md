@@ -15,6 +15,8 @@ Bug fixes and high-impact features with low-to-medium effort.
 | [#40](https://github.com/seanthimons/serapeum/issues/40) | feat: OpenAlex Phase 3 - Topics & Discovery | Medium | High |
 | [#43](https://github.com/seanthimons/serapeum/issues/43) | feat: Startup UI for seed papers or search term generation | Medium | High |
 | [#51](https://github.com/seanthimons/serapeum/issues/51) | bugfix: Slide generation citations too large | Low | Medium |
+| [#54](https://github.com/seanthimons/serapeum/issues/54) | feat: Rich sorting for FWCI, citation count, outgoing citations | Low | Medium |
+| [#55](https://github.com/seanthimons/serapeum/issues/55) | fix: Abstract embedding is not working | Low | High |
 
 ---
 
@@ -58,7 +60,6 @@ Nice-to-have features and research tasks.
 | [#22](https://github.com/seanthimons/serapeum/issues/22) | feat: Audio overview (NotebookLM style) | High | Medium |
 | [#30](https://github.com/seanthimons/serapeum/issues/30) | feat: Demo mode | Medium | Low |
 | [#33](https://github.com/seanthimons/serapeum/issues/33) | ui: Favicon | Low | Low |
-| [#45](https://github.com/seanthimons/serapeum/issues/45) | ui: Overflow on about page | Low | Low |
 
 ---
 
@@ -90,6 +91,8 @@ High-effort, high-payoff features for the future.
 - [x] Deferred embedding workflow (Embed Papers button)
 - [x] [#34](https://github.com/seanthimons/serapeum/issues/34): Embed count reflects filtered papers (PR #36)
 - [x] [#35](https://github.com/seanthimons/serapeum/issues/35): Citation/reference display fix (PR #36)
+- [x] [#45](https://github.com/seanthimons/serapeum/issues/45): About page layout overflow fix (PR #46)
+- [x] [#47](https://github.com/seanthimons/serapeum/issues/47): API key status validates config.yaml on initial load (PR #47)
 
 ---
 
