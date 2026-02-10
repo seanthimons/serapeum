@@ -25,6 +25,7 @@ mod_about_ui <- function(id) {
 
         # Left column - Built With
         div(
+          style = "overflow-wrap: break-word; word-wrap: break-word;",
           h4(icon("wrench"), " Built With"),
           div(
             class = "d-flex flex-wrap gap-2 mb-4",
@@ -62,6 +63,7 @@ mod_about_ui <- function(id) {
 
         # Right column - Key Packages
         div(
+          style = "overflow-wrap: break-word; word-wrap: break-word;",
           h4(icon("box"), " Key Packages"),
           div(
             class = "row g-2",
@@ -75,9 +77,11 @@ mod_about_ui <- function(id) {
                 class = "text-decoration-none",
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
+                  style = "min-height: 50px; overflow: hidden;",
                   tags$img(src = "https://raw.githubusercontent.com/rstudio/shiny/main/man/figures/logo.png",
-                           height = "30", alt = "shiny", onerror = "this.style.display='none'"),
-                  span("shiny")
+                           height = "30", alt = "shiny", style = "max-width: 50px; object-fit: contain;",
+                           onerror = "this.style.display='none'"),
+                  span(class = "text-truncate", "shiny")
                 )
               )
             ),
@@ -89,9 +93,11 @@ mod_about_ui <- function(id) {
                 class = "text-decoration-none",
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
+                  style = "min-height: 50px; overflow: hidden;",
                   tags$img(src = "https://raw.githubusercontent.com/rstudio/bslib/main/man/figures/logo.png",
-                           height = "30", alt = "bslib", onerror = "this.style.display='none'"),
-                  span("bslib")
+                           height = "30", alt = "bslib", style = "max-width: 50px; object-fit: contain;",
+                           onerror = "this.style.display='none'"),
+                  span(class = "text-truncate", "bslib")
                 )
               )
             ),
@@ -103,9 +109,11 @@ mod_about_ui <- function(id) {
                 class = "text-decoration-none",
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
+                  style = "min-height: 50px; overflow: hidden;",
                   tags$img(src = "https://duckdb.org/images/logo-dl/DuckDB_Logo-horizontal.png",
-                           height = "30", alt = "duckdb", onerror = "this.style.display='none'"),
-                  span("duckdb")
+                           height = "30", alt = "duckdb", style = "max-width: 80px; object-fit: contain;",
+                           onerror = "this.style.display='none'"),
+                  span(class = "text-truncate", "duckdb")
                 )
               )
             ),
@@ -117,9 +125,11 @@ mod_about_ui <- function(id) {
                 class = "text-decoration-none",
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
+                  style = "min-height: 50px; overflow: hidden;",
                   tags$img(src = "https://docs.ropensci.org/pdftools/logo.png",
-                           height = "30", alt = "pdftools", onerror = "this.style.display='none'"),
-                  span("pdftools")
+                           height = "30", alt = "pdftools", style = "max-width: 50px; object-fit: contain;",
+                           onerror = "this.style.display='none'"),
+                  span(class = "text-truncate", "pdftools")
                 )
               )
             ),
@@ -131,9 +141,11 @@ mod_about_ui <- function(id) {
                 class = "text-decoration-none",
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
+                  style = "min-height: 50px; overflow: hidden;",
                   tags$img(src = "https://raw.githubusercontent.com/r-lib/httr2/main/man/figures/logo.png",
-                           height = "30", alt = "httr2", onerror = "this.style.display='none'"),
-                  span("httr2")
+                           height = "30", alt = "httr2", style = "max-width: 50px; object-fit: contain;",
+                           onerror = "this.style.display='none'"),
+                  span(class = "text-truncate", "httr2")
                 )
               )
             ),
@@ -145,9 +157,11 @@ mod_about_ui <- function(id) {
                 class = "text-decoration-none",
                 div(
                   class = "p-2 border rounded d-flex align-items-center gap-2 hover-bg-light",
+                  style = "min-height: 50px; overflow: hidden;",
                   tags$img(src = "https://raw.githubusercontent.com/tidyverse/tidyverse/main/man/figures/logo.png",
-                           height = "30", alt = "tidyverse", onerror = "this.style.display='none'"),
-                  span("tidyverse")
+                           height = "30", alt = "tidyverse", style = "max-width: 50px; object-fit: contain;",
+                           onerror = "this.style.display='none'"),
+                  span(class = "text-truncate", "tidyverse")
                 )
               )
             )
