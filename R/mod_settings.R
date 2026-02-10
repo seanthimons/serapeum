@@ -201,6 +201,48 @@ mod_settings_server <- function(id, con, config_rv) {
       abstracts_per_search <- get_db_setting(con(), "abstracts_per_search") %||%
                               get_setting(cfg, "app", "abstracts_per_search") %||% 25
       updateNumericInput(session, "abstracts_per_search", value = abstracts_per_search)
+
+      # Validate initial API key values
+      if (nchar(or_key) > 0) {
+        if (nchar(or_key) < 10) {
+          api_status$openrouter <- list(status = "invalid", message = "Key too short")
+        } else {
+          api_status$openrouter <- list(status = "validating", message = "Checking...")
+          result <- tryCatch({
+            validate_openrouter_key(or_key)
+          }, error = function(e) {
+            list(valid = FALSE, error = e$message)
+          })
+          api_status$openrouter <- if (isTRUE(result$valid)) {
+            list(status = "valid", message = "API key validated")
+          } else {
+            list(status = "invalid", message = result$error %||% "Validation failed")
+          }
+        }
+      } else {
+        api_status$openrouter <- list(status = "empty", message = "No API key entered")
+      }
+
+      # Validate initial OpenAlex email
+      if (nchar(oa_email) > 0) {
+        if (!grepl("@", oa_email)) {
+          api_status$openalex <- list(status = "invalid", message = "Invalid email format")
+        } else {
+          api_status$openalex <- list(status = "validating", message = "Checking...")
+          result <- tryCatch({
+            validate_openalex_email(oa_email)
+          }, error = function(e) {
+            list(valid = FALSE, error = e$message)
+          })
+          api_status$openalex <- if (isTRUE(result$valid)) {
+            list(status = "valid", message = "Polite pool access confirmed")
+          } else {
+            list(status = "invalid", message = result$error %||% "Validation failed")
+          }
+        }
+      } else {
+        api_status$openalex <- list(status = "empty", message = "No email entered")
+      }
     }) |> bindEvent(config_rv(), once = TRUE)
 
     # Refresh embedding models when API key changes or refresh button clicked
