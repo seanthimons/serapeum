@@ -77,6 +77,29 @@ install.packages("renv")
 renv::restore()
 ```
 
+#### Optional: PDF Image Extraction
+
+To extract images from PDFs (for slide generation and document analysis), install:
+
+1. **Poppler utilities** (system dependency):
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install poppler-utils
+   
+   # macOS
+   brew install poppler
+   
+   # Windows
+   # Download from https://github.com/oschwartz10612/poppler-windows/releases/
+   ```
+
+2. **pdfimager R package**:
+   ```r
+   pak::pak("sckott/pdfimager")
+   ```
+
+Without these, the app will work normally but image extraction features will be unavailable.
+
 ### Configuration
 
 1. Copy the example config:
@@ -155,6 +178,7 @@ Open http://localhost:8080 in your browser.
 - **OpenAlex**: Free, open academic paper search API
 - **Quarto**: Scientific publishing system for slide generation
 - **pdftools**: PDF text extraction
+- **pdfimager**: PDF image extraction (requires Poppler utilities)
 
 ## Project Structure
 
