@@ -133,6 +133,55 @@ mod_settings_server <- function(id, con, config_rv) {
       openalex = list(status = "unknown", message = NULL)
     )
 
+    # Minimum key length constant (prevents trivial/accidental values)
+    MIN_API_KEY_LENGTH <- 10
+
+    # Helper function to validate OpenRouter key and update status
+    validate_and_update_openrouter_status <- function(key) {
+      if (is.null(key) || nchar(key) == 0) {
+        api_status$openrouter <- list(status = "empty", message = "No API key entered")
+      } else if (nchar(key) < MIN_API_KEY_LENGTH) {
+        api_status$openrouter <- list(status = "invalid", message = "Key too short")
+      } else {
+        api_status$openrouter <- list(status = "validating", message = "Checking...")
+        
+        result <- tryCatch({
+          validate_openrouter_key(key)
+        }, error = function(e) {
+          list(valid = FALSE, error = e$message)
+        })
+        
+        api_status$openrouter <- if (isTRUE(result$valid)) {
+          list(status = "valid", message = "API key validated")
+        } else {
+          list(status = "invalid", message = result$error %||% "Validation failed")
+        }
+      }
+    }
+
+    # Helper function to validate OpenAlex email and update status
+    validate_and_update_openalex_status <- function(email) {
+      if (is.null(email) || nchar(email) == 0) {
+        api_status$openalex <- list(status = "empty", message = "No email entered")
+      } else if (!grepl("@", email)) {
+        api_status$openalex <- list(status = "invalid", message = "Invalid email format")
+      } else {
+        api_status$openalex <- list(status = "validating", message = "Checking...")
+        
+        result <- tryCatch({
+          validate_openalex_email(email)
+        }, error = function(e) {
+          list(valid = FALSE, error = e$message)
+        })
+        
+        api_status$openalex <- if (isTRUE(result$valid)) {
+          list(status = "valid", message = "Polite pool access confirmed")
+        } else {
+          list(status = "invalid", message = result$error %||% "Validation failed")
+        }
+      }
+    }
+
     # Helper function to update embedding model choices
     update_embed_model_choices <- function(api_key, current_selection = NULL) {
       # Always get models - list_embedding_models returns defaults if API key invalid
@@ -201,6 +250,10 @@ mod_settings_server <- function(id, con, config_rv) {
       abstracts_per_search <- get_db_setting(con(), "abstracts_per_search") %||%
                               get_setting(cfg, "app", "abstracts_per_search") %||% 25
       updateNumericInput(session, "abstracts_per_search", value = abstracts_per_search)
+
+      # Validate initial API key values using helper functions
+      validate_and_update_openrouter_status(or_key)
+      validate_and_update_openalex_status(oa_email)
     }) |> bindEvent(config_rv(), once = TRUE)
 
     # Refresh embedding models when API key changes or refresh button clicked
@@ -246,26 +299,7 @@ mod_settings_server <- function(id, con, config_rv) {
 
     observe({
       key <- openrouter_key_debounced()
-
-      if (is.null(key) || nchar(key) == 0) {
-        api_status$openrouter <- list(status = "empty", message = "No API key entered")
-      } else if (nchar(key) < 10) {
-        api_status$openrouter <- list(status = "invalid", message = "Key too short")
-      } else {
-        api_status$openrouter <- list(status = "validating", message = "Checking...")
-
-        result <- tryCatch({
-          validate_openrouter_key(key)
-        }, error = function(e) {
-          list(valid = FALSE, error = e$message)
-        })
-
-        api_status$openrouter <- if (isTRUE(result$valid)) {
-          list(status = "valid", message = "API key validated")
-        } else {
-          list(status = "invalid", message = result$error %||% "Validation failed")
-        }
-      }
+      validate_and_update_openrouter_status(key)
     })
 
     output$openrouter_status <- renderUI({
@@ -280,26 +314,7 @@ mod_settings_server <- function(id, con, config_rv) {
 
     observe({
       email <- openalex_email_debounced()
-
-      if (is.null(email) || nchar(email) == 0) {
-        api_status$openalex <- list(status = "empty", message = "No email entered")
-      } else if (!grepl("@", email)) {
-        api_status$openalex <- list(status = "invalid", message = "Invalid email format")
-      } else {
-        api_status$openalex <- list(status = "validating", message = "Checking...")
-
-        result <- tryCatch({
-          validate_openalex_email(email)
-        }, error = function(e) {
-          list(valid = FALSE, error = e$message)
-        })
-
-        api_status$openalex <- if (isTRUE(result$valid)) {
-          list(status = "valid", message = "Polite pool access confirmed")
-        } else {
-          list(status = "invalid", message = result$error %||% "Validation failed")
-        }
-      }
+      validate_and_update_openalex_status(email)
     })
 
     output$openalex_status <- renderUI({
