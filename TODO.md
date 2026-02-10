@@ -15,6 +15,7 @@ Bug fixes and high-impact features with low-to-medium effort.
 | [#10](https://github.com/seanthimons/serapeum/issues/10) | feat: Meta-prompt for query building | Medium | High |
 | [#25](https://github.com/seanthimons/serapeum/issues/25) | feat: Seed paper for searching | Medium | High |
 | [#40](https://github.com/seanthimons/serapeum/issues/40) | feat: OpenAlex Phase 3 - Topics & Discovery | Medium | High |
+| [#43](https://github.com/seanthimons/serapeum/issues/43) | feat: Startup UI for seed papers or search term generation | Medium | High |
 
 ---
 
