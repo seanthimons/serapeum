@@ -144,3 +144,104 @@ process_pdf <- function(path, chunk_size = 500, overlap = 50,
     chunking_method = "word_based"
   )
 }
+
+#' Extract images from PDF file
+#'
+#' Extracts embedded images from a PDF using the pdfimager package (which
+#' interfaces with Poppler's pdfimages tool). Returns only the images embedded
+#' in the document, not full-page renders.
+#'
+#' @param path Path to PDF file
+#' @param output_dir Directory to save extracted images (default: temp dir)
+#' @return Data frame with image metadata (path, page, width, height, type, name)
+#'         or empty data frame if no images found
+#' @examples
+#' \dontrun{
+#' images <- extract_pdf_images("paper.pdf")
+#' if (nrow(images) > 0) {
+#'   print(paste("Found", nrow(images), "images"))
+#' }
+#' }
+extract_pdf_images <- function(path, output_dir = NULL) {
+  # Check for pdfimager package
+  if (!requireNamespace("pdfimager", quietly = TRUE)) {
+    stop(
+      "Package 'pdfimager' is required for image extraction.\n",
+      "Install with: pak::pak('sckott/pdfimager')\n",
+      "Note: Requires Poppler system utilities to be installed."
+    )
+  }
+
+  # Validate file exists
+  if (!file.exists(path)) {
+    stop("PDF file not found: ", path)
+  }
+
+  # Use temp dir if not specified
+  if (is.null(output_dir)) {
+    output_dir <- tempfile("pdf_images_")
+    dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  } else {
+    # Ensure output dir exists
+    if (!dir.exists(output_dir)) {
+      dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+    }
+  }
+
+  # Extract images using pdfimager
+  result <- tryCatch({
+    pdfimager::pdimg_images(path, format = "all", pages = NULL)
+  }, error = function(e) {
+    # Check if error is due to missing Poppler
+    if (grepl("pdfimages", e$message, ignore.case = TRUE)) {
+      stop(
+        "Failed to extract images: Poppler utilities not found.\n",
+        "Install Poppler:\n",
+        "  - Ubuntu/Debian: apt-get install poppler-utils\n",
+        "  - macOS: brew install poppler\n",
+        "  - Windows: https://github.com/oschwartz10612/poppler-windows/releases/\n",
+        "Original error: ", e$message
+      )
+    }
+    stop("Failed to extract images from PDF: ", e$message)
+  })
+
+  # Return empty data frame if no images found
+  if (is.null(result) || length(result) == 0) {
+    return(data.frame(
+      path = character(0),
+      page = integer(0),
+      width = integer(0),
+      height = integer(0),
+      type = character(0),
+      name = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Return the result (pdfimager returns a data frame or list)
+  result
+}
+
+#' Check if PDF contains extractable images
+#'
+#' Utility function to quickly check if a PDF has embedded images without
+#' extracting them.
+#'
+#' @param path Path to PDF file
+#' @return Logical indicating if images were found
+#' @examples
+#' \dontrun{
+#' if (has_pdf_images("paper.pdf")) {
+#'   images <- extract_pdf_images("paper.pdf")
+#' }
+#' }
+has_pdf_images <- function(path) {
+  tryCatch({
+    images <- extract_pdf_images(path)
+    return(!is.null(images) && nrow(images) > 0)
+  }, error = function(e) {
+    # Return FALSE on any error (file not found, no pdfimager, etc.)
+    FALSE
+  })
+}

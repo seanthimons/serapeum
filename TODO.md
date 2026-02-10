@@ -362,7 +362,8 @@ Synthesize conclusions across papers to generate future research directions.
 
 Extract visual elements from PDFs for reuse.
 
-- [ ] Research PDF image extraction libraries
+- [x] Research PDF image extraction libraries (pdfimager chosen)
+- [x] Add `extract_pdf_images()` function to R/pdf.R
 - [ ] Extract figures with captions
 - [ ] Extract tables (OCR or structured extraction)
 - [ ] Store extracted visuals with metadata
@@ -447,13 +448,16 @@ Download and index the entire OpenAlex dataset (300+ GB) for offline, unlimited 
 
 Extract figures, charts, and diagrams from PDFs and intelligently insert them into generated slide decks.
 
-- [ ] Research PDF image extraction libraries (pdf-poppler, pdfimages, PyMuPDF)
+- [x] Research PDF image extraction libraries (pdfimager with Poppler chosen)
+- [x] Add basic image extraction function (`extract_pdf_images()`)
 - [ ] Extract images with bounding boxes and page context
 - [ ] Use vision model to caption/describe extracted figures
 - [ ] Match figures to relevant slide content during generation
 - [ ] Handle figure quality (resolution, format conversion)
 - [ ] Auto-crop whitespace and clean up extracted images
 - [ ] Generate proper image attribution/citations
+
+**Status:** Phase 1 complete - basic extraction implemented. See docs/plans/2026-02-10-pdf-image-extraction.md
 
 **Challenges:**
 - PDF figure extraction is notoriously unreliable
