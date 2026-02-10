@@ -190,7 +190,7 @@ extract_pdf_images <- function(path, output_dir = NULL) {
 
   # Extract images using pdfimager
   result <- tryCatch({
-    pdfimager::pdimg_images(path, format = "all", pages = NULL)
+    pdfimager::pdimg_images(path, base_dir = output_dir, format = "all", pages = NULL)
   }, error = function(e) {
     # Check if error is due to missing Poppler
     if (grepl("pdfimages", e$message, ignore.case = TRUE)) {
