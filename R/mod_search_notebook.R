@@ -407,6 +407,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         SELECT COUNT(DISTINCT c.source_id) as count
         FROM chunks c
         WHERE c.source_id IN (%s)
+          AND c.source_type = 'abstract'
           AND c.embedding IS NOT NULL
       ", placeholders), as.list(paper_ids))$count[1]
 
@@ -1554,7 +1555,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
           chunks <- dbGetQuery(con(), sprintf("
             SELECT c.* FROM chunks c
-            WHERE c.source_id IN (%s) AND c.embedding IS NULL
+            WHERE c.source_id IN (%s)
+              AND c.source_type = 'abstract'
+              AND c.embedding IS NULL
           ", placeholders), as.list(paper_ids))
 
           if (nrow(chunks) > 0) {
