@@ -78,7 +78,7 @@ mod_search_notebook_ui <- function(id) {
           card_header("Keywords"),
           card_body(
             style = "max-height: 200px; overflow-y: auto;",
-            uiOutput(ns("keyword_panel"))
+            mod_keyword_filter_ui(ns("keyword_filter"))
           ),
           card_footer(
             class = "d-flex flex-column gap-2",
@@ -173,6 +173,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     viewed_paper <- reactiveVal(NULL)
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+
+    # Keyword filter module - returns filtered papers reactive
+    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
 
     # Helper: Get badge class and style for work type
     get_type_badge <- function(work_type) {
@@ -313,9 +316,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       list_abstracts(con(), nb_id, sort_by = sort_by)
     })
 
-    # Filtered papers based on "has abstract" checkbox
+    # Filtered papers - chain keyword filter -> has_abstract filter
     filtered_papers <- reactive({
-      papers <- papers_data()
+      papers <- keyword_filtered_papers()
       if (nrow(papers) == 0) return(papers)
 
       if (isTRUE(input$filter_has_abstract)) {
@@ -379,32 +382,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers
     })
 
-    # Aggregate keywords from all papers
-    all_keywords <- reactive({
-      papers <- papers_data()
-      if (nrow(papers) == 0) return(data.frame(keyword = character(), count = integer()))
-
-      # Parse keywords from each paper and count
-      keyword_list <- lapply(seq_len(nrow(papers)), function(i) {
-        kw <- papers$keywords[i]
-        if (is.na(kw) || is.null(kw) || nchar(kw) == 0) return(character())
-        tryCatch({
-          jsonlite::fromJSON(kw)
-        }, error = function(e) character())
-      })
-
-      all_kw <- unlist(keyword_list)
-      if (length(all_kw) == 0) return(data.frame(keyword = character(), count = integer()))
-
-      # Count and sort
-      kw_table <- table(all_kw)
-      kw_df <- data.frame(
-        keyword = names(kw_table),
-        count = as.integer(kw_table),
-        stringsAsFactors = FALSE
-      )
-      kw_df[order(-kw_df$count), ]
-    })
 
     # Check if papers need embedding (based on filtered view)
     papers_need_embedding <- reactive({
@@ -431,42 +408,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       length(paper_ids) - embedded_count
     })
 
-    # Keyword panel
-    output$keyword_panel <- renderUI({
-      keywords <- all_keywords()
-      papers <- papers_data()
-
-      if (nrow(papers) == 0) {
-        return(div(class = "text-muted text-center py-2", "No papers loaded"))
-      }
-
-      if (nrow(keywords) == 0) {
-        return(div(class = "text-muted text-center py-2", "No keywords available"))
-      }
-
-      # Limit to top 30 keywords
-      keywords <- head(keywords, 30)
-
-      div(
-        div(class = "mb-2 text-muted small",
-            paste(nrow(papers), "papers")),
-        div(
-          class = "d-flex flex-wrap gap-1",
-          lapply(seq_len(nrow(keywords)), function(i) {
-            kw <- keywords[i, ]
-            actionLink(
-              ns(paste0("kw_", gsub("[^a-zA-Z0-9]", "_", kw$keyword))),
-              span(
-                class = "badge bg-secondary",
-                style = "cursor: pointer;",
-                paste0(kw$keyword, " (", kw$count, ")")
-              ),
-              title = paste("Click to remove", kw$count, "papers")
-            )
-          })
-        )
-      )
-    })
 
     # Embed button
     output$embed_button <- renderUI({
@@ -546,96 +487,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       showNotification("Exclusions cleared", type = "message")
     })
 
-    # Store for tracking keyword observers
-    keyword_observers <- reactiveValues(active = list())
 
-    # Handle keyword clicks - show confirmation then delete
-    observe({
-      keywords <- all_keywords()
-      if (nrow(keywords) == 0) return()
-
-      # Limit to top 30 to match the UI
-      keywords <- head(keywords, 30)
-
-      lapply(seq_len(nrow(keywords)), function(i) {
-        kw <- keywords[i, ]
-        input_id <- paste0("kw_", gsub("[^a-zA-Z0-9]", "_", kw$keyword))
-
-        observeEvent(input[[input_id]], {
-          # Store keyword info for the confirmation handler
-          keyword_observers$pending_keyword <- kw$keyword
-          keyword_observers$pending_count <- kw$count
-
-          showModal(modalDialog(
-            title = "Delete Papers",
-            paste0("Delete ", kw$count, " papers tagged '", kw$keyword, "'?"),
-            footer = tagList(
-              modalButton("Cancel"),
-              actionButton(ns("confirm_delete_keyword"), "Delete", class = "btn-danger")
-            )
-          ))
-        }, ignoreInit = TRUE)
-      })
-    })
-
-    # Handle keyword delete confirmation
-    observeEvent(input$confirm_delete_keyword, {
-      removeModal()
-
-      keyword_to_delete <- keyword_observers$pending_keyword
-      if (is.null(keyword_to_delete)) return()
-
-      # Find papers with this keyword
-      papers <- papers_data()
-      papers_to_delete <- character()
-
-      for (j in seq_len(nrow(papers))) {
-        paper_kw <- tryCatch({
-          jsonlite::fromJSON(papers$keywords[j])
-        }, error = function(e) character())
-
-        if (keyword_to_delete %in% paper_kw) {
-          papers_to_delete <- c(papers_to_delete, papers$paper_id[j])
-        }
-      }
-
-      if (length(papers_to_delete) == 0) return()
-
-      # Add to exclusion list
-      nb <- get_notebook(con(), notebook_id())
-      existing_excluded <- tryCatch({
-        if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
-          jsonlite::fromJSON(nb$excluded_paper_ids)
-        } else {
-          character()
-        }
-      }, error = function(e) character())
-
-      new_excluded <- unique(c(existing_excluded, papers_to_delete))
-      update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
-
-      # Delete from database
-      for (paper_id in papers_to_delete) {
-        abstract_row <- dbGetQuery(con(),
-          "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
-          list(notebook_id(), paper_id))
-        if (nrow(abstract_row) > 0) {
-          delete_abstract(con(), abstract_row$id[1])
-        }
-      }
-
-      # Clear pending
-      keyword_observers$pending_keyword <- NULL
-      keyword_observers$pending_count <- NULL
-
-      # Trigger refresh
-      paper_refresh(paper_refresh() + 1)
-
-      showNotification(
-        paste("Deleted", length(papers_to_delete), "papers tagged '", keyword_to_delete, "'"),
-        type = "message"
-      )
-    })
 
     # Handle individual paper delete (no confirmation needed)
     observe({
