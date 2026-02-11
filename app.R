@@ -44,7 +44,10 @@ ui <- page_sidebar(
                    icon = icon("magnifying-glass")),
       actionButton("discover_paper", "Discover from Paper",
                    class = "btn-outline-success",
-                   icon = icon("seedling"))
+                   icon = icon("seedling")),
+      actionButton("build_query", "Build a Query",
+                   class = "btn-outline-info",
+                   icon = icon("wand-magic-sparkles"))
     ),
     hr(),
     # Notebook list
@@ -232,6 +235,12 @@ server <- function(input, output, session) {
   observeEvent(input$discover_paper, {
     current_view("discover")
     current_notebook(NULL)
+  })
+
+  # Build a query button
+  observeEvent(input$build_query, {
+    current_notebook(NULL)
+    current_view("query_builder")
   })
 
   # New document notebook modal
@@ -445,6 +454,10 @@ server <- function(input, output, session) {
       return(mod_seed_discovery_ui("seed_discovery"))
     }
 
+    if (view == "query_builder") {
+      return(mod_query_builder_ui("query_builder"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
@@ -529,6 +542,9 @@ server <- function(input, output, session) {
   # Seed discovery module
   discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r)
 
+  # Query builder module
+  query_request <- mod_query_builder_server("query_builder", reactive(con), config_file_r)
+
   # Consume discovery request to create search notebook
   observeEvent(discovery_request(), {
     req <- discovery_request()
@@ -598,6 +614,100 @@ server <- function(input, output, session) {
       paste("Created notebook with", length(papers), "papers"),
       type = "message"
     )
+  })
+
+  # Consume query builder request to create search notebook
+  observeEvent(query_request(), {
+    req <- query_request()
+    if (is.null(req)) return()
+
+    # Create notebook with LLM-generated query
+    nb_id <- create_notebook(con, req$notebook_name, "search",
+                             search_query = req$query,
+                             search_filters = req$filters)
+
+    # Execute the search using existing OpenAlex search
+    email <- get_setting(config_file, "openalex", "email")
+    api_key <- get_setting(config_file, "openalex", "api_key")
+
+    withProgress(message = "Searching OpenAlex...", {
+      # Use search_papers function from api_openalex.R
+      # The filter string needs to be parsed to extract individual parameters
+      filter_str <- req$filters$filter
+
+      # For now, pass the full filter string to search_papers
+      # We'll need to parse it to extract specific parameters
+      results <- tryCatch({
+        # Build a minimal query using search_papers
+        # Extract search term from filters if present, or use req$query
+        search_term <- req$query %||% ""
+
+        # Call search_papers with filter string
+        # Note: search_papers doesn't accept a raw filter string parameter
+        # We need to parse the filter to extract year ranges, etc.
+        # For simplicity, we'll use the filter as-is and rely on OpenAlex API
+
+        # Actually, looking at api_openalex.R, there's no direct way to pass raw filters
+        # We need to use the lower-level build_openalex_request
+        req_obj <- build_openalex_request("works", email, api_key)
+
+        if (!is.null(search_term) && nchar(search_term) > 0) {
+          req_obj <- req_obj |> req_url_query(search = search_term)
+        }
+
+        if (!is.null(filter_str) && nchar(filter_str) > 0) {
+          req_obj <- req_obj |> req_url_query(filter = filter_str, per_page = 50)
+        } else {
+          req_obj <- req_obj |> req_url_query(per_page = 50)
+        }
+
+        resp <- req_perform(req_obj)
+        body <- resp_body_json(resp)
+
+        if (is.null(body$results)) {
+          list()
+        } else {
+          lapply(body$results, parse_openalex_work)
+        }
+      }, error = function(e) {
+        showNotification(paste("Search error:", e$message), type = "error")
+        list()
+      })
+
+      if (length(results) > 0) {
+        for (paper in results) {
+          existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+                                 list(nb_id, paper$paper_id))
+          if (nrow(existing) > 0) next
+
+          abstract_id <- create_abstract(
+            con, nb_id, paper$paper_id, paper$title,
+            paper$authors, paper$abstract,
+            paper$year, paper$venue, paper$pdf_url,
+            keywords = paper$keywords,
+            work_type = paper$work_type,
+            work_type_crossref = paper$work_type_crossref,
+            oa_status = paper$oa_status,
+            is_oa = paper$is_oa,
+            cited_by_count = paper$cited_by_count,
+            referenced_works_count = paper$referenced_works_count,
+            fwci = paper$fwci
+          )
+
+          if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+            create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
+          }
+        }
+      }
+
+      incProgress(1.0)
+    })
+
+    # Navigate to new notebook
+    current_notebook(nb_id)
+    current_view("notebook")
+    if (!is.null(notebook_refresh)) notebook_refresh(notebook_refresh() + 1)
+    showNotification(paste("Created notebook with", length(results), "papers"), type = "message")
   })
 
   # Delete notebook
