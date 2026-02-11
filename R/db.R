@@ -738,7 +738,8 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
             if (grepl("^abstract:", origin)) {
               # Extract abstract ID and check if it belongs to this notebook
               abstract_id <- sub("^abstract:", "", origin)
-              abstract_id %in% notebook_abstracts$id
+              # Explicit type coercion to ensure string comparison works
+              as.character(abstract_id) %in% as.character(notebook_abstracts$id)
             } else {
               # Check if document filename belongs to this notebook
               doc_name <- results$doc_name[i]
@@ -765,7 +766,8 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
               for (i in seq_len(nrow(results))) {
                 if (grepl("^abstract:", results$origin[i])) {
                   abs_id <- sub("^abstract:", "", results$origin[i])
-                  title_match <- titles_df$title[titles_df$id == abs_id]
+                  # Explicit type coercion to ensure string comparison works
+                  title_match <- titles_df$title[as.character(titles_df$id) == as.character(abs_id)]
                   if (length(title_match) > 0) {
                     results$abstract_title[i] <- title_match[1]
                   }
