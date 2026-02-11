@@ -86,6 +86,18 @@ mod_search_notebook_ui <- function(id) {
             uiOutput(ns("exclusion_info"))
           )
         ),
+        # Journal quality filter panel
+        card(
+          class = "mt-2",
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            span(icon("shield-halved"), " Journal Quality"),
+            actionLink(ns("manage_blocklist"), icon("list"), class = "text-muted", title = "Manage blocklist")
+          ),
+          card_body(
+            mod_journal_filter_ui(ns("journal_filter"))
+          )
+        ),
         # Abstract detail view
         card(
           class = "mt-2",
@@ -176,6 +188,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
+
+    # Journal filter module - returns filtered papers reactive + block_journal function
+    journal_filter_result <- mod_journal_filter_server("journal_filter", keyword_filtered_papers, con)
+    journal_filtered_papers <- journal_filter_result$filtered_papers
 
     # Helper: Get badge class and style for work type
     get_type_badge <- function(work_type) {
@@ -316,69 +332,14 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       list_abstracts(con(), nb_id, sort_by = sort_by)
     })
 
-    # Filtered papers - chain keyword filter -> has_abstract filter
+    # Filtered papers - chain keyword filter -> journal filter -> has_abstract filter
     filtered_papers <- reactive({
-      papers <- keyword_filtered_papers()
+      papers <- journal_filtered_papers()
       if (nrow(papers) == 0) return(papers)
 
       if (isTRUE(input$filter_has_abstract)) {
         papers <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
       }
-      papers
-    })
-
-    # Compute quality flags for displayed papers
-    papers_with_quality <- reactive({
-      papers <- filtered_papers()
-      if (nrow(papers) == 0) return(papers)
-
-      # Get current notebook's filter settings
-      nb <- tryCatch(get_notebook(con(), notebook_id()), error = function(e) NULL)
-      if (is.null(nb)) return(papers)
-
-      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
-        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
-      } else {
-        list()
-      }
-
-      flag_predatory <- if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE
-
-      if (!flag_predatory) {
-        papers$quality_flags <- replicate(nrow(papers), character(), simplify = FALSE)
-        papers$is_predatory <- FALSE
-        return(papers)
-      }
-
-      # Get quality lookup sets
-      predatory_journals_set <- tryCatch(get_predatory_journals_set(con()), error = function(e) character())
-      predatory_publishers_set <- tryCatch(get_predatory_publishers_set(con()), error = function(e) character())
-
-      # Compute flags for each paper
-      quality_flags <- vector("list", nrow(papers))
-      is_predatory <- logical(nrow(papers))
-
-      for (i in seq_len(nrow(papers))) {
-        # Build paper object for quality check
-        paper_obj <- list(
-          doi = NA_character_,  # Not stored in abstracts table currently
-          venue = papers$venue[i],
-          publisher = NA_character_  # Would need to add this field
-        )
-
-        quality <- check_paper_quality(
-          paper_obj,
-          retracted_dois = character(),
-          predatory_journals = predatory_journals_set,
-          predatory_publishers = predatory_publishers_set
-        )
-
-        quality_flags[[i]] <- quality$flags
-        is_predatory[i] <- quality$is_predatory_journal || quality$is_predatory_publisher
-      }
-
-      papers$quality_flags <- quality_flags
-      papers$is_predatory <- is_predatory
       papers
     })
 
@@ -525,7 +486,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Paper list
     output$paper_list <- renderUI({
-      papers <- papers_with_quality()
+      papers <- filtered_papers()
       current_viewed <- viewed_paper()
 
       if (nrow(papers) == 0) {
@@ -562,9 +523,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         has_pdf <- is_safe_url(paper$pdf_url)
 
         # Check quality flags
-        is_flagged <- isTRUE(paper$is_predatory)
-        quality_flags <- paper$quality_flags[[1]] %||% character()
-        flag_tooltip <- if (length(quality_flags) > 0) paste(quality_flags, collapse = "; ") else ""
+        is_flagged <- isTRUE(paper$is_flagged)
+        flag_tooltip <- if (!is.na(paper$quality_flag_text) && nchar(paper$quality_flag_text) > 0) {
+          paper$quality_flag_text
+        } else {
+          ""
+        }
 
         # Get type badge info
         type_badge <- get_type_badge(paper$work_type)
@@ -778,6 +742,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               span(class = "badge bg-light text-dark border", paper$venue)
             }
           ),
+          # Block journal action
+          if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
+            div(
+              class = "mt-1",
+              actionLink(
+                ns(paste0("block_journal_", paper$id)),
+                span(class = "badge bg-outline-danger small", icon("ban"), " Block journal"),
+                title = paste("Block all papers from", paper$venue)
+              )
+            )
+          },
           div(class = "text-muted", author_str),
           # Citation metrics (Phase 2)
           format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count)
@@ -833,6 +808,82 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     observeEvent(input$close_detail, {
       viewed_paper(NULL)
+    })
+
+    # Block journal observers
+    observe({
+      papers <- filtered_papers()
+      if (nrow(papers) == 0) return()
+      lapply(papers$id, function(paper_id) {
+        observeEvent(input[[paste0("block_journal_", paper_id)]], {
+          paper <- papers[papers$id == paper_id, ]
+          if (nrow(paper) > 0 && !is.na(paper$venue) && nchar(paper$venue) > 0) {
+            journal_filter_result$block_journal(paper$venue)
+            showNotification(
+              paste("Blocked:", paper$venue),
+              type = "message", duration = 3
+            )
+          }
+        }, ignoreInit = TRUE)
+      })
+    })
+
+    # Manage blocklist modal
+    observeEvent(input$manage_blocklist, {
+      blocked <- list_blocked_journals(con())
+
+      if (nrow(blocked) == 0) {
+        body_content <- div(
+          class = "text-center text-muted py-4",
+          icon("check-circle", class = "fa-2x mb-2"),
+          p("No journals blocked yet."),
+          p(class = "small", "You can block journals from the paper detail view.")
+        )
+      } else {
+        body_content <- div(
+          style = "max-height: 400px; overflow-y: auto;",
+          lapply(seq_len(nrow(blocked)), function(i) {
+            j <- blocked[i, ]
+            div(
+              class = "d-flex justify-content-between align-items-center border-bottom py-2",
+              div(
+                span(class = "fw-semibold", j$journal_name),
+                div(class = "text-muted small", paste("Blocked:", format(as.POSIXct(j$added_at), "%Y-%m-%d")))
+              ),
+              actionButton(
+                ns(paste0("unblock_", j$id)),
+                icon("trash"),
+                class = "btn-sm btn-outline-danger",
+                title = "Remove from blocklist"
+              )
+            )
+          })
+        )
+      }
+
+      showModal(modalDialog(
+        title = span(icon("shield-halved"), " Blocked Journals"),
+        body_content,
+        size = "m",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+    })
+
+    # Unblock journal observers
+    observe({
+      blocked <- tryCatch(list_blocked_journals(con()), error = function(e) data.frame())
+      if (nrow(blocked) == 0) return()
+
+      lapply(blocked$id, function(block_id) {
+        observeEvent(input[[paste0("unblock_", block_id)]], {
+          remove_blocked_journal(con(), block_id)
+          showNotification("Journal unblocked", type = "message", duration = 3)
+          removeModal()
+          # Trigger blocklist refresh in the journal filter module
+          journal_filter_result$block_journal("")  # Empty string signals refresh without adding
+        }, ignoreInit = TRUE)
+      })
     })
 
     # Chat button with message count badge
@@ -951,9 +1002,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
           checkboxInput(ns("edit_exclude_retracted"), "Exclude retracted papers",
                         value = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE),
-
-          checkboxInput(ns("edit_flag_predatory"), "Flag predatory journals/publishers",
-                        value = if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE),
 
           numericInput(ns("edit_min_citations"), "Minimum citations (optional)",
                        value = filters$min_citations,
@@ -1180,7 +1228,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         has_abstract = if (!is.null(existing_filters$has_abstract)) existing_filters$has_abstract else TRUE,
         # Quality filters
         exclude_retracted = input$edit_exclude_retracted %||% TRUE,
-        flag_predatory = input$edit_flag_predatory %||% TRUE,
         min_citations = input$edit_min_citations,
         # Document type filter
         work_types = work_types
@@ -1253,28 +1300,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
 
         incProgress(0.4, detail = paste("Found", length(papers), "papers"))
-
-        # Check predatory status if enabled
-        flag_predatory <- if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE
-        if (flag_predatory) {
-          incProgress(0.5, detail = "Checking quality data...")
-
-          # Get quality lookup sets
-          predatory_journals_set <- tryCatch(get_predatory_journals_set(con()), error = function(e) character())
-          predatory_publishers_set <- tryCatch(get_predatory_publishers_set(con()), error = function(e) character())
-
-          # Check each paper and add quality flags
-          for (i in seq_along(papers)) {
-            quality <- check_paper_quality(
-              papers[[i]],
-              retracted_dois = character(),  # Already filtered by API
-              predatory_journals = predatory_journals_set,
-              predatory_publishers = predatory_publishers_set
-            )
-            papers[[i]]$quality_flags <- quality$flags
-            papers[[i]]$is_predatory <- quality$is_predatory_journal || quality$is_predatory_publisher
-          }
-        }
 
         incProgress(0.6, detail = "Processing papers...")
 

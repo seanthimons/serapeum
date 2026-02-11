@@ -138,8 +138,14 @@ mod_journal_filter_server <- function(id, papers_data, con) {
 
     # Block journal function (callable by parent module)
     block_journal <- function(journal_name) {
-      if (is.null(journal_name) || is.na(journal_name) || journal_name == "") {
+      if (is.null(journal_name) || is.na(journal_name)) {
         return(FALSE)
+      }
+
+      # Empty string signals refresh without adding
+      if (journal_name == "") {
+        blocklist_refresh(blocklist_refresh() + 1)
+        return(TRUE)
       }
 
       result <- add_blocked_journal(con(), journal_name)
