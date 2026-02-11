@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration
-**Current focus:** Phase 0 - Foundation
+**Current focus:** Phase 2 - Query Builder + Sorting (complete)
 
 ## Current Position
 
