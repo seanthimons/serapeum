@@ -182,7 +182,7 @@ server <- function(input, output, session) {
   effective_config <- mod_settings_server("settings", con_r, config_file_r)
 
   # Cost tracker module
-  mod_cost_tracker_server("cost_tracker", con_r, reactive(session_id))
+  mod_cost_tracker_server("cost_tracker", con_r, reactive(session_id), effective_config)
 
   # Render inline session cost
   output$session_cost_inline <- renderText({

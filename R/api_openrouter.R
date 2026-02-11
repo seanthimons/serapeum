@@ -386,6 +386,24 @@ format_chat_model_choices <- function(models_df) {
   setNames(models_df$id, labels)
 }
 
+#' Get OpenRouter account credits
+#' @param api_key API key
+#' @return list(total_credits, total_usage, remaining) or NULL on error
+get_openrouter_credits <- function(api_key) {
+  if (is.null(api_key) || nchar(api_key) < 10) return(NULL)
+
+  tryCatch({
+    resp <- build_openrouter_request(api_key, "credits") |> req_perform()
+    body <- resp_body_json(resp)
+    data <- body$data
+    list(
+      total_credits = as.numeric(data$total_credits %||% 0),
+      total_usage = as.numeric(data$total_usage %||% 0),
+      remaining = as.numeric(data$total_credits %||% 0) - as.numeric(data$total_usage %||% 0)
+    )
+  }, error = function(e) NULL)
+}
+
 #' Validate OpenRouter API key
 #' @param api_key API key to validate
 #' @return list(valid = TRUE/FALSE, error = NULL or error message)

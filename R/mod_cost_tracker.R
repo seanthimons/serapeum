@@ -6,6 +6,8 @@ mod_cost_tracker_ui <- function(id) {
   card(
     card_header("Cost Tracker"),
     card_body(
+      # OpenRouter balance
+      uiOutput(ns("openrouter_balance")),
       # Session summary value box
       value_box(
         title = "Session Cost",
@@ -44,7 +46,8 @@ mod_cost_tracker_ui <- function(id) {
 #' @param id Module ID
 #' @param con_r Reactive database connection
 #' @param session_id_r Reactive session ID
-mod_cost_tracker_server <- function(id, con_r, session_id_r) {
+#' @param config_r Reactive effective config (from mod_settings)
+mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
   moduleServer(id, function(input, output, session) {
 
     # Reactive timer for session data (poll every 10 seconds)
@@ -52,6 +55,37 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r) {
 
     # Reactive timer for history data (poll every 60 seconds)
     history_timer <- reactiveTimer(60000)
+
+    # OpenRouter balance (poll every 60 seconds)
+    credits_data <- reactive({
+      history_timer()
+      req(config_r)
+      cfg <- config_r()
+      api_key <- cfg$openrouter$api_key
+      req(api_key, nchar(api_key) > 0)
+      get_openrouter_credits(api_key)
+    })
+
+    output$openrouter_balance <- renderUI({
+      creds <- credits_data()
+      if (is.null(creds)) return(NULL)
+
+      remaining <- creds$remaining
+      theme <- if (remaining > 10) "success" else if (remaining > 2) "warning" else "danger"
+
+      tagList(
+        value_box(
+          title = "OpenRouter Balance",
+          value = sprintf("$%.2f", remaining),
+          showcase = icon("wallet"),
+          showcase_layout = "left center",
+          theme = theme,
+          p(class = "small text-muted mb-0",
+            sprintf("$%.2f used of $%.2f", creds$total_usage, creds$total_credits))
+        ),
+        hr()
+      )
+    })
 
     # Session total reactive
     session_total <- reactive({
