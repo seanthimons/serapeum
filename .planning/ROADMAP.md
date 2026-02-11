@@ -42,11 +42,11 @@ Plans:
   4. "Embed Papers" button in search notebooks successfully embeds abstracts (not just documents)
   5. RAG chat in search notebooks returns relevant results from embedded abstracts
 **Risk flags**: DISC-01 (embedding fix) touches fragile ragnar fallback chain. Test both ragnar and legacy paths. Rate limit tracking needed for OpenAlex citation queries.
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: Fix abstract embedding (#55)
-- [ ] 01-02: Seed paper lookup and related works API + module
+- [ ] 01-01-PLAN.md -- Fix abstract embedding bug (#55) with tests
+- [ ] 01-02-PLAN.md -- Seed paper lookup, citation API, and discovery module
 
 ### Phase 2: Query Builder + Sorting
 **Goal**: Users can describe research interests in natural language and get validated OpenAlex queries, with sortable results
@@ -116,7 +116,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Foundation | 1/1 | ✓ Complete | 2026-02-10 |
-| 1. Seed Paper Discovery | 0/2 | Not started | - |
+| 1. Seed Paper Discovery | 0/2 | Planning complete | - |
 | 2. Query Builder + Sorting | 0/2 | Not started | - |
 | 3. Topic Explorer | 0/2 | Not started | - |
 | 4. Startup Wizard + Polish | 0/2 | Not started | - |
