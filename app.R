@@ -41,7 +41,10 @@ ui <- page_sidebar(
                    icon = icon("file-pdf")),
       actionButton("new_search_nb", "New Search Notebook",
                    class = "btn-outline-primary",
-                   icon = icon("magnifying-glass"))
+                   icon = icon("magnifying-glass")),
+      actionButton("discover_paper", "Discover from Paper",
+                   class = "btn-outline-success",
+                   icon = icon("seedling"))
     ),
     hr(),
     # Notebook list
@@ -222,6 +225,12 @@ server <- function(input, output, session) {
   # About link
   observeEvent(input$about_link, {
     current_view("about")
+    current_notebook(NULL)
+  })
+
+  # Discover from paper button
+  observeEvent(input$discover_paper, {
+    current_view("discover")
     current_notebook(NULL)
   })
 
@@ -432,6 +441,10 @@ server <- function(input, output, session) {
       return(mod_about_ui("about"))
     }
 
+    if (view == "discover") {
+      return(mod_seed_discovery_ui("seed_discovery"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
@@ -512,6 +525,80 @@ server <- function(input, output, session) {
 
   # Search notebook module
   mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh)
+
+  # Seed discovery module
+  discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r)
+
+  # Consume discovery request to create search notebook
+  observeEvent(discovery_request(), {
+    req <- discovery_request()
+    if (is.null(req)) return()
+
+    # Build filter for the citation query
+    citation_filter <- paste0(req$citation_type, ":", req$seed_paper$paper_id)
+
+    # Create notebook with citation filter
+    filters <- list(
+      citation_filter = citation_filter,
+      citation_type = req$citation_type,
+      seed_paper_id = req$seed_paper$paper_id
+    )
+
+    nb_id <- create_notebook(con, req$notebook_name, "search",
+                             search_query = NULL,
+                             search_filters = filters)
+
+    # Fetch citation results and populate notebook
+    email <- get_setting(config_file, "openalex", "email")
+    api_key <- get_setting(config_file, "openalex", "api_key")
+
+    withProgress(message = "Fetching related papers...", {
+      papers <- switch(req$citation_type,
+        cites = get_citing_papers(req$seed_paper$paper_id, email, api_key),
+        cited_by = get_cited_papers(req$seed_paper$paper_id, email, api_key),
+        related_to = get_related_papers(req$seed_paper$paper_id, email, api_key)
+      )
+
+      if (length(papers) > 0) {
+        for (paper in papers) {
+          # Check for duplicate
+          existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+                                 list(nb_id, paper$paper_id))
+          if (nrow(existing) > 0) next
+
+          abstract_id <- create_abstract(
+            con, nb_id, paper$paper_id, paper$title,
+            paper$authors, paper$abstract,
+            paper$year, paper$venue, paper$pdf_url,
+            keywords = paper$keywords,
+            work_type = paper$work_type,
+            work_type_crossref = paper$work_type_crossref,
+            oa_status = paper$oa_status,
+            is_oa = paper$is_oa,
+            cited_by_count = paper$cited_by_count,
+            referenced_works_count = paper$referenced_works_count,
+            fwci = paper$fwci
+          )
+
+          if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+            create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
+          }
+        }
+      }
+
+      incProgress(1.0)
+    })
+
+    # Navigate to the new notebook
+    notebook_refresh(notebook_refresh() + 1)
+    current_notebook(nb_id)
+    current_view("notebook")
+
+    showNotification(
+      paste("Created notebook with", length(papers), "papers"),
+      type = "message"
+    )
+  })
 
   # Delete notebook
   observeEvent(input$delete_nb, {
