@@ -101,7 +101,7 @@ apply_migration <- function(con, version, description, sql) {
 #' For fresh databases: does nothing special - init_schema() + migrations will
 #' handle setup.
 #'
-#' @param con DuckDB connection (may be connConnection or standard DBI)
+#' @param con DuckDB connection
 bootstrap_existing_database <- function(con) {
   # Check if notebooks table exists using a query that works with both connection types
   # This avoids needing to extract the underlying connection
