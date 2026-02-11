@@ -186,6 +186,21 @@ init_schema <- function(con) {
     )
   ")
 
+  # Cost tracking table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS cost_log (
+      id VARCHAR PRIMARY KEY,
+      session_id VARCHAR NOT NULL,
+      operation VARCHAR NOT NULL,
+      model VARCHAR NOT NULL,
+      prompt_tokens INTEGER DEFAULT 0,
+      completion_tokens INTEGER DEFAULT 0,
+      total_tokens INTEGER DEFAULT 0,
+      estimated_cost DOUBLE DEFAULT 0.0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
