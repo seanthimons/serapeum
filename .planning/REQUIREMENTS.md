@@ -72,30 +72,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COST-01 | — | Pending |
-| COST-02 | — | Pending |
-| COST-03 | — | Pending |
-| MODL-01 | — | Pending |
-| MODL-02 | — | Pending |
-| KWRD-01 | — | Pending |
-| KWRD-02 | — | Pending |
-| KWRD-03 | — | Pending |
-| KWRD-04 | — | Pending |
-| JRNL-01 | — | Pending |
-| JRNL-02 | — | Pending |
-| JRNL-03 | — | Pending |
-| JRNL-04 | — | Pending |
-| BULK-01 | — | Pending |
-| BULK-02 | — | Pending |
-| BULK-03 | — | Pending |
-| BULK-04 | — | Pending |
-| BULK-05 | — | Pending |
+| COST-01 | Phase 5 | Pending |
+| COST-02 | Phase 5 | Pending |
+| COST-03 | Phase 5 | Pending |
+| MODL-01 | Phase 6 | Pending |
+| MODL-02 | Phase 6 | Pending |
+| KWRD-01 | Phase 7 | Pending |
+| KWRD-02 | Phase 7 | Pending |
+| KWRD-03 | Phase 7 | Pending |
+| KWRD-04 | Phase 7 | Pending |
+| JRNL-01 | Phase 8 | Pending |
+| JRNL-02 | Phase 8 | Pending |
+| JRNL-03 | Phase 8 | Pending |
+| JRNL-04 | Phase 8 | Pending |
+| BULK-01 | Phase 9 | Pending |
+| BULK-02 | Phase 9 | Pending |
+| BULK-03 | Phase 9 | Pending |
+| BULK-04 | Phase 9 | Pending |
+| BULK-05 | Phase 9 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 18 total (13 core + 5 stretch)
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️
+- Mapped to phases: 18/18 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-11*
-*Last updated: 2026-02-11 after initial definition*
+*Last updated: 2026-02-11 after roadmap creation with 100% coverage*
