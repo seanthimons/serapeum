@@ -748,7 +748,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               class = "mt-1",
               actionLink(
                 ns(paste0("block_journal_", paper$id)),
-                span(class = "badge bg-outline-danger small", icon("ban"), " Block journal"),
+                span(class = "text-danger small", icon("ban"), " Block journal"),
                 title = paste("Block all papers from", paper$venue)
               )
             )
