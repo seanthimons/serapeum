@@ -532,3 +532,152 @@ validate_openalex_email <- function(email) {
     list(valid = FALSE, error = e$message)
   })
 }
+
+#' Parse a single OpenAlex topic object
+#' @param topic Raw topic object from API
+#' @return Flat list with 11 fields matching topics table schema
+parse_topic <- function(topic) {
+  # Extract topic ID by stripping URL prefix
+  topic_id <- gsub("https://openalex.org/", "", topic$id)
+
+  # Extract basic fields
+  display_name <- topic$display_name %||% NA_character_
+  description <- topic$description %||% NA_character_
+  works_count <- topic$works_count %||% 0L
+
+  # Convert keywords list to JSON string
+  keywords_json <- "[]"
+  if (!is.null(topic$keywords) && length(topic$keywords) > 0) {
+    keywords_json <- jsonlite::toJSON(topic$keywords, auto_unbox = FALSE)
+  }
+
+  # Flatten hierarchy - domain
+  domain_id <- NA_character_
+  domain_name <- NA_character_
+  if (!is.null(topic$domain)) {
+    domain_id <- gsub("https://openalex.org/", "", topic$domain$id %||% "")
+    if (domain_id == "") domain_id <- NA_character_
+    domain_name <- topic$domain$display_name %||% NA_character_
+  }
+
+  # Flatten hierarchy - field
+  field_id <- NA_character_
+  field_name <- NA_character_
+  if (!is.null(topic$field)) {
+    field_id <- gsub("https://openalex.org/", "", topic$field$id %||% "")
+    if (field_id == "") field_id <- NA_character_
+    field_name <- topic$field$display_name %||% NA_character_
+  }
+
+  # Flatten hierarchy - subfield
+  subfield_id <- NA_character_
+  subfield_name <- NA_character_
+  if (!is.null(topic$subfield)) {
+    subfield_id <- gsub("https://openalex.org/", "", topic$subfield$id %||% "")
+    if (subfield_id == "") subfield_id <- NA_character_
+    subfield_name <- topic$subfield$display_name %||% NA_character_
+  }
+
+  # Return named list with all 11 fields
+  list(
+    topic_id = topic_id,
+    display_name = display_name,
+    description = description,
+    keywords = keywords_json,
+    works_count = as.integer(works_count),
+    domain_id = domain_id,
+    domain_name = domain_name,
+    field_id = field_id,
+    field_name = field_name,
+    subfield_id = subfield_id,
+    subfield_name = subfield_name
+  )
+}
+
+#' Fetch all topics from OpenAlex with pagination
+#' @param email User email for polite pool
+#' @param api_key Optional API key
+#' @param per_page Results per page (default 100, max 200)
+#' @return Data frame of all topics
+fetch_all_topics <- function(email, api_key = NULL, per_page = 100) {
+  # Validate API key is present
+  if (is.null(api_key) || nchar(api_key) == 0) {
+    stop("OpenAlex API key required. Please add your key in Settings.")
+  }
+
+  all_topics <- list()
+  page <- 1
+  total_fetched <- 0
+
+  message("[openalex] Fetching topics from OpenAlex API...")
+
+  repeat {
+    message("[openalex] Fetching topics page ", page, "...")
+
+    # Build request using existing helper function
+    req <- build_openalex_request("topics", email, api_key) |>
+      req_url_query(
+        per_page = per_page,
+        page = page,
+        select = "id,display_name,description,keywords,works_count,domain,field,subfield"
+      )
+
+    # Perform request with error handling
+    resp <- tryCatch({
+      req_perform(req)
+    }, error = function(e) {
+      stop("OpenAlex API error while fetching topics: ", e$message)
+    })
+
+    body <- resp_body_json(resp)
+
+    # Check if we have results
+    if (is.null(body$results) || length(body$results) == 0) {
+      message("[openalex] No more results. Stopping.")
+      break
+    }
+
+    # Parse topics from this page
+    page_topics <- lapply(body$results, parse_topic)
+    all_topics <- c(all_topics, page_topics)
+
+    total_fetched <- total_fetched + length(body$results)
+
+    # Check if we've fetched all available topics
+    if (!is.null(body$meta$count) && total_fetched >= body$meta$count) {
+      message("[openalex] Fetched all ", total_fetched, " topics.")
+      break
+    }
+
+    # Rate limiting - be polite to the API
+    Sys.sleep(0.1)
+
+    page <- page + 1
+  }
+
+  message("[openalex] Converting ", length(all_topics), " topics to data frame...")
+
+  # Convert list of lists to data frame
+  if (length(all_topics) == 0) {
+    return(data.frame(
+      topic_id = character(),
+      display_name = character(),
+      description = character(),
+      keywords = character(),
+      works_count = integer(),
+      domain_id = character(),
+      domain_name = character(),
+      field_id = character(),
+      field_name = character(),
+      subfield_id = character(),
+      subfield_name = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Use do.call + rbind + lapply pattern to convert to data frame
+  topics_df <- do.call(rbind, lapply(all_topics, as.data.frame, stringsAsFactors = FALSE))
+
+  message("[openalex] Successfully fetched ", nrow(topics_df), " topics.")
+  topics_df
+}
