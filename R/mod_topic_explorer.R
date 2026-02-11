@@ -192,10 +192,10 @@ mod_topic_explorer_server <- function(id, con, config) {
         results <- dbGetQuery(con(), "
           SELECT DISTINCT topic_id, display_name, works_count, domain_name, field_name, subfield_name
           FROM topics
-          WHERE LOWER(display_name) LIKE ? OR LOWER(description) LIKE ?
+          WHERE LOWER(display_name) LIKE ? OR LOWER(description) LIKE ? OR LOWER(keywords) LIKE ?
           ORDER BY works_count DESC
           LIMIT 50
-        ", list(search_pattern, search_pattern))
+        ", list(search_pattern, search_pattern, search_pattern))
 
         if (nrow(results) > 0) {
           # Format as "TopicName -- Domain > Field > Subfield (N works)"
