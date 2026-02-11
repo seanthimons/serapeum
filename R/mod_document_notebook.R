@@ -245,7 +245,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             batch_end <- min(i + batch_size - 1, nrow(chunks_db))
             batch <- chunks_db[i:batch_end, ]
 
-            embeddings <- tryCatch({
+            embeddings_result <- tryCatch({
               get_embeddings(api_key, embed_model, batch$content)
             }, error = function(e) {
               showNotification(paste("Embedding error:", e$message),
@@ -253,9 +253,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               return(NULL)
             })
 
-            if (!is.null(embeddings)) {
-              for (j in seq_along(embeddings)) {
-                update_chunk_embedding(con(), batch$id[j], embeddings[[j]])
+            if (!is.null(embeddings_result)) {
+              # Log cost
+              if (!is.null(embeddings_result$usage)) {
+                cost <- estimate_cost(embed_model, embeddings_result$usage$prompt_tokens %||% 0, 0)
+                log_cost(con(), "embedding", embed_model,
+                         embeddings_result$usage$prompt_tokens %||% 0, 0,
+                         embeddings_result$usage$total_tokens %||% 0,
+                         cost, session$token)
+              }
+
+              # Extract embeddings and update chunks
+              for (j in seq_along(embeddings_result$embeddings)) {
+                update_chunk_embedding(con(), batch$id[j], embeddings_result$embeddings[[j]])
               }
             }
 
@@ -365,7 +375,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, user_msg, nb_id)
+        rag_query(con(), cfg, user_msg, nb_id, use_ragnar = TRUE, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
@@ -394,7 +404,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       cfg <- config()
 
       response <- tryCatch({
-        generate_preset(con(), cfg, nb_id, preset_type)
+        generate_preset(con(), cfg, nb_id, preset_type, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })

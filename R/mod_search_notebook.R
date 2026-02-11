@@ -1764,7 +1764,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, user_msg, nb_id)
+        rag_query(con(), cfg, user_msg, nb_id, use_ragnar = TRUE, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })

@@ -291,7 +291,9 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         model = input$model,
         chunks = chunks,
         options = generation_state$last_options,
-        notebook_name = notebook_name
+        notebook_name = notebook_name,
+        con = con(),
+        session_id = session$token
       )
 
       if (!is.null(result$error)) {
