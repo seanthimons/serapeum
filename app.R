@@ -261,21 +261,21 @@ server <- function(input, output, session) {
                        div(strong("Start with a Paper")),
                        div(class = "small text-muted", "Have a paper in mind? Find related work.")
                      ),
-                     class = "btn-outline-success w-100 py-4"),
+                     class = "btn-outline-success w-100 h-100 py-4"),
         actionButton("wizard_query_builder",
                      label = tagList(
                        div(icon("wand-magic-sparkles", class = "fa-2x mb-2")),
                        div(strong("Build a Query")),
                        div(class = "small text-muted", "Describe your research interest.")
                      ),
-                     class = "btn-outline-info w-100 py-4"),
+                     class = "btn-outline-info w-100 h-100 py-4"),
         actionButton("wizard_topic_explorer",
                      label = tagList(
                        div(icon("compass", class = "fa-2x mb-2")),
                        div(strong("Browse Topics")),
                        div(class = "small text-muted", "Explore research areas.")
                      ),
-                     class = "btn-outline-warning w-100 py-4")
+                     class = "btn-outline-warning w-100 h-100 py-4")
       ),
       footer = tagList(
         actionLink("skip_wizard", "Don't show this again", class = "text-muted"),
