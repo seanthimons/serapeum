@@ -748,24 +748,22 @@ server <- function(input, output, session) {
     email <- get_setting(config_file, "openalex", "email")
     api_key <- get_setting(config_file, "openalex", "api_key")
 
-    results <- list()  # Initialize for scoping
+    results <- tryCatch({
+      req_obj <- build_openalex_request("works", email, api_key) |>
+        req_url_query(filter = filter_str, per_page = 50)
 
-    withProgress(message = paste("Searching papers for topic:", req$topic_name), {
-      results <<- tryCatch({
-        req_obj <- build_openalex_request("works", email, api_key) |>
-          req_url_query(filter = filter_str, per_page = 50)
+      resp <- req_perform(req_obj)
+      body <- resp_body_json(resp)
 
-        resp <- req_perform(req_obj)
-        body <- resp_body_json(resp)
+      if (is.null(body$results)) list()
+      else lapply(body$results, parse_openalex_work)
+    }, error = function(e) {
+      showNotification(paste("Search error:", e$message), type = "error")
+      list()
+    })
 
-        if (is.null(body$results)) list()
-        else lapply(body$results, parse_openalex_work)
-      }, error = function(e) {
-        showNotification(paste("Search error:", e$message), type = "error")
-        list()
-      })
-
-      if (length(results) > 0) {
+    if (length(results) > 0) {
+      withProgress(message = paste("Adding", length(results), "papers..."), {
         for (paper in results) {
           existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
                                  list(nb_id, paper$paper_id))
@@ -789,10 +787,8 @@ server <- function(input, output, session) {
             create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
           }
         }
-      }
-
-      incProgress(1.0)
-    })
+      })
+    }
 
     # Navigate to new notebook
     notebook_refresh(notebook_refresh() + 1)
