@@ -80,8 +80,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Blocked journals DB migration + journal quality filter module (mod_journal_filter.R)
-- [ ] 08-02-PLAN.md — Search notebook integration, block action, blocklist management modal
+- [x] 08-01-PLAN.md — Blocked journals DB migration + journal quality filter module (mod_journal_filter.R)
+- [x] 08-02-PLAN.md — Search notebook integration, block action, blocklist management modal
 
 #### Phase 9: Bulk Import (Stretch)
 **Goal**: Users can import multiple papers via DOI list or .bib files for notebooks and discovery seeding
@@ -113,8 +113,8 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9
 | 5. Cost Visibility | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 6. Model Selection | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
-| 8. Journal Quality Controls | v1.1 | 0/2 | Planned | - |
+| 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 9. Bulk Import (Stretch) | v1.1 | 0/0 | Not started | - |
 
 ---
-*Updated: 2026-02-11 after Phase 8 planning complete*
+*Updated: 2026-02-11 after Phase 8 execution complete*
