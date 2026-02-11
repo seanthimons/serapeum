@@ -203,61 +203,63 @@ get_default_chat_models <- function() {
   data.frame(
     id = c(
       # Budget tier
-      "deepseek/deepseek-chat",
-      "google/gemini-2.0-flash-001",
-      "openai/gpt-4o-mini",
+      "deepseek/deepseek-v3.2",
+      "google/gemini-2.5-flash",
+      "openai/gpt-4.1-mini",
+      "openai/gpt-5-mini",
       # Mid tier
-      "moonshotai/kimi-k2-0905",
-      "anthropic/claude-3-5-haiku",
-      "meta-llama/llama-3.3-70b-instruct",
-      "google/gemini-2.5-flash-preview-05-20",
+      "moonshotai/kimi-k2.5",
+      "anthropic/claude-haiku-4.5",
+      "google/gemini-2.5-pro",
+      "openai/gpt-5",
       # Premium tier
-      "anthropic/claude-sonnet-4",
-      "openai/gpt-4o",
-      "google/gemini-2.5-pro-preview"
+      "anthropic/claude-sonnet-4.5",
+      "openai/gpt-5.2",
+      "google/gemini-3-pro-preview"
     ),
     name = c(
       # Budget tier
-      "DeepSeek V3",
-      "Gemini 2.0 Flash",
-      "GPT-4o Mini",
-      # Mid tier
-      "Kimi K2 0905",
-      "Claude 3.5 Haiku",
-      "Llama 3.3 70B",
+      "DeepSeek V3.2",
       "Gemini 2.5 Flash",
+      "GPT-4.1 Mini",
+      "GPT-5 Mini",
+      # Mid tier
+      "Kimi K2.5",
+      "Claude Haiku 4.5",
+      "Gemini 2.5 Pro",
+      "GPT-5",
       # Premium tier
-      "Claude Sonnet 4",
-      "GPT-4o",
-      "Gemini 2.5 Pro"
+      "Claude Sonnet 4.5",
+      "GPT-5.2",
+      "Gemini 3 Pro"
     ),
     context_length = c(
       # Budget tier
-      64000, 1000000, 128000,
+      163840, 1048576, 1047576, 400000,
       # Mid tier
-      200000, 200000, 128000, 1000000,
+      262144, 200000, 1048576, 400000,
       # Premium tier
-      200000, 128000, 2000000
+      1000000, 400000, 1048576
     ),
     prompt_price = c(
       # Budget tier
-      0.27, 0.10, 0.15,
+      0.25, 0.30, 0.40, 0.25,
       # Mid tier
-      0.55, 0.80, 0.88, 0.15,
+      0.45, 1.00, 1.25, 1.25,
       # Premium tier
-      3.00, 2.50, 2.00
+      3.00, 1.75, 2.00
     ),
     completion_price = c(
       # Budget tier
-      1.10, 0.40, 0.60,
+      0.38, 2.50, 1.60, 2.00,
       # Mid tier
-      0.55, 4.00, 0.88, 0.60,
+      2.25, 5.00, 10.00, 10.00,
       # Premium tier
-      15.00, 10.00, 8.00
+      15.00, 14.00, 12.00
     ),
     tier = c(
       # Budget tier
-      "budget", "budget", "budget",
+      "budget", "budget", "budget", "budget",
       # Mid tier
       "mid", "mid", "mid", "mid",
       # Premium tier

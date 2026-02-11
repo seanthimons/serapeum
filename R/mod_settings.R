@@ -53,7 +53,7 @@ mod_settings_ui <- function(id) {
               style = "flex-grow: 1;",
               selectizeInput(ns("chat_model"), "Chat Model",
                              choices = format_chat_model_choices(get_default_chat_models()),
-                             selected = "moonshotai/kimi-k2-0905")
+                             selected = "moonshotai/kimi-k2.5")
             ),
             actionButton(ns("refresh_chat_models"), NULL,
                          icon = icon("refresh"),
@@ -270,7 +270,7 @@ mod_settings_server <- function(id, con, config_rv) {
       # Chat model - use dynamic approach
       chat_model <- get_db_setting(con(), "chat_model") %||%
                     get_setting(cfg, "defaults", "chat_model") %||%
-                    "moonshotai/kimi-k2-0905"
+                    "moonshotai/kimi-k2.5"
       update_chat_model_choices(or_key, chat_model)
 
       # Embedding model - get saved selection then populate dropdown
@@ -537,7 +537,7 @@ mod_settings_server <- function(id, con, config_rv) {
         defaults = list(
           chat_model = get_db_setting(con(), "chat_model") %||%
                        get_setting(cfg, "defaults", "chat_model") %||%
-                       "moonshotai/kimi-k2-0905",
+                       "moonshotai/kimi-k2.5",
           embedding_model = get_db_setting(con(), "embedding_model") %||%
                             get_setting(cfg, "defaults", "embedding_model") %||%
                             "openai/text-embedding-3-small"
