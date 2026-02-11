@@ -50,7 +50,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — Dynamic chat model selector with pricing/context info and model details panel
+- [x] 06-01-PLAN.md — Dynamic chat model selector with pricing/context info and model details panel
 
 #### Phase 7: Interactive Keywords
 **Goal**: Users can interactively filter search results by clicking keyword tags
@@ -110,7 +110,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9
 | 3. Topic Explorer | v1.0 | 2/2 | Complete | 2026-02-11 |
 | 4. Startup Wizard + Polish | v1.0 | 2/2 | Complete | 2026-02-11 |
 | 5. Cost Visibility | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 6. Model Selection | v1.1 | 0/1 | Planned | - |
+| 6. Model Selection | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 7. Interactive Keywords | v1.1 | 0/0 | Not started | - |
 | 8. Journal Quality Controls | v1.1 | 0/0 | Not started | - |
 | 9. Bulk Import (Stretch) | v1.1 | 0/0 | Not started | - |
