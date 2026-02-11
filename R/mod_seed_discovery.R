@@ -59,9 +59,10 @@ mod_seed_discovery_server <- function(id, con, config) {
         return()
       }
 
-      # Get config values
+      # Get config values — prefer DB settings, fall back to config file
       cfg <- config()
-      email <- get_setting(cfg, "openalex", "email")
+      email <- get_db_setting(con(), "openalex_email") %||%
+               get_setting(cfg, "openalex", "email")
       api_key <- get_setting(cfg, "openalex", "api_key")
 
       if (is.null(email) || nchar(email) == 0) {
