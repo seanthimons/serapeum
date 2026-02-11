@@ -12,16 +12,16 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 Phase: 4 of 4 (Startup Wizard + Polish)
 Plan: 2 of 2 in current phase
 Status: Complete - 2 of 2 plans complete
-Last activity: 2026-02-11 -- Completed 04-02 Slide Citation CSS Fix
+Last activity: 2026-02-11 -- Completed 04-01 Startup Wizard
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 6 minutes
-- Total execution time: 0.82 hours
+- Total execution time: 1.09 hours
 
 **By Phase:**
 
@@ -31,11 +31,11 @@ Progress: [██████████] 100%
 | 1-seed-paper-discovery | 2 | 5 min | 2.5 min |
 | 2-query-builder-sorting | 2 | 6 min | 3 min |
 | 3-topic-explorer | 2 | 17 min | 8.5 min |
-| 4-startup-wizard-polish | 1 | 1 min | 1 min |
+| 4-startup-wizard-polish | 2 | 17 min | 8.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (2m), 03-01 (2m), 03-02 (15m), 04-02 (1m)
-- Trend: 04-02 fast execution (single function addition)
+- Last 5 plans: 03-01 (2m), 03-02 (15m), 04-02 (1m), 04-01 (16m)
+- Trend: 04-01 moderate execution (UI modal with localStorage integration)
 
 *Updated after each plan completion*
 
@@ -46,6 +46,11 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- shiny:connected event used for localStorage checks to avoid race conditions with Shiny.setInputValue (04-01)
+- onFlushed callback delays modal display until modules initialized (04-01)
+- removeModal() called before current_view() in routing handlers to avoid state conflicts (04-01)
+- modalButton("Close") allows wizard to reappear, actionLink("skip_wizard") persists preference (04-01)
+- h-100 class on wizard buttons equalizes heights in three-column flex layout (04-01)
 - CSS injection uses high specificity with !important to override RevealJS theme defaults (04-02)
 - Citation CSS is inline in YAML frontmatter rather than separate file for self-contained slides (04-02)
 - max-height: 15vh with overflow-y: auto prevents citations from pushing content off-slide (04-02)
@@ -78,6 +83,6 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed 04-02-PLAN.md
-Resume file: .planning/phases/04-startup-wizard-polish/04-02-SUMMARY.md
-Next: Phase 4 complete pending 04-01 execution
+Stopped at: Completed 04-01-PLAN.md
+Resume file: .planning/phases/04-startup-wizard-polish/04-01-SUMMARY.md
+Next: Phase 4 complete - all plans executed
