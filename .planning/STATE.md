@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration
-**Current focus:** Phase 3 - Topic Explorer (complete)
+**Current focus:** Phase 4 - Startup Wizard + Polish (in progress)
 
 ## Current Position
 
-Phase: 3 of 4 (Topic Explorer)
+Phase: 4 of 4 (Startup Wizard + Polish)
 Plan: 2 of 2 in current phase
 Status: Complete - 2 of 2 plans complete
-Last activity: 2026-02-11 -- Completed 03-02 Topic Explorer UI Module
+Last activity: 2026-02-11 -- Completed 04-02 Slide Citation CSS Fix
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 7 minutes
-- Total execution time: 0.80 hours
+- Total plans completed: 8
+- Average duration: 6 minutes
+- Total execution time: 0.82 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [██████████] 100%
 | 1-seed-paper-discovery | 2 | 5 min | 2.5 min |
 | 2-query-builder-sorting | 2 | 6 min | 3 min |
 | 3-topic-explorer | 2 | 17 min | 8.5 min |
+| 4-startup-wizard-polish | 1 | 1 min | 1 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (4m), 02-02 (2m), 03-01 (2m), 03-02 (15m)
-- Trend: 03-02 longer due to human verification + 5 bugfixes during UAT
+- Last 5 plans: 02-02 (2m), 03-01 (2m), 03-02 (15m), 04-02 (1m)
+- Trend: 04-02 fast execution (single function addition)
 
 *Updated after each plan completion*
 
@@ -45,6 +46,9 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- CSS injection uses high specificity with !important to override RevealJS theme defaults (04-02)
+- Citation CSS is inline in YAML frontmatter rather than separate file for self-contained slides (04-02)
+- max-height: 15vh with overflow-y: auto prevents citations from pushing content off-slide (04-02)
 - Dropped connections package — connConnection breaks dbWithTransaction, standard dbConnect sufficient (03-02)
 - OpenAlex API key optional for topic fetching — polite pool with email works (03-02)
 - Topic search includes keywords column — display_name too narrow for useful search (03-02)
@@ -74,6 +78,6 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Completed Phase 3 (Topic Explorer) - all plans complete, human verified
-Resume file: .planning/phases/03-topic-explorer/03-02-SUMMARY.md
-Next: Phase 4 - Startup Wizard + Polish
+Stopped at: Completed 04-02-PLAN.md
+Resume file: .planning/phases/04-startup-wizard-polish/04-02-SUMMARY.md
+Next: Phase 4 complete pending 04-01 execution
