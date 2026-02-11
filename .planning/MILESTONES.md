@@ -18,3 +18,22 @@
 
 ---
 
+
+## v1.1 Quality of Life (Shipped: 2026-02-11)
+
+**Phases completed:** 4 phases (5-8), 6 plans
+**Deferred:** Phase 9 (Bulk Import) → v1.2
+
+**Key accomplishments:**
+- Per-request cost tracking with session totals, cost history, and trend visualization
+- Dynamic chat model selector with 10+ OpenRouter models, live pricing, and model info panel
+- Tri-state keyword filtering (neutral/include/exclude) replacing destructive delete-by-keyword
+- Journal quality controls: predatory warnings, personal blocklist, blocklist management modal
+- Modularized search notebook: extracted 3 new modules, reduced monolith from 1,778 to ~1,410 lines
+
+**Stats:** 17 files changed, +1,569 / -287 lines
+**Timeline:** 13 days (2026-01-29 → 2026-02-11)
+**Git range:** feat(05-01) → feat(08-02)
+
+---
+
