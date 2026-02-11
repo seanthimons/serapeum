@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 Fix + Discovery** - Phases 0-4 (shipped 2026-02-11)
 - ✅ **v1.1 Quality of Life** - Phases 5-8 (shipped 2026-02-11)
+- 🚧 **v1.2 Stabilization** - Phases 9-10 (in progress)
 
 ## Phases
 
@@ -28,6 +29,45 @@
 
 </details>
 
+### 🚧 v1.2 Stabilization (In Progress)
+
+**Milestone Goal:** Fix critical bugs and polish UI elements for stable production use.
+
+#### Phase 9: Bug Fixes
+
+**Goal**: OpenAlex and OpenRouter API interactions work reliably without errors
+
+**Depends on**: Nothing (independent fixes)
+
+**Requirements**: BUGF-01, BUGF-02, BUGF-03
+
+**Success Criteria** (what must be TRUE):
+  1. User can browse OpenAlex topics without encountering 401 authentication errors
+  2. User sees clear, actionable error messages (not raw HTTP codes) when API calls fail
+  3. User can switch between search notebook and other tabs without triggering duplicate OpenAlex requests
+
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: [To be planned]
+
+#### Phase 10: UI Polish
+
+**Goal**: Search notebook interface elements display correctly and provide better UX
+
+**Depends on**: Nothing (independent of Phase 9)
+
+**Requirements**: UIPX-01, UIPX-02
+
+**Success Criteria** (what must be TRUE):
+  1. User can collapse/expand the Journal Quality filter card to reclaim vertical space when not needed
+  2. User sees all badges (year, type, access, journal, block journal) aligned consistently on the same baseline in abstract detail view
+
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01: [To be planned]
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -41,6 +81,8 @@
 | 6. Model Selection | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
+| 9. Bug Fixes | v1.2 | 0/TBD | Not started | - |
+| 10. UI Polish | v1.2 | 0/TBD | Not started | - |
 
 ---
-*Updated: 2026-02-11 after v1.1 milestone complete*
+*Updated: 2026-02-11 after v1.2 roadmap created*

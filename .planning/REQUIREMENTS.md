@@ -9,7 +9,7 @@ Requirements for the stabilization release. Bug fixes and UI polish.
 
 ### Bug Fixes
 
-- [ ] **BUGF-01**: OpenAlex topic searches succeed without 401 errors — root cause identified and fixed (#59)
+- [ ] **BUGF-01**: OpenAlex topic searches succeed without 401 errors - root cause identified and fixed (#59)
 - [ ] **BUGF-02**: User sees friendly, actionable error messages for OpenAlex and OpenRouter API failures instead of raw HTTP status codes (#65)
 - [ ] **BUGF-03**: Navigating away from search notebook and returning does not retrigger the OpenAlex request (#68)
 
@@ -26,7 +26,7 @@ Requirements for the stabilization release. Bug fixes and UI polish.
 
 ### Deferred from v1.2
 
-(None — all scoped items included)
+(None - all scoped items included)
 
 ## Out of Scope
 
@@ -45,17 +45,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUGF-01 | — | Pending |
-| BUGF-02 | — | Pending |
-| BUGF-03 | — | Pending |
-| UIPX-01 | — | Pending |
-| UIPX-02 | — | Pending |
+| BUGF-01 | Phase 9 | Pending |
+| BUGF-02 | Phase 9 | Pending |
+| BUGF-03 | Phase 9 | Pending |
+| UIPX-01 | Phase 10 | Pending |
+| UIPX-02 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 5 total
-- Mapped to phases: 0
-- Unmapped: 5 ⚠️
+- Mapped to phases: 5 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-11*
-*Last updated: 2026-02-11 after initial definition*
+*Last updated: 2026-02-11 after roadmap creation*
