@@ -44,7 +44,13 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(None — define with next milestone)
+#### v1.2 Stabilization
+
+- [ ] **BUGF-01**: Fix 401 error on OpenAlex topic searches (#59)
+- [ ] **BUGF-02**: User-friendly error messages for OpenAlex/OpenRouter API failures (#65)
+- [ ] **BUGF-03**: Prevent OpenAlex re-request when swapping tabs (#68)
+- [ ] **UIPX-01**: Collapsible Journal Quality card (#73)
+- [ ] **UIPX-02**: Fix block journal badge vertical misalignment (#72)
 
 ### Out of Scope
 
@@ -93,4 +99,4 @@ Dynamic model pricing fetched from OpenRouter API with curated provider filter.
 | Defer Bulk Import to v1.2 | Stretch goal, all core v1.1 features shipped | ✓ Good — clean milestone |
 
 ---
-*Last updated: 2026-02-11 after v1.1 milestone complete*
+*Last updated: 2026-02-11 after v1.2 milestone started*
