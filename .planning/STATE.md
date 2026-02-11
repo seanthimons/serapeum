@@ -9,18 +9,18 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 7 of 9 (Interactive Keywords) — COMPLETE
-Plan: —
-Status: Phase 7 complete, ready for Phase 8
-Last activity: 2026-02-11 — Phase 7 executed and verified (1/1 plans)
+Phase: 8 of 9 (Journal Quality Controls) — IN PROGRESS
+Plan: 1 of TBD
+Status: Phase 8 Plan 01 complete (journal filter foundation)
+Last activity: 2026-02-11 — 08-01 executed (blocked_journals table + mod_journal_filter.R)
 
-Progress: [████████████████░░░░░░░░] 76% (13/17 total plans across v1.0 + v1.1)
+Progress: [█████████████████░░░░░░░] 82% (14/17 total plans across v1.0 + v1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13 (9 v1.0 + 4 v1.1)
-- Average duration: 4 min (v1.1 plans)
+- Total plans completed: 14 (9 v1.0 + 5 v1.1)
+- Average duration: 3.2 min (v1.1 plans: 2+7+3+3+2 / 5)
 - Total execution time: 2 days (v1.0 milestone)
 
 **By Phase (v1.0):**
@@ -40,7 +40,7 @@ Progress: [████████████████░░░░░░░
 | 5. Cost Visibility | 2 | Complete |
 | 6. Model Selection | 1 | Complete |
 | 7. Interactive Keywords | 1 | Complete |
-| 8. Journal Quality Controls | TBD | Not started |
+| 8. Journal Quality Controls | TBD | In progress (1/? plans) |
 | 9. Bulk Import (Stretch) | TBD | Not started |
 
 **Phase 05 Execution Log:**
@@ -62,6 +62,12 @@ Progress: [████████████████░░░░░░░
 |------|----------|-------|-------|
 | 07-01 | 3 min | 2 | 2 |
 
+**Phase 08 Execution Log:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| 08-01 | 2 min | 2 | 3 |
+
 ## Accumulated Context
 
 ### Decisions
@@ -80,6 +86,9 @@ Recent decisions affecting v1.1:
 - 07-01: Tri-state keyword filtering (neutral/include/exclude) replaces destructive delete-by-keyword
 - 07-01: mod_keyword_filter.R returns filtered_papers reactive for composable filter chains
 - 07-01: Removed 368 lines from mod_search_notebook.R (1,778 -> 1,410 lines)
+- 08-01: blocked_journals table stores personal journal blocklist with normalized names
+- 08-01: mod_journal_filter.R annotates papers with predatory/blocked flags, filter defaults to OFF
+- 08-01: Composable filter chain pattern continues (keyword → journal quality)
 
 ### Pending Todos
 
@@ -93,5 +102,5 @@ Recent decisions affecting v1.1:
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 7 complete — interactive keyword filtering verified and approved
-Next: `/gsd:plan-phase 8` to begin Journal Quality Controls planning
+Stopped at: Phase 8 Plan 01 complete — journal filter foundation (blocked_journals table + mod_journal_filter.R)
+Next: Continue Phase 8 with Plan 02 (integrate journal filter into search notebook)
