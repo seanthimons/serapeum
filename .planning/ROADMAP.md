@@ -6,7 +6,7 @@ This milestone transforms Serapeum from a single-path search tool into a multi-e
 
 ## Phases
 
-- [ ] **Phase 0: Foundation** - Database migration versioning and topics table schema
+- [x] **Phase 0: Foundation** - Database migration versioning and topics table schema
 - [ ] **Phase 1: Seed Paper Discovery** - Find related papers starting from a known paper, fix abstract embedding
 - [ ] **Phase 2: Query Builder + Sorting** - LLM-assisted search query construction with rich result sorting
 - [ ] **Phase 3: Topic Explorer** - Browse OpenAlex topic hierarchy to discover papers by research area
@@ -28,7 +28,7 @@ This milestone transforms Serapeum from a single-path search tool into a multi-e
 **Plans:** 1 plan
 
 Plans:
-- [ ] 00-01-PLAN.md -- Migration versioning system and topics table
+- [x] 00-01-PLAN.md -- Migration versioning system and topics table
 
 ### Phase 1: Seed Paper Discovery
 **Goal**: Users can start from a known paper and discover related work through citation relationships
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Foundation | 0/1 | Planned | - |
+| 0. Foundation | 1/1 | ✓ Complete | 2026-02-10 |
 | 1. Seed Paper Discovery | 0/2 | Not started | - |
 | 2. Query Builder + Sorting | 0/2 | Not started | - |
 | 3. Topic Explorer | 0/2 | Not started | - |
