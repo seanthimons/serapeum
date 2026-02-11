@@ -77,11 +77,11 @@ Plans:
   3. Topic data is cached locally in DuckDB so browsing works without repeated API calls
   4. Topic search/filter is available to narrow the hierarchy when browsing
 **Risk flags**: API-intensive during initial topic taxonomy fetch. Need pagination and caching strategy. Topic confidence thresholds should filter low-quality matches.
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 03-01: OpenAlex topics API integration and local caching
-- [ ] 03-02: Topic explorer module with hierarchical browsing UI
+- [ ] 03-01-PLAN.md -- OpenAlex topics API integration and local DuckDB caching
+- [ ] 03-02-PLAN.md -- Topic explorer module with hierarchical browsing UI
 
 ### Phase 4: Startup Wizard + Polish
 **Goal**: New users get a guided entry point that routes them to the right discovery mode
