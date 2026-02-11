@@ -35,8 +35,8 @@
 **Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Cost tracking backend (API usage metadata, cost_log table, helper functions)
-- [ ] 05-02-PLAN.md — Cost tracker UI and caller integration (update all callers, cost module, sidebar display)
+- [x] 05-01-PLAN.md — Cost tracking backend (API usage metadata, cost_log table, helper functions)
+- [x] 05-02-PLAN.md — Cost tracker UI and caller integration (update all callers, cost module, sidebar display)
 
 #### Phase 6: Model Selection
 **Goal**: Users can choose from expanded model options with visibility into pricing and capabilities
@@ -109,11 +109,11 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9
 | 2. Query Builder + Sorting | v1.0 | 2/2 | Complete | 2026-02-10 |
 | 3. Topic Explorer | v1.0 | 2/2 | Complete | 2026-02-11 |
 | 4. Startup Wizard + Polish | v1.0 | 2/2 | Complete | 2026-02-11 |
-| 5. Cost Visibility | v1.1 | 0/2 | Planned | - |
+| 5. Cost Visibility | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 6. Model Selection | v1.1 | 0/0 | Not started | - |
 | 7. Interactive Keywords | v1.1 | 0/0 | Not started | - |
 | 8. Journal Quality Controls | v1.1 | 0/0 | Not started | - |
 | 9. Bulk Import (Stretch) | v1.1 | 0/0 | Not started | - |
 
 ---
-*Updated: 2026-02-11 after Phase 5 planning*
+*Updated: 2026-02-11 after Phase 5 execution complete*
