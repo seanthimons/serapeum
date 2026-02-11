@@ -33,7 +33,7 @@ format_chat_messages <- function(system_prompt, user_message, history = list()) 
 #' @param api_key API key
 #' @param model Model ID
 #' @param messages Message list
-#' @return Response content
+#' @return List with content, usage (tokens), model, and id
 chat_completion <- function(api_key, model, messages) {
   req <- build_openrouter_request(api_key, "chat/completions") |>
     req_body_json(list(
@@ -54,14 +54,19 @@ chat_completion <- function(api_key, model, messages) {
     stop("OpenRouter error: ", body$error$message)
   }
 
-  body$choices[[1]]$message$content
+  list(
+    content = body$choices[[1]]$message$content,
+    usage = body$usage,
+    model = model,
+    id = body$id
+  )
 }
 
 #' Get embeddings for text
 #' @param api_key API key
 #' @param model Embedding model ID
 #' @param text Text to embed (character vector)
-#' @return List of embedding vectors
+#' @return List with embeddings (list of vectors), usage (tokens), and model
 get_embeddings <- function(api_key, model, text) {
   req <- build_openrouter_request(api_key, "embeddings") |>
     req_body_json(list(
@@ -82,7 +87,11 @@ get_embeddings <- function(api_key, model, text) {
     stop("OpenRouter error: ", body$error$message)
   }
 
-  lapply(body$data, function(x) unlist(x$embedding))
+  list(
+    embeddings = lapply(body$data, function(x) unlist(x$embedding)),
+    usage = body$usage,
+    model = model
+  )
 }
 
 #' List available models from OpenRouter
