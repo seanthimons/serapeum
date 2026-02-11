@@ -1,11 +1,15 @@
 library(DBI)
 library(uuid)
 
+#' Mutable environment for storing model pricing
+#' This allows pricing to be updated from API responses
+pricing_env <- new.env(parent = emptyenv())
+
 #' OpenRouter model pricing table (USD per million tokens)
 #'
 #' Prices are stored as "per million tokens" for readability.
 #' Embedding models typically don't charge for completion tokens.
-MODEL_PRICING <- list(
+pricing_env$MODEL_PRICING <- list(
   "openai/gpt-4o-mini" = list(prompt = 0.15, completion = 0.60),
   "openai/gpt-4o" = list(prompt = 2.50, completion = 10.00),
   "google/gemini-2.0-flash-001" = list(prompt = 0.10, completion = 0.40),
@@ -18,6 +22,26 @@ MODEL_PRICING <- list(
 # Default pricing for unknown models (conservative estimate)
 DEFAULT_PRICING <- list(prompt = 1.00, completion = 3.00)
 
+#' Update model pricing from live data
+#'
+#' @param models_df Data frame with columns: id, prompt_price, completion_price
+#' @return NULL (modifies pricing_env$MODEL_PRICING in place)
+update_model_pricing <- function(models_df) {
+  if (is.null(models_df) || nrow(models_df) == 0) {
+    return(invisible(NULL))
+  }
+
+  for (i in 1:nrow(models_df)) {
+    row <- models_df[i, ]
+    pricing_env$MODEL_PRICING[[row$id]] <- list(
+      prompt = row$prompt_price,
+      completion = row$completion_price
+    )
+  }
+
+  invisible(NULL)
+}
+
 #' Estimate cost from token usage
 #'
 #' @param model Model ID string
@@ -26,7 +50,7 @@ DEFAULT_PRICING <- list(prompt = 1.00, completion = 3.00)
 #' @return Numeric USD cost
 estimate_cost <- function(model, prompt_tokens, completion_tokens = 0) {
   # Get pricing for this model, or use default
-  pricing <- MODEL_PRICING[[model]] %||% DEFAULT_PRICING
+  pricing <- pricing_env$MODEL_PRICING[[model]] %||% DEFAULT_PRICING
 
   # Calculate cost: (tokens / 1,000,000) * price_per_million
   prompt_cost <- (prompt_tokens / 1000000) * pricing$prompt
