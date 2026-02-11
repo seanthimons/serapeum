@@ -95,11 +95,11 @@ Plans:
   4. Returning users go directly to their notebook list (no wizard)
   5. Quarto slide citations render at appropriate size without overflow
 **Risk flags**: Low risk. Wizard is orchestration over existing modules. Slide fix (#51) is independent and small.
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 04-01: Startup wizard module with routing logic (#43)
-- [ ] 04-02: Fix slide citation sizing (#51)
+- [ ] 04-01-PLAN.md -- Startup wizard modal with localStorage persistence and routing (#43)
+- [ ] 04-02-PLAN.md -- Fix slide citation CSS injection (#51)
 
 ## Phase Ordering Rationale
 
