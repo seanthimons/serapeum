@@ -10,7 +10,7 @@ This milestone transforms Serapeum from a single-path search tool into a multi-e
 - [x] **Phase 1: Seed Paper Discovery** - Find related papers starting from a known paper, fix abstract embedding
 - [x] **Phase 2: Query Builder + Sorting** - LLM-assisted search query construction with rich result sorting
 - [x] **Phase 3: Topic Explorer** - Browse OpenAlex topic hierarchy to discover papers by research area
-- [ ] **Phase 4: Startup Wizard + Polish** - Guided onboarding hub routing to discovery modes, slide citation fix
+- [x] **Phase 4: Startup Wizard + Polish** - Guided onboarding hub routing to discovery modes, slide citation fix
 
 ## Phase Details
 
@@ -98,8 +98,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Startup wizard modal with localStorage persistence and routing (#43)
-- [ ] 04-02-PLAN.md -- Fix slide citation CSS injection (#51)
+- [x] 04-01-PLAN.md -- Startup wizard modal with localStorage persistence and routing (#43)
+- [x] 04-02-PLAN.md -- Fix slide citation CSS injection (#51)
 
 ## Phase Ordering Rationale
 
@@ -119,7 +119,7 @@ Plans:
 | 1. Seed Paper Discovery | 2/2 | ✓ Complete | 2026-02-10 |
 | 2. Query Builder + Sorting | 2/2 | ✓ Complete | 2026-02-10 |
 | 3. Topic Explorer | 2/2 | ✓ Complete | 2026-02-11 |
-| 4. Startup Wizard + Polish | 0/2 | Not started | - |
+| 4. Startup Wizard + Polish | 2/2 | ✓ Complete | 2026-02-11 |
 
 ---
 *Created: 2026-02-10*
