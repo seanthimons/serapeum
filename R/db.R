@@ -587,11 +587,24 @@ delete_abstract <- function(con, id) {
 #' List abstracts in a notebook
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID
+#' @param sort_by Sort order (one of: "year", "cited_by_count", "fwci", "referenced_works_count")
 #' @return Data frame of abstracts
-list_abstracts <- function(con, notebook_id) {
-  dbGetQuery(con, "
-    SELECT * FROM abstracts WHERE notebook_id = ? ORDER BY year DESC, created_at DESC
-  ", list(notebook_id))
+list_abstracts <- function(con, notebook_id, sort_by = "year") {
+  # Validate sort_by against enum to prevent SQL injection
+  valid_sorts <- c("cited_by_count", "fwci", "referenced_works_count", "year")
+  if (!sort_by %in% valid_sorts) sort_by <- "year"
+
+  order_clause <- switch(sort_by,
+    cited_by_count = "cited_by_count DESC NULLS LAST",
+    fwci = "fwci DESC NULLS LAST",
+    referenced_works_count = "referenced_works_count DESC NULLS LAST",
+    year = "year DESC, created_at DESC",
+    "year DESC, created_at DESC"
+  )
+
+  dbGetQuery(con, sprintf("
+    SELECT * FROM abstracts WHERE notebook_id = ? ORDER BY %s
+  ", order_clause), list(notebook_id))
 }
 
 #' Save a setting to the database
