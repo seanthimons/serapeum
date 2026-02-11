@@ -85,15 +85,6 @@ mod_topic_explorer_server <- function(id, con, config) {
         email <- get_setting(cfg, "openalex", "email")
         api_key <- get_setting(cfg, "openalex", "api_key")
 
-        if (is.null(api_key) || nchar(api_key) == 0) {
-          showNotification(
-            "OpenAlex API key not configured. Please go to Settings.",
-            type = "warning",
-            duration = 5
-          )
-          return()
-        }
-
         # Fetch topics from API
         withProgress(message = "Fetching topic taxonomy from OpenAlex...", {
           topics_df <- tryCatch({
@@ -150,15 +141,6 @@ mod_topic_explorer_server <- function(id, con, config) {
       cfg <- config()
       email <- get_setting(cfg, "openalex", "email")
       api_key <- get_setting(cfg, "openalex", "api_key")
-
-      if (is.null(api_key) || nchar(api_key) == 0) {
-        showNotification(
-          "OpenAlex API key not configured. Please go to Settings.",
-          type = "warning",
-          duration = 5
-        )
-        return()
-      }
 
       withProgress(message = "Refreshing topic taxonomy from OpenAlex...", {
         topics_df <- tryCatch({
