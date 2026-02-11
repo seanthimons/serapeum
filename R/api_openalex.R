@@ -324,18 +324,70 @@ build_query_preview <- function(query, from_year = NULL, to_year = NULL,
   )
 }
 
-#' Get a single paper by ID
-#' @param paper_id OpenAlex paper ID (e.g., "W123456")
+#' Normalize DOI to standard format
+#' @param input DOI in various formats (plain, with prefix, URL, or OpenAlex Work ID)
+#' @return Normalized DOI as https://doi.org/{doi} or original Work ID, NULL if invalid
+normalize_doi <- function(input) {
+  if (is.null(input) || is.na(input) || nchar(trimws(input)) == 0) {
+    return(NULL)
+  }
+
+  input <- trimws(input)
+
+  # Handle OpenAlex Work IDs (e.g., W2741809807)
+  if (grepl("^W\\d+$", input)) {
+    return(input)
+  }
+
+  # Extract from OpenAlex URL
+  if (grepl("^https?://openalex\\.org/", input, ignore.case = TRUE)) {
+    input <- gsub("^https?://openalex\\.org/", "", input, ignore.case = TRUE)
+    # If it's a Work ID, return as-is
+    if (grepl("^W\\d+$", input)) {
+      return(input)
+    }
+  }
+
+  # Strip doi: prefix (case-insensitive)
+  input <- gsub("^doi:", "", input, ignore.case = TRUE)
+
+  # Replace dx.doi.org with doi.org
+  input <- gsub("dx\\.doi\\.org", "doi.org", input, ignore.case = TRUE)
+
+  # Replace http:// with https://
+  input <- gsub("^http://", "https://", input, ignore.case = TRUE)
+
+  # Extract DOI from URL if it's a full URL
+  if (grepl("^https://doi\\.org/", input, ignore.case = TRUE)) {
+    input <- gsub("^https://doi\\.org/", "", input, ignore.case = TRUE)
+  }
+
+  # Validate format: must start with 10.\d{4,}/
+  if (!grepl("^10\\.\\d{4,}/\\S+", input)) {
+    return(NULL)
+  }
+
+  # Return standard format
+  paste0("https://doi.org/", input)
+}
+
+#' Get a single paper by ID or DOI
+#' @param paper_id OpenAlex paper ID (e.g., "W123456") or DOI URL
 #' @param email User email
 #' @param api_key Optional API key
 #' @return Parsed work or NULL
 get_paper <- function(paper_id, email, api_key = NULL) {
-  # Ensure paper_id has the full URL format
-  if (!grepl("^https://", paper_id)) {
-    paper_id <- paste0("https://openalex.org/", paper_id)
+  # If it's a DOI URL (from normalize_doi), use it directly in the request
+  if (grepl("^https://doi\\.org/", paper_id)) {
+    # OpenAlex API accepts DOI URLs directly: /works/https://doi.org/...
+    req <- build_openalex_request(paste0("works/", URLencode(paper_id, reserved = TRUE)), email, api_key)
+  } else {
+    # Ensure paper_id has the full URL format for Work IDs
+    if (!grepl("^https://", paper_id)) {
+      paper_id <- paste0("https://openalex.org/", paper_id)
+    }
+    req <- build_openalex_request(paste0("works/", URLencode(paper_id, reserved = TRUE)), email, api_key)
   }
-
-  req <- build_openalex_request(paste0("works/", URLencode(paper_id, reserved = TRUE)), email, api_key)
 
   resp <- tryCatch({
     req_perform(req)
@@ -347,6 +399,120 @@ get_paper <- function(paper_id, email, api_key = NULL) {
 
   body <- resp_body_json(resp)
   parse_openalex_work(body)
+}
+
+#' Get papers that cite a given work
+#' @param paper_id OpenAlex Work ID (e.g., "W2741809807")
+#' @param email User email
+#' @param api_key Optional API key
+#' @param per_page Results per page (max 200)
+#' @return List of parsed works with total_count attribute
+get_citing_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
+  # Add W prefix if missing
+  if (!grepl("^W", paper_id)) {
+    paper_id <- paste0("W", paper_id)
+  }
+
+  req <- build_openalex_request("works", email, api_key) |>
+    req_url_query(
+      filter = paste0("cites:", paper_id),
+      per_page = per_page
+    )
+
+  resp <- tryCatch({
+    req_perform(req)
+  }, error = function(e) {
+    message("OpenAlex API error in get_citing_papers: ", e$message)
+    return(NULL)
+  })
+
+  if (is.null(resp)) return(list())
+
+  body <- resp_body_json(resp)
+
+  if (is.null(body$results)) {
+    return(list())
+  }
+
+  results <- lapply(body$results, parse_openalex_work)
+  attr(results, "total_count") <- body$meta$count %||% 0
+  results
+}
+
+#' Get papers cited by a given work (outgoing references)
+#' @param paper_id OpenAlex Work ID (e.g., "W2741809807")
+#' @param email User email
+#' @param api_key Optional API key
+#' @param per_page Results per page (max 200)
+#' @return List of parsed works with total_count attribute
+get_cited_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
+  # Add W prefix if missing
+  if (!grepl("^W", paper_id)) {
+    paper_id <- paste0("W", paper_id)
+  }
+
+  req <- build_openalex_request("works", email, api_key) |>
+    req_url_query(
+      filter = paste0("cited_by:", paper_id),
+      per_page = per_page
+    )
+
+  resp <- tryCatch({
+    req_perform(req)
+  }, error = function(e) {
+    message("OpenAlex API error in get_cited_papers: ", e$message)
+    return(NULL)
+  })
+
+  if (is.null(resp)) return(list())
+
+  body <- resp_body_json(resp)
+
+  if (is.null(body$results)) {
+    return(list())
+  }
+
+  results <- lapply(body$results, parse_openalex_work)
+  attr(results, "total_count") <- body$meta$count %||% 0
+  results
+}
+
+#' Get papers related to a given work
+#' @param paper_id OpenAlex Work ID (e.g., "W2741809807")
+#' @param email User email
+#' @param api_key Optional API key
+#' @param per_page Results per page (max 200)
+#' @return List of parsed works with total_count attribute
+get_related_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
+  # Add W prefix if missing
+  if (!grepl("^W", paper_id)) {
+    paper_id <- paste0("W", paper_id)
+  }
+
+  req <- build_openalex_request("works", email, api_key) |>
+    req_url_query(
+      filter = paste0("related_to:", paper_id),
+      per_page = per_page
+    )
+
+  resp <- tryCatch({
+    req_perform(req)
+  }, error = function(e) {
+    message("OpenAlex API error in get_related_papers: ", e$message)
+    return(NULL)
+  })
+
+  if (is.null(resp)) return(list())
+
+  body <- resp_body_json(resp)
+
+  if (is.null(body$results)) {
+    return(list())
+  }
+
+  results <- lapply(body$results, parse_openalex_work)
+  attr(results, "total_count") <- body$meta$count %||% 0
+  results
 }
 
 #' Validate OpenAlex email by making a minimal API call
