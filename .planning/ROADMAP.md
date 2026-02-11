@@ -60,11 +60,11 @@ Plans:
   4. Search results can be sorted by FWCI, citation count, and outgoing citation count
   5. Papers with missing metrics display gracefully (no raw "NA" values)
 **Risk flags**: LLM prompt engineering for filter generation needs empirical validation. Research-phase recommended during planning to test prompt with 20-30 sample queries.
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 02-01: Rich sorting for search results (#54)
-- [ ] 02-02: LLM query builder module with filter validation (#10)
+- [ ] 02-01-PLAN.md -- Rich sorting for search results (#54)
+- [ ] 02-02-PLAN.md -- LLM query builder module with filter validation (#10)
 
 ### Phase 3: Topic Explorer
 **Goal**: Users can browse research areas hierarchically and discover papers within topics
