@@ -9,18 +9,18 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 8 of 9 (Journal Quality Controls) — IN PROGRESS
-Plan: 1 of TBD
-Status: Phase 8 Plan 01 complete (journal filter foundation)
-Last activity: 2026-02-11 — 08-01 executed (blocked_journals table + mod_journal_filter.R)
+Phase: 8 of 9 (Journal Quality Controls) — COMPLETE
+Plan: 2 of 2
+Status: Phase 8 complete (journal quality controls with warnings, filtering, blocklist)
+Last activity: 2026-02-11 — 08-02 executed (integrated journal filter into search notebook)
 
-Progress: [█████████████████░░░░░░░] 82% (14/17 total plans across v1.0 + v1.1)
+Progress: [██████████████████░░░░░░] 88% (15/17 total plans across v1.0 + v1.1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14 (9 v1.0 + 5 v1.1)
-- Average duration: 3.2 min (v1.1 plans: 2+7+3+3+2 / 5)
+- Total plans completed: 15 (9 v1.0 + 6 v1.1)
+- Average duration: 3.3 min (v1.1 plans: 2+7+3+3+2+4 / 6)
 - Total execution time: 2 days (v1.0 milestone)
 
 **By Phase (v1.0):**
@@ -40,7 +40,7 @@ Progress: [█████████████████░░░░░░
 | 5. Cost Visibility | 2 | Complete |
 | 6. Model Selection | 1 | Complete |
 | 7. Interactive Keywords | 1 | Complete |
-| 8. Journal Quality Controls | TBD | In progress (1/? plans) |
+| 8. Journal Quality Controls | 2 | Complete |
 | 9. Bulk Import (Stretch) | TBD | Not started |
 
 **Phase 05 Execution Log:**
@@ -67,6 +67,7 @@ Progress: [█████████████████░░░░░░
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | 08-01 | 2 min | 2 | 3 |
+| 08-02 | 4 min | 2 | 2 |
 
 ## Accumulated Context
 
@@ -89,6 +90,9 @@ Recent decisions affecting v1.1:
 - 08-01: blocked_journals table stores personal journal blocklist with normalized names
 - 08-01: mod_journal_filter.R annotates papers with predatory/blocked flags, filter defaults to OFF
 - 08-01: Composable filter chain pattern continues (keyword → journal quality)
+- 08-02: Block journal badge uses bg-danger inline with other badges for visual consistency
+- 08-02: Blocked journals are always hidden (not toggle-dependent) since blocking is explicit user action
+- 08-02: Toggle relabeled "Also hide predatory journals" for clarity about what it controls
 
 ### Pending Todos
 
@@ -102,5 +106,5 @@ Recent decisions affecting v1.1:
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: Phase 8 Plan 01 complete — journal filter foundation (blocked_journals table + mod_journal_filter.R)
-Next: Continue Phase 8 with Plan 02 (integrate journal filter into search notebook)
+Stopped at: Phase 8 complete — journal quality controls (warnings, filtering, blocklist management)
+Next: Plan Phase 9 (Bulk Import - stretch goal) or wrap up v1.1 milestone if Phase 9 deferred
