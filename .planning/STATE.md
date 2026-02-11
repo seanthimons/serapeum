@@ -5,15 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-11)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration
-**Current focus:** Planning next milestone
+**Current focus:** v1.1 Quality of Life
 
 ## Current Position
 
-Phase: v1.0 complete (5 phases, 9 plans)
-Status: Milestone shipped
-Last activity: 2026-02-11 -- v1.0 Fix + Discovery milestone completed
-
-Progress: [██████████] 100% (v1.0)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-11 — Milestone v1.1 started
 
 ## Accumulated Context
 
@@ -23,7 +22,7 @@ See PROJECT.md Key Decisions table for full log.
 
 ### Pending Todos
 
-- Bug: Seed discovery ("Discover from Paper") prompts for email even when already configured
+(None)
 
 ### Blockers/Concerns
 
@@ -32,5 +31,5 @@ See PROJECT.md Key Decisions table for full log.
 ## Session Continuity
 
 Last session: 2026-02-11
-Stopped at: v1.0 milestone completion
-Next: `/gsd:new-milestone` — start next milestone (questioning → research → requirements → roadmap)
+Stopped at: Defining v1.1 requirements
+Next: Complete requirements → roadmap

@@ -31,7 +31,16 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(None yet — define in next milestone)
+## Current Milestone: v1.1 Quality of Life
+
+**Goal:** Polish existing workflows with cost visibility, better model selection, interactive keyword filtering, journal quality controls, and (stretch) bulk DOI/.bib import.
+
+**Target features:**
+- OpenRouter cost tracking (#19)
+- Expanded model selection (#20)
+- Enhanced keyword tag behavior (#17)
+- Ban/hard filter for suspect journals (#26)
+- Bulk DOI + .bib upload for notebooks and seeding (#24) — stretch
 
 ### Out of Scope
 
@@ -48,7 +57,7 @@ Shipped v1.0 with 9,856 LOC R across 42 modified files.
 Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 Known issue: mod_search_notebook.R is 1,760 lines — new features must be separate modules.
-Known bug: Seed discovery ("Discover from Paper") prompts for email even when already configured.
+Fixed: Seed discovery email prompt bug (#57, PR #58).
 
 ## Constraints
 
@@ -73,4 +82,4 @@ Known bug: Seed discovery ("Discover from Paper") prompts for email even when al
 | CSS injection for slide citations | Inline in YAML frontmatter for self-contained slides | ✓ Good — no external dependencies |
 
 ---
-*Last updated: 2026-02-11 after v1.0 milestone*
+*Last updated: 2026-02-11 after v1.1 milestone start*
