@@ -600,11 +600,6 @@ parse_topic <- function(topic) {
 #' @param per_page Results per page (default 100, max 200)
 #' @return Data frame of all topics
 fetch_all_topics <- function(email, api_key = NULL, per_page = 100) {
-  # Validate API key is present
-  if (is.null(api_key) || nchar(api_key) == 0) {
-    stop("OpenAlex API key required. Please add your key in Settings.")
-  }
-
   all_topics <- list()
   page <- 1
   total_fetched <- 0
