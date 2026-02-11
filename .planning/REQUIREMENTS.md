@@ -1,0 +1,61 @@
+# Requirements: Serapeum v1.2 Stabilization
+
+**Defined:** 2026-02-11
+**Core Value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration
+
+## v1.2 Requirements
+
+Requirements for the stabilization release. Bug fixes and UI polish.
+
+### Bug Fixes
+
+- [ ] **BUGF-01**: OpenAlex topic searches succeed without 401 errors — root cause identified and fixed (#59)
+- [ ] **BUGF-02**: User sees friendly, actionable error messages for OpenAlex and OpenRouter API failures instead of raw HTTP status codes (#65)
+- [ ] **BUGF-03**: Navigating away from search notebook and returning does not retrigger the OpenAlex request (#68)
+
+### UI Polish
+
+- [ ] **UIPX-01**: User can collapse/expand the Journal Quality filter card to save vertical space in the search notebook right panel (#73)
+- [ ] **UIPX-02**: Block journal badge aligns vertically with other inline badges (year, type, access, journal) in abstract detail view (#72)
+
+## Future Requirements
+
+### Deferred from v1.1
+
+- **BULK-01**: Bulk DOI/.bib import for batch paper ingestion (#24)
+
+### Deferred from v1.2
+
+(None — all scoped items included)
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Citation network graph (#53) | Medium complexity, separate milestone |
+| Recursive abstract searching (#11) | High complexity, future milestone |
+| PDF image pipeline (#44) | Epic-level effort, future milestone |
+| Local model support (#8) | Significant architecture change |
+| DOI on abstract preview (#66) | Low priority, not a bug |
+| Export abstract to seeded search (#67) | New feature, not stabilization |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| BUGF-01 | — | Pending |
+| BUGF-02 | — | Pending |
+| BUGF-03 | — | Pending |
+| UIPX-01 | — | Pending |
+| UIPX-02 | — | Pending |
+
+**Coverage:**
+- v1.2 requirements: 5 total
+- Mapped to phases: 0
+- Unmapped: 5 ⚠️
+
+---
+*Requirements defined: 2026-02-11*
+*Last updated: 2026-02-11 after initial definition*
