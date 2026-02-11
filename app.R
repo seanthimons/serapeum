@@ -30,6 +30,17 @@ ui <- page_sidebar(
     primary = "#6366f1",
     "border-radius" = "0.5rem"
   ),
+  tags$head(tags$script(HTML("
+    // Startup wizard localStorage support
+    $(document).on('shiny:connected', function() {
+      const hasSeenWizard = localStorage.getItem('serapeum_skip_wizard') === 'true';
+      Shiny.setInputValue('has_seen_wizard', hasSeenWizard, {priority: 'event'});
+    });
+
+    Shiny.addCustomMessageHandler('setWizardPreference', function(value) {
+      localStorage.setItem('serapeum_skip_wizard', 'true');
+    });
+  "))),
   sidebar = sidebar(
     title = "Notebooks",
     width = 280,
@@ -232,6 +243,82 @@ server <- function(input, output, session) {
   observeEvent(input$about_link, {
     current_view("about")
     current_notebook(NULL)
+  })
+
+  # Wizard modal helper function
+  wizard_modal <- function() {
+    modalDialog(
+      title = tagList(icon("compass"), "Welcome to Serapeum"),
+      div(
+        class = "text-center mb-4",
+        p(class = "lead", "How would you like to start exploring research?")
+      ),
+      layout_columns(
+        col_widths = c(4, 4, 4),
+        actionButton("wizard_seed_paper",
+                     label = tagList(
+                       div(icon("seedling", class = "fa-2x mb-2")),
+                       div(strong("Start with a Paper")),
+                       div(class = "small text-muted", "Have a paper in mind? Find related work.")
+                     ),
+                     class = "btn-outline-success w-100 py-4"),
+        actionButton("wizard_query_builder",
+                     label = tagList(
+                       div(icon("wand-magic-sparkles", class = "fa-2x mb-2")),
+                       div(strong("Build a Query")),
+                       div(class = "small text-muted", "Describe your research interest.")
+                     ),
+                     class = "btn-outline-info w-100 py-4"),
+        actionButton("wizard_topic_explorer",
+                     label = tagList(
+                       div(icon("compass", class = "fa-2x mb-2")),
+                       div(strong("Browse Topics")),
+                       div(class = "small text-muted", "Explore research areas.")
+                     ),
+                     class = "btn-outline-warning w-100 py-4")
+      ),
+      footer = tagList(
+        actionLink("skip_wizard", "Don't show this again", class = "text-muted"),
+        modalButton("Close")
+      ),
+      size = "l",
+      easyClose = TRUE
+    )
+  }
+
+  # Show wizard on first load
+  observe({
+    has_seen <- input$has_seen_wizard
+    if (!is.null(has_seen) && !has_seen) {
+      shiny::onFlushed(function() {
+        showModal(wizard_modal())
+      }, once = TRUE)
+    }
+  }) |> bindEvent(input$has_seen_wizard, once = TRUE)
+
+  # Wizard routing handlers
+  observeEvent(input$wizard_seed_paper, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("discover")
+  })
+
+  observeEvent(input$wizard_query_builder, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("query_builder")
+  })
+
+  observeEvent(input$wizard_topic_explorer, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("topic_explorer")
+  })
+
+  # Skip wizard handler
+  observeEvent(input$skip_wizard, {
+    session$sendCustomMessage('setWizardPreference', TRUE)
+    removeModal()
   })
 
   # Discover from paper button
