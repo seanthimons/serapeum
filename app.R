@@ -30,6 +30,17 @@ ui <- page_sidebar(
     primary = "#6366f1",
     "border-radius" = "0.5rem"
   ),
+  tags$head(tags$script(HTML("
+    // Startup wizard localStorage support
+    $(document).on('shiny:connected', function() {
+      const hasSeenWizard = localStorage.getItem('serapeum_skip_wizard') === 'true';
+      Shiny.setInputValue('has_seen_wizard', hasSeenWizard, {priority: 'event'});
+    });
+
+    Shiny.addCustomMessageHandler('setWizardPreference', function(value) {
+      localStorage.setItem('serapeum_skip_wizard', 'true');
+    });
+  "))),
   sidebar = sidebar(
     title = "Notebooks",
     width = 280,
@@ -41,7 +52,16 @@ ui <- page_sidebar(
                    icon = icon("file-pdf")),
       actionButton("new_search_nb", "New Search Notebook",
                    class = "btn-outline-primary",
-                   icon = icon("magnifying-glass"))
+                   icon = icon("magnifying-glass")),
+      actionButton("discover_paper", "Discover from Paper",
+                   class = "btn-outline-success",
+                   icon = icon("seedling")),
+      actionButton("build_query", "Build a Query",
+                   class = "btn-outline-info",
+                   icon = icon("wand-magic-sparkles")),
+      actionButton("explore_topics", "Explore Topics",
+                   class = "btn-outline-warning",
+                   icon = icon("compass"))
     ),
     hr(),
     # Notebook list
@@ -223,6 +243,100 @@ server <- function(input, output, session) {
   observeEvent(input$about_link, {
     current_view("about")
     current_notebook(NULL)
+  })
+
+  # Wizard modal helper function
+  wizard_modal <- function() {
+    modalDialog(
+      title = tagList(icon("compass"), "Welcome to Serapeum"),
+      div(
+        class = "text-center mb-4",
+        p(class = "lead", "How would you like to start exploring research?")
+      ),
+      layout_columns(
+        col_widths = c(4, 4, 4),
+        actionButton("wizard_seed_paper",
+                     label = tagList(
+                       div(icon("seedling", class = "fa-2x mb-2")),
+                       div(strong("Start with a Paper")),
+                       div(class = "small text-muted", "Have a paper in mind? Find related work.")
+                     ),
+                     class = "btn-outline-success w-100 h-100 py-4"),
+        actionButton("wizard_query_builder",
+                     label = tagList(
+                       div(icon("wand-magic-sparkles", class = "fa-2x mb-2")),
+                       div(strong("Build a Query")),
+                       div(class = "small text-muted", "Describe your research interest.")
+                     ),
+                     class = "btn-outline-info w-100 h-100 py-4"),
+        actionButton("wizard_topic_explorer",
+                     label = tagList(
+                       div(icon("compass", class = "fa-2x mb-2")),
+                       div(strong("Browse Topics")),
+                       div(class = "small text-muted", "Explore research areas.")
+                     ),
+                     class = "btn-outline-warning w-100 h-100 py-4")
+      ),
+      footer = tagList(
+        actionLink("skip_wizard", "Don't show this again", class = "text-muted"),
+        modalButton("Close")
+      ),
+      size = "l",
+      easyClose = TRUE
+    )
+  }
+
+  # Show wizard on first load
+  observe({
+    has_seen <- input$has_seen_wizard
+    if (!is.null(has_seen) && !has_seen) {
+      shiny::onFlushed(function() {
+        showModal(wizard_modal())
+      }, once = TRUE)
+    }
+  }) |> bindEvent(input$has_seen_wizard, once = TRUE)
+
+  # Wizard routing handlers
+  observeEvent(input$wizard_seed_paper, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("discover")
+  })
+
+  observeEvent(input$wizard_query_builder, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("query_builder")
+  })
+
+  observeEvent(input$wizard_topic_explorer, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("topic_explorer")
+  })
+
+  # Skip wizard handler
+  observeEvent(input$skip_wizard, {
+    session$sendCustomMessage('setWizardPreference', TRUE)
+    removeModal()
+  })
+
+  # Discover from paper button
+  observeEvent(input$discover_paper, {
+    current_view("discover")
+    current_notebook(NULL)
+  })
+
+  # Build a query button
+  observeEvent(input$build_query, {
+    current_notebook(NULL)
+    current_view("query_builder")
+  })
+
+  # Explore topics button
+  observeEvent(input$explore_topics, {
+    current_notebook(NULL)
+    current_view("topic_explorer")
   })
 
   # New document notebook modal
@@ -432,6 +546,18 @@ server <- function(input, output, session) {
       return(mod_about_ui("about"))
     }
 
+    if (view == "discover") {
+      return(mod_seed_discovery_ui("seed_discovery"))
+    }
+
+    if (view == "query_builder") {
+      return(mod_query_builder_ui("query_builder"))
+    }
+
+    if (view == "topic_explorer") {
+      return(mod_topic_explorer_ui("topic_explorer"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
@@ -512,6 +638,251 @@ server <- function(input, output, session) {
 
   # Search notebook module
   mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh)
+
+  # Seed discovery module
+  discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r)
+
+  # Query builder module
+  query_request <- mod_query_builder_server("query_builder", reactive(con), config_file_r)
+
+  # Topic explorer module
+  topic_request <- mod_topic_explorer_server("topic_explorer", reactive(con), config_file_r)
+
+  # Consume discovery request to create search notebook
+  observeEvent(discovery_request(), {
+    req <- discovery_request()
+    if (is.null(req)) return()
+
+    # Build filter for the citation query
+    citation_filter <- paste0(req$citation_type, ":", req$seed_paper$paper_id)
+
+    # Create notebook with citation filter
+    filters <- list(
+      citation_filter = citation_filter,
+      citation_type = req$citation_type,
+      seed_paper_id = req$seed_paper$paper_id
+    )
+
+    nb_id <- create_notebook(con, req$notebook_name, "search",
+                             search_query = NULL,
+                             search_filters = filters)
+
+    # Fetch citation results and populate notebook
+    email <- get_setting(config_file, "openalex", "email")
+    api_key <- get_setting(config_file, "openalex", "api_key")
+
+    withProgress(message = "Fetching related papers...", {
+      papers <- switch(req$citation_type,
+        cites = get_citing_papers(req$seed_paper$paper_id, email, api_key),
+        cited_by = get_cited_papers(req$seed_paper$paper_id, email, api_key),
+        related_to = get_related_papers(req$seed_paper$paper_id, email, api_key)
+      )
+
+      if (length(papers) > 0) {
+        for (paper in papers) {
+          # Check for duplicate
+          existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+                                 list(nb_id, paper$paper_id))
+          if (nrow(existing) > 0) next
+
+          abstract_id <- create_abstract(
+            con, nb_id, paper$paper_id, paper$title,
+            paper$authors, paper$abstract,
+            paper$year, paper$venue, paper$pdf_url,
+            keywords = paper$keywords,
+            work_type = paper$work_type,
+            work_type_crossref = paper$work_type_crossref,
+            oa_status = paper$oa_status,
+            is_oa = paper$is_oa,
+            cited_by_count = paper$cited_by_count,
+            referenced_works_count = paper$referenced_works_count,
+            fwci = paper$fwci
+          )
+
+          if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+            create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
+          }
+        }
+      }
+
+      incProgress(1.0)
+    })
+
+    # Navigate to the new notebook
+    notebook_refresh(notebook_refresh() + 1)
+    current_notebook(nb_id)
+    current_view("notebook")
+
+    showNotification(
+      paste("Created notebook with", length(papers), "papers"),
+      type = "message"
+    )
+  })
+
+  # Consume query builder request to create search notebook
+  observeEvent(query_request(), {
+    req <- query_request()
+    if (is.null(req)) return()
+
+    # Create notebook with LLM-generated query
+    nb_id <- create_notebook(con, req$notebook_name, "search",
+                             search_query = req$query,
+                             search_filters = req$filters)
+
+    # Execute the search using existing OpenAlex search
+    email <- get_setting(config_file, "openalex", "email")
+    api_key <- get_setting(config_file, "openalex", "api_key")
+
+    withProgress(message = "Searching OpenAlex...", {
+      # Use search_papers function from api_openalex.R
+      # The filter string needs to be parsed to extract individual parameters
+      filter_str <- req$filters$filter
+
+      # For now, pass the full filter string to search_papers
+      # We'll need to parse it to extract specific parameters
+      results <- tryCatch({
+        # Build a minimal query using search_papers
+        # Extract search term from filters if present, or use req$query
+        search_term <- req$query %||% ""
+
+        # Call search_papers with filter string
+        # Note: search_papers doesn't accept a raw filter string parameter
+        # We need to parse the filter to extract year ranges, etc.
+        # For simplicity, we'll use the filter as-is and rely on OpenAlex API
+
+        # Actually, looking at api_openalex.R, there's no direct way to pass raw filters
+        # We need to use the lower-level build_openalex_request
+        req_obj <- build_openalex_request("works", email, api_key)
+
+        if (!is.null(search_term) && nchar(search_term) > 0) {
+          req_obj <- req_obj |> req_url_query(search = search_term)
+        }
+
+        if (!is.null(filter_str) && nchar(filter_str) > 0) {
+          req_obj <- req_obj |> req_url_query(filter = filter_str, per_page = 50)
+        } else {
+          req_obj <- req_obj |> req_url_query(per_page = 50)
+        }
+
+        resp <- req_perform(req_obj)
+        body <- resp_body_json(resp)
+
+        if (is.null(body$results)) {
+          list()
+        } else {
+          lapply(body$results, parse_openalex_work)
+        }
+      }, error = function(e) {
+        showNotification(paste("Search error:", e$message), type = "error")
+        list()
+      })
+
+      if (length(results) > 0) {
+        for (paper in results) {
+          existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+                                 list(nb_id, paper$paper_id))
+          if (nrow(existing) > 0) next
+
+          abstract_id <- create_abstract(
+            con, nb_id, paper$paper_id, paper$title,
+            paper$authors, paper$abstract,
+            paper$year, paper$venue, paper$pdf_url,
+            keywords = paper$keywords,
+            work_type = paper$work_type,
+            work_type_crossref = paper$work_type_crossref,
+            oa_status = paper$oa_status,
+            is_oa = paper$is_oa,
+            cited_by_count = paper$cited_by_count,
+            referenced_works_count = paper$referenced_works_count,
+            fwci = paper$fwci
+          )
+
+          if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+            create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
+          }
+        }
+      }
+
+      incProgress(1.0)
+    })
+
+    # Navigate to new notebook
+    current_notebook(nb_id)
+    current_view("notebook")
+    if (!is.null(notebook_refresh)) notebook_refresh(notebook_refresh() + 1)
+    showNotification(paste("Created notebook with", length(results), "papers"), type = "message")
+  })
+
+  # Consume topic request to create search notebook
+  observeEvent(topic_request(), {
+    req <- topic_request()
+    if (is.null(req)) return()
+
+    # Create notebook with topic filter
+    filter_str <- paste0("primary_topic.id:", req$topic_id)
+
+    filters <- list(
+      filter = filter_str,
+      topic_id = req$topic_id,
+      topic_name = req$topic_name
+    )
+
+    nb_id <- create_notebook(con, req$notebook_name, "search",
+                             search_query = "",
+                             search_filters = filters)
+
+    # Fetch papers filtered by topic
+    email <- get_setting(config_file, "openalex", "email")
+    api_key <- get_setting(config_file, "openalex", "api_key")
+
+    results <- tryCatch({
+      req_obj <- build_openalex_request("works", email, api_key) |>
+        req_url_query(filter = filter_str, per_page = 50)
+
+      resp <- req_perform(req_obj)
+      body <- resp_body_json(resp)
+
+      if (is.null(body$results)) list()
+      else lapply(body$results, parse_openalex_work)
+    }, error = function(e) {
+      showNotification(paste("Search error:", e$message), type = "error")
+      list()
+    })
+
+    if (length(results) > 0) {
+      withProgress(message = paste("Adding", length(results), "papers..."), {
+        for (paper in results) {
+          existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+                                 list(nb_id, paper$paper_id))
+          if (nrow(existing) > 0) next
+
+          abstract_id <- create_abstract(
+            con, nb_id, paper$paper_id, paper$title,
+            paper$authors, paper$abstract,
+            paper$year, paper$venue, paper$pdf_url,
+            keywords = paper$keywords,
+            work_type = paper$work_type,
+            work_type_crossref = paper$work_type_crossref,
+            oa_status = paper$oa_status,
+            is_oa = paper$is_oa,
+            cited_by_count = paper$cited_by_count,
+            referenced_works_count = paper$referenced_works_count,
+            fwci = paper$fwci
+          )
+
+          if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+            create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
+          }
+        }
+      })
+    }
+
+    # Navigate to new notebook
+    notebook_refresh(notebook_refresh() + 1)
+    current_notebook(nb_id)
+    current_view("notebook")
+    showNotification(paste("Created notebook with", length(results), "papers for topic:", req$topic_name), type = "message")
+  })
 
   # Delete notebook
   observeEvent(input$delete_nb, {

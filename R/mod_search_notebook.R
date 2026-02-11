@@ -34,6 +34,22 @@ mod_search_notebook_ui <- function(id) {
           )
         ),
         card_body(
+          # Sort controls
+          div(
+            class = "mb-2",
+            radioButtons(
+              ns("sort_by"),
+              NULL,
+              choices = c(
+                "Newest" = "year",
+                "Most cited" = "cited_by_count",
+                "Impact (FWCI)" = "fwci",
+                "Most refs" = "referenced_works_count"
+              ),
+              selected = "year",
+              inline = TRUE
+            )
+          ),
           # Filter controls
           div(
             class = "mb-2",
@@ -293,7 +309,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       paper_refresh()
       nb_id <- notebook_id()
       req(nb_id)
-      list_abstracts(con(), nb_id)
+      sort_by <- input$sort_by %||% "year"
+      list_abstracts(con(), nb_id, sort_by = sort_by)
     })
 
     # Filtered papers based on "has abstract" checkbox

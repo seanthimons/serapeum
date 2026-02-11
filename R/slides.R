@@ -130,6 +130,71 @@ inject_theme_to_qmd <- function(qmd_content, theme) {
   qmd_content
 }
 
+#' Inject citation CSS overrides into QMD frontmatter
+#' @param qmd_content Raw QMD string
+#' @return Modified QMD string with citation CSS
+inject_citation_css <- function(qmd_content) {
+  # CSS to constrain citation/footnote sizing in RevealJS slides
+  citation_css <- paste0(
+    "\n    css:\n",
+    "      - |\n",
+    "        .reveal .slides section .footnotes {\n",
+    "          font-size: 0.5em !important;\n",
+    "          line-height: 1.3;\n",
+    "          max-height: 15vh;\n",
+    "          overflow-y: auto;\n",
+    "        }\n",
+    "        .reveal .slides section .footnote-ref {\n",
+    "          font-size: 0.7em;\n",
+    "          vertical-align: super;\n",
+    "        }\n",
+    "        .reveal .slides section sup {\n",
+    "          font-size: 0.6em;\n",
+    "        }\n",
+    "        .reveal .slides section .references {\n",
+    "          font-size: 0.45em !important;\n",
+    "          line-height: 1.2;\n",
+    "        }\n"
+  )
+
+  # Check if format section exists
+  if (grepl("format:\\s*\\n\\s*revealjs:", qmd_content)) {
+    # Expanded format exists - insert css after revealjs: line
+    # Need to find the right position after theme line if present
+    if (grepl("format:\\s*\\n\\s*revealjs:\\s*\\n\\s*theme:", qmd_content)) {
+      # Theme exists, insert after theme line
+      qmd_content <- sub(
+        "(format:\\s*\\n\\s*revealjs:\\s*\\n\\s*theme:[^\\n]+)",
+        paste0("\\1", citation_css),
+        qmd_content
+      )
+    } else {
+      # No theme, insert directly after revealjs:
+      qmd_content <- sub(
+        "(format:\\s*\\n\\s*revealjs:)",
+        paste0("\\1", citation_css),
+        qmd_content
+      )
+    }
+  } else if (grepl("format:\\s*revealjs", qmd_content)) {
+    # Simple format - convert to expanded with css
+    qmd_content <- sub(
+      "format:\\s*revealjs",
+      paste0("format:\n  revealjs:", citation_css),
+      qmd_content
+    )
+  } else if (grepl("^---", qmd_content)) {
+    # No format section exists, add full format block before closing ---
+    qmd_content <- sub(
+      "\n---\n",
+      paste0("\nformat:\n  revealjs:", citation_css, "\n---\n"),
+      qmd_content
+    )
+  }
+
+  qmd_content
+}
+
 #' Render QMD file to HTML
 #' @param qmd_path Path to .qmd file
 #' @param timeout Timeout in seconds
@@ -230,6 +295,9 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   if (theme != "default") {
     qmd_content <- inject_theme_to_qmd(qmd_content, theme)
   }
+
+  # Inject citation CSS
+  qmd_content <- inject_citation_css(qmd_content)
 
   # Save to temp file
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))

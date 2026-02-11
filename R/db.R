@@ -7,24 +7,19 @@ library(DBI)
 get_db_connection <- function(path = "data/notebooks.duckdb") {
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
-  # Use connections package if available (shows in Connections pane for easier management)
-  if (requireNamespace("connections", quietly = TRUE)) {
-    con <- connections::connection_open(duckdb::duckdb(), path)
-  } else {
-    con <- dbConnect(duckdb(), dbdir = path)
-  }
+  con <- dbConnect(duckdb(), dbdir = path)
+
+  # Run pending migrations before returning connection
+  run_pending_migrations(con)
+
   con
 }
 
 #' Close DuckDB connection safely
-#' @param con DuckDB connection (may be connConnection or standard DBI)
+#' @param con DuckDB connection
 close_db_connection <- function(con) {
   tryCatch({
-    if (inherits(con, "connConnection") && requireNamespace("connections", quietly = TRUE)) {
-      connections::connection_close(con)
-    } else {
-      DBI::dbDisconnect(con, shutdown = TRUE)
-    }
+    DBI::dbDisconnect(con, shutdown = TRUE)
   }, error = function(e) {
     message("Note: ", e$message)
   })
@@ -583,11 +578,24 @@ delete_abstract <- function(con, id) {
 #' List abstracts in a notebook
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID
+#' @param sort_by Sort order (one of: "year", "cited_by_count", "fwci", "referenced_works_count")
 #' @return Data frame of abstracts
-list_abstracts <- function(con, notebook_id) {
-  dbGetQuery(con, "
-    SELECT * FROM abstracts WHERE notebook_id = ? ORDER BY year DESC, created_at DESC
-  ", list(notebook_id))
+list_abstracts <- function(con, notebook_id, sort_by = "year") {
+  # Validate sort_by against enum to prevent SQL injection
+  valid_sorts <- c("cited_by_count", "fwci", "referenced_works_count", "year")
+  if (!sort_by %in% valid_sorts) sort_by <- "year"
+
+  order_clause <- switch(sort_by,
+    cited_by_count = "cited_by_count DESC NULLS LAST",
+    fwci = "fwci DESC NULLS LAST",
+    referenced_works_count = "referenced_works_count DESC NULLS LAST",
+    year = "year DESC, created_at DESC",
+    "year DESC, created_at DESC"
+  )
+
+  dbGetQuery(con, sprintf("
+    SELECT * FROM abstracts WHERE notebook_id = ? ORDER BY %s
+  ", order_clause), list(notebook_id))
 }
 
 #' Save a setting to the database
@@ -734,7 +742,8 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
             if (grepl("^abstract:", origin)) {
               # Extract abstract ID and check if it belongs to this notebook
               abstract_id <- sub("^abstract:", "", origin)
-              abstract_id %in% notebook_abstracts$id
+              # Explicit type coercion to ensure string comparison works
+              as.character(abstract_id) %in% as.character(notebook_abstracts$id)
             } else {
               # Check if document filename belongs to this notebook
               doc_name <- results$doc_name[i]
@@ -761,7 +770,8 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
               for (i in seq_len(nrow(results))) {
                 if (grepl("^abstract:", results$origin[i])) {
                   abs_id <- sub("^abstract:", "", results$origin[i])
-                  title_match <- titles_df$title[titles_df$id == abs_id]
+                  # Explicit type coercion to ensure string comparison works
+                  title_match <- titles_df$title[as.character(titles_df$id) == as.character(abs_id)]
                   if (length(title_match) > 0) {
                     results$abstract_title[i] <- title_match[1]
                   }
@@ -1026,4 +1036,184 @@ get_predatory_publishers_set <- function(con) {
 get_retracted_dois_set <- function(con) {
   result <- dbGetQuery(con, "SELECT doi FROM retracted_papers")
   result$doi
+}
+
+# ============================================================================
+# Topic Cache Functions (Phase 3 - Topic Explorer)
+# ============================================================================
+
+#' Cache topics data in DuckDB
+#' @param con DuckDB connection
+#' @param topics_df Data frame of topics from fetch_all_topics()
+#' @return Number of records inserted
+cache_topics <- function(con, topics_df) {
+  message("[topic_cache] Caching ", nrow(topics_df), " topics...")
+
+  # Clear existing data (full refresh strategy)
+  dbExecute(con, "DELETE FROM topics")
+
+  if (nrow(topics_df) == 0) {
+    message("[topic_cache] No topics to insert")
+    return(0)
+  }
+
+  # Prepare clean data frame with explicit type coercion
+  topics_clean <- data.frame(
+    topic_id = as.character(topics_df$topic_id),
+    display_name = as.character(topics_df$display_name),
+    description = as.character(topics_df$description),
+    keywords = as.character(topics_df$keywords),
+    works_count = as.integer(topics_df$works_count),
+    domain_id = as.character(topics_df$domain_id),
+    domain_name = as.character(topics_df$domain_name),
+    field_id = as.character(topics_df$field_id),
+    field_name = as.character(topics_df$field_name),
+    subfield_id = as.character(topics_df$subfield_id),
+    subfield_name = as.character(topics_df$subfield_name),
+    updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+    stringsAsFactors = FALSE
+  )
+
+  # Bulk insert using dbWriteTable
+  dbWriteTable(con, "topics", topics_clean, append = TRUE)
+
+  # Update cache metadata for freshness tracking
+  update_quality_cache_meta(con, "openalex_topics", nrow(topics_clean))
+
+  message("[topic_cache] Cached ", nrow(topics_clean), " topics successfully")
+  nrow(topics_clean)
+}
+
+#' Get cached topics if fresh, empty data frame if stale or missing
+#' @param con DuckDB connection
+#' @param max_age_days Maximum cache age in days (default 30)
+#' @return Data frame of topics or empty data frame if stale/missing
+get_cached_topics <- function(con, max_age_days = 30) {
+  # Check cache metadata
+  cache_meta <- get_quality_cache_meta(con, "openalex_topics")
+
+  if (is.null(cache_meta)) {
+    message("[topic_cache] No cached topics found")
+    return(data.frame(
+      topic_id = character(),
+      display_name = character(),
+      description = character(),
+      keywords = character(),
+      works_count = integer(),
+      domain_id = character(),
+      domain_name = character(),
+      field_id = character(),
+      field_name = character(),
+      subfield_id = character(),
+      subfield_name = character(),
+      updated_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Check cache age
+  last_updated <- as.POSIXct(cache_meta$last_updated[1])
+  age_days <- as.numeric(difftime(Sys.time(), last_updated, units = "days"))
+
+  if (age_days > max_age_days) {
+    message("[topic_cache] Cache is stale (", round(age_days, 1), " days old)")
+    return(data.frame(
+      topic_id = character(),
+      display_name = character(),
+      description = character(),
+      keywords = character(),
+      works_count = integer(),
+      domain_id = character(),
+      domain_name = character(),
+      field_id = character(),
+      field_name = character(),
+      subfield_id = character(),
+      subfield_name = character(),
+      updated_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Cache is fresh, return topics
+  message("[topic_cache] Returning cached topics (", round(age_days, 1), " days old)")
+  dbGetQuery(con, "
+    SELECT * FROM topics
+    ORDER BY domain_name, field_name, subfield_name, display_name
+  ")
+}
+
+#' Get hierarchy choices for Shiny selectInput
+#' @param con DuckDB connection
+#' @param level Hierarchy level: "domain", "field", "subfield", or "topic"
+#' @param parent_id Parent ID to filter by (required for field, subfield, topic)
+#' @return Named character vector suitable for selectInput
+get_hierarchy_choices <- function(con, level = "domain", parent_id = NULL) {
+  if (level == "domain") {
+    # Get all unique domains
+    result <- dbGetQuery(con, "
+      SELECT DISTINCT domain_id, domain_name
+      FROM topics
+      WHERE domain_id IS NOT NULL
+      ORDER BY domain_name
+    ")
+
+    if (nrow(result) == 0) return(character(0))
+
+    # Return named vector: values are IDs, names are display names
+    setNames(result$domain_id, result$domain_name)
+
+  } else if (level == "field") {
+    # Fields require a parent domain ID
+    if (is.null(parent_id)) return(character(0))
+
+    result <- dbGetQuery(con, "
+      SELECT DISTINCT field_id, field_name
+      FROM topics
+      WHERE domain_id = ? AND field_id IS NOT NULL
+      ORDER BY field_name
+    ", list(parent_id))
+
+    if (nrow(result) == 0) return(character(0))
+
+    setNames(result$field_id, result$field_name)
+
+  } else if (level == "subfield") {
+    # Subfields require a parent field ID
+    if (is.null(parent_id)) return(character(0))
+
+    result <- dbGetQuery(con, "
+      SELECT DISTINCT subfield_id, subfield_name
+      FROM topics
+      WHERE field_id = ? AND subfield_id IS NOT NULL
+      ORDER BY subfield_name
+    ", list(parent_id))
+
+    if (nrow(result) == 0) return(character(0))
+
+    setNames(result$subfield_id, result$subfield_name)
+
+  } else if (level == "topic") {
+    # Topics require a parent subfield ID
+    if (is.null(parent_id)) return(character(0))
+
+    result <- dbGetQuery(con, "
+      SELECT topic_id, display_name, works_count
+      FROM topics
+      WHERE subfield_id = ?
+      ORDER BY display_name
+    ", list(parent_id))
+
+    if (nrow(result) == 0) return(character(0))
+
+    # Format labels as "Name (N works)" with thousands separator
+    labels <- sprintf("%s (%s works)",
+                     result$display_name,
+                     format(result$works_count, big.mark = ","))
+
+    setNames(result$topic_id, labels)
+
+  } else {
+    # Invalid level
+    return(character(0))
+  }
 }
