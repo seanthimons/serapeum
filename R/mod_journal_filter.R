@@ -9,7 +9,7 @@ mod_journal_filter_ui <- function(id) {
       class = "mb-2",
       checkboxInput(
         ns("filter_predatory"),
-        "Hide flagged journals",
+        "Also hide predatory journals",
         value = FALSE
       )
     ),
@@ -90,13 +90,17 @@ mod_journal_filter_server <- function(id, papers_data, con) {
       papers
     })
 
-    # Apply filter toggle
+    # Apply filter: blocked journals always hidden, predatory respects toggle
     filtered_papers <- reactive({
       papers <- quality_annotated_papers()
+      if (nrow(papers) == 0) return(papers)
 
-      # If filter is enabled, remove flagged papers
+      # Always hide personally blocked journals
+      papers <- papers[!papers$is_blocked, ]
+
+      # If filter toggle is ON, also hide predatory journals
       if (isTRUE(input$filter_predatory)) {
-        papers <- papers[!papers$is_flagged, ]
+        papers <- papers[!papers$is_predatory, ]
       }
 
       papers

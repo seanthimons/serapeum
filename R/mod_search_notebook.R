@@ -741,18 +741,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
               span(class = "badge bg-light text-dark border", paper$venue)
             }
-          ),
-          # Block journal action
-          if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
-            div(
-              class = "mt-1",
+            ,
+            if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
               actionLink(
                 ns(paste0("block_journal_", paper$id)),
-                span(class = "text-danger small", icon("ban"), " Block journal"),
+                span(class = "badge bg-danger", icon("ban"), " Block"),
                 title = paste("Block all papers from", paper$venue)
               )
-            )
-          },
+            }
+          ),
           div(class = "text-muted", author_str),
           # Citation metrics (Phase 2)
           format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count)
