@@ -10,13 +10,10 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#10](https://github.com/seanthimons/serapeum/issues/10) | feat: Meta-prompt for query building | Medium | High |
-| [#25](https://github.com/seanthimons/serapeum/issues/25) | feat: Seed paper for searching | Medium | High |
-| [#40](https://github.com/seanthimons/serapeum/issues/40) | feat: OpenAlex Phase 3 - Topics & Discovery | Medium | High |
-| [#43](https://github.com/seanthimons/serapeum/issues/43) | feat: Startup UI for seed papers or search term generation | Medium | High |
-| [#51](https://github.com/seanthimons/serapeum/issues/51) | bugfix: Slide generation citations too large | Low | Medium |
-| [#54](https://github.com/seanthimons/serapeum/issues/54) | feat: Rich sorting for FWCI, citation count, outgoing citations | Low | Medium |
-| [#55](https://github.com/seanthimons/serapeum/issues/55) | fix: Abstract embedding is not working | Low | High |
+| [#57](https://github.com/seanthimons/serapeum/issues/57) | bug: Seed discovery prompts for email even when already configured | Low | Medium |
+| [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
+| — | ui: Block journal badge slight vertical misalignment with other badges | Low | Low |
+| — | ui: Collapsible Journal Quality card to save vertical space | Low | Medium |
 
 ---
 
@@ -33,9 +30,9 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#29](https://github.com/seanthimons/serapeum/issues/29) | feat: Image/chart injection into slides | High | High |
 | [#38](https://github.com/seanthimons/serapeum/issues/38) | dev: PDF image extraction process | High | High |
 | [#17](https://github.com/seanthimons/serapeum/issues/17) | feat: Enhanced keyword tag behavior | Medium | Medium |
-| [#19](https://github.com/seanthimons/serapeum/issues/19) | feat: OpenRouter cost tracking | Medium | Medium |
-| [#20](https://github.com/seanthimons/serapeum/issues/20) | feat: Expanded model selection | Medium | Medium |
-| [#26](https://github.com/seanthimons/serapeum/issues/26) | feat: Ban/hard filter for suspect journals | Low | Medium |
+| [#19](https://github.com/seanthimons/serapeum/issues/19) | ~~feat: OpenRouter cost tracking~~ (done v1.1 Phase 5) | Medium | Medium |
+| [#20](https://github.com/seanthimons/serapeum/issues/20) | ~~feat: Expanded model selection~~ (done v1.1 Phase 6) | Medium | Medium |
+| [#26](https://github.com/seanthimons/serapeum/issues/26) | ~~feat: Ban/hard filter for suspect journals~~ (done v1.1 Phase 8) | Low | Medium |
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
 | [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
@@ -43,7 +40,6 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#49](https://github.com/seanthimons/serapeum/issues/49) | feat: Export synthesis outputs (document notebooks) | Medium | Medium |
 | [#50](https://github.com/seanthimons/serapeum/issues/50) | feat: Rich output preview (document notebook synthesis) | Medium | Medium |
 | [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
-| [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
 
 ---
 
@@ -93,6 +89,13 @@ High-effort, high-payoff features for the future.
 - [x] [#35](https://github.com/seanthimons/serapeum/issues/35): Citation/reference display fix (PR #36)
 - [x] [#45](https://github.com/seanthimons/serapeum/issues/45): About page layout overflow fix (PR #46)
 - [x] [#47](https://github.com/seanthimons/serapeum/issues/47): API key status validates config.yaml on initial load (PR #47)
+- [x] [#55](https://github.com/seanthimons/serapeum/issues/55): Fix abstract embedding (v1.0)
+- [x] [#25](https://github.com/seanthimons/serapeum/issues/25): Seed paper for searching (v1.0)
+- [x] [#10](https://github.com/seanthimons/serapeum/issues/10): Meta-prompt query builder (v1.0)
+- [x] [#40](https://github.com/seanthimons/serapeum/issues/40): OpenAlex Topics & Discovery (v1.0)
+- [x] [#43](https://github.com/seanthimons/serapeum/issues/43): Startup wizard UI (v1.0)
+- [x] [#54](https://github.com/seanthimons/serapeum/issues/54): Rich sorting for search results (v1.0)
+- [x] [#51](https://github.com/seanthimons/serapeum/issues/51): Slide citation CSS fix (v1.0)
 
 ---
 
