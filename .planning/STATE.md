@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-12)
 
 ## Current Position
 
-Phase: 12 — Citation Network Visualization ✅
-Plan: 02 of 02 complete (human-verified)
-Status: Phase complete — human-verified
-Last activity: 2026-02-12 — Phase 12 verified and approved
+Phase: 13 — Export-to-Seed Workflow
+Plan: 01 of 01 complete
+Status: Phase complete — autonomous execution
+Last activity: 2026-02-12 — Phase 13 plan 01 executed
 
-Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (4/8 plans shipped: phase 11 + 12) | Total: 22 plans shipped
+Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (5/8 plans shipped: phase 11 + 12 + 13) | Total: 23 plans shipped
 
 ## Performance Metrics
 
@@ -29,6 +29,7 @@ Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 �
 | Phase 11 P02 | 1.5 | 2 tasks | 2 files |
 | Phase 12 P01 | 9 | 2 tasks | 3 files |
 | Phase 12 P02 | ~30 | 2 tasks + checkpoint | 6 files |
+| Phase 13 P01 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -46,6 +47,8 @@ Recent decisions:
 - [Phase 12]: Cross-link discovery via referenced_works field (no extra API calls)
 - [Phase 12]: Legend at top-right to avoid visNetwork nav button overlap
 - [Phase 12]: Node cap floor lowered to 5, step to 5
+- [Phase 13]: Timestamp-based deduplication for seed_request reactive
+- [Phase 13]: Auto-trigger paper lookup on DOI pre-fill (no manual button click)
 
 ### Pending Todos
 
@@ -59,5 +62,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Phase 12 verified and approved
-Next: Execute next phase in v2.0 roadmap (Phase 13: Export-to-Seed Workflow)
+Stopped at: Completed 13-01-PLAN.md
+Next: Execute next phase in v2.0 roadmap (check ROADMAP.md for phase 14)
