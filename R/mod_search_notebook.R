@@ -1272,8 +1272,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       search_refresh_trigger(search_refresh_trigger() + 1)
     })
 
-    # Refresh search (triggered by button or save)
-    observeEvent(list(input$refresh_search, search_refresh_trigger()), ignoreInit = TRUE, {
+    # Extract refresh logic into a local function
+    do_search_refresh <- function() {
       nb_id <- notebook_id()
       req(nb_id)
 
@@ -1391,7 +1391,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       paper_refresh(paper_refresh() + 1)
       showNotification(paste("Loaded", length(papers), "papers"), type = "message")
-    })
+    }
+
+    # Explicit refresh button - use ignoreInit = TRUE and also ignoreNULL = TRUE
+    observeEvent(input$refresh_search, {
+      do_search_refresh()
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
+
+    # Programmatic refresh (from save_search)
+    observeEvent(search_refresh_trigger(), {
+      do_search_refresh()
+    }, ignoreInit = TRUE)
 
     # Handle embed button click (embeds only filtered papers)
     observeEvent(input$embed_papers, {
