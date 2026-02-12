@@ -63,10 +63,10 @@ Plans:
   1. User can collapse/expand the Journal Quality filter card to reclaim vertical space when not needed
   2. User sees all badges (year, type, access, journal, block journal) aligned consistently on the same baseline in abstract detail view
 
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 10-01: [To be planned]
+- [ ] 10-01-PLAN.md — Collapsible Journal Quality card and badge alignment in abstract detail view
 
 ## Progress
 
@@ -82,7 +82,7 @@ Plans:
 | 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 9. Bug Fixes | v1.2 | 1/1 | Complete | 2026-02-12 |
-| 10. UI Polish | v1.2 | 0/TBD | Not started | - |
+| 10. UI Polish | v1.2 | 0/1 | Not started | - |
 
 ---
-*Updated: 2026-02-12 after Phase 9 execution complete*
+*Updated: 2026-02-12 after Phase 10 planning complete*
