@@ -51,6 +51,19 @@ mod_search_notebook_ui <- function(id) {
           span("Papers"),
           div(
             class = "d-flex gap-2",
+            div(
+              class = "btn-group btn-group-sm",
+              tags$button(
+                class = "btn btn-outline-primary dropdown-toggle",
+                `data-bs-toggle` = "dropdown",
+                icon("download"), " Export"
+              ),
+              tags$ul(
+                class = "dropdown-menu",
+                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon("file-code"), " BibTeX (.bib)")),
+                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon("file-csv"), " CSV (.csv)"))
+              )
+            ),
             actionButton(ns("edit_search"), NULL,
                          class = "btn-sm btn-outline-secondary",
                          icon = icon("pen-to-square"),
@@ -382,6 +395,41 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       papers
     })
+
+    # Download handlers for citation export
+    output$download_bibtex <- downloadHandler(
+      filename = function() {
+        paste0("citations-", Sys.Date(), ".bib")
+      },
+      content = function(file) {
+        papers <- filtered_papers()
+        if (nrow(papers) == 0) {
+          writeLines("% No papers to export", file)
+          return()
+        }
+        bibtex_content <- generate_bibtex_batch(papers)
+        # Write with UTF-8 encoding, add BOM for compatibility
+        con_file <- file(file, "wb")
+        writeBin(charToRaw("\xEF\xBB\xBF"), con_file)  # UTF-8 BOM
+        writeLines(bibtex_content, con_file, useBytes = TRUE)
+        close(con_file)
+      }
+    )
+
+    output$download_csv <- downloadHandler(
+      filename = function() {
+        paste0("citations-", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        papers <- filtered_papers()
+        if (nrow(papers) == 0) {
+          write.csv(data.frame(note = "No papers to export"), file, row.names = FALSE)
+          return()
+        }
+        export_df <- format_csv_export(papers)
+        write.csv(export_df, file, fileEncoding = "UTF-8", row.names = FALSE)
+      }
+    )
 
 
     # Check if papers need embedding (based on filtered view)
