@@ -21,7 +21,7 @@ Bug fixes and high-impact features with low-to-medium effort.
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
 | [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
-| [#66](https://github.com/seanthimons/serapeum/issues/66) | feat: DOI on abstract preview | Low | Medium |
+| ~~[#66](https://github.com/seanthimons/serapeum/issues/66)~~ | ~~feat: DOI on abstract preview~~ | ~~Low~~ | ~~Medium~~ |
 | [#67](https://github.com/seanthimons/serapeum/issues/67) | dev: Export abstract to seeded paper search | Medium | High |
 
 ---
@@ -52,6 +52,14 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#50](https://github.com/seanthimons/serapeum/issues/50) | feat: Rich output preview (document notebook synthesis) | Medium | Medium |
 | [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
 | [#60](https://github.com/seanthimons/serapeum/issues/60) | dev: Toggle/UI to expose API queries | Medium | Medium |
+
+---
+
+## UI Polish
+
+| Area | Title | Complexity | Impact |
+|------|-------|------------|--------|
+| Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
 
 ---
 
@@ -121,6 +129,7 @@ High-effort, high-payoff features for the future.
 - [x] [#68](https://github.com/seanthimons/serapeum/issues/68): Fix tab-swap OpenAlex re-request (v1.2 Phase 9)
 - [x] [#73](https://github.com/seanthimons/serapeum/issues/73): Collapsible Journal Quality card (v1.2 Phase 10)
 - [x] [#72](https://github.com/seanthimons/serapeum/issues/72): Fix block badge vertical misalignment (v1.2 Phase 10)
+- [x] [#66](https://github.com/seanthimons/serapeum/issues/66): DOI on abstract preview (v2.0 Phase 11)
 
 ---
 
