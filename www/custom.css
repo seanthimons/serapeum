@@ -1,0 +1,68 @@
+/* Citation Network Visualization Styles */
+
+.citation-network-container {
+  position: relative;
+  background-color: #1a1a2e;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.citation-network-legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  min-width: 200px;
+}
+
+.citation-network-legend h6 {
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #333;
+}
+
+.citation-network-legend .color-gradient {
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.citation-network-controls {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6;
+}
+
+.citation-network-side-panel {
+  max-height: 700px;
+  overflow-y: auto;
+}
+
+.citation-network-side-panel .card {
+  height: 100%;
+}
+
+.citation-network-side-panel .card-body {
+  overflow-y: auto;
+}
+
+/* Dark theme support for legend */
+[data-bs-theme="dark"] .citation-network-legend {
+  background-color: rgba(30, 30, 46, 0.95);
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .citation-network-legend h6 {
+  color: #e0e0e0;
+}
+
+/* Hover effects for notebook items */
+.hover-bg-light:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-bs-theme="dark"] .hover-bg-light:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
