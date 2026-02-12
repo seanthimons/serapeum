@@ -73,43 +73,64 @@ mod_citation_network_ui <- function(id) {
         class = "citation-network-container position-relative",
         visNetwork::visNetworkOutput(ns("network_graph"), height = "700px"),
 
-        # Always-visible legend overlay with palette selector
+        # Collapsible legend overlay with palette selector
         div(
           class = "citation-network-legend",
-          h6("Legend"),
+          id = ns("legend_panel"),
+          # Header with toggle
           div(
-            class = "mb-2",
-            selectInput(
-              ns("palette"),
-              NULL,
-              choices = c(
-                "Viridis" = "viridis",
-                "Magma" = "magma",
-                "Plasma" = "plasma",
-                "Inferno" = "inferno",
-                "Cividis" = "cividis"
-              ),
-              selected = "viridis",
-              width = "100%"
+            class = "legend-header",
+            onclick = sprintf(
+              "var el = document.getElementById('%s'); el.classList.toggle('collapsed');
+               var btn = this.querySelector('.legend-toggle');
+               btn.innerHTML = el.classList.contains('collapsed') ? '&#x25C0;' : '&#x25BC;';",
+              ns("legend_panel")
+            ),
+            h6("Legend"),
+            tags$button(
+              class = "legend-toggle",
+              type = "button",
+              title = "Toggle legend",
+              HTML("&#x25BC;")
             )
           ),
+          # Collapsible body
           div(
-            class = "mb-2",
-            strong("Color:"), " Publication Year",
-            # Dynamic gradient rendered server-side
-            uiOutput(ns("legend_gradient")),
+            class = "legend-body",
             div(
-              class = "d-flex justify-content-between small text-muted",
-              span("Older"), span("Newer")
+              class = "mb-2",
+              selectInput(
+                ns("palette"),
+                NULL,
+                choices = c(
+                  "Viridis" = "viridis",
+                  "Magma" = "magma",
+                  "Plasma" = "plasma",
+                  "Inferno" = "inferno",
+                  "Cividis" = "cividis"
+                ),
+                selected = "viridis",
+                width = "100%"
+              )
+            ),
+            div(
+              class = "mb-2",
+              strong("Color:"), " Publication Year",
+              # Dynamic gradient rendered server-side
+              uiOutput(ns("legend_gradient")),
+              div(
+                class = "d-flex justify-content-between small text-muted",
+                span("Older"), span("Newer")
+              )
+            ),
+            div(
+              strong("Size:"), " Citation Count",
+              div(class = "small text-muted", "Larger = More Citations")
+            ),
+            div(
+              class = "mt-2",
+              icon("star", class = "text-warning"), " = Seed Paper"
             )
-          ),
-          div(
-            strong("Size:"), " Citation Count",
-            div(class = "small text-muted", "Larger = More Citations")
-          ),
-          div(
-            class = "mt-2",
-            icon("star", class = "text-warning"), " = Seed Paper"
           )
         )
       ),

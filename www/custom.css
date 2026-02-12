@@ -25,6 +25,51 @@
   z-index: 1000;
   min-width: 180px;
   font-size: 0.85rem;
+  transition: min-width 0.2s ease, padding 0.2s ease;
+}
+
+.citation-network-legend.collapsed {
+  min-width: auto;
+  padding: 6px 10px;
+}
+
+.citation-network-legend .legend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.citation-network-legend .legend-header h6 {
+  margin-bottom: 0;
+}
+
+.citation-network-legend .legend-body {
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.2s ease;
+  opacity: 1;
+  margin-top: 10px;
+}
+
+.citation-network-legend.collapsed .legend-body {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.citation-network-legend .legend-toggle {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.citation-network-legend .legend-toggle:hover {
+  color: #333;
 }
 
 .citation-network-legend h6 {
@@ -63,6 +108,14 @@
 }
 
 [data-bs-theme="dark"] .citation-network-legend h6 {
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .citation-network-legend .legend-toggle {
+  color: #aaa;
+}
+
+[data-bs-theme="dark"] .citation-network-legend .legend-toggle:hover {
   color: #e0e0e0;
 }
 
