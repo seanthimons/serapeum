@@ -60,7 +60,7 @@ mod_citation_network_ui <- function(id) {
 
     # Main content area with side panel
     layout_columns(
-      col_widths = c(-8, -4),  # Dynamic widths
+      col_widths = c(8, 4),
 
       # Left: Graph container
       div(
