@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-12)
 
 ## Current Position
 
-Phase: 13 — Export-to-Seed Workflow ✅
-Plan: 01 of 01 complete (verified)
-Status: Phase complete — verified passed
-Last activity: 2026-02-12 — Phase 13 verified and complete
+Phase: 14 — Citation Export
+Plan: 01 of 02 complete
+Status: Executing Phase 14
+Last activity: 2026-02-12 — Completed 14-01-PLAN.md
 
-Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (5/8 plans shipped: phase 11 + 12 + 13) | Total: 23 plans shipped
+Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (6/8 plans shipped: phase 11 + 12 + 13 + 14-01) | Total: 24 plans shipped
 
 ## Performance Metrics
 
@@ -30,6 +30,7 @@ Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 �
 | Phase 12 P01 | 9 | 2 tasks | 3 files |
 | Phase 12 P02 | ~30 | 2 tasks + checkpoint | 6 files |
 | Phase 13 P01 | 3 | 2 tasks | 3 files |
+| Phase 14 P01 | 9 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -49,6 +50,9 @@ Recent decisions:
 - [Phase 12]: Node cap floor lowered to 5, step to 5
 - [Phase 13]: Timestamp-based deduplication for seed_request reactive
 - [Phase 13]: Auto-trigger paper lookup on DOI pre-fill (no manual button click)
+- [Phase 14]: Placeholder-based backslash escaping to avoid double-escaping
+- [Phase 14]: Title-based fallback keys for papers without DOI
+- [Phase 14]: Semicolon-separated authors in CSV export
 
 ### Pending Todos
 
@@ -62,5 +66,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Phase 13 verified and complete
-Next: Execute next phase in v2.0 roadmap (Phase 14: Citation Export)
+Stopped at: Completed 14-01-PLAN.md
+Next: Execute 14-02-PLAN.md (Shiny UI integration for citation export)
