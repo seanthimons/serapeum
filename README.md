@@ -31,6 +31,8 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
   - Citation metrics (cited-by count, FWCI, reference count)
   - Paper keywords from OpenAlex
   - DOI as clickable link (with citation key fallback for legacy papers)
+- **Citation export** - Download results as BibTeX (.bib) or CSV (.csv) with unique citation keys
+- **Export to seed search** - Use any paper as a seed for a new discovery search with one click
 - **Import to documents** - Move curated papers to document notebooks for deeper analysis
 
 ### Slide Deck Generation
@@ -41,6 +43,18 @@ Generate presentation slides from notebook content using Quarto RevealJS.
 - **Speaker notes** - Optional auto-generated presenter notes
 - **Multiple formats** - Preview in-app, download .qmd, export to HTML/PDF
 - **Custom instructions** - Guide the AI on focus areas
+
+### Citation Network Visualization
+Explore citation relationships through interactive network graphs.
+
+- **One-click generation** - Build citation networks from any paper's abstract view
+- **Directional control** - Explore forward citations, backward references, or both
+- **Configurable depth** - Traverse 1-3 hops from the seed paper
+- **Node cap** - Limit network size (5-200 nodes) to keep graphs readable
+- **Interactive graph** - Pan, zoom, click nodes to view paper details
+- **Color palettes** - Five viridis color schemes with live-switching
+- **Save & reload** - Persist networks to database with layout positions preserved
+- **Collapsible legend** - Minimizable legend with dynamic gradient preview
 
 ### Settings & Configuration
 
@@ -139,7 +153,9 @@ Open http://localhost:8080 in your browser.
 5. Remove unwanted papers with the X button
 6. Click **"Embed Papers"** to enable semantic search
 7. Query the abstracts in chat
-8. Import selected papers to a document notebook
+8. Export results: **Export** dropdown → BibTeX (.bib) or CSV (.csv)
+9. Use **"Use as Seed"** on any paper to launch a new discovery search
+10. Import selected papers to a document notebook
 
 ### Settings
 
@@ -176,8 +192,11 @@ serapeum/
 │   ├── rag.R             # RAG pipeline
 │   ├── slides.R          # Slide generation
 │   ├── utils_doi.R       # DOI normalization and citation keys
+│   ├── utils_citation.R  # BibTeX/CSV export formatters
+│   ├── citation_network.R # Citation graph data and layout
 │   ├── quality_filter.R  # Predatory/retraction filtering
 │   ├── mod_about.R       # About page
+│   ├── mod_citation_network.R  # Network visualization UI
 │   ├── mod_document_notebook.R
 │   ├── mod_search_notebook.R
 │   ├── mod_settings.R
