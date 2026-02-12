@@ -204,6 +204,7 @@ server <- function(input, output, session) {
   # Render notebook list
   output$notebook_list <- renderUI({
     notebook_refresh()
+    network_refresh()
 
     notebooks <- list_notebooks(con)
 
