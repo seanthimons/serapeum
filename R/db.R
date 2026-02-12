@@ -1418,3 +1418,161 @@ get_blocked_journals_set <- function(con) {
   result <- dbGetQuery(con, "SELECT journal_name_normalized FROM blocked_journals")
   result$journal_name_normalized
 }
+
+# ============================================================================
+# Citation Network Functions (Phase 12 - Citation Network Visualization)
+# ============================================================================
+
+#' Save a citation network to the database
+#'
+#' @param con DuckDB connection
+#' @param id Network ID (generates UUID if NULL)
+#' @param name Network name
+#' @param seed_paper_id OpenAlex Work ID
+#' @param seed_paper_title Seed paper title
+#' @param direction Citation direction: "forward", "backward", or "both"
+#' @param depth Number of hops (1-3)
+#' @param node_limit Maximum nodes (25-200)
+#' @param palette Color palette name
+#' @param nodes_df Data frame with columns: paper_id, is_seed, title, authors, year, venue, doi, cited_by_count, x_position, y_position
+#' @param edges_df Data frame with columns: from_paper_id, to_paper_id
+#' @return Network ID
+save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
+                          direction, depth, node_limit, palette, nodes_df, edges_df) {
+  # Generate ID if not provided
+  if (is.null(id)) {
+    id <- uuid::UUIDgenerate()
+  }
+
+  # Insert network metadata
+  dbExecute(con, "
+    INSERT INTO citation_networks (id, name, seed_paper_id, seed_paper_title, direction, depth, node_limit, palette)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, name, seed_paper_id, seed_paper_title, direction,
+          as.integer(depth), as.integer(node_limit), palette))
+
+  # Prepare nodes for bulk insert
+  if (nrow(nodes_df) > 0) {
+    nodes_clean <- data.frame(
+      network_id = id,
+      paper_id = as.character(nodes_df$paper_id),
+      is_seed = as.logical(nodes_df$is_seed),
+      title = as.character(nodes_df$title),
+      authors = as.character(nodes_df$authors),
+      year = as.integer(nodes_df$year),
+      venue = as.character(nodes_df$venue),
+      doi = as.character(nodes_df$doi),
+      cited_by_count = as.integer(nodes_df$cited_by_count),
+      x_position = as.numeric(nodes_df$x),
+      y_position = as.numeric(nodes_df$y),
+      stringsAsFactors = FALSE
+    )
+
+    # Bulk insert nodes
+    dbWriteTable(con, "network_nodes", nodes_clean, append = TRUE)
+  }
+
+  # Prepare edges for bulk insert
+  if (nrow(edges_df) > 0) {
+    edges_clean <- data.frame(
+      network_id = id,
+      from_paper_id = as.character(edges_df$from_paper_id),
+      to_paper_id = as.character(edges_df$to_paper_id),
+      stringsAsFactors = FALSE
+    )
+
+    # Bulk insert edges
+    dbWriteTable(con, "network_edges", edges_clean, append = TRUE)
+  }
+
+  id
+}
+
+#' Load a citation network from the database
+#'
+#' @param con DuckDB connection
+#' @param network_id Network ID
+#' @return List with metadata, nodes, edges, or NULL if not found
+load_network <- function(con, network_id) {
+  # Load network metadata
+  metadata <- dbGetQuery(con, "
+    SELECT * FROM citation_networks WHERE id = ?
+  ", list(network_id))
+
+  if (nrow(metadata) == 0) {
+    return(NULL)
+  }
+
+  # Load nodes
+  nodes <- dbGetQuery(con, "
+    SELECT * FROM network_nodes WHERE network_id = ?
+  ", list(network_id))
+
+  # Load edges
+  edges <- dbGetQuery(con, "
+    SELECT * FROM network_edges WHERE network_id = ?
+  ", list(network_id))
+
+  list(
+    metadata = metadata,
+    nodes = nodes,
+    edges = edges
+  )
+}
+
+#' List all saved citation networks
+#'
+#' @param con DuckDB connection
+#' @return Data frame with id, name, seed_paper_title, created_at
+list_networks <- function(con) {
+  dbGetQuery(con, "
+    SELECT id, name, seed_paper_title, created_at
+    FROM citation_networks
+    ORDER BY updated_at DESC
+  ")
+}
+
+#' Delete a citation network
+#'
+#' Manually deletes nodes and edges before deleting network
+#' (DuckDB doesn't support CASCADE on foreign keys).
+#'
+#' @param con DuckDB connection
+#' @param network_id Network ID
+delete_network <- function(con, network_id) {
+  # Delete nodes first
+  dbExecute(con, "DELETE FROM network_nodes WHERE network_id = ?", list(network_id))
+
+  # Delete edges
+  dbExecute(con, "DELETE FROM network_edges WHERE network_id = ?", list(network_id))
+
+  # Delete network metadata
+  dbExecute(con, "DELETE FROM citation_networks WHERE id = ?", list(network_id))
+}
+
+#' Update network node positions
+#'
+#' Called after graph stabilization to save final layout.
+#'
+#' @param con DuckDB connection
+#' @param network_id Network ID
+#' @param nodes_df Data frame with paper_id, x_position, y_position columns
+update_network_positions <- function(con, network_id, nodes_df) {
+  if (nrow(nodes_df) == 0) return(invisible(NULL))
+
+  # Update each node's position
+  for (i in seq_len(nrow(nodes_df))) {
+    dbExecute(con, "
+      UPDATE network_nodes
+      SET x_position = ?, y_position = ?
+      WHERE network_id = ? AND paper_id = ?
+    ", list(
+      as.numeric(nodes_df$x_position[i]),
+      as.numeric(nodes_df$y_position[i]),
+      network_id,
+      as.character(nodes_df$paper_id[i])
+    ))
+  }
+
+  invisible(NULL)
+}
