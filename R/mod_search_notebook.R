@@ -185,11 +185,27 @@ mod_search_notebook_ui <- function(id) {
       div(
         class = "offcanvas-header border-bottom",
         h5(class = "offcanvas-title", "Chat with Abstracts"),
-        tags$button(
-          type = "button",
-          class = "btn-close",
-          `data-bs-dismiss` = "offcanvas",
-          `aria-label` = "Close"
+        div(
+          class = "d-flex align-items-center gap-2 ms-auto",
+          div(
+            class = "btn-group btn-group-sm",
+            tags$button(
+              class = "btn btn-outline-secondary dropdown-toggle",
+              `data-bs-toggle` = "dropdown",
+              icon("download")
+            ),
+            tags$ul(
+              class = "dropdown-menu dropdown-menu-end",
+              tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
+              tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
+            )
+          ),
+          tags$button(
+            type = "button",
+            class = "btn-close",
+            `data-bs-dismiss` = "offcanvas",
+            `aria-label` = "Close"
+          )
         )
       ),
 
@@ -431,6 +447,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
     )
 
+    # Download handlers for chat export
+    output$download_chat_md <- downloadHandler(
+      filename = function() { paste0("chat-", Sys.Date(), ".md") },
+      content = function(file) {
+        msgs <- messages()
+        md_content <- format_chat_as_markdown(msgs)
+        con_file <- file(file, "wb")
+        writeBin(charToRaw(md_content), con_file)
+        close(con_file)
+      }
+    )
+
+    output$download_chat_html <- downloadHandler(
+      filename = function() { paste0("chat-", Sys.Date(), ".html") },
+      content = function(file) {
+        msgs <- messages()
+        html_content <- format_chat_as_html(msgs)
+        con_file <- file(file, "wb")
+        writeBin(charToRaw("\xEF\xBB\xBF"), con_file)  # UTF-8 BOM
+        writeBin(charToRaw(html_content), con_file)
+        close(con_file)
+      }
+    )
 
     # Check if papers need embedding (based on filtered view)
     papers_need_embedding <- reactive({
