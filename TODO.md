@@ -4,13 +4,23 @@ Future enhancements for the Research Notebook tool, organized by priority.
 
 ---
 
+## Pending PRs (Resolve Immediately)
+
+| PR | Title | Status | Branch |
+|----|-------|--------|--------|
+| [PR #70](https://github.com/seanthimons/serapeum/pull/70) | Add GitHub community standards (LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, templates) | open | copilot/update-community-standards-defaults |
+| [PR #56](https://github.com/seanthimons/serapeum/pull/56) | Fix abstract embedding queries missing source_type filter | draft | copilot/fix-abstract-embedding-issue |
+| [PR #39](https://github.com/seanthimons/serapeum/pull/39) | Add R package for PDF image extraction | draft | copilot/add-pdf-image-extraction-package |
+
+---
+
 ## High Priority (Quick Wins & Critical)
 
 Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#59](https://github.com/seanthimons/serapeum/issues/59) | regression: 401 error code from OpenAlex on topic searches | — | — |
+| [#59](https://github.com/seanthimons/serapeum/issues/59) | regression: 401 error code from OpenAlex on topic searches | Medium | High |
 | [#65](https://github.com/seanthimons/serapeum/issues/65) | dev: OpenAlex/OpenRouter rate limit or other error codes | Low | High |
 | [#73](https://github.com/seanthimons/serapeum/issues/73) | ui: Collapsible Journal Quality card to save vertical space | Low | Medium |
 | [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
