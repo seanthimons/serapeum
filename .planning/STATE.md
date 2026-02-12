@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-12)
 ## Current Position
 
 Phase: 14 — Citation Export
-Plan: 01 of 02 complete
-Status: Executing Phase 14
-Last activity: 2026-02-12 — Completed 14-01-PLAN.md
+Plan: 02 of 02 complete
+Status: Phase 14 Complete
+Last activity: 2026-02-12 — Completed 14-02-PLAN.md
 
-Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (6/8 plans shipped: phase 11 + 12 + 13 + 14-01) | Total: 24 plans shipped
+Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 ✅ (8/8 plans shipped: phase 11 + 12 + 13 + 14) | Total: 25 plans shipped
 
 ## Performance Metrics
 
@@ -31,6 +31,7 @@ Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 �
 | Phase 12 P02 | ~30 | 2 tasks + checkpoint | 6 files |
 | Phase 13 P01 | 3 | 2 tasks | 3 files |
 | Phase 14 P01 | 9 | 2 tasks | 2 files |
+| Phase 14 P02 | 11 | 2 tasks | 1 file |
 
 ## Accumulated Context
 
@@ -53,6 +54,8 @@ Recent decisions:
 - [Phase 14]: Placeholder-based backslash escaping to avoid double-escaping
 - [Phase 14]: Title-based fallback keys for papers without DOI
 - [Phase 14]: Semicolon-separated authors in CSV export
+- [Phase 14]: UTF-8 BOM for BibTeX files to ensure reference manager compatibility
+- [Phase 14]: Export filtered papers (respects current search filters) not all notebook papers
 
 ### Pending Todos
 
@@ -66,5 +69,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Completed 14-01-PLAN.md
-Next: Execute 14-02-PLAN.md (Shiny UI integration for citation export)
+Stopped at: Completed 14-02-PLAN.md (Phase 14 complete)
+Next: Awaiting next phase planning
