@@ -11,7 +11,7 @@ mod_citation_network_ui <- function(id) {
     div(
       class = "citation-network-controls mb-3 p-3 bg-light rounded",
       layout_columns(
-        col_widths = c(2, 2, 2, 2, 2, 2),
+        col_widths = c(2, 2, 2, 3, 3),
 
         # Direction toggle
         div(
@@ -54,22 +54,6 @@ mod_citation_network_ui <- function(id) {
           uiOutput(ns("build_progress"))
         ),
 
-        # Color palette selector
-        div(
-          selectInput(
-            ns("palette"),
-            "Color Palette",
-            choices = c(
-              "Viridis" = "viridis",
-              "Magma" = "magma",
-              "Plasma" = "plasma",
-              "Inferno" = "inferno",
-              "Cividis" = "cividis"
-            ),
-            selected = "viridis"
-          )
-        ),
-
         # Save button
         actionButton(
           ns("save_network"),
@@ -89,17 +73,31 @@ mod_citation_network_ui <- function(id) {
         class = "citation-network-container position-relative",
         visNetwork::visNetworkOutput(ns("network_graph"), height = "700px"),
 
-        # Always-visible legend overlay
+        # Always-visible legend overlay with palette selector
         div(
           class = "citation-network-legend",
           h6("Legend"),
           div(
             class = "mb-2",
+            selectInput(
+              ns("palette"),
+              NULL,
+              choices = c(
+                "Viridis" = "viridis",
+                "Magma" = "magma",
+                "Plasma" = "plasma",
+                "Inferno" = "inferno",
+                "Cividis" = "cividis"
+              ),
+              selected = "viridis",
+              width = "100%"
+            )
+          ),
+          div(
+            class = "mb-2",
             strong("Color:"), " Publication Year",
-            div(
-              class = "color-gradient mt-1",
-              style = "height: 20px; background: linear-gradient(to right, #440154, #31688e, #35b779, #fde724); border-radius: 3px;"
-            ),
+            # Dynamic gradient rendered server-side
+            uiOutput(ns("legend_gradient")),
             div(
               class = "d-flex justify-content-between small text-muted",
               span("Older"), span("Newer")
@@ -155,6 +153,25 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           icon("spinner", class = "fa-spin"), " Building network..."
         )
       }
+    })
+
+    # Dynamic legend gradient that updates with palette
+    output$legend_gradient <- renderUI({
+      palette <- input$palette %||% "viridis"
+      gradient_colors <- tryCatch({
+        cols <- viridisLite::viridis(5, option = palette)
+        paste(cols, collapse = ", ")
+      }, error = function(e) {
+        "#440154FF, #3B528BFF, #21908CFF, #5DC863FF, #FDE725FF"
+      })
+      div(
+        class = "color-gradient mt-1",
+        style = paste0(
+          "height: 20px; background: linear-gradient(to right, ",
+          gradient_colors,
+          "); border-radius: 3px;"
+        )
+      )
     })
 
     # Build network button handler
@@ -280,7 +297,17 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         ) |>
         visNetwork::visNodes(
           font = list(size = 0),  # No labels by default
-          scaling = list(min = 10, max = 50, label = list(enabled = FALSE))
+          scaling = list(
+            min = 15,
+            max = 50,
+            label = list(enabled = FALSE),
+            customScalingFunction = htmlwidgets::JS(
+              "function(min, max, total, value) {
+                if (max === min) { return 0.5; }
+                return (value - min) / (max - min);
+              }"
+            )
+          )
         ) |>
         visNetwork::visInteraction(
           hover = TRUE,
@@ -317,9 +344,15 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       net_data$metadata$palette <- palette
       current_network_data(net_data)
 
+      # Also save palette to DB so settings stays in sync
+      tryCatch(
+        save_db_setting(con_r(), "network_palette", palette),
+        error = function(e) NULL
+      )
+
       # Update via proxy (no full re-render)
       visNetwork::visNetworkProxy("network_graph") |>
-        visNetwork::visUpdateNodes(nodes[, c("id", "color", "size", "shape",
+        visNetwork::visUpdateNodes(nodes[, c("id", "color", "value", "shape",
                                               "borderWidth", "color.border")])
     }, ignoreInit = TRUE)
 

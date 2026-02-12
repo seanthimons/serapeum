@@ -356,7 +356,7 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   nodes_df$id <- nodes_df$paper_id
   nodes_df$label <- NA  # No labels by default (show on hover)
   nodes_df$color <- map_year_to_color(nodes_df$year, palette)
-  nodes_df$size <- compute_node_sizes(nodes_df$cited_by_count)
+  nodes_df$value <- compute_node_sizes(nodes_df$cited_by_count)
 
   # Shape: star for seed, dot for others
   nodes_df$shape <- ifelse(nodes_df$is_seed, "star", "dot")
