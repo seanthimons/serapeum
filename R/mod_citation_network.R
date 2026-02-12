@@ -306,19 +306,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             div(
               class = "mb-2",
               strong("Authors: "),
-              {
-                authors <- tryCatch(
-                  as.character(unlist(jsonlite::fromJSON(node$authors))),
-                  error = function(e) "Unknown"
-                )
-                if (length(authors) == 0) {
-                  "Unknown"
-                } else if (length(authors) > 3) {
-                  paste(paste(authors[1:3], collapse = ", "), "et al.")
-                } else {
-                  paste(authors, collapse = ", ")
-                }
-              }
+              node$authors
             ),
 
             # Year
