@@ -7,11 +7,13 @@
   overflow: visible;
 }
 
-/* Ensure visNetwork tooltips aren't clipped */
-.citation-network-container .vis-tooltip {
-  z-index: 1050;
+/* Ensure visNetwork tooltips render above the side panel */
+.vis-tooltip {
+  z-index: 9999 !important;
+  position: fixed !important;
   max-width: 350px;
   word-wrap: break-word;
+  pointer-events: none;
 }
 
 .citation-network-legend {
