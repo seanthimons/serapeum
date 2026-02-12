@@ -30,6 +30,7 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
   - Open Access status badges (gold, green, hybrid, bronze, closed)
   - Citation metrics (cited-by count, FWCI, reference count)
   - Paper keywords from OpenAlex
+  - DOI as clickable link (with citation key fallback for legacy papers)
 - **Import to documents** - Move curated papers to document notebooks for deeper analysis
 
 ### Slide Deck Generation
@@ -146,6 +147,7 @@ Open http://localhost:8080 in your browser.
   - Visual indicators show validation status (green check = valid)
 - **Models** - Select chat and embedding models
 - **Quality Data** - Download predatory journal/publisher lists and retraction database
+- **DOI Management** - View DOI coverage stats and backfill missing DOIs from OpenAlex
 
 ## Tech Stack
 
@@ -173,6 +175,7 @@ serapeum/
 │   ├── pdf.R             # PDF utilities
 │   ├── rag.R             # RAG pipeline
 │   ├── slides.R          # Slide generation
+│   ├── utils_doi.R       # DOI normalization and citation keys
 │   ├── quality_filter.R  # Predatory/retraction filtering
 │   ├── mod_about.R       # About page
 │   ├── mod_document_notebook.R
