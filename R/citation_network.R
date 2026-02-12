@@ -316,26 +316,22 @@ map_year_to_color <- function(years, palette = "viridis") {
 #' @param cited_by_counts Numeric vector of citation counts
 #' @return Numeric vector of node sizes (10-50)
 compute_node_sizes <- function(cited_by_counts) {
-  # Apply sqrt transform
-  sqrt_counts <- sqrt(pmax(cited_by_counts, 0))
+  n <- length(cited_by_counts)
 
-  # Scale to range 10-50
-  if (length(unique(sqrt_counts)) == 1) {
-    # All same value - return middle size
-    return(rep(30, length(sqrt_counts)))
-  }
+  if (n == 0) return(numeric(0))
+  if (n == 1) return(30)
 
-  count_range <- range(sqrt_counts, na.rm = TRUE)
-  if (count_range[2] - count_range[1] == 0) {
-    # Avoid division by zero
-    return(rep(30, length(sqrt_counts)))
-  }
+  # Use rank-based sizing for even visual distribution
+  # This prevents outliers from compressing all other nodes to minimum
+  ranks <- rank(pmax(cited_by_counts, 0), ties.method = "average")
 
-  normalized <- (sqrt_counts - count_range[1]) / (count_range[2] - count_range[1])
-  sizes <- 10 + normalized * 40  # Range: 10-50
+  # Normalize ranks to 0-1
+  normalized <- (ranks - 1) / max(n - 1, 1)
 
-  # Ensure minimum size of 10
-  pmax(sizes, 10)
+  # Scale to range 15-50
+  sizes <- 15 + normalized * 35
+
+  sizes
 }
 
 #' Build visNetwork-ready graph data
