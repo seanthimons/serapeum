@@ -1,214 +1,397 @@
-# Feature Research
+# Feature Landscape: Discovery & Export Enhancement (v1.2)
 
-**Domain:** Research Discovery Tools (Academic Paper Search & Curation)
-**Researched:** 2026-02-10
+**Domain:** Research assistant tools / Academic literature management
+**Researched:** 2026-02-12
+**Milestone:** v1.2 — Discovery workflow enhancement and output/export capabilities
 **Confidence:** HIGH
 
-## Feature Landscape
+## Context
 
-### Table Stakes (Users Expect These)
+This research focuses on **NEW features for v1.2 milestone only:**
+- DOI on abstract preview (#66)
+- Export abstract to seeded paper search (#67)
+- Seeded search same view as abstract preview (#71)
+- Citation network graph (#53)
+- Citation export - .bib/.csv/BibTeX (#64)
+- Export synthesis outputs (#49)
 
-Features users assume exist. Missing these = product feels incomplete.
+**Already built in v1.1:**
+- Search notebooks with paper list, abstract detail view
+- Keyword/journal filtering
+- Seed paper discovery (enter DOI → find related papers → create notebook)
+- Query builder (LLM-assisted search term generation)
+- Topic explorer (OpenAlex topic hierarchy)
+- Slide generation from RAG chat
+- Cost tracking per LLM request
+
+## Table Stakes
+
+Features users expect. Missing = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Seed paper discovery | All modern research tools (Connected Papers, ResearchRabbit, Litmaps) start with seed papers. Users expect to input one paper and find related work. | MEDIUM | Requires citation network traversal (references + cited-by). OpenAlex provides this via `referenced_works` and `cited_by_count` endpoints. |
-| Citation-based sorting | Users expect to sort by citation count to identify influential papers. Google Scholar, Semantic Scholar, all tools offer this. | LOW | Already have citation data from OpenAlex. Just needs UI sorting controls. |
-| Relevance sorting | Default sort should be "relevant to query" not just recency or citations. Users trained by Google Scholar, Semantic Scholar. | MEDIUM | OpenAlex provides relevance scores. Need to balance with citation count (old highly-cited papers dominate pure relevance). |
-| Publication year filtering | Every academic search tool offers year range filtering. Table stakes since Google Scholar. | LOW | Already supported in current search notebooks. |
-| Visual quality indicators | Users expect to see badges/icons for paper type, open access status, citations at a glance without clicking. | LOW | Already implemented in Serapeum (type badges, OA badges, citation metrics). |
-| Export to citation managers | Users expect BibTeX, RIS, or direct Zotero/Mendeley export. Research tools without this feel broken. | MEDIUM | Need to generate standard citation formats from OpenAlex metadata. |
-| Multi-paper selection | Users expect checkboxes to select multiple papers for batch actions (export, tag, delete). | LOW | UI pattern widely expected from Gmail, file managers, etc. |
-| Author filtering | Ability to filter by specific authors or exclude certain authors. | MEDIUM | OpenAlex supports author filtering via `filter=authorships.author.id` |
+| **DOI display on abstract preview (#66)** | Standard metadata display in all academic tools (Google Scholar, Semantic Scholar, Web of Science). Users need to copy DOI for citations. | **Low** | Already have abstract preview UI in search notebook, DOI from OpenAlex. Just add DOI field display with copy button. |
+| **BibTeX export (.bib) (#64)** | Universal standard for LaTeX users, supported by Zotero, Mendeley, Web of Science, Scopus. Researchers expect this for reference management. | **Low** | Standard format with 14 entry types, well-documented spec. Map OpenAlex fields to BibTeX fields. |
+| **CSV export (#64)** | Expected for data analysis, spreadsheet import, custom workflows. Common in all academic databases. | **Low** | Flat format, need to define column schema (title, authors, year, DOI, citations, etc). |
+| **Basic citation metadata (#64)** | Title, authors, year, DOI, journal required for any export. Table stakes for citation tools. | **Low** | Already have from OpenAlex API response. |
+| **Export selected items (#64)** | Users expect to filter before export, not export everything. Gmail/file manager pattern. | **Medium** | Requires selection UI state management (checkboxes), export button with format picker. |
 
-### Differentiators (Competitive Advantage)
+## Differentiators
 
-Features that set the product apart. Not required, but valuable.
+Features that set product apart. Not expected, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Local-first citation network visualization | Connected Papers charges for saved graphs. Litmaps has limits. Offering unlimited local visualization aligns with Serapeum's privacy-first mission. | HIGH | Need graph layout algorithm (force-directed), interactive canvas (D3.js or similar in Shiny). Citation data from OpenAlex. |
-| LLM query builder with natural language | Elicit's natural language queries are a key differentiator. Users ask "How does sleep affect memory in teenagers?" not keyword searches. | MEDIUM | Prompt LLM to extract: concepts, date ranges, document types from natural language. Convert to OpenAlex filter syntax. |
-| Topic exploration via shared citations | Litmaps/Connected Papers find papers through co-citation and bibliographic coupling. Differentiates from keyword search. | HIGH | Requires: (1) fetch seed paper citations, (2) find papers citing same works (co-citation), (3) score by overlap strength. Computationally intensive. |
-| Smart startup wizard | First-time users struggle with empty notebooks. A wizard that asks "What are you researching?" and seeds initial papers reduces abandonment. | MEDIUM | Multi-step UI flow: (1) ask research topic, (2) LLM generates initial query, (3) auto-creates notebook with results, (4) prompts to select seed papers. |
-| Persistent research feeds | Semantic Scholar's Research Feeds notify users of new papers matching interests. Local version saves queries and highlights new results. | MEDIUM | Store query fingerprints, poll OpenAlex periodically, diff results, flag new papers. Requires background job or manual refresh. |
-| Interactive citation timeline | Visualize paper evolution over time on timeline. See how ideas developed chronologically. | MEDIUM | D3.js timeline with papers as nodes, positioned by publication year, sized by citations. |
-| Automatic related paper suggestions | After embedding papers, suggest "Papers that cite these" or "Earlier work by same authors" without user input. | LOW | Use OpenAlex relationships (`referenced_works`, `related_works`, `authorships.author.works`). Surface in sidebar. |
+| **Citation network graph (#53)** | Visual discovery > list-based search. Connected Papers built entire business on this. Local = privacy + offline. | **High** | Force-directed layout, node sizing by citations, color by year, interactive zoom/pan/filter. Connected Papers charges for saved graphs, we offer unlimited local. |
+| **Export abstract → seeded search (#67)** | Seamless workflow: discover in search → seed new search from abstract. Most tools require copy/paste DOI manually. | **Low** | UI flow integration between existing modules (search notebook → seed discovery). One-click action. |
+| **Same view for seeded results (#71)** | Consistency: seeded search uses familiar search notebook UI instead of separate interface. Reduces learning curve. | **Medium** | Architectural: seed discovery returns structured search results, reuses search notebook component. Need adapter layer. |
+| **Export synthesis outputs (#49)** | RAG chat + slide generation are differentiators; exporting them completes the workflow. Most tools don't export AI-generated content. | **Low-Medium** | Markdown/PDF export for chat summaries, HTML/PPTX for slides. Chat history → formatted document. |
+| **Local-first citation network (#53)** | Most tools (Connected Papers, ResearchRabbit) are cloud-only. Local = privacy + offline + unlimited graphs. | **High** | Graph data stored in DuckDB, computed locally, no API dependencies after initial fetch. Privacy win. |
+| **Multi-format export from single source (#64)** | Export to .bib, .csv, .ris, .json from same dataset without re-querying. Convenience over switching tools. | **Medium** | Abstract export layer over data model. Format-specific serializers. |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Anti-Features
 
-Features that seem good but create problems.
+Features to explicitly NOT build.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Real-time collaborative notebooks | Users want to share notebooks like Google Docs. | Breaks local-first architecture. Requires auth, sync conflicts, server infrastructure. Adds massive complexity for single-user tool. | Export notebook as shareable file (JSON, HTML report). Recipient imports to their local instance. |
-| Comprehensive full-text search across all papers | "Why can't I search inside every paper like Ctrl+F?" | OpenAlex abstracts only, no full text. Scraping PDFs at scale = legal risk + storage cost. | Focus on abstract search (already semantic via embeddings). For specific papers, import to document notebook for full-text RAG. |
-| Automatic paper quality scoring | "Tell me which papers are good." | Quality is subjective, domain-dependent. Citation count favors old papers. Journal impact factor is controversial. ML scoring = black box users don't trust. | Provide transparent filters (citation threshold, exclude predatory journals, exclude retractions). Let users decide quality criteria. |
-| Built-in PDF reader | "Why do I need to download PDFs to read them?" | Scope creep. Good PDF readers exist (browser, Zotero, Adobe). Building a competitive reader = months of work for marginal value. | One-click download + open in default PDF viewer. Focus on discovery and curation, not reading experience. |
-| Social features (like/comment/rate papers) | "Let me rate papers and see what others think." | Local-first = no central database. Social features require server, moderation, spam prevention. Privacy concerns sharing reading habits. | Keep local notes/tags per paper. Export curated lists as static HTML for sharing insights. |
-| Automatic topic clustering without seed papers | "Just show me the research landscape on topic X." | Unsupervised clustering on broad topics = noisy results. Users don't trust "magic" without seed papers. Computationally expensive. | Require 1-3 seed papers for focused exploration. LLM query builder helps users articulate starting point. |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **Cloud sync for citation graphs** | Scope creep, infrastructure cost, breaks local-first principle. | Keep graphs local, export as static files (JSON, PNG) if sharing needed. |
+| **Custom citation styles (APA, MLA, Chicago)** | Complexity explosion (9000+ styles in Zotero). Not core value prop. Citation formatting is commodity feature. | Export BibTeX/RIS, let LaTeX/Zotero/Mendeley handle formatting. Focus on discovery, not citation formatting. |
+| **PDF annotation** | Major feature, separate product category (Zotero, Mendeley specialize in this). Months of work for marginal value. | Focus on discovery/synthesis, not document markup. Users have preferred PDF readers. |
+| **Reference deduplication** | Edge case complexity (fuzzy matching, merge conflicts, user decisions on which duplicate to keep). | Assume OpenAlex data is canonical, export as-is. Users can dedupe in Zotero if needed. |
+| **Collaborative features** | Architecture shift (multiplayer state, conflict resolution, auth, server). Local-first means single-user. | Individual researcher workflow only. Export/share results as static files. |
+| **Citation network auto-update** | Background jobs, staleness detection, API quota management. When to refresh? How to notify? | Generate on-demand only. User clicks "Generate Graph" when needed. Simple and predictable. |
+| **Real-time graph physics** | Connected Papers uses smooth animations. Complex for Shiny. Performance issues with 100+ nodes. | Static layout computed once, pan/zoom only. Simpler implementation, faster. |
 
 ## Feature Dependencies
 
 ```
-[LLM Query Builder]
-    └──requires──> [OpenRouter API configured]
+DOI display (#66)
+  → None (standalone enhancement to existing abstract preview)
 
-[Seed Paper Discovery]
-    └──requires──> [Citation network data from OpenAlex]
-                       └──requires──> [Related works endpoint]
+Export abstract → seeded search (#67)
+  → Requires: Seed discovery module (EXISTS in v1.1)
+  → Requires: Abstract detail view (EXISTS in v1.1)
+  → New: UI action button "Find Related Papers"
+  → New: Data flow to populate seed discovery with selected paper DOI
 
-[Citation Network Visualization]
-    └──requires──> [Seed Paper Discovery]
-    └──requires──> [Graph layout algorithm]
+Seeded search same view (#71)
+  → Requires: Search notebook component (EXISTS in v1.1)
+  → Requires: Seed discovery module (EXISTS in v1.1)
+  → New: Adapter layer to populate search notebook from seed results
+  → New: Navigation flow (seed discovery → search notebook view)
 
-[Topic Exploration (co-citation)]
-    └──requires──> [Seed Paper Discovery]
-    └──requires──> [Multiple API calls to fetch citation overlap]
+Citation network graph (#53)
+  → Requires: OpenAlex citations API (available, free)
+  → Requires: Graph layout library (need to add: vis.js, cytoscape.js, or visNetwork)
+  → Requires: Interactive visualization in Shiny (htmlwidgets)
+  → Requires: DuckDB schema for graph storage (cache results)
+  → Optional: Export graph as PNG/SVG/JSON
 
-[Smart Startup Wizard]
-    └──requires──> [LLM Query Builder]
-    └──enhances──> [Seed Paper Discovery]
+Citation export (.bib/.csv/BibTeX) (#64)
+  → Requires: Selected papers list (EXISTS in search notebook)
+  → Requires: Export format generators (BibTeX, CSV serializers)
+  → Optional: RIS format (similar complexity to BibTeX)
+  → Optional: JSON format (trivial, just serialize data frame)
 
-[Rich Sorting (relevance + citations + date)]
-    └──requires──> [OpenAlex relevance scores + citation metadata]
-
-[Export to Citation Managers]
-    └──requires──> [BibTeX/RIS formatter]
-    └──enhances──> [Multi-paper selection]
-
-[Research Feeds (new paper notifications)]
-    └──requires──> [Saved queries in database]
-    └──requires──> [Background polling or manual refresh]
+Export synthesis outputs (#49)
+  → Requires: RAG chat module (EXISTS in v1.1, document notebook)
+  → Requires: Slides module (EXISTS in v1.1, generated from chat)
+  → New: Markdown export for chat (chat history → .md file)
+  → New: PDF export for chat (via pandoc or pagedown R package)
+  → New: HTML export for slides (via revealjs)
+  → Optional: PPTX export for slides (via officer R package, more complex)
 ```
 
-### Dependency Notes
+## Feature Groupings by Implementation Order
 
-- **LLM Query Builder requires OpenRouter API:** Natural language parsing needs LLM. Already configured for chat, can reuse for query assistance.
-- **Seed Paper Discovery requires Citation Network Data:** Must fetch `referenced_works` and `cited_by_api_url` from OpenAlex for a given DOI/work ID.
-- **Citation Network Visualization requires Seed Paper Discovery:** Can't visualize relationships without first fetching the network.
-- **Smart Startup Wizard enhances Seed Paper Discovery:** Wizard helps users articulate research question, then seeds papers via discovery features.
-- **Topic Exploration requires multiple API calls:** Co-citation analysis = fetch references for seed papers, then find papers citing same works. Expensive but valuable.
-- **Export enhances Multi-paper selection:** Selecting multiple papers only valuable if you can do something with the selection (export, tag, delete).
+### Phase 1: Quick Wins (Low complexity, high value, 1-2 days)
 
-## MVP Definition
+**Goal:** Ship improvements fast, validate export features.
 
-### Launch With (v1)
+1. **DOI display (#66)** — 1-2 hours
+   - Add DOI to abstract preview card (already have from OpenAlex)
+   - Add copy button (clipboard.js or Shiny action)
+   - Format as clickable link: `https://doi.org/{doi}`
 
-Minimum viable product — what's needed to validate the discovery features.
+2. **Export abstract → seeded search (#67)** — 2-4 hours
+   - Add "Find Related Papers" button on abstract detail view
+   - Pass DOI to seed discovery module (module communication)
+   - Navigate to seed discovery tab
+   - Pre-fill DOI input and trigger lookup
 
-- [x] **Rich Sorting Controls** — Users expect to sort by relevance, citations, or date. Table stakes for academic search. Without this, tool feels primitive compared to Google Scholar.
-- [x] **Seed Paper Discovery** — Core value proposition. Enter DOI/title, get related papers via citations. This is what differentiates discovery tools from basic search.
-- [x] **LLM Query Builder** — Helps users translate "I want to research X" into effective search queries. Reduces friction for non-expert users. Aligns with Serapeum's AI-assisted approach.
-- [x] **Multi-paper Selection** — Needed for batch export, batch import to document notebooks. Expected UX from every modern app.
-- [x] **Export to BibTeX** — Most common citation format. Researchers need this for LaTeX, reference managers. Low effort, high value.
+### Phase 2: Workflow Integration (Medium complexity, 3-5 days)
 
-### Add After Validation (v1.x)
+**Goal:** Seamless workflows between discovery and export.
 
-Features to add once core is working.
+3. **Seeded search same view (#71)** — 4-8 hours
+   - Modify seed discovery to emit search results (data structure)
+   - Populate search notebook from seed results (adapter layer)
+   - Handle "back to seed" navigation (breadcrumb or back button)
+   - Consistent UI: same filters, sorting, selection as keyword search
 
-- [ ] **Citation Network Visualization** — High complexity, high value. Validate that users want discovery features before investing in graph visualization.
-- [ ] **Topic Exploration (co-citation)** — Computationally expensive. Add once seed paper discovery proves useful and users want deeper exploration.
-- [ ] **Smart Startup Wizard** — Reduces abandonment for new users. Add after seeing onboarding drop-off in analytics.
-- [ ] **Research Feeds** — Persistent queries for ongoing research. Add when users express desire to "track this topic over time."
-- [ ] **Export to RIS/Zotero** — Additional citation formats. Add based on user requests (BibTeX covers LaTeX users, RIS covers others).
+4. **Citation export (.bib/.csv) (#64)** — 4-8 hours
+   - Build BibTeX formatter (map OpenAlex → BibTeX fields)
+   - Build CSV formatter (flatten data frame)
+   - Add export UI (dropdown: "Export as BibTeX / CSV / RIS")
+   - File download handler in Shiny
+   - Handle edge cases (missing authors, no DOI, special characters)
 
-### Future Consideration (v2+)
+### Phase 3: Advanced Features (High complexity, 1-2 weeks)
 
-Features to defer until product-market fit is established.
+**Goal:** Citation network graph as marquee feature.
 
-- [ ] **Interactive Citation Timeline** — Nice visualization but not core to discovery workflow. Defer until citation network viz is working well.
-- [ ] **Author Network Visualization** — Interesting for some disciplines, not universally valuable. Wait for specific user requests.
-- [ ] **Automatic Related Paper Suggestions** — Low complexity but adds UI noise. Wait until users are comfortable with manual discovery first.
-- [ ] **Advanced Filtering (author, venue, funder)** — Power user features. Core users will ask for these specifically when needed.
+5. **Citation network graph (#53)** — 16-24 hours
+   - Research graph library (vis.js lightweight, cytoscape.js feature-rich, visNetwork R wrapper)
+   - Fetch citation data from OpenAlex (cited-by, references endpoints)
+   - Build graph layout algorithm (force-directed, hierarchical, or radial)
+   - Interactive features: zoom, pan, click node → abstract detail, filter by year/citations
+   - Store graph snapshots in DuckDB (cache by seed DOI, avoid re-fetch)
+   - UI: graph view in new tab or modal, filters sidebar
+   - Performance: limit to 100 nodes initially, warn if exceeds
 
-## Feature Prioritization Matrix
+6. **Export synthesis outputs (#49)** — 8-12 hours
+   - Chat export: Markdown (trivial, concatenate messages), PDF (via pandoc or pagedown)
+   - Slides export: HTML (revealjs already used for generation?), PPTX (officer package, more work)
+   - Add export buttons to document notebook (chat section, slides section)
+   - File download handlers
+   - Format chat history (user/assistant labels, timestamps, code blocks)
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Rich Sorting (relevance/citations/date) | HIGH | LOW | P1 |
-| Seed Paper Discovery (citations) | HIGH | MEDIUM | P1 |
-| LLM Query Builder | HIGH | MEDIUM | P1 |
-| Multi-paper Selection | HIGH | LOW | P1 |
-| Export to BibTeX | HIGH | LOW | P1 |
-| Citation Network Visualization | HIGH | HIGH | P2 |
-| Topic Exploration (co-citation) | MEDIUM | HIGH | P2 |
-| Smart Startup Wizard | MEDIUM | MEDIUM | P2 |
-| Research Feeds | MEDIUM | MEDIUM | P2 |
-| Export to RIS/Zotero | MEDIUM | LOW | P2 |
-| Interactive Citation Timeline | LOW | MEDIUM | P3 |
-| Author Network Visualization | LOW | HIGH | P3 |
-| Automatic Related Paper Suggestions | LOW | LOW | P3 |
-| Advanced Filtering (author/venue/funder) | MEDIUM | MEDIUM | P3 |
+## Complexity Drivers
 
-**Priority key:**
-- P1: Must have for launch (table stakes + core differentiators)
-- P2: Should have, add when possible (stronger differentiators, quality of life)
-- P3: Nice to have, future consideration (power user features, exploratory visualizations)
+### Citation Network Graph (High Complexity) — Why?
 
-## Competitor Feature Analysis
+**Technical challenges:**
+1. **Graph layout algorithms:** Force-directed physics simulation (compute node positions), hierarchical (layered), radial (concentric circles). Need balance between aesthetics and performance.
+2. **Interactive performance:** 100+ nodes = lag without optimization. Need canvas rendering (not SVG), virtualization, level-of-detail.
+3. **Visual design:** Node sizing (citations), edge thickness (relationship strength), color scales (year), labels (readability), legend.
+4. **Filter controls:** Year range, citation count threshold, depth limit (1-hop, 2-hop), node type (references vs cited-by).
+5. **API rate limits:** Fetching citations for 100 papers = 100+ requests to OpenAlex. Need batching, caching, progress indicators.
+6. **Caching strategy:** When to refresh graph? Store in DuckDB by seed DOI + depth + filters? Invalidation?
 
-| Feature | Connected Papers | Semantic Scholar | Elicit | Research Rabbit | Litmaps | Serapeum Approach |
-|---------|------------------|------------------|--------|-----------------|---------|-------------------|
-| Seed Paper Discovery | Visual graph from 1+ seed papers, 50K papers scanned | Citation graphs, related works | Semantic search, concept-based | Citation trails, co-citation networks | Similarity, authorship, abstract/title | OpenAlex citation network (references + cited-by), lower visual polish but local-first |
-| Natural Language Queries | No | Limited | **Strong differentiator** - full research questions | No | Keyword-based | LLM-assisted query builder via OpenRouter |
-| Sorting Options | Year, keyword, PDF availability, open access | Relevance, recency, citation count | Relevance, date, citations | Customizable axes (X/Y sorting) | Similarity, recency, citations | Relevance + citations + date (all three toggleable) |
-| Visualization | **Strong** - interactive graph with Prior/Derivative works | Citation graphs, research feeds | Table-based | **Strong** - customizable network views, moveable nodes | **Strong** - color-coded mind maps | Defer to v1.x (focus on discovery first, viz later) |
-| Export/Integration | Limited (free tier) | Zotero, Mendeley integration | CSV, research tables | Collection sharing | Share mind maps | BibTeX first (P1), RIS/Zotero later (P2) |
-| Topic Exploration | Multi-origin graphs, co-citation | Research Feeds (adaptive AI recommendations) | Concept extraction | Similar papers, refs, cited-by | Shared citations, authorship patterns | Co-citation analysis (P2), start with simpler citation traversal (P1) |
-| Onboarding | Minimal - assumes user has seed paper | Tutorial, search guidance | Query builder helps | Collection-based workflow | Minimal | Smart startup wizard (P2) to reduce abandonment |
-| Privacy Model | Cloud-based, freemium | Cloud-based, free | Cloud-based, freemium | Cloud-based, free | Cloud-based, free/paid | **Local-first differentiator** - all data local, unlimited graphs |
+**Reference implementations:**
+- **Connected Papers:** Semantic similarity + citations, 50-node cap, multi-origin, prior/derivative works split. Charges for saved graphs.
+- **ResearchRabbit:** Citation-based, collections, timeline view. Free tier limited.
+- **Litmaps:** Seed maps, color-coded by topic similarity. Freemium model.
+- **VOSviewer:** Large-scale (1000+ nodes), desktop software, advanced layout algorithms. Academic use.
+- **Local Citation Network:** R-based, Shiny UI, moderate scale (50-200 nodes). Open source.
+
+**Recommended approach for v1.2:**
+- **Library:** visNetwork (R wrapper for vis.js) — Shiny integration, good docs, moderate learning curve.
+- **Scope:** Single-origin, depth=1 (seed + direct citations + direct references). Defer multi-origin to v1.3.
+- **Node limit:** 100 nodes initially (performance), warn if exceeds, let user filter.
+- **Layout:** Force-directed (hierarchicalRepulsion physics), auto-stabilize.
+- **Visual:** Node size = citations, node color = year gradient, edges = uniform thickness.
+- **Filters:** Year range slider, citation threshold slider, toggle references/citations.
+- **Cache:** Store graph JSON in DuckDB by seed DOI, TTL = 30 days.
+
+### Export Synthesis Outputs (Medium Complexity) — Why?
+
+**Technical challenges:**
+1. **Chat history formatting:** Messages are reactive list, need to serialize to Markdown/PDF. User/assistant labels, timestamps, code blocks.
+2. **Slides export:** If slides generated with revealjs, export as HTML is trivial (save rendered HTML). PPTX requires officer package, template design, layout.
+3. **PDF generation:** Options: pandoc (external dependency, may not be installed), pagedown (R package, CSS Paged Media, slower but self-contained).
+4. **File download:** Shiny downloadHandler, temp file creation, cleanup.
+
+**Recommended approach for v1.2:**
+- **Chat export:**
+  - Markdown: Trivial (concatenate messages with headers, save as .md).
+  - HTML: Simple (wrap in basic HTML template, add CSS).
+  - PDF: Defer to v1.3 (requires pandoc or pagedown, complexity spike).
+- **Slides export:**
+  - HTML: Simple if slides already use revealjs (save rendered output).
+  - PPTX: Defer to v1.3 (officer package, need template, layout complexity).
+
+## Expected Behavior from Competitive Research
+
+### DOI Display (Google Scholar, Semantic Scholar, Web of Science)
+- **Google Scholar:** Shows "DOI" link below abstract, opens resolver in new tab.
+- **Semantic Scholar:** Shows DOI with copy icon, click copies to clipboard.
+- **Web of Science:** Shows DOI as hyperlink, styled as metadata badge.
+- **Expected for Serapeum:** Clickable DOI link (https://doi.org/...), copy button, displayed with other metadata (year, citations).
+
+### Citation Export (Zotero, Mendeley, Web of Science, Scopus)
+- **Zotero:** Supports .bib, .ris, .json, .csv. File → Export → choose format.
+- **Mendeley:** Supports .bib, .ris, .xml. Right-click → Export.
+- **Web of Science:** Supports .bib, .txt, .ris, tab-delimited. Select records → Export.
+- **Scopus:** Supports .bib, .csv (CSV has most complete metadata).
+- **Expected for Serapeum:** BibTeX (.bib) is mandatory, CSV is common, RIS is nice-to-have. Dropdown picker: "Export as BibTeX / CSV / RIS / JSON".
+
+### Citation Network Graph (Connected Papers, ResearchRabbit, Litmaps)
+
+**Connected Papers:**
+- Force-directed graph (physics simulation)
+- Node size = citation count (bigger = more cited)
+- Node color = publication year gradient (darker = more recent)
+- Edges = similarity strength (thicker = stronger)
+- Filters: year range, keyword, open access, PDF availability
+- Multi-origin mode (add 2nd seed, graph shows papers related to both)
+- Prior works (left side) vs Derivative works (right side) layout
+- Export: reference list to Zotero/EndNote/Mendeley
+
+**ResearchRabbit:**
+- Seed papers → similar works (citation-based)
+- Timeline view (year-based horizontal layout)
+- Collections (save subgraphs, track over time)
+- Multiple layout options (network, timeline, list)
+- Free tier unlimited
+
+**Litmaps:**
+- Seed map → visual network of related papers
+- Color-coded by topic similarity (semantic)
+- Discover tab (auto-suggestions)
+- Export: share mind maps (URL), export citations
+
+**Expected for Serapeum:**
+- Visual graph (force-directed or hierarchical)
+- Interactive (zoom, pan, click node → abstract detail)
+- Filters (year, citation count, depth)
+- Node size = citations, node color = year
+- Local storage (DuckDB), no cloud dependency
+- Export graph as image (PNG/SVG) or data (JSON)
+
+### Seeded Search Workflow (ResearchRabbit, Litmaps, Connected Papers)
+- **ResearchRabbit:** Add paper → auto-generates "Similar Papers" list view, toggle to network view.
+- **Litmaps:** Seed map → visual network immediately, list view available.
+- **Connected Papers:** Enter DOI → generates graph, can switch to list view.
+- **Expected for Serapeum:** Enter DOI → see related papers in familiar search notebook UI (list with filters), option to switch to graph view.
+
+## User Workflow Assumptions
+
+### Current Workflow (Serapeum v1.1)
+1. **Search:** Create search notebook → enter keywords → get results list.
+2. **Filter:** Apply keyword/journal filters → sort by year/citations.
+3. **Review:** Click paper → view abstract detail → manually copy DOI if needed.
+4. **Discovery:** Go to seed discovery → paste DOI → get related papers in separate view.
+5. **Document:** Create document notebook → upload PDF → RAG chat.
+6. **Synthesize:** Generate slides from chat.
+7. **Export:** None (manual copy/paste).
+
+### Enhanced Workflow (v1.2 Target)
+1. **Search:** Create search notebook → enter keywords → get results list.
+2. **Filter:** Apply keyword/journal filters → sort by year/citations.
+3. **Review:** Click paper → view abstract detail → **see DOI displayed** → **copy button**.
+4. **Discovery:** Click "Find Related Papers" → **seeded search in same UI** (familiar filters/sorting).
+5. **Select:** Multi-select papers → **export as .bib/.csv** for Zotero/spreadsheet.
+6. **Visualize:** Click "Citation Network" → **interactive graph** → explore relationships.
+7. **Document:** Upload PDF → RAG chat → **export chat as Markdown/PDF**.
+8. **Synthesize:** Generate slides → **export as HTML/PPTX**.
+
+### Key Improvements
+- **Faster DOI access:** Displayed on abstract, no manual copy/paste needed.
+- **Seamless seeded search:** One click from abstract → related papers in familiar UI.
+- **Consistent UI:** Seeded results use same view as keyword search (same filters, sorting, selection).
+- **Export integration:** Export citations (.bib/.csv) and synthesis outputs (chat/slides).
+- **Visual discovery:** Citation network graph complements list-based search.
+- **Local-first:** All data local, privacy-preserving, offline-capable.
+
+## Open Questions
+
+### Citation Network Graph
+- **Q:** What graph library? vis.js (lightweight, good Shiny wrapper) vs cytoscape.js (feature-rich, steeper learning curve)?
+  - **Recommendation:** visNetwork (R wrapper for vis.js) — balance of features and Shiny integration.
+- **Q:** How many nodes before performance degrades in Shiny?
+  - **Research:** Connected Papers caps at 50, Local Citation Network handles 200. **Recommend 100-node cap initially.**
+- **Q:** Should graph persist in DB or regenerate each time?
+  - **Recommendation:** Cache in DuckDB by seed DOI + depth + filters. TTL = 30 days. Regenerate button available.
+- **Q:** Support multi-origin graphs (like Connected Papers) in v1.2 or defer?
+  - **Recommendation:** Defer to v1.3. Single-origin is complex enough for first iteration.
+
+### Citation Export
+- **Q:** Support RIS format? (Common in reference managers, similar to BibTeX)
+  - **Recommendation:** Yes if time permits, prioritize BibTeX > CSV > RIS.
+- **Q:** Include abstracts in exports? (Large file size, but useful for review)
+  - **Recommendation:** Make optional (checkbox: "Include abstracts"). Default = no.
+- **Q:** Export limit? (100 papers reasonable, 1000+ may be slow)
+  - **Recommendation:** Warn if >500 selected, no hard limit. User decides.
+
+### Synthesis Export
+- **Q:** Chat export: Include only assistant messages, or full conversation?
+  - **Recommendation:** Full conversation (user + assistant) — provides context for review.
+- **Q:** Slides export: PPTX (complex, officer package) or HTML (simple, revealjs)?
+  - **Recommendation:** HTML for v1.2 (revealjs), PPTX for v1.3 if requested.
+- **Q:** PDF generation: Require pandoc installation, or use R pagedown package?
+  - **Recommendation:** Defer PDF to v1.3. Start with Markdown/HTML (no external dependencies).
 
 ## Sources
 
-**Research Discovery Tools:**
-- [Connected Papers - Loyola Marymount University LibGuides](https://libguides.lmu.edu/AIresearchtools/CP)
-- [Connected Papers Official Site](https://www.connectedpapers.com/)
-- [Connected Papers: 2025 Review - Skywork.ai](https://skywork.ai/skypage/ko/Connected-Papers:-My-Deep-Dive-into-the-Visual-Research-Tool-(2025-Review)/1972566882891395072)
-- [Semantic Scholar - TCS Education System Libraries](https://tcsedsystem.libguides.com/ai_tools_for_lit_discovery/semantic_scholar)
-- [Semantic Scholar Review: Free AI Academic Search (2026)](https://agentaya.com/ai-review/semantic-scholar/)
-- [Semantic Scholar Official Site](https://www.semanticscholar.org/)
-- [Elicit: How to Use for 10x Faster Research (2026)](https://www.fahimai.com/how-to-use-elicit)
-- [Elicit AI Review (2026) - Social Think](https://socialthink.io/blog/elicit-ai/)
-- [Research Rabbit: 2026 Review - The Effortless Academic](https://effortlessacademic.com/research-rabbit-2026-review-for-researchers/)
-- [Research Rabbit Official Site](https://www.researchrabbit.ai)
-- [Litmaps Official Site - Features](https://www.litmaps.com/features)
-- [11 Best AI Tools for Scientific Literature Review in 2026 | Cypris](https://www.cypris.ai/insights/11-best-ai-tools-for-scientific-literature-review-in-2026)
+**Research Management Tools:**
+- [Paperguide: Best Reference Management Software 2026](https://paperguide.ai/blog/best-reference-management-software-top-tools-for-researchers/)
+- [Research.com: Best Reference Management Software](https://research.com/software/best-reference-management-software)
+- [Zotero Documentation](https://www.zotero.org/)
+- [Zotero: Add Items by Identifier (DOI)](https://researchguides.uoregon.edu/zotero/additems)
 
-**User Expectations & Pain Points:**
-- [What Research Software Needs to Deliver in 2026 - Checker](https://www.checker-soft.com/what-research-software-needs-to-deliver-in-2026/)
-- [Your 2026 UX Stack: What to Keep, What to Drop - UX University](https://uxuniversity.io/p/your-2026-ux-stack-what-to-keep-what)
-- [What is an Onboarding Wizard (with Examples) - UserGuiding](https://userguiding.com/blog/what-is-an-onboarding-wizard-with-examples)
-- [17 Best Onboarding Flow Examples (2026) - Whatfix](https://whatfix.com/blog/user-onboarding-examples/)
+**Citation Network Visualization:**
+- [Connected Papers](https://www.connectedpapers.com/)
+- [Connected Papers Forum: Citation Mapping](https://forums.zotero.org/discussion/78671/citation-mapping-network-map-of-zotero-library)
+- [ResearchRabbit](https://www.researchrabbit.ai)
+- [Litmaps](https://www.litmaps.com/)
+- [Citation Network Visualization Guide](https://ponder.ing/blog/citation-network-visualization)
+- [VOSviewer](https://www.vosviewer.com/)
+- [CitNetExplorer](https://www.citnetexplorer.nl/)
+- [Local Citation Network](https://localcitationnetwork.github.io/)
 
-**Academic Search Features:**
-- [The Ultimate Guide to Academic Search Engines (2026) - PaperGuide](https://paperguide.ai/blog/academic-search-engines/)
-- [How to Customize Search Filters for Academic Research - Sourcely](https://www.sourcely.net/resources/how-to-customize-search-filters-for-academic-research)
-- [28 Best Academic Search Engines 2026 - SciJournal](https://www.scijournal.org/articles/academic-search-engines)
+**Citation Export Standards:**
+- [BibTeX Format Explained](https://www.bibtex.com/g/bibtex-format/)
+- [Bibliometrix: Data Importing and Converting](https://www.bibliometrix.org/vignettes/Data-Importing-and-Converting.html)
+- [Web of Science Export Documentation](https://support.clarivate.com/ScientificandAcademicResearch/s/article/Web-of-Science-Exporting-Records-to-BibTeX?language=en_US)
+- [Exporting BibTeX Files - UMD Libraries](https://lib.guides.umd.edu/facultysuccess/bibtex)
 
-**LLM Query Building:**
-- [LLM SQL Generator: Natural Language to SQL - AI2SQL](https://ai2sql.io/llm-sql-query-generator)
-- [How LLM Search Works: Step-by-Step Guide (2026)](https://two99.org/blog/how-llm-search-works-a-step-by-step-guide/)
-- [9 Best LLMs for Web Search Tasks in 2026 - VisionVix](https://visionvix.com/best-llm-for-web-search/)
-- [Search Query Understanding with LLMs - Yelp Engineering](https://engineeringblog.yelp.com/2025/02/search-query-understanding-with-LLMs.html)
+**Seeded Search Workflows:**
+- [AI Research Assistant Tools 2026](https://paperguide.ai/blog/ai-research-assistant-tools-for-scientific-research/)
+- [Best AI Tools for Research 2026](https://paperguide.ai/blog/ai-tools-for-research/)
 
-**Citation Management & Export:**
-- [The 12 Best Citation Management Software (2026) - LLMRefs](https://llmrefs.com/blog/best-citation-management-software)
-- [Best Reference Management Software for 2026 - Research.com](https://research.com/software/best-reference-management-software)
-- [9 Best AI Tools for Research in 2026 - PaperGuide](https://paperguide.ai/blog/ai-tools-for-research/)
+**DOI and Abstract Best Practices:**
+- [Abstract Research Paper Best Practices 2026](https://research.com/research/abstract-research-paper)
+- [How to Write a Research Paper Abstract 2026](https://research.com/research/how-to-write-a-research-paper-abstract)
 
-**Visualization & Network Analysis:**
-- [Tools for Literature Mapping - The Digital Orientalist](https://digitalorientalist.com/2025/03/18/tools-for-literature-mapping/)
-- [3 New Tools for Literature Mapping - Aaron Tay (Medium)](https://aarontay.medium.com/3-new-tools-to-try-for-literature-mapping-connected-papers-inciteful-and-litmaps-a399f27622a)
-- [VOSviewer - Visualizing Scientific Landscapes](https://www.vosviewer.com/)
-- [CitNetExplorer - Analyzing Citation Patterns](https://www.citnetexplorer.nl/)
-- [Litmaps vs ResearchRabbit vs Connected Papers (2025) - The Effortless Academic](https://effortlessacademic.com/litmaps-vs-researchrabbit-vs-connected-papers-the-best-literature-review-tool-in-2025/)
-
-**Privacy & Local-First Trends:**
-- [Data Privacy Trends 2026: Essential Guide - SecurePrivacy](https://secureprivacy.ai/blog/data-privacy-trends-2026)
-- [5 Emerging Data Privacy Trends in 2026 - Osano](https://www.osano.com/articles/data-privacy-trends)
-- [Data Privacy Week 2026: Navigating the New Era of Data Control - SecureWorld](https://www.secureworld.io/industry-news/data-privacy-week-2026)
+**Export and Synthesis:**
+- [How to Export All Notes: 2026 Guide](https://flavor365.com/a-step-by-step-guide-to-exporting-all-your-notes/)
+- [Converting PDFs to Markdown](https://medium.com/@tam.tamanna18/converting-pdfs-to-markdown-with-olmocr-and-other-tools-7a0323ca8379)
+- [Academic Workflow: Zotero & Obsidian](https://medium.com/@alexandraphelan/an-updated-academic-workflow-zotero-obsidian-cffef080addd)
 
 ---
-*Feature research for: Research Discovery Tools (Academic Paper Search & Curation)*
-*Researched: 2026-02-10*
+
+## Previous Research (v1.1 — for reference)
+
+<details>
+<summary>Click to expand v1.1 feature research (already implemented)</summary>
+
+### v1.1 Features (Already Built)
+- [x] Rich Sorting Controls (relevance, citations, date)
+- [x] Seed Paper Discovery (enter DOI → related papers)
+- [x] LLM Query Builder (natural language → search query)
+- [x] Multi-paper Selection (checkboxes, batch actions)
+- [x] Topic Explorer (OpenAlex topic hierarchy)
+- [x] Slide Generation (RAG chat → presentation)
+- [x] Cost Tracking (LLM request costs)
+
+### v1.1 Table Stakes
+- Seed paper discovery (citation network traversal)
+- Citation-based sorting
+- Relevance sorting
+- Publication year filtering
+- Visual quality indicators (badges)
+- Multi-paper selection
+
+### v1.1 Differentiators
+- Local-first architecture (privacy, offline)
+- LLM query builder (natural language queries)
+- Persistent research feeds (saved queries)
+- Smart startup wizard (onboarding)
+
+### v1.1 Anti-Features
+- Real-time collaborative notebooks
+- Comprehensive full-text search
+- Automatic paper quality scoring
+- Built-in PDF reader
+- Social features (like/comment/rate)
+
+See `.planning/research/FEATURES-v1.1.md` for full v1.1 research.
+
+</details>
+
+---
+
+*Feature research for v1.2 milestone: Discovery workflow enhancement and output/export capabilities*
+*Researched: 2026-02-12*

@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-12)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 11 — DOI Storage & Migration Infrastructure
 Plan: —
-Status: Defining requirements
-Last activity: 2026-02-12 — Milestone v2.0 started
+Status: Roadmap complete, ready to plan Phase 11
+Last activity: 2026-02-12 — v2.0 roadmap created (5 phases, 8 plans)
 
 Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | Total: 17 plans shipped
 
@@ -47,5 +47,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: v2.0 milestone initialized — defining requirements
-Next: Complete requirements definition, then create roadmap
+Stopped at: v2.0 roadmap created with 5 phases (11-15), 8 plans
+Next: Plan and execute Phase 11 (DOI Storage & Migration)

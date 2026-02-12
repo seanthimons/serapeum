@@ -1,414 +1,971 @@
-# Pitfalls Research: Research Discovery Tools
+# Domain Pitfalls: Citation Networks, Export, and Cross-Module Integration
 
-**Domain:** Academic Research Discovery (Seed Papers, Query Building, Topic Exploration)
-**Researched:** 2026-02-10
-**Confidence:** MEDIUM
+**Domain:** Citation Graph Visualization, BibTeX Export, Cross-Module Navigation, DOI Storage
+**Researched:** 2026-02-12
+**Confidence:** MEDIUM-HIGH
+
+**Scope:** This research focuses on pitfalls specific to adding citation network discovery, export features, and cross-module communication to an existing R/Shiny research assistant with DuckDB backend and OpenAlex API integration.
+
+---
 
 ## Critical Pitfalls
 
 Mistakes that cause rewrites or major issues.
 
-### Pitfall 1: OpenAlex API Rate Limit Blindness
+### Pitfall 1: Citation Network Exponential Explosion
 
 **What goes wrong:**
-Application makes hundreds of individual API calls during normal usage, hitting 429 rate limit errors. Users can't search or refresh paper lists. With free API key (100,000 credits/day), list queries (10 credits each) allow only ~10,000 queries/day, but naive implementations can burn through this in hours.
+User clicks "Show citation network" for a paper with 50 citations. App fetches those 50 papers from OpenAlex, then fetches *their* citations (2,500 papers), then *their* citations (125,000 papers). API rate limit exhausted in minutes. UI freezes for 60+ seconds. Browser tab crashes from rendering 100k+ nodes.
 
 **Why it happens:**
-Developers don't track credit consumption per endpoint type. Each paginated list query costs 10 credits, not 1. Looping through individual paper lookups (1 credit each) instead of batching with OR syntax. Vector/semantic search endpoints cost 1,000 credits per query — a single embeddings feature can consume entire daily quota.
+Citation networks grow exponentially: average paper cites 25 others. Recursive fetching without depth limit or breadth control. No deduplication → same paper fetched multiple times. Rendering all nodes at once (visNetwork/igraph default behavior). Developer tests with recent papers (few citations) but users explore seminal papers (thousands of citations).
 
-**How to avoid:**
-- Track cumulative credit usage client-side with counter
-- Batch entity lookups using OR syntax (`id=W1|W2|W3...`) — 50 lookups in 1 request
-- Cache paper metadata aggressively (DuckDB persistence)
-- Display remaining credits to user before expensive operations
-- Never trigger semantic search on page load — user-initiated only
-- Implement exponential backoff for 429 responses
+**Consequences:**
+- OpenAlex daily quota (100,000 credits) consumed in single session
+- Browser memory overflow (Chrome kills tab at ~2GB)
+- Users wait minutes then force-quit app
+- Corrupted database state if API fetch interrupted mid-transaction
 
-**Warning signs:**
-- Users report "search stopped working" intermittently
-- 429 HTTP errors in logs
-- Features work in morning but fail by afternoon (daily quota reset)
-- Testing with few papers works, production with 100+ fails
+**Prevention:**
+1. **Depth limiting:** Default to 1-hop (direct citations only), max 2-hops with warning
+2. **Breadth limiting:** Cap at 100 papers per level (e.g., show "50 more citations..." button)
+3. **Batch fetching:** Use OpenAlex OR syntax `filter=ids:W1|W2|W3...` (50 IDs per request) instead of individual lookups
+4. **Progressive loading:** Fetch and render incrementally (10 papers at a time with loading indicator)
+5. **Credit budgeting:** Calculate estimated API cost before fetch, require user confirmation if >1000 credits
+6. **Deduplication:** Track fetched paper IDs in Set, skip already-loaded papers
+7. **Lazy rendering:** Render only visible viewport (visNetwork `stabilization=FALSE` + viewport clipping)
+
+**Detection:**
+- Monitor API credit consumption rate (>100 credits/minute → likely explosion)
+- Track citation fetch depth in logs
+- Browser console shows "out of memory" errors
+- Users report "app crashed after clicking citation button"
+- visNetwork stabilization takes >30 seconds
 
 **Phase to address:**
-Phase 1 (Startup/Seed Paper) — quota tracking infrastructure must exist before any API usage
+**Phase: Citation Discovery (06)** — Must implement depth/breadth limits BEFORE building UI. Non-negotiable for MVP.
 
 **Sources:**
-- [OpenAlex Rate Limits Documentation](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication)
-- [OpenAlex API Guide for LLMs](https://docs.openalex.org/api-guide-for-llms)
+- [OpenAlex Rate Limits](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication)
+- [Citation Networks as DAGs](https://en.wikipedia.org/wiki/Citation_graph)
+- [visNetwork Performance Tips](https://datastorm-open.github.io/visNetwork/shiny.html)
 
 ---
 
-### Pitfall 2: Deep Pagination Performance Cliff
+### Pitfall 2: Citation Graph Cycles Break DAG Assumptions
 
 **What goes wrong:**
-Fetching page 100+ of search results takes 20+ seconds or times out. Users wait indefinitely for "Load More" button. OpenAlex cursor pagination becomes prohibitively slow beyond 10,000 results. App appears frozen.
+Citation network rendering assumes DAG (directed acyclic graph) for layout algorithms. Encounter citation cycle: Paper A (arXiv preprint) cites Paper B → Paper B (published version) cites Paper A (updated preprint). Layout algorithm loops infinitely. Hierarchical layout crashes with "cycle detected" error. Graph displays with overlapping nodes.
 
 **Why it happens:**
-Using offset-based pagination (`page=100`) instead of cursor pagination for deep result sets. Each deep page requires database to scan all previous records. Cursor pagination (`cursor=*` then `meta.next_cursor`) maintains state but still degrades at 100k+ scale. Developers attempt to download entire OpenAlex corpus via API instead of using snapshot.
+Real-world citation networks have cycles (~1% of edges) due to:
+- Preprints updated after citing paper published
+- Same-issue papers citing each other (conference proceedings)
+- Database errors (incorrect metadata)
+- Self-citations recorded as edges (should be filtered)
 
-**How to avoid:**
-- Use cursor pagination for all searches (mandatory for >10k results)
-- Limit result sets with strong filters before pagination (publication year, type, venue)
-- Display "Showing first 10,000 results" cap with refinement suggestions
-- Never attempt bulk download via API — use [OpenAlex snapshot](https://docs.openalex.org/download-all-data/openalex-snapshot) for corpus-wide analysis
-- Implement virtual scrolling/windowing for large lists in UI
+Developers assume textbook DAG properties. Layout libraries (igraph hierarchical layout, dagre) fail on cyclic input. No cycle detection before rendering.
 
-**Warning signs:**
-- Search performance degrades as user scrolls deeper
-- Timeout errors on page 50+
-- Users complain "old interface was faster" (simple pagination vs. cursor complexity)
-- Database query time grows linearly with offset
+**Consequences:**
+- `igraph::layout_as_tree()` throws error, graph doesn't render
+- Infinite loops in custom layout algorithms
+- Overlapping/misplaced nodes confuse users
+- Users report "some papers missing from graph"
+
+**Prevention:**
+1. **Cycle detection:** Use `igraph::is_dag()` before layout, fallback to force-directed if cycles exist
+2. **Edge filtering:** Remove self-loops (`from == to`) and duplicate edges before layout
+3. **Transitive reduction:** Simplify graph to remove redundant edges (A→B→C makes A→C redundant)
+4. **Layout fallback hierarchy:**
+   - Try hierarchical layout (`layout_as_tree`) if DAG
+   - Fall back to force-directed (`layout_with_fr`) if cycles
+   - Final fallback: circular layout (always works)
+5. **User notification:** Display "Citation cycles detected (N edges removed for clarity)" if cycles found
+6. **Test data:** Include cyclic citation examples in test suite
+
+**Detection:**
+- Error logs: "not a DAG" or "cycle detected"
+- Graph renders but nodes overlap
+- Layout time >10 seconds (symptom of cycle-induced loop)
+- Missing papers in visualization vs. database
 
 **Phase to address:**
-Phase 2 (Query Builder) — pagination must scale before users build complex queries returning 50k+ results
+**Phase: Citation Discovery (06)** — Cycle handling required for reliable rendering. Add to graph construction logic.
 
 **Sources:**
-- [OpenAlex Paging Documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
-- [Comprehensive Guide to Elasticsearch Pagination 2026](https://www.luigisbox.com/blog/elasticsearch-pagination/)
-- [OpenSearch Pagination Best Practices](https://opensearch.org/blog/navigating-pagination-in-hybrid-queries-with-the-pagination_depth-parameter/)
+- [Citation Networks and DAGs](https://en.wikipedia.org/wiki/Citation_graph)
+- [Transitive Reduction of Citation Networks](https://academic.oup.com/comnet/article-pdf/3/2/189/1071092/cnu039.pdf)
+- [igraph DAG Detection](https://igraph.org/r/doc/is_dag.html)
 
 ---
 
-### Pitfall 3: LLM Query Builder Hallucinated Filters
+### Pitfall 3: Cross-Module State Contamination via Global reactiveValues
 
 **What goes wrong:**
-LLM-assisted query builder generates OpenAlex filters with non-existent fields (`venue.impact_factor`, `author.h_index_recent`), malformed boolean logic (`AND` instead of comma-separated), or semantically incorrect date ranges ("recent papers" → `from_publication_date=2020` in 2026). Queries return zero results or wrong papers. Users lose trust in assistant.
+Search notebook and discovery workflow share `app_state <- reactiveValues()` defined in `app_server.R`. User A selects papers in search notebook → triggers export to discovery. User B (different session on shared server) sees User A's paper selections appear in their UI. Multi-user sessions corrupt each other's state. Single-user sees stale data from previous workflow.
 
 **Why it happens:**
-LLM trained on generic API patterns, not OpenAlex-specific filter syntax. Field hallucination when user asks for unavailable metadata (impact factor, author reputation). Ambiguous queries ("don't serve meat" → restaurants serving meat) because negation is poorly handled. Schema drift — LLM trained on old OpenAlex docs.
+Global `reactiveValues` defined outside `session` scope is shared across ALL sessions. Developer tests locally (single session) → works fine. Deployed to RStudio Connect/Shinyapps.io with multiple users → shared state. Modules read from `app_state$selected_papers` → contaminated by other sessions. No session isolation.
 
-**How to avoid:**
-- Provide **exact** OpenAlex filter schema in system prompt with examples
-- Use few-shot examples: "Show me recent ML papers" → `filter=publication_year:2024-2026,concepts.id:C154945302`
-- Validate LLM output against allowed filter fields before API call
-- Display generated query to user for approval before execution
-- Maintain allowlist of valid filter keys/operators from [OpenAlex docs](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists)
-- For unsupported filters (impact factor), explain limitation + suggest alternatives
+**Consequences:**
+- Data leakage between users (security + privacy issue)
+- Stale state from previous user persists
+- Users report "seeing other people's papers"
+- Non-deterministic bugs (depends on user order)
 
-**Warning signs:**
-- Zero results from seemingly valid queries
-- LLM generates filters not in OpenAlex docs
-- Date filters off by years
-- Boolean logic errors (AND/OR confusion)
-- Users manually fix queries repeatedly
+**Prevention:**
+1. **Session-scoped reactiveValues:** Define inside `server <- function(input, output, session)` NOT outside
+   ```r
+   # WRONG (global)
+   app_state <- reactiveValues(selected = list())
+   server <- function(input, output, session) { ... }
+
+   # CORRECT (session-scoped)
+   server <- function(input, output, session) {
+     app_state <- reactiveValues(selected = list())
+   }
+   ```
+
+2. **Pass reactiveValues to modules:** Don't rely on global scope
+   ```r
+   # Module call
+   discovery_server("discovery", app_state = app_state, db_con = db_con)
+
+   # Module definition
+   discovery_server <- function(id, app_state, db_con) {
+     moduleServer(id, function(input, output, session) {
+       # Use app_state here (session-isolated)
+     })
+   }
+   ```
+
+3. **Avoid session$userData for cross-module state:** Use explicit parameters instead
+   - `session$userData` breaks module encapsulation
+   - Hard to track data flow
+   - Creates hidden dependencies
+
+4. **R6 objects for complex state:** Alternative to reactiveValues for non-reactive shared state
+   ```r
+   AppState <- R6Class("AppState",
+     public = list(
+       selected_papers = list(),
+       set_selected = function(papers) { self$selected_papers <- papers }
+     )
+   )
+   # Create per-session instance
+   server <- function(input, output, session) {
+     app_state <- AppState$new()
+   }
+   ```
+
+5. **Test multi-session behavior:** Use `shinytest2` with multiple sessions, verify isolation
+
+**Detection:**
+- Different users see same data
+- State persists across app reloads (single-user symptom)
+- `reactiveLog` shows unexpected cross-talk
+- Deployed app behaves differently than local
 
 **Phase to address:**
-Phase 2 (Query Builder) — validation layer is non-negotiable before LLM touches API
+**Phase: Export Integration (07)** — Session isolation must work BEFORE cross-module navigation. Verify in testing, not production.
 
 **Sources:**
-- [Text-to-SQL: Comparison of LLM Accuracy 2026](https://research.aimultiple.com/text-to-sql/)
-- [LLM-based Query Expansion Fails for Unfamiliar Queries](https://dl.acm.org/doi/10.1145/3726302.3730222)
-- [Bridging Natural Language and Databases: LLM-Generated SQL](https://medium.com/@vi.ha.engr/bridging-natural-language-and-databases-best-practices-for-llm-generated-sql-fcba0449d4e5)
+- [Shiny Modules: Communication Patterns](https://mastering-shiny.org/scaling-modules.html)
+- [Communication Between Modules Anti-Patterns](https://rtask.thinkr.fr/communication-between-modules-and-its-whims/)
+- [session$userData Pitfalls](https://engineering-shiny.org/common-app-caveats.html)
 
 ---
 
-### Pitfall 4: Embedding Relevance Trap
+### Pitfall 4: DOI Field Migration Breaks Existing User Databases
 
 **What goes wrong:**
-Semantic search returns topically related papers that are lexically mismatched. Query "transformer models for NLP" returns papers about electrical transformers or visual transformers. Embedding search finds "similar" papers that users reject as irrelevant. Keyword filter + embedding conflict — papers pass embedding threshold but lack query keywords.
+Add `doi VARCHAR` column to `abstracts` table via `ALTER TABLE` in new release. New installs work fine. Existing users upgrade → database schema has new column, but ALL existing papers have `NULL` DOI. Search by DOI returns zero results. Export to BibTeX fails validation (missing DOI field). Users report "DOI feature doesn't work" → requires manual re-import of all papers.
 
 **Why it happens:**
-Embeddings compress semantics into fixed-dimension vectors — insufficient resolution to distinguish "transformer (electrical)" from "transformer (attention mechanism)". Model trained on broad corpus, not domain-specific. Using semantic search alone without hybrid (BM25 + vector). Embedding model drift — text-embedding-3-small has high relevance but low accuracy (finds general area, not specific answer).
+Migration adds column but doesn't backfill data. OpenAlex API returns DOI in response, but wasn't stored historically. No migration script to fetch DOIs for existing papers. Developer tests with fresh database → all papers have DOIs. Users with 1000+ existing papers → 99% have NULL DOI.
 
-**How to avoid:**
-- **Hybrid search:** Combine embedding similarity with keyword matching (BM25)
-- Weight keyword match higher for technical/ambiguous terms
-- Use domain-specific embedding models (e.g., [Cohere embed-english-v3.0](https://www.graft.com/blog/text-embeddings-for-search-semantic) trained on scientific text)
-- Rerank top 100 embedding results with cross-encoder for precision
-- Show keyword match highlighting alongside similarity score
-- Allow users to toggle "strict keyword matching" to override embeddings
+**Consequences:**
+- Feature appears broken for existing users
+- Manual re-import loses user annotations/tags
+- Support burden: "Why don't my papers have DOIs?"
+- Database migration fails silently (no error, just NULL)
 
-**Warning signs:**
-- Users report "irrelevant" results in semantic search
-- High similarity scores (0.85+) but wrong domain
-- Keyword search outperforms embedding search
-- Users manually add keywords to compensate for semantic drift
+**Prevention:**
+1. **Migration versioning:** Use `PRAGMA user_version` (DuckDB supports this)
+   ```sql
+   -- Check current version
+   SELECT * FROM pragma_user_version();
+
+   -- Set version after migration
+   PRAGMA user_version = 2;
+   ```
+
+2. **Backfill migration script:** Add column THEN populate for existing rows
+   ```sql
+   -- Migration 002: Add DOI column and backfill
+   BEGIN TRANSACTION;
+
+   -- Add column (NULL for existing rows)
+   ALTER TABLE abstracts ADD COLUMN doi VARCHAR;
+
+   -- Backfill: For papers with paper_id matching OpenAlex format (W12345),
+   -- mark for async fetch (set doi = 'PENDING')
+   UPDATE abstracts
+   SET doi = 'PENDING'
+   WHERE paper_id LIKE 'W%' AND doi IS NULL;
+
+   PRAGMA user_version = 2;
+   COMMIT;
+   ```
+
+3. **Async backfill:** Don't fetch 1000 DOIs during migration (slow startup)
+   - Mark rows as `PENDING`
+   - Background job fetches DOIs in batches (50 papers per API call using OR syntax)
+   - Progress indicator: "Fetching DOI for 450/1000 papers..."
+   - Cache fetched DOIs to avoid re-fetching
+
+4. **Graceful degradation:** UI handles NULL DOI
+   - Export: Generate citation key from title+year if DOI missing
+   - Display: Show "DOI unavailable" instead of empty field
+   - Search: Allow DOI filter but show count of DOI-enabled papers
+
+5. **Test migration path:** Automated test with v1 database → v2 upgrade → verify DOI presence
+
+6. **DuckDB-specific quirks:**
+   - `ALTER TABLE ADD COLUMN` doesn't support `NOT NULL` constraint if rows exist ([Issue #3248](https://github.com/duckdb/duckdb/issues/3248))
+   - Column defaults only apply to new rows, not existing
+   - No `UPDATE ... FROM` syntax for joins (use `UPDATE WHERE EXISTS`)
+
+**Detection:**
+- Database has `doi` column but all values NULL
+- DOI search returns 0 results for existing users
+- BibTeX export warnings: "Missing DOI for 95% of papers"
+- Different behavior for new vs. upgraded users
 
 **Phase to address:**
-Phase 3 (Topic Explorer) — hybrid search must exist before introducing embedding-based navigation
+**Phase: Database Enhancement (05)** — Implement migration infrastructure BEFORE adding DOI column. Test with realistic user database (1000+ papers).
 
 **Sources:**
-- [Search Relevance Tuning: Balancing Keyword and Semantic Search](https://www.elastic.co/search-labs/blog/search-relevance-tuning-in-semantic-search)
-- [Understanding Hybrid Search RAG for Better AI Answers](https://www.meilisearch.com/blog/hybrid-search-rag)
-- [Taxonomy of the Retrieval System Framework: Pitfalls and Paradigms](https://arxiv.org/html/2601.20131)
+- [DuckDB ALTER TABLE](https://duckdb.org/docs/stable/sql/statements/alter_table)
+- [DuckDB NOT NULL Limitation](https://github.com/duckdb/duckdb/issues/3248)
+- [SQLite Patterns for R Shiny](https://unconj.ca/blog/advanced-sqlite-patterns-for-r-and-shiny.html)
 
 ---
 
-### Pitfall 5: Database Migration Ad-Hocery
+### Pitfall 5: BibTeX Export Encoding Corruption
 
 **What goes wrong:**
-Add new column to DuckDB table in dev, push to production. Existing user databases lack column → SQL errors crash app. Try ALTER TABLE on app start → race conditions with concurrent sessions. Schema mismatch between fresh installs and upgraded databases. No rollback mechanism when migration fails.
+Export 50 papers to BibTeX file. Open in citation manager → garbled characters: "café" becomes "cafÃ©", "Müller" becomes "MÃ¼ller". LaTeX compilation errors: "Undefined control sequence \textbackslash". Accented author names break bibliography rendering. Non-Latin scripts (Greek symbols, Chinese names) completely mangled.
 
 **Why it happens:**
-No schema versioning system (`PRAGMA user_version` unused). Migrations run in Shiny server function without transaction safety. Developers manually ALTER TABLE in console, forget to document. DuckDB doesn't enforce strict schema migrations like Rails/Django. Small userbase makes testing easy → scales poorly.
+BibTeX has complex encoding requirements:
+- **Legacy BibTeX:** Only supports ASCII + LaTeX escape sequences (`{\"u}` for ü)
+- **BibLaTeX/Biber:** Supports UTF-8 natively
+- **Mixed environments:** Some users have old TeX distributions expecting ASCII
 
-**How to avoid:**
-- Use `PRAGMA user_version` to track schema version (integer, starts at 0)
-- Numbered migration scripts: `migration_001.sql`, `migration_002.sql`
-- On app init: read version, apply missing migrations in transaction
-- Wrap all migrations in `dbWithTransaction()` for atomicity
-- Test migration path: v0 → v1 → v2 AND v0 → v2 (skip-safe)
-- Log applied migrations to table (`schema_migrations` with version + timestamp)
-- Fail loudly on version downgrade (new app → old database)
+Shiny `downloadHandler` doesn't specify encoding → defaults to system locale (Windows: CP1252, Linux: UTF-8). OpenAlex returns UTF-8 → written with wrong encoding. Special characters require LaTeX escaping (`&` → `\&`, `%` → `\%`) but not applied.
 
-**Warning signs:**
-- "Column does not exist" errors in production logs
-- Different behavior for new users vs. existing users
-- Developer says "just delete your database and restart"
-- Hotfixes involve manual SQL in user support
+**Consequences:**
+- Broken citations in LaTeX documents
+- Users manually fix 50+ entries
+- Reputation damage: "Export feature is broken"
+- Non-reproducible bugs (depends on user's OS/locale)
+
+**Prevention:**
+1. **Specify UTF-8 explicitly in downloadHandler:**
+   ```r
+   downloadHandler(
+     filename = "citations.bib",
+     content = function(file) {
+       # CRITICAL: Specify UTF-8 encoding
+       con <- file(file, open = "w", encoding = "UTF-8")
+       writeLines(bib_content, con)
+       close(con)
+     }
+   )
+   ```
+
+2. **Add UTF-8 BOM (optional but helpful):**
+   ```r
+   # Write UTF-8 byte order mark for better compatibility
+   writeBin(charToRaw('\ufeff'), file)
+   writeLines(bib_content, file)
+   ```
+
+3. **LaTeX special character escaping:**
+   ```r
+   escape_latex <- function(text) {
+     text <- gsub("\\\\", "\\\\textbackslash ", text)  # Must escape backslash first
+     text <- gsub("&", "\\\\&", text)
+     text <- gsub("%", "\\\\%", text)
+     text <- gsub("\\$", "\\\\$", text)
+     text <- gsub("_", "\\\\_", text)
+     text <- gsub("\\{", "\\\\{", text)
+     text <- gsub("\\}", "\\\\}", text)
+     text <- gsub("~", "\\\\textasciitilde ", text)
+     text <- gsub("\\^", "\\\\textasciicircum ", text)
+     text
+   }
+   ```
+
+4. **Use rbibutils package:** Handles encoding correctly
+   ```r
+   library(rbibutils)
+   # Convert to BibTeX with UTF-8 encoding
+   writeBib(bib_entries, file = file,
+            encoding = "UTF-8",
+            texChars = "export")  # Convert special chars to TeX sequences
+   ```
+
+5. **Provide encoding options:** Let users choose
+   - "UTF-8 (modern, BibLaTeX)" — default
+   - "ASCII + LaTeX escapes (legacy BibTeX)" — convert ü → {\"u}
+   - Test exports with both old and new TeX distributions
+
+6. **Validate output:** Test BibTeX parsing with `rbibutils::readBib()`
+   ```r
+   # After export, verify it's valid
+   tryCatch({
+     readBib(file, encoding = "UTF-8")
+   }, error = function(e) {
+     showNotification("Export may have encoding issues", type = "warning")
+   })
+   ```
+
+**Detection:**
+- User reports "weird characters in exported file"
+- BibTeX entries fail to parse in Zotero/Mendeley
+- LaTeX compilation errors referencing bibliography
+- Different results on Windows vs. Mac/Linux
 
 **Phase to address:**
-Phase 1 (Startup/Seed Paper) — versioning infrastructure before ANY schema changes
+**Phase: Export Features (07)** — UTF-8 handling must work from day 1 of export feature. Add to export MVP requirements.
 
 **Sources:**
-- [Advanced SQLite Patterns for R and Shiny](https://unconj.ca/blog/advanced-sqlite-patterns-for-r-and-shiny.html)
-- [Using Databases with Shiny](https://emilyriederer.netlify.app/post/shiny-db/)
+- [rbibutils Encoding](https://geobosh.github.io/rbibutils/)
+- [BibTeX UTF-8 Support Discussion](https://latex.org/forum/viewtopic.php?t=8673)
+- [Zotero BibTeX Export Encoding](https://forums.zotero.org/discussion/24136/default-encoding-in-bibtex-export)
 
 ---
 
-### Pitfall 6: 1760-Line Module Refactor Paralysis
+### Pitfall 6: Download Handler Tempdir Permission Errors in Production
 
 **What goes wrong:**
-`mod_search_notebook.R` is 1,760 lines. Adding new features (seed paper, sorting, topic filter) requires touching 10+ reactive chains. Bug fixes break unrelated features. Onboarding new developers takes days. Code review is impossible. Refactoring "too risky" so features are bolted on, making problem worse.
+`downloadHandler` for BibTeX export works locally. Deploy to shinyapps.io → users click Download → error "Permission denied" or "Cannot write to directory". Export fails silently (button does nothing). Logs show `EACCES` error writing to working directory.
 
 **Why it happens:**
-Single module handles: paper list rendering, keyword panel, abstract detail, chat interface, embedding workflow, import/export. Reactivity graph has 30+ reactive expressions with hidden dependencies. No clear separation between data layer (DB queries), logic (filtering/sorting), and presentation (UI rendering). "Just one more feature" mentality.
+Shiny apps on shared hosting (shinyapps.io, RStudio Connect) run with restricted filesystem permissions. Cannot write to working directory (`getwd()`). `downloadHandler` content function tries to write intermediate files to working directory → permission denied. Local development has full permissions → masking the issue.
 
-**How to avoid:**
-- **Split by responsibility:** `mod_paper_list`, `mod_keyword_filter`, `mod_abstract_detail`, `mod_chat_panel`
-- Extract non-reactive logic to pure functions (testable in isolation)
-- Use reactive modules for sub-components (e.g., `keyword_filter_server()` returns filtered IDs)
-- Document reactive dependencies with comments or `reactlog`
-- Enforce line limit: modules >500 lines require split justification in PR
-- Add integration tests before refactoring (ensure behavior preserved)
+**Consequences:**
+- Export feature completely broken in production
+- No error message shown to user (silent failure)
+- Developer can't reproduce locally
+- Emergency hotfix requires redeployment
 
-**Warning signs:**
-- "I don't remember what this reactive does"
-- Fixing bug A breaks feature B
-- Pull requests touch 20+ functions
-- Developers avoid module because "too complex"
-- Reactivity cascade takes >5 seconds to stabilize
+**Prevention:**
+1. **Always use tempdir() for intermediate files:**
+   ```r
+   downloadHandler(
+     filename = "citations.bib",
+     content = function(file) {
+       # CORRECT: Use tempdir() which is always writable
+       temp_file <- file.path(tempdir(), "temp_citations.bib")
+
+       # Generate BibTeX content
+       write_bibtex(papers, temp_file)
+
+       # Copy to download location (Shiny-managed path)
+       file.copy(temp_file, file, overwrite = TRUE)
+     }
+   )
+   ```
+
+2. **Test on production-like environment:**
+   - Use Docker container with restricted permissions
+   - Deploy to shinyapps.io free tier for testing
+   - Run with `Sys.setFilePermissions(getwd(), mode = "0500")` to simulate read-only
+
+3. **Avoid rmarkdown::render() in working directory:**
+   ```r
+   # WRONG: Renders in current dir (no write permission)
+   rmarkdown::render("report.Rmd", output_file = file)
+
+   # CORRECT: Copy template to tempdir first
+   temp_rmd <- file.path(tempdir(), "report.Rmd")
+   file.copy("report.Rmd", temp_rmd)
+   rmarkdown::render(temp_rmd, output_dir = tempdir())
+   ```
+
+4. **Handle Windows Storage Sense issue:**
+   - Windows 10+ may delete tempdir() contents periodically
+   - For long-running sessions, check if tempdir exists before use
+   ```r
+   ensure_tempdir <- function() {
+     td <- tempdir()
+     if (!dir.exists(td)) {
+       dir.create(td, recursive = TRUE)
+     }
+     td
+   }
+   ```
+
+5. **Clean up temp files explicitly:**
+   ```r
+   content = function(file) {
+     temp_file <- file.path(tempdir(), "citations.bib")
+     on.exit(unlink(temp_file), add = TRUE)  # Clean up on function exit
+
+     # ... generate content ...
+   }
+   ```
+
+**Detection:**
+- Production logs: "Permission denied" or "EACCES"
+- Download button works locally but not deployed
+- Users report "nothing happens when I click download"
+- Error logs show `Error in file.create(...)` or `cannot open file`
 
 **Phase to address:**
-Phase 0 (Refactor Foundation) — split module BEFORE adding discovery features (phases 1-3 depend on this)
+**Phase: Export Features (07)** — Test with restricted permissions BEFORE deployment. Add to deployment checklist.
 
 **Sources:**
-- [Engineering Production-Grade Shiny Apps: Common Caveats](https://engineering-shiny.org/common-app-caveats.html)
-- [Optimizing Shiny Performance for Big Data](https://www.numberanalytics.com/blog/optimizing-shiny-performance-big-data)
+- [Shiny Download Handler Best Practices](https://mastering-shiny.org/action-transfer.html)
+- [Generating Reports with Shiny](https://shiny.posit.co/r/articles/build/generating-reports/)
+- [Windows Storage Sense Issue](https://github.com/rstudio/shiny/issues/2542)
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 7: Topic Model False Positives
+### Pitfall 7: visNetwork Reactivity Cascade Performance
 
 **What goes wrong:**
-OpenAlex topic classification tags papers with spurious concepts. "Machine learning" paper tagged with "healthcare" because dataset mentions patient records. Topic filter excludes relevant papers or includes junk. Users distrust automated classification.
+Citation network visualization with 200 nodes. User filters by year → triggers reactive update → visNetwork re-renders entire graph → 5-second freeze. Every filter change re-stabilizes physics simulation → UI unresponsive. Users can't interact with graph during updates.
 
 **Why it happens:**
-Topic models detect word co-occurrence, not semantic relationships. Demographically correlated words (survey responses from medical researchers → medical terms co-occur with ML terms). Ambiguous terminology (e.g., "cell" in biology vs. spreadsheets).
+visNetwork physics stabilization is expensive (O(n²) for n nodes). Every reactive invalidation triggers full re-render instead of incremental update. Reactive expression depends on multiple inputs (filters, selected papers) → cascading updates. No use of `visNetworkProxy` to update without redrawing.
 
-**How to avoid:**
-- Display topic scores/confidence (don't show low-confidence tags)
-- Allow users to override topic filters with keyword search
-- Hybrid filtering: topic AND keyword for precision
-- Seed topic models with domain-specific prompts (2026 technique)
-- Show why topic was assigned (word overlap visualization)
+**Consequences:**
+- Sluggish UI during filtering
+- Users wait 5-10 seconds for graph to update
+- Browser becomes unresponsive (single-threaded JS)
+- Poor user experience compared to static graph
 
-**Warning signs:**
-- Users manually remove topic filters
-- High false positive rate in filtered results
-- Topic tags unrelated to paper content
+**Prevention:**
+1. **Use visNetworkProxy for updates:**
+   ```r
+   # Initial render (one time)
+   output$network <- renderVisNetwork({
+     visNetwork(nodes, edges) %>%
+       visPhysics(stabilization = FALSE)  # Disable auto-stabilization
+   })
+
+   # Updates via proxy (no full redraw)
+   observeEvent(input$year_filter, {
+     filtered_nodes <- filter_nodes(input$year_filter)
+
+     visNetworkProxy("network") %>%
+       visUpdateNodes(filtered_nodes)  # Update without redraw
+   })
+   ```
+
+2. **Disable physics for large graphs:**
+   ```r
+   visNetwork(nodes, edges) %>%
+     visPhysics(
+       stabilization = FALSE,  # No initial stabilization
+       enabled = nrow(nodes) < 100  # Disable physics if >100 nodes
+     )
+   ```
+
+3. **Precompute layout with igraph:**
+   ```r
+   library(igraph)
+   g <- graph_from_data_frame(edges, vertices = nodes)
+   layout <- layout_with_fr(g)  # Force-directed layout (computed once)
+
+   nodes$x <- layout[, 1] * 100
+   nodes$y <- layout[, 2] * 100
+
+   visNetwork(nodes, edges) %>%
+     visPhysics(enabled = FALSE)  # Use precomputed positions
+   ```
+
+4. **Debounce filter inputs:**
+   ```r
+   year_filter_debounced <- debounce(reactive(input$year_filter), 500)
+
+   observeEvent(year_filter_debounced(), { ... })
+   ```
+
+5. **Throttle reactive updates:**
+   ```r
+   # Update at most once per second
+   observe({
+     invalidateLater(1000)
+     visNetworkProxy("network") %>% visUpdateNodes(filtered_nodes())
+   })
+   ```
+
+6. **Progressive rendering for huge graphs:**
+   ```r
+   # Render first 50 nodes immediately
+   render_nodes <- nodes[1:50, ]
+   visNetwork(render_nodes, edges) %>% ...
+
+   # Add remaining nodes asynchronously
+   later::later(function() {
+     visNetworkProxy("network") %>%
+       visUpdateNodes(nodes[51:nrow(nodes), ])
+   }, delay = 1)
+   ```
+
+**Detection:**
+- visNetwork re-stabilization on every input change
+- `reactlog` shows frequent invalidation of network output
+- UI freezes during graph updates
+- Browser DevTools shows long-running JS tasks (>1 second)
 
 **Phase to address:**
-Phase 3 (Topic Explorer) — implement confidence thresholds and override mechanisms
+**Phase: Citation Discovery (06)** — Optimize before user testing. Proxy-based updates required for 100+ node graphs.
 
 **Sources:**
-- [Making Sense of Topic Models](https://www.pewresearch.org/decoded/2018/08/13/making-sense-of-topic-models/)
-- [Topic Modeling Techniques for 2026](https://towardsdatascience.com/topic-modeling-techniques-for-2026-seeded-modeling-llm-integration-and-data-summaries/)
+- [visNetwork with Shiny](https://datastorm-open.github.io/visNetwork/shiny.html)
+- [visNetwork Performance](https://www.kaizen-r.com/2022/06/faster-graphs-in-r-igraph-vs-visnetwork/)
+- [Shiny Reactivity Performance](https://www.datanovia.com/learn/tools/shiny-apps/server-logic/reactive-values.html)
 
 ---
 
-### Pitfall 8: Abstract Inverted Index Reconstruction Errors
+### Pitfall 8: DOI Validation Fragility
 
 **What goes wrong:**
-Reconstruct abstract from OpenAlex inverted index with word ordering bugs. "transformer models attention mechanism" becomes "attention mechanism transformer models". Punctuation lost. Line breaks in wrong places. Users read garbled abstracts.
+Store DOI in database without validation. Some entries: `10.1234/abc`, `https://doi.org/10.1234/abc`, `doi:10.1234/abc`, `DOI: 10.1234/abc`. BibTeX export inconsistent: some entries have URL, some have bare DOI. Citation managers reject malformed DOIs. Users report "some citations don't import correctly".
 
 **Why it happens:**
-Inverted index stores `{word: [positions]}` — must reconstruct sequentially. Off-by-one errors in position mapping (0-indexed vs. 1-indexed). Missing handling for empty positions or duplicate positions. Punctuation stored separately or lost entirely.
+OpenAlex may return DOI in different formats (usually lowercase URL). User input allows free text. No normalization before storage. BibTeX `doi` field expects bare DOI (not URL). Different conventions: CrossRef uses lowercase, some journals use uppercase.
 
-**How to avoid:**
-- Test reconstruction with known abstracts (ground truth comparison)
-- Handle edge cases: empty index, single word, max position = 0
-- Preserve whitespace from original (spaces, newlines)
-- Validate reconstructed length matches expected (char count ± 5%)
-- Fallback: if reconstruction fails, fetch from DOI/source
+**Consequences:**
+- Duplicate papers in database (same DOI, different formats)
+- BibTeX export invalid
+- Citation manager import fails
+- DOI search misses papers
 
-**Warning signs:**
-- Abstracts with wrong word order
-- Missing punctuation or spacing
-- Users report "abstract doesn't match paper"
+**Prevention:**
+1. **Normalize DOI before storage:**
+   ```r
+   normalize_doi <- function(doi) {
+     if (is.null(doi) || is.na(doi) || doi == "") return(NA_character_)
+
+     # Remove common prefixes
+     doi <- gsub("^https?://doi\\.org/", "", doi, ignore.case = TRUE)
+     doi <- gsub("^https?://dx\\.doi\\.org/", "", doi, ignore.case = TRUE)
+     doi <- gsub("^doi:\\s*", "", doi, ignore.case = TRUE)
+     doi <- trimws(doi)
+
+     # Lowercase (DOI registry is case-insensitive but lowercase is standard)
+     doi <- tolower(doi)
+
+     # Validate format: starts with "10."
+     if (!grepl("^10\\.", doi)) {
+       warning("Invalid DOI format: ", doi)
+       return(NA_character_)
+     }
+
+     doi
+   }
+   ```
+
+2. **Validate DOI format:**
+   ```r
+   is_valid_doi <- function(doi) {
+     # DOI regex: 10.xxxx/suffix (where xxxx is 4+ digits, suffix is anything)
+     grepl("^10\\.\\d{4,}/[-._;()/:a-zA-Z0-9]+$", doi)
+   }
+   ```
+
+3. **Store bare DOI, generate URL on demand:**
+   ```r
+   # Database: "10.1234/abc"
+   # Display: <a href="https://doi.org/{doi}">{doi}</a>
+   doi_url <- function(doi) paste0("https://doi.org/", doi)
+   ```
+
+4. **BibTeX export: Use bare DOI:**
+   ```r
+   # CORRECT
+   @article{key,
+     doi = {10.1234/abc},
+     ...
+   }
+
+   # WRONG (some tools expect URL in separate field)
+   @article{key,
+     doi = {https://doi.org/10.1234/abc},
+     ...
+   }
+   ```
+
+5. **Handle missing DOIs gracefully:**
+   ```r
+   # Don't include empty doi field in BibTeX
+   if (!is.na(doi) && doi != "") {
+     sprintf("  doi = {%s},\n", doi)
+   } else {
+     ""
+   }
+   ```
+
+**Detection:**
+- Database query: `SELECT DISTINCT doi FROM abstracts WHERE doi LIKE '%://%'` returns rows
+- BibTeX export has mixed formats
+- Users report duplicate papers with "same DOI"
+- CrossRef API lookups fail for some DOIs
 
 **Phase to address:**
-Phase 1 (Startup/Seed Paper) — seed paper selection relies on abstract quality
+**Phase: Database Enhancement (05)** — Normalization required when adding DOI column. Add validation to `store_paper()` function.
 
 **Sources:**
-- [Getting Abstracts from Microsoft Academic's Inverted Index](https://christinaslisrant.scientopia.org/2018/05/14/getting-abstracts-back-from-microsoft-academics-inverted-index/)
-- Current codebase: `R/api_openalex.R` line 28-54 (`reconstruct_abstract`)
+- [DOI Field Format](https://www.bibtex.com/f/doi-field/)
+- [BibTeX DOI Validation](https://bibtex.eu/fields/doi/)
+- [CrossRef DOI Best Practices](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)
 
 ---
 
-### Pitfall 9: Shiny Reactivity Over-Triggering
+### Pitfall 9: Cross-Module Navigation State Loss
 
 **What goes wrong:**
-User types in search box → triggers 20 reactive updates → UI freezes for 3 seconds. Every keystroke reruns expensive embedding search. Reactive loop: filter A updates filter B updates filter A (infinite loop crash).
+User searches for "machine learning" in Search Notebook → selects 5 papers → clicks "Explore Citations". Discovery module opens with citation network. User clicks "Back to Search". Search results gone → returns to empty search. Must re-run query. Selected papers lost. Frustrating back-and-forth workflow.
 
 **Why it happens:**
-No debouncing on text inputs. Reactive expressions depend on expensive operations (database queries, API calls) without caching. Circular dependencies between reactives. Large datasets (10k+ papers) reprocessed on every input change.
+Modules don't preserve state across navigation. Search results stored in reactive expression (ephemeral). No persistence layer for UI state. Navigation implemented as tab switch → resets module. No "return to previous state" mechanism.
 
-**How to avoid:**
-- Debounce text inputs (`debounce(input$search, 500)` for 500ms delay)
-- Cache expensive reactives with `bindCache()` (requires Shiny 1.6+)
-- Use `observeEvent()` with `ignoreInit = TRUE` to prevent startup cascade
-- Async operations for long-running tasks (prevent UI blocking)
-- Profile with `reactlog::reactlog_enable()` to visualize dependency graph
+**Consequences:**
+- Users lose work when switching modules
+- Must re-run expensive queries
+- Poor UX compared to browser back button
+- Users avoid cross-module features
 
-**Warning signs:**
-- UI sluggish during typing
-- Rapid console output during single action
-- "Reactive inferno" messages in logs
-- Memory usage grows over session time
+**Prevention:**
+1. **Persist search state in reactiveValues:**
+   ```r
+   server <- function(input, output, session) {
+     app_state <- reactiveValues(
+       search_results = NULL,
+       search_query = "",
+       selected_papers = list(),
+       current_tab = "search"
+     )
+
+     # Search module saves state
+     search_server("search", app_state)
+
+     # Discovery module reads state
+     discovery_server("discovery", app_state)
+   }
+   ```
+
+2. **Save search results on navigation:**
+   ```r
+   # In search module
+   observeEvent(input$explore_citations, {
+     # Save current state before switching
+     app_state$search_results <- search_results()
+     app_state$search_query <- input$query
+     app_state$selected_papers <- input$selected_rows
+
+     # Switch to discovery tab
+     updateTabsetPanel(session, "main_tabs", selected = "discovery")
+   })
+   ```
+
+3. **Restore state on return:**
+   ```r
+   # In search module
+   observe({
+     # Restore search when tab becomes active
+     if (input$main_tabs == "search" && !is.null(app_state$search_results)) {
+       # Restore results without re-querying
+       search_results(app_state$search_results)
+       updateTextInput(session, "query", value = app_state$search_query)
+     }
+   })
+   ```
+
+4. **Use database for expensive state:**
+   ```r
+   # Store search results temporarily in DB
+   save_search_session <- function(db_con, session_id, results) {
+     dbExecute(db_con, "
+       CREATE TEMP TABLE IF NOT EXISTS search_cache (
+         session_id VARCHAR,
+         results TEXT,
+         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+       )
+     ")
+
+     dbExecute(db_con, "
+       INSERT INTO search_cache (session_id, results)
+       VALUES (?, ?)
+     ", params = list(session_id, jsonlite::toJSON(results)))
+   }
+   ```
+
+5. **Breadcrumb navigation pattern:**
+   ```r
+   # Display "Search > Discovery" breadcrumb
+   # Click "Search" → returns to previous state (not new search)
+   output$breadcrumb <- renderUI({
+     path <- app_state$navigation_path
+     tagList(
+       actionLink("nav_search", "Search"),
+       if ("discovery" %in% path) {
+         tagList(" > ", actionLink("nav_discovery", "Discovery"))
+       }
+     )
+   })
+   ```
+
+6. **Browser back button support (advanced):**
+   ```r
+   # Use shiny.router or shiny.semantic.dashboard
+   # Enables browser back/forward with state preservation
+   library(shiny.router)
+   route("/search", search_page)
+   route("/discovery", discovery_page)
+   ```
+
+**Detection:**
+- Users complain "lost my search results"
+- Frequent re-runs of same query
+- High API usage from redundant searches
+- Users avoid cross-module features
 
 **Phase to address:**
-Phase 2 (Query Builder) — complex filters require tight reactivity control
+**Phase: Export Integration (07)** — State preservation required for cross-module navigation. Core UX requirement.
 
 **Sources:**
-- [Shiny Reactive Programming: Advanced Patterns](https://www.datanovia.com/learn/tools/shiny-apps/fundamentals/reactive-programming.html)
-- [From 30 to 3 Seconds: Making Shiny App 10x Faster](https://www.appsilon.com/post/shiny-app-performance-fix)
+- [Shiny Modules: Passing State](https://mastering-shiny.org/scaling-modules.html)
+- [reactiveValues for State Management](https://medium.com/@netomics/modifying-reactive-values-in-shiny-apps-f5df29fb6603)
+- [shiny.router for Navigation](https://appsilon.github.io/shiny.router/)
 
 ---
 
-### Pitfall 10: DuckDB Vector Search Index Corruption
+### Pitfall 10: BibTeX Citation Key Collisions
 
 **What goes wrong:**
-HNSW vector index becomes stale after deletions. Query performance degrades from <1s to 20s. App crashes on shutdown → database reopens with corrupted index. Embeddings return wrong papers or no results.
+Export 100 papers to BibTeX. Citation keys generated as `author_year` → multiple papers by same author in same year → duplicate keys `smith_2020`, `smith_2020`, `smith_2020`. LaTeX compilation warning: "Citation 'smith_2020' multiply defined". Bibliography shows only first paper. Users manually rename 20+ keys.
 
 **Why it happens:**
-DuckDB VSS extension (experimental) doesn't handle WAL recovery for custom indexes. Deletes marked but not pruned → index bloat. Full index rewrite on every checkpoint (performance cliff). No incremental updates.
+Naive citation key generation: `paste(first_author, year, sep = "_")`. Multiple papers by same author-year combination. No uniqueness check. No suffix generation (smith_2020a, smith_2020b). OpenAlex doesn't provide citation keys → must generate.
 
-**How to avoid:**
-- Call `PRAGMA hnsw_compact_index('index_name')` after bulk deletes (manually trigger compaction)
-- Rebuild index periodically (weekly cron job or startup check)
-- Monitor index staleness: track delete count since last compaction
-- Graceful shutdown: close DuckDB connection properly (avoid WAL corruption)
-- Test recovery: simulate crash, verify index integrity on restart
+**Consequences:**
+- Duplicate keys break LaTeX bibliography
+- Only first occurrence rendered
+- Users spend 30+ minutes manually fixing
+- Export feature appears broken
 
-**Warning signs:**
-- Embedding search slows over time
-- Wrong papers returned after deletions
-- Database file size grows unexpectedly
-- Errors on app restart after crash
+**Prevention:**
+1. **Generate unique keys with suffix:**
+   ```r
+   generate_citation_keys <- function(papers) {
+     keys <- character(nrow(papers))
+     key_counts <- list()
+
+     for (i in seq_len(nrow(papers))) {
+       # Extract first author last name
+       first_author <- extract_first_author(papers$authors[i])
+       year <- papers$year[i]
+
+       # Base key
+       base_key <- tolower(paste(first_author, year, sep = "_"))
+       base_key <- gsub("[^a-z0-9_]", "", base_key)  # Remove special chars
+
+       # Add suffix if duplicate
+       if (base_key %in% names(key_counts)) {
+         key_counts[[base_key]] <- key_counts[[base_key]] + 1
+         suffix <- letters[key_counts[[base_key]]]
+         keys[i] <- paste0(base_key, suffix)
+       } else {
+         key_counts[[base_key]] <- 1
+         keys[i] <- base_key
+       }
+     }
+
+     keys
+   }
+   ```
+
+2. **Use DOI-based keys (most reliable):**
+   ```r
+   # Convert DOI to key: 10.1234/abc → doi_10_1234_abc
+   doi_to_key <- function(doi) {
+     paste0("doi_", gsub("[^a-zA-Z0-9]", "_", doi))
+   }
+   ```
+
+3. **Validate uniqueness before export:**
+   ```r
+   validate_citation_keys <- function(keys) {
+     dupes <- keys[duplicated(keys)]
+     if (length(dupes) > 0) {
+       stop("Duplicate citation keys: ", paste(dupes, collapse = ", "))
+     }
+     keys
+   }
+   ```
+
+4. **Let users customize key format:**
+   ```r
+   # Settings option
+   selectInput("citation_key_format", "Citation Key Format",
+     choices = c(
+       "author_year" = "author_year",
+       "doi" = "doi",
+       "custom" = "custom"
+     )
+   )
+   ```
+
+5. **Include OpenAlex ID as fallback:**
+   ```r
+   # If author extraction fails, use OpenAlex ID
+   if (is.na(first_author) || first_author == "") {
+     base_key <- paste0("openalex_", gsub("W", "", paper_id))
+   }
+   ```
+
+**Detection:**
+- BibTeX export warnings on import
+- LaTeX compilation: "multiply defined" warnings
+- Users report "missing citations in bibliography"
+- Testing: Export same paper twice → duplicate keys
 
 **Phase to address:**
-Phase 3 (Topic Explorer) — vector search at scale requires index maintenance
+**Phase: Export Features (07)** — Unique key generation required from day 1. Part of export MVP.
 
 **Sources:**
-- [DuckDB Vector Similarity Search Extension](https://duckdb.org/docs/stable/core_extensions/vss)
-- [Using DuckDB for Embeddings and Vector Search](https://blog.brunk.io/posts/similarity-search-with-duckdb/)
-- [Vector Search Performance: Speed & Scalability Benchmarks](https://www.newtuple.com/post/speed-and-scalability-in-vector-search)
+- [BibTeX Key Conventions](https://www.bibtex.com/g/bibtex-format/)
+- [Citation Key Best Practices](https://retorque.re/zotero-better-bibtex/index.print.html)
 
 ---
 
 ## Minor Pitfalls
 
-### Pitfall 11: Wizard Onboarding Premature Interruption
+### Pitfall 11: Citation Network Node Label Truncation
 
 **What goes wrong:**
-Startup wizard forces user through 5-step configuration before accessing app. Users skip steps to "get to the real app." Wizard doesn't persist progress → exit means restart. Users abandon before completing.
+Citation graph shows 50 papers. Node labels truncated: "A Survey of Deep Learni..." (meaningless). Users can't identify papers without clicking each node. Tooltips overlap making them unreadable. Graph visualization useless for navigation.
 
 **Why it happens:**
-Push-based onboarding (forced tutorial) violates "paradox of active user" — users want to start immediately, not learn. Wizard interrupts goal-oriented workflow. No skip option or progressive disclosure.
+visNetwork default label length too short. Long paper titles overflow node boundaries. No title abbreviation strategy (use first 3 words + ...). Tooltip not configured.
 
-**How to avoid:**
-- Pull-based onboarding: contextual help when user needs it (tooltips, inline hints)
-- Skip option with sensible defaults (minimal config to start)
-- Persist wizard progress (resume on next session)
-- Role-aware onboarding (first-time vs. returning user)
-- Show value before asking for config (demo search results with placeholder data)
+**Prevention:**
+1. **Smart title truncation:**
+   ```r
+   truncate_title <- function(title, max_words = 5) {
+     words <- strsplit(title, " ")[[1]]
+     if (length(words) <= max_words) return(title)
+     paste(paste(words[1:max_words], collapse = " "), "...")
+   }
 
-**Warning signs:**
-- High wizard abandonment rate
-- Users complain "too many steps"
-- Support requests: "how do I skip wizard?"
+   nodes$label <- sapply(nodes$title, truncate_title)
+   ```
+
+2. **Full title in tooltip:**
+   ```r
+   nodes$title <- paste0(
+     "<b>", nodes$full_title, "</b><br>",
+     nodes$authors, "<br>",
+     nodes$year
+   )
+
+   visNetwork(nodes, edges) %>%
+     visInteraction(tooltipDelay = 200)
+   ```
+
+3. **Abbreviate common phrases:**
+   ```r
+   abbreviate_title <- function(title) {
+     title <- gsub("A Survey of", "Survey:", title)
+     title <- gsub("An Overview of", "Overview:", title)
+     title <- gsub("Introduction to", "Intro:", title)
+     title
+   }
+   ```
+
+4. **Font size adaptation:**
+   ```r
+   visNetwork(nodes, edges) %>%
+     visNodes(font = list(size = 14, multi = "html"))
+   ```
 
 **Phase to address:**
-Phase 1 (Startup/Seed Paper) — wizard must enhance, not block, first use
-
-**Sources:**
-- [Progressive Disclosure Examples for SaaS](https://userpilot.com/blog/progressive-disclosure-examples/)
-- [Onboarding Tutorials vs. Contextual Help](https://www.nngroup.com/articles/onboarding-tutorials/)
+**Phase: Citation Discovery (06)** — Basic usability requirement. Add to initial graph implementation.
 
 ---
 
-### Pitfall 12: Filter UI Checkbox Overload
+### Pitfall 12: Missing Citation Direction Indication
 
 **What goes wrong:**
-Topic explorer shows 150 checkboxes for topic categories. Users scroll for 30 seconds to find relevant topics. Analysis paralysis → users don't filter at all. Mobile UI unusable.
+Citation graph shows edges but users can't tell direction. "Does A cite B or does B cite A?" Arrows too small to see. Graph navigation confusing. Users misinterpret citation relationships.
 
-**Why it happens:**
-No progressive disclosure (all filters visible at once). No prioritization (all topics equal weight). No search within filters.
+**Prevention:**
+1. **Prominent arrows:**
+   ```r
+   visNetwork(nodes, edges) %>%
+     visEdges(
+       arrows = list(to = list(enabled = TRUE, scaleFactor = 1.5)),
+       color = list(color = "#848484", highlight = "#FF0000")
+     )
+   ```
 
-**How to avoid:**
-- Group filters hierarchically (collapsible sections)
-- Show top 10 most-used filters by default, "Show more" for rest
-- Search box to filter filter list (meta-filter)
-- Prioritize by frequency in current result set
-- Use count badges to show impact (e.g., "NLP (423 papers)")
+2. **Edge labels for clarity:**
+   ```r
+   edges$label <- "cites"  # A --cites--> B
+   ```
 
-**Warning signs:**
-- Users don't use filters despite many options
-- Complaints about "too many checkboxes"
-- Mobile users avoid filter panel
+3. **Color coding:**
+   ```r
+   edges$color <- ifelse(edges$type == "cites", "#00AA00", "#AA0000")
+   ```
 
 **Phase to address:**
-Phase 3 (Topic Explorer) — hierarchy and search required for 100+ topics
-
-**Sources:**
-- [Checkbox UX: Best Practices and Mistakes](https://www.eleken.co/blog-posts/checkbox-ux)
-- [Filtering UX/UI Design Patterns and Best Practices](https://blog.logrocket.com/ux-design/filtering-ux-ui-design-patterns-best-practices/)
+**Phase: Citation Discovery (06)** — Initial graph implementation.
 
 ---
 
-## Technical Debt Patterns
+## Phase-Specific Warnings
 
-Shortcuts that seem reasonable but create long-term problems.
+Pitfalls likely to occur during specific phases of the roadmap.
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Skip API key validation | Faster startup | Users hit rate limits without warning | Never (2-line check) |
-| Embed all papers on search load | "Automatic" semantic search | Burns OpenRouter credits, slow for 100+ papers | Never (user-triggered only) |
-| Store embeddings as JSON string | Simple schema | Can't index/query efficiently, slow retrieval | Prototype only (migrate in Phase 3) |
-| Single reactive module | Faster initial dev | Impossible to maintain/test | MVP only (refactor <500 lines) |
-| No migration versioning | Skip boilerplate | Schema drift breaks user databases | Never (upfront cost <1 hour) |
-| Cursor pagination without UI feedback | Simpler code | Users think app is frozen during load | Never (add spinner/progress) |
-| LLM query builder without validation | "Intelligent" UX | Hallucinated filters break searches | Never (validation <30 lines) |
-| Cache embeddings forever | Fast search | Stale after paper updates/deletions | Short sessions only (invalidate daily) |
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| DOI Storage (05) | Migration breaks existing databases | Versioned migrations with backfill script |
+| Citation Discovery (06) | Exponential API explosion | Depth/breadth limits + batch fetching |
+| Citation Discovery (06) | Graph cycles break layout | Cycle detection + fallback layouts |
+| Citation Discovery (06) | visNetwork performance | Use proxy updates + precomputed layouts |
+| Export Features (07) | UTF-8 encoding corruption | Explicit encoding + rbibutils |
+| Export Features (07) | Tempdir permission errors | Always use tempdir(), test on restricted env |
+| Export Features (07) | Citation key collisions | Unique key generation with suffix |
+| Export Integration (07) | Cross-module state contamination | Session-scoped reactiveValues |
+| Export Integration (07) | Navigation state loss | Persist state in reactiveValues + DB cache |
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external services.
+Common mistakes when integrating these features.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| OpenAlex API | Individual paper lookups in loop | Batch with OR syntax (`id=W1\|W2\|W3...`) |
-| OpenRouter Embeddings | Embed on every search | Cache embeddings in DuckDB, embed on-demand |
-| OpenAlex Filters | Trust LLM-generated filter syntax | Validate against field allowlist before API call |
-| DuckDB Vector Search | Assume ACID guarantees | Manually compact index after deletes, test crash recovery |
-| OpenAlex Pagination | Use offset for deep pages | Use cursor (`cursor=*`) for >10k results |
-| OpenRouter Chat | Send full chat history every call | Truncate to last 10 messages or use summarization |
+| **OpenAlex Citation Fetching** | Loop through citations individually | Batch with OR: `filter=ids:W1\|W2\|W3...` (50 per request) |
+| **DOI Storage** | Add column without backfill | Migration script: add column → mark PENDING → async backfill |
+| **BibTeX Export** | System encoding for writeLines | Explicit UTF-8: `file(encoding = "UTF-8")` |
+| **visNetwork Updates** | Re-render on every change | Use `visNetworkProxy()` for incremental updates |
+| **Citation Graph Layout** | Assume DAG properties | Detect cycles, fallback to force-directed layout |
+| **Cross-Module State** | Global reactiveValues | Session-scoped, pass to modules as parameters |
+| **Download Handler** | Write to working directory | Use `tempdir()` for intermediate files |
+| **Citation Keys** | Simple `author_year` | Add suffix for duplicates: `smith_2020a`, `smith_2020b` |
 
 ---
 
@@ -418,41 +975,23 @@ Patterns that work at small scale but fail as usage grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Embedding all papers on load | 5-paper search works, 100-paper search times out | User-triggered embedding with progress bar | 50+ papers (OpenRouter rate limit) |
-| Reactive re-render of 1000-row table | UI freezes on filter change | Virtual scrolling (DT or reactable) | 200+ rows rendered |
-| Full history in chat context | First 10 messages fine, then slow | Sliding window (last 10) or summarize old messages | 30+ messages (token limit) |
-| No index on paper lookup | Works with 100 papers | Index on paper ID, search notebook ID | 1000+ papers in DB |
-| Synchronous API calls in Shiny | Single user OK, multi-user blocked | Async with `promises` or background jobs | 2+ concurrent users |
-| DuckDB connection per reactive | Dev mode fast, production crashes | Singleton connection with lock | 10+ concurrent sessions |
+| Fetch all citations recursively | Works for recent papers, times out for seminal papers | Limit depth to 1-2 hops, cap breadth at 100/level | Papers with >50 citations |
+| Re-render visNetwork on filter | Fast with 20 nodes, freezes with 200 | Use `visNetworkProxy` for updates | 100+ nodes |
+| Store citation network in reactiveValues | Works initially, memory grows over session | Store in database, load on-demand | 500+ papers in network |
+| Generate BibTeX on-the-fly | Fast for 10 papers, slow for 100 | Cache generated BibTeX, invalidate on update | 50+ papers |
+| Synchronous DOI backfill | Works for 10 papers, blocks startup for 1000 | Async background job with progress | 100+ existing papers |
+| Full paper metadata in graph nodes | Works for small graphs, bloats for large | Store minimal node data, load details on click | 200+ nodes |
 
 ---
 
-## Security Mistakes
+## Security & Privacy Considerations
 
-Domain-specific security issues beyond general web security.
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Expose OpenRouter API key client-side | Key theft → unlimited usage billed to you | Server-side only, never in JS or HTML |
-| Store API keys in plain text config | Source control leak → credential theft | Use keyring package or env vars, gitignore config.yaml |
-| No rate limiting on LLM calls | User spams "Generate" → $100 bill | Throttle: 1 request per 5 seconds per user |
-| Allow arbitrary OpenAlex filters from LLM | Injection via crafted prompts | Allowlist validation (only known filter keys) |
-| No input sanitization for search | XSS if displaying user queries | Escape HTML in search terms before rendering |
-
----
-
-## UX Pitfalls
-
-Common user experience mistakes in this domain.
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No indication of API quota usage | Surprise "out of credits" error mid-search | Display remaining credits, warn at 20% |
-| Embedding without progress feedback | App appears frozen for 60s | Progress bar: "Embedding paper 5 of 50..." |
-| Generated query hidden from user | Trust issues when results seem wrong | Show query in expandable panel, allow editing |
-| Zero results without explanation | User doesn't know if query bad or data unavailable | Suggest query relaxation (remove filters one-by-one) |
-| Topic filter removes all results | Confusion, user abandons | Disable filters that yield 0 results, show count before applying |
-| Seed paper selection without preview | Blind choice leads to bad search | Show title + abstract + citation count before confirming |
+| Risk | Impact | Prevention |
+|------|--------|------------|
+| **Cross-user state leakage** | User A sees User B's papers | Session-scoped reactiveValues, test multi-session |
+| **DOI enumeration** | Exposed paper collection via DOI list | Require authentication before export |
+| **Temp file exposure** | BibTeX files left in /tmp readable by others | Use session-specific tempdir, clean up on exit |
+| **Malicious DOI injection** | Crafted DOI breaks BibTeX parser | Validate DOI format before storage/export |
 
 ---
 
@@ -460,14 +999,14 @@ Common user experience mistakes in this domain.
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Seed paper search:** Looks functional, but missing abstract quality check (empty/truncated abstracts break similarity)
-- [ ] **LLM query builder:** Generates queries, but no validation → hallucinated filters cause silent failures
-- [ ] **Topic explorer:** Shows topics, but no disambiguation → "cell" biology vs. spreadsheets both tagged
-- [ ] **Embedding search:** Returns results, but no hybrid BM25 → irrelevant papers with high cosine similarity
-- [ ] **Pagination UI:** "Load More" works, but no cursor state → reloading page loses position
-- [ ] **Database migrations:** ALTER TABLE runs, but no versioning → existing users get schema errors
-- [ ] **API error handling:** Catches 429, but no retry logic → permanent failure on transient error
-- [ ] **Progress indicators:** Shows spinner, but no ETA → users can't tell if 10s or 10min wait
+- [ ] **Citation network:** Renders graph, but no depth limit → exponential explosion
+- [ ] **DOI migration:** Column added, but no backfill → all existing papers NULL
+- [ ] **BibTeX export:** Generates file, but wrong encoding → garbled characters
+- [ ] **Cross-module navigation:** Switches tabs, but loses state → must re-search
+- [ ] **Citation keys:** Generated, but not unique → duplicate key errors
+- [ ] **Graph layout:** Works locally, but cycles crash on real data → no fallback
+- [ ] **Download handler:** Works locally, but fails deployed → permission errors
+- [ ] **visNetwork updates:** Functional, but re-renders → performance issues
 
 ---
 
@@ -477,14 +1016,80 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Hit rate limit mid-search | LOW | Show error with quota reset time, cache current results |
-| Corrupted HNSW index | MEDIUM | Rebuild index from existing embeddings (5-10min for 10k papers) |
-| LLM hallucinated filter | LOW | Catch API error, explain invalid filter, suggest valid alternatives |
-| 1760-line module | HIGH | Incremental refactor: extract 1 sub-module per sprint, integration tests |
-| Schema migration failed | MEDIUM | Rollback transaction, log error, prevent app start with clear message |
-| Embedding search returns junk | LOW | Toggle to keyword-only mode, offer reranking with stricter threshold |
-| Infinite reactive loop | MEDIUM | Emergency: `isolate()` problematic reactive, fix dependency cycle |
-| Zero results from valid query | LOW | Relax filters one-by-one, show diagnostic (which filter excluded most) |
+| Citation explosion | LOW | Kill API requests, show error, add depth limit |
+| Graph cycles | LOW | Fallback to force-directed layout, log cycle info |
+| Encoding corruption | LOW | Re-export with UTF-8, provide fixed file |
+| State contamination | MEDIUM | Clear reactiveValues, restart sessions |
+| Missing DOIs | MEDIUM | Run backfill script, notify users of progress |
+| Duplicate citation keys | LOW | Regenerate with suffix algorithm, re-export |
+| Permission errors | LOW | Update code to use tempdir, redeploy |
+| visNetwork freeze | LOW | Reload page, reduce graph size, disable physics |
+
+---
+
+## Testing Checklist
+
+Specific tests required to catch these pitfalls.
+
+### Unit Tests
+- [ ] DOI normalization: URL → bare DOI, uppercase → lowercase
+- [ ] Citation key generation: Duplicates get suffix
+- [ ] BibTeX escaping: Special characters → LaTeX sequences
+- [ ] Graph cycle detection: Identify cyclic edges
+- [ ] Encoding: UTF-8 roundtrip (write → read → verify)
+
+### Integration Tests
+- [ ] DOI migration: v1 database → v2 with backfill
+- [ ] Citation fetch: Batch request returns all papers
+- [ ] Cross-module navigation: Search → Discovery → back preserves state
+- [ ] Export download: File written to tempdir, transferred correctly
+- [ ] Multi-session: Two users don't see each other's state
+
+### Performance Tests
+- [ ] Citation graph: 200-node network renders in <5 seconds
+- [ ] visNetwork proxy: Update 50 nodes without full re-render
+- [ ] BibTeX export: 100 papers in <2 seconds
+- [ ] DOI backfill: 1000 papers in <60 seconds (batched)
+
+### Production Simulation Tests
+- [ ] Deploy to shinyapps.io free tier, test download handler
+- [ ] Restricted permissions: Run with read-only working directory
+- [ ] Multi-user: Concurrent sessions don't contaminate state
+- [ ] Large database: Test with 10k+ papers, 5k+ citations
+
+---
+
+## Sources
+
+### Official Documentation (HIGH Confidence)
+- [OpenAlex Rate Limits](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication)
+- [DuckDB ALTER TABLE](https://duckdb.org/docs/stable/sql/statements/alter_table)
+- [DuckDB Storage Versioning](https://duckdb.org/docs/stable/internals/storage)
+- [visNetwork with Shiny](https://datastorm-open.github.io/visNetwork/shiny.html)
+- [Shiny Download Handlers](https://shiny.posit.co/r/reference/shiny/latest/downloadhandler.html)
+- [rbibutils Package](https://geobosh.github.io/rbibutils/)
+
+### Academic Research (MEDIUM Confidence)
+- [Citation Networks as DAGs](https://en.wikipedia.org/wiki/Citation_graph)
+- [Transitive Reduction of Citation Networks](https://academic.oup.com/comnet/article-pdf/3/2/189/1071092/cnu039.pdf)
+
+### Technical Blogs & Guides (MEDIUM Confidence)
+- [Shiny Modules Communication Patterns](https://mastering-shiny.org/scaling-modules.html)
+- [Communication Between Modules Anti-Patterns](https://rtask.thinkr.fr/communication-between-modules-and-its-whims/)
+- [Advanced SQLite Patterns for R Shiny](https://unconj.ca/blog/advanced-sqlite-patterns-for-r-and-shiny.html)
+- [Generating Reports with Shiny](https://shiny.posit.co/r/articles/build/generating-reports/)
+- [visNetwork Performance Tips](https://www.kaizen-r.com/2022/06/faster-graphs-in-r-igraph-vs-visnetwork/)
+- [Shiny Reactive Performance](https://www.datanovia.com/learn/tools/shiny-apps/server-logic/reactive-values.html)
+
+### Best Practices (MEDIUM Confidence)
+- [Engineering Production-Grade Shiny Apps: Common Caveats](https://engineering-shiny.org/common-app-caveats.html)
+- [BibTeX DOI Field Format](https://www.bibtex.com/f/doi-field/)
+- [BibTeX UTF-8 Discussion](https://latex.org/forum/viewtopic.php?t=8673)
+- [Zotero Encoding Best Practices](https://forums.zotero.org/discussion/24136/default-encoding-in-bibtex-export)
+
+### GitHub Issues (LOW-MEDIUM Confidence)
+- [DuckDB NOT NULL Constraint Limitation](https://github.com/duckdb/duckdb/issues/3248)
+- [Shiny tempdir Windows Issue](https://github.com/rstudio/shiny/issues/2542)
 
 ---
 
@@ -494,62 +1099,19 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| OpenAlex rate limit blindness | Phase 1 (Startup/Seed Paper) | Load test: 50 searches within 1 hour, monitor credits |
-| Deep pagination cliff | Phase 2 (Query Builder) | Search with >10k results, verify cursor pagination, measure p95 latency |
-| LLM query hallucination | Phase 2 (Query Builder) | Unit test: invalid filter schema rejected, integration test: zero hallucinations on 20 test queries |
-| Embedding relevance trap | Phase 3 (Topic Explorer) | Manual review: 100 random embedding results, <5% false positives |
-| Database migration chaos | Phase 0 (Refactor Foundation) | Test: fresh install, v0→v1 migration, v0→v3 migration, all pass |
-| Module refactor paralysis | Phase 0 (Refactor Foundation) | Line count: no module >500 lines, test coverage >80% |
-| Topic model false positives | Phase 3 (Topic Explorer) | User testing: 10 users filter by topic, <2 report irrelevant results |
-| Abstract reconstruction errors | Phase 1 (Startup/Seed Paper) | Ground truth test: 100 known abstracts, 100% correct reconstruction |
-| Reactivity over-triggering | Phase 2 (Query Builder) | Reactlog analysis: <10 reactive invalidations per user action |
-| DuckDB index corruption | Phase 3 (Topic Explorer) | Crash test: kill app mid-write, restart, verify index integrity |
-| Wizard abandonment | Phase 1 (Startup/Seed Paper) | Telemetry: <20% wizard skip rate, >70% completion rate |
-| Filter checkbox overload | Phase 3 (Topic Explorer) | Usability test: users find target topic in <10 seconds |
+| Citation explosion | Phase 06 (Citation Discovery) | Load test: seminal paper (500+ citations), verify depth limit |
+| Graph cycles | Phase 06 (Citation Discovery) | Unit test: cyclic graph input, verify fallback layout |
+| State contamination | Phase 07 (Export Integration) | Multi-session test: verify isolation |
+| DOI migration | Phase 05 (Database Enhancement) | Test: v1 DB → v2 with 1000 papers, verify backfill |
+| BibTeX encoding | Phase 07 (Export Features) | Roundtrip test: write → parse → verify UTF-8 |
+| Tempdir permissions | Phase 07 (Export Features) | Deploy test: shinyapps.io download |
+| Citation key collisions | Phase 07 (Export Features) | Unit test: duplicate author-year → unique keys |
+| visNetwork performance | Phase 06 (Citation Discovery) | Performance test: 200-node graph, <5s render |
+| Navigation state loss | Phase 07 (Export Integration) | UX test: search → discovery → back |
+| DOI validation | Phase 05 (Database Enhancement) | Unit test: various formats → normalized |
 
 ---
 
-## Sources
-
-### Official Documentation (HIGH Confidence)
-- [OpenAlex Rate Limits and Authentication](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication)
-- [OpenAlex Paging Documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
-- [OpenAlex API Guide for LLMs](https://docs.openalex.org/api-guide-for-llms)
-- [DuckDB Vector Similarity Search Extension](https://duckdb.org/docs/stable/core_extensions/vss)
-- [DuckDB Vector Similarity Search Blog](https://duckdb.org/2024/05/03/vector-similarity-search-vss)
-
-### Academic Research (MEDIUM Confidence)
-- [LLM-based Query Expansion Fails for Unfamiliar Queries](https://dl.acm.org/doi/10.1145/3726302.3730222)
-- [Taxonomy of the Retrieval System Framework: Pitfalls and Paradigms](https://arxiv.org/html/2601.20131)
-- [Making Sense of Topic Models - Pew Research](https://www.pewresearch.org/decoded/2018/08/13/making-sense-of-topic-models/)
-
-### Technical Blogs & Guides (MEDIUM Confidence)
-- [Advanced SQLite Patterns for R and Shiny](https://unconj.ca/blog/advanced-sqlite-patterns-for-r-and-shiny.html)
-- [Using Databases with Shiny - Emily Riederer](https://emilyriederer.netlify.app/post/shiny-db/)
-- [Search Relevance Tuning: Balancing Keyword and Semantic Search](https://www.elastic.co/search-labs/blog/search-relevance-tuning-in-semantic-search)
-- [Understanding Hybrid Search RAG](https://www.meilisearch.com/blog/hybrid-search-rag)
-- [Using DuckDB for Embeddings and Vector Search](https://blog.brunk.io/posts/similarity-search-with-duckdb/)
-- [Vector Search Performance Benchmarks](https://www.newtuple.com/post/speed-and-scalability-in-vector-search)
-
-### Best Practices & Patterns (MEDIUM Confidence)
-- [Engineering Production-Grade Shiny Apps: Common Caveats](https://engineering-shiny.org/common-app-caveats.html)
-- [Optimizing Shiny Performance for Big Data](https://www.numberanalytics.com/blog/optimizing-shiny-performance-big-data)
-- [From 30 to 3 Seconds: Making Shiny App 10x Faster](https://www.appsilon.com/post/shiny-app-performance-fix)
-- [Text-to-SQL: Comparison of LLM Accuracy 2026](https://research.aimultiple.com/text-to-sql/)
-- [Comprehensive Guide to Elasticsearch Pagination 2026](https://www.luigisbox.com/blog/elasticsearch-pagination/)
-
-### UX Research (MEDIUM Confidence)
-- [Progressive Disclosure Examples for SaaS](https://userpilot.com/blog/progressive-disclosure-examples/)
-- [Onboarding Tutorials vs. Contextual Help - Nielsen Norman Group](https://www.nngroup.com/articles/onboarding-tutorials/)
-- [Checkbox UX: Best Practices and Mistakes](https://www.eleken.co/blog-posts/checkbox-ux)
-- [Filtering UX/UI Design Patterns](https://blog.logrocket.com/ux-design/filtering-ux-ui-design-patterns-best-practices/)
-
-### Domain-Specific (LOW Confidence)
-- [Topic Modeling Techniques for 2026](https://towardsdatascience.com/topic-modeling-techniques-for-2026-seeded-modeling-llm-integration-and-data-summaries/) (WebSearch only)
-- [Getting Abstracts from Microsoft Academic's Inverted Index](https://christinaslisrant.scientopia.org/2018/05/14/getting-abstracts-back-from-microsoft-academics-inverted-index/) (Blog, 2018)
-
----
-
-*Pitfalls research for: Serapeum Research Discovery Features*
-*Researched: 2026-02-10*
-*Confidence: MEDIUM (mix of official docs, academic research, and community best practices)*
+*Pitfalls research for: Serapeum Citation Discovery & Export Features*
+*Researched: 2026-02-12*
+*Confidence: MEDIUM-HIGH (official docs + academic research + verified best practices)*

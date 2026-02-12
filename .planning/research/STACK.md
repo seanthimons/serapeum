@@ -1,328 +1,546 @@
-# Technology Stack for Discovery Features
+# Technology Stack Additions - Citation Network & Export
 
-**Project:** Serapeum Discovery Milestone
-**Researched:** 2026-02-10
+**Project:** Serapeum Discovery & Export Enhancements
+**Milestone:** v1.3 (Citation Network Visualization, Citation Export, Synthesis Export)
+**Researched:** 2026-02-12
 **Confidence:** HIGH
 
-## Recommended Stack
+## Executive Summary
 
-### OpenAlex API Endpoints
+The new features (citation network visualization, citation export, synthesis export) require **minimal stack additions** to the existing R/Shiny infrastructure. All capabilities can be implemented with:
 
-| Endpoint | Version | Purpose | Why Recommended |
-|----------|---------|---------|-----------------|
-| `/works` with `cites` filter | Current | Seed paper → cited by (incoming citations) | Official filter returning works that cite a given paper. Use `filter=cites:W2741809807` for discovery workflows. |
-| `/works` with `cited_by` filter | Current | Seed paper → references (outgoing citations) | Official filter returning works referenced by a given paper. Enables backward citation traversal. |
-| `/works` with `related_to` filter | Current | Seed paper → semantically similar works | Uses OpenAlex's algorithmic relatedness (recent papers with most concepts in common). Best for topic exploration. |
-| `/topics` entity endpoint | Current | Browse 4,500 topics hierarchically | Provides 4-level hierarchy (domain → field → subfield → topic) with IDs and display names for navigation. |
-| `/topics/{id}` with works filter | Current | Topic → papers in that topic | Filter works by `primary_topic.id` or `topics.id` to explore topic content. |
-| `/works` autocomplete | Current | Type-ahead search interface | Returns titles, author hints, citation counts, DOI links. Perfect for seed paper search UI. |
+1. **One new package**: `visNetwork` (2.1.4) for citation network graphs
+2. **One optional package**: `handlr` (0.3.1) for multi-format citation export
+3. **Existing packages**: Base R + existing stack (httr2, jsonlite, DuckDB) handle everything else
 
-**Confidence:** HIGH - All endpoints verified from [OpenAlex official documentation](https://docs.openalex.org/api-entities/works).
+**Key insight:** OpenAlex API already provides citation relationships (`referenced_works`, `cited_by_api_url`). No new data sources needed.
 
-### Key OpenAlex Filters for Discovery
+---
 
-| Filter | Purpose | Syntax Example | When to Use |
-|--------|---------|----------------|-------------|
-| `cites:` | Find papers citing a work | `filter=cites:W2741809807` | Forward citation discovery (who cites this?) |
-| `cited_by:` | Find papers cited by a work | `filter=cited_by:W2766808518` | Backward citation discovery (what does this cite?) |
-| `related_to:` | Find semantically related papers | `filter=related_to:W2486144666` | Topic exploration without citations |
-| `primary_topic.id:` | Filter by primary topic | `filter=primary_topic.id:T10100` | Browsing a specific topic |
-| `topics.id:` | Filter by any assigned topic | `filter=topics.id:T10100` | Broader topic coverage |
-| `primary_topic.domain.id:` | Filter by research domain | `filter=primary_topic.domain.id:D1` | High-level topic browsing |
-| `primary_topic.field.id:` | Filter by research field | `filter=primary_topic.field.id:F100` | Mid-level topic browsing |
-| `primary_topic.subfield.id:` | Filter by subfield | `filter=primary_topic.subfield.id:S1000` | Fine-grained topic browsing |
-| `title.search:` | Title-only search | `filter=title.search:quantum` | Precise title matching |
-| `abstract.search:` | Abstract-only search | `filter=abstract.search:machine learning` | Abstract-focused discovery |
-| `title_and_abstract.search:` | Combined search | `filter=title_and_abstract.search:covid` | Broader text search |
+## New Packages Required
 
-**Confidence:** HIGH - All filters verified from [OpenAlex Filter Works documentation](https://docs.openalex.org/api-entities/works/filter-works).
+### Citation Network Visualization
 
-### Work Object Fields for Discovery
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| **visNetwork** | 2.1.4 | Interactive network graphs in Shiny | Industry-standard for R network viz. Built on vis.js, htmlwidget integration, native Shiny reactivity via `visNetworkProxy()`. Published Sept 2025 (actively maintained). Best-in-class for citation networks. |
 
-| Field | Type | Purpose | Notes |
-|-------|------|---------|-------|
-| `referenced_works` | List[String] | IDs of works this paper cites | Outgoing citations for backward traversal |
-| `referenced_works_count` | Integer | Count of references | Quick check for well-connected papers |
-| `cited_by_count` | Integer | Incoming citation count | Already used; critical for ranking |
-| `related_works` | List[String] | IDs of algorithmically similar works | OpenAlex computes based on shared concepts |
-| `topics` | List[Object] | Up to 3 ranked topics | Each has display_name, score, subfield, field, domain |
-| `primary_topic` | Object | Highest-ranked topic | Identical to first item in topics list |
-| `concepts` | List[Object] | Legacy concept tags (deprecated) | Still available but Topics recommended |
-| `keywords` | List[Object] | AI-generated keywords | Short phrases with similarity scores |
-| `fwci` | Float | Field-weighted citation impact | Percentile-based quality metric |
-
-**Confidence:** HIGH - Verified from [OpenAlex Work Object documentation](https://docs.openalex.org/api-entities/works/work-object).
-
-### R Package Dependencies
-
-| Package | Version | Purpose | Why Recommended |
-|---------|---------|---------|-----------------|
-| httr2 | ≥ 1.0.0 | HTTP client for OpenAlex API | Already in use. Modern pipeable API, built-in rate limiting/retry, explicit request objects. Recommended over httr for API wrappers per [official docs](https://httr2.r-lib.org/articles/wrapping-apis.html). |
-| jsonlite | ≥ 1.8.0 | JSON parsing for API responses | Already in use. Use `flatten = TRUE` for nested structures, `fromJSON()` with simplifyVector for arrays. |
-| DuckDB R | ≥ 0.9.0 | Store topics, citations, relationships | Already in use. Native JSON/LIST support for storing arrays (referenced_works, topics). Use `to_json()` for export. |
-| shiny | ≥ 1.8.0 | UI framework | Already in use. Modal dialogs for wizards via `modalDialog()`. |
-| bslib | ≥ 0.6.0 | Bootstrap 5 components | Already in use. Cards, layouts, offcanvas for UI. |
-
-**Confidence:** HIGH - All packages verified as current and suitable for requirements.
-
-### Optional: openalexR Package
-
-| Package | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| openalexR | ≥ 2.0.2 | ROpenSci OpenAlex client | **NOT RECOMMENDED** for this project. Serapeum already has custom `api_openalex.R` with httr2. Adding openalexR introduces dependency overhead and architectural inconsistency. Use existing httr2 client. |
-
-**Confidence:** MEDIUM - openalexR is [feature-complete and CRAN-approved](https://cran.r-project.org/web/packages/openalexR/), but redundant given existing architecture.
-
-## Recommended Patterns
-
-### Pattern 1: Seed Paper Discovery
-
-**What:** User enters partial title/DOI, system shows autocomplete, user selects seed paper, system fetches related works.
-
-**Implementation:**
+**Installation:**
 ```r
-# 1. Autocomplete for seed selection
-GET /works/autocomplete?q={user_input}
-
-# 2. Fetch seed paper with relationships
-GET /works/{seed_id}
-# Returns: referenced_works, related_works, topics
-
-# 3. Fetch related papers (pick ONE strategy)
-# Option A: Citations (forward)
-GET /works?filter=cites:{seed_id}
-
-# Option B: References (backward)
-GET /works?filter=cited_by:{seed_id}
-
-# Option C: Semantic similarity
-GET /works?filter=related_to:{seed_id}
+install.packages("visNetwork")
 ```
 
-**Why:** OpenAlex provides three orthogonal discovery paths. Start with `related_to` for broadest coverage, then let user filter by citation relationships.
+**Confidence:** HIGH
+- **Source:** [CRAN official page](https://cran.r-project.org/web/packages/visNetwork/index.html), [Official documentation](https://datastorm-open.github.io/visNetwork/)
+- **Evidence:** Latest version 2.1.4 published 2025-09-04, active GitHub issues, comprehensive Shiny integration docs
 
-**Confidence:** HIGH - Pattern documented in [OpenAlex API Guide](https://docs.openalex.org/api-entities/works).
+---
 
-### Pattern 2: Topic Browsing
+### Citation Export (Multi-Format)
 
-**What:** User browses domain → field → subfield → topic hierarchy, system shows papers in selected topic.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| **handlr** | 0.3.1 | Convert among citation formats | rOpenSci package. Handles BibTeX, RIS, Citeproc, Schema.org, RDF/XML, CFF, CodeMeta. Published Mar 2025 (actively maintained). Unified R6 API (`HandlrClient`) + standalone writer functions. |
 
-**Implementation:**
+**Installation:**
 ```r
-# 1. List domains (top-level topics with domain.id filter)
-GET /topics?group_by=domain.id
-
-# 2. List fields within domain
-GET /topics?filter=domain.id:{selected_domain}
-           &group_by=field.id
-
-# 3. List subfields within field
-GET /topics?filter=field.id:{selected_field}
-           &group_by=subfield.id
-
-# 4. List topics within subfield
-GET /topics?filter=subfield.id:{selected_subfield}
-
-# 5. Fetch works for selected topic
-GET /works?filter=primary_topic.id:{topic_id}
-          &sort=cited_by_count:desc
+install.packages("handlr")
 ```
 
-**Why:** OpenAlex Topics provide explicit 4-level hierarchy. Use `group_by` for aggregation at each level. Filter works by `primary_topic.id` for highest-confidence matches.
+**Confidence:** MEDIUM
+- **Source:** [CRAN page](https://cran.r-project.org/web/packages/handlr/index.html), [rOpenSci docs](https://docs.ropensci.org/handlr/)
+- **Evidence:** Version 0.3.1 published 2025-03-03, rOpenSci maintained
+- **Note:** NOT currently installed in project. Requires validation that OpenAlex data maps cleanly to required citation fields.
 
-**Confidence:** HIGH - Verified from [OpenAlex Topics documentation](https://docs.openalex.org/api-entities/topics).
+---
 
-### Pattern 3: LLM-Assisted Query Construction
+## Existing Stack (No Changes)
 
-**What:** User describes research interest in natural language, LLM generates structured OpenAlex query.
+These features **reuse existing capabilities**:
 
-**Implementation:**
-```r
-# System prompt for LLM
-system_prompt <- "You are a query builder for the OpenAlex API.
-User will describe research interest. Generate valid OpenAlex filter syntax.
+| Technology | Current Version | New Use Case |
+|------------|----------------|--------------|
+| **httr2** | 1.2.1 | Fetch citation networks from OpenAlex (`/works?filter=openalex:W123\|W456\|W789`, up to 50 IDs per batch with pipe separator) |
+| **jsonlite** | 2.0.0 | Parse OpenAlex citation responses, structure data for export |
+| **DuckDB** | 1.3.2 | Store citation relationships (new columns: `referenced_works`, `cited_by` as JSON arrays) |
+| **Base R utils** | Built-in | `write.csv()` for CSV export via `downloadHandler()` |
+| **Shiny** | 1.11.1 | `downloadHandler()` + `downloadButton()` for all export formats |
+| **bslib** | 0.9.0 | UI layout (cards, value boxes) for network viz and export controls |
 
-Available filters:
-- title.search: (text)
-- abstract.search: (text)
-- publication_year: (year or range)
-- is_oa: (true/false)
-- cited_by_count: (>N)
-- type: (article|review|preprint|book|dataset)
-- primary_topic.field.id: (field ID)
+**Confidence:** HIGH
+- **Source:** Installed versions from project (verified via Rscript), [Shiny downloadHandler docs](https://shiny.posit.co/r/reference/shiny/latest/downloadhandler.html)
+- **Evidence:** All packages already validated in phases 1-5. CSV export is base R. OpenAlex supports bulk work fetching via pipe-separated IDs.
 
-Output ONLY the filter string, no explanation.
-Example: 'title_and_abstract.search:machine learning,publication_year:>2020,is_oa:true'"
+---
 
-# User input
-user_input <- "Recent open access papers about climate change impacts on agriculture with at least 10 citations"
+## Data Pipeline: OpenAlex → Citation Export
 
-# LLM generates
-llm_output <- chat_completion(api_key, model,
-  format_chat_messages(system_prompt, user_input))
+### What OpenAlex Provides
 
-# Parse and execute
-filter_string <- llm_output
-GET /works?filter={filter_string}
+Per [OpenAlex Work object docs](https://docs.openalex.org/api-entities/works/work-object):
+
+**Available fields per work:**
+- `doi` (string, canonical external ID)
+- `title` / `display_name` (string)
+- `authorships` (list with author details)
+- `publication_year` (integer)
+- `primary_location.source` (venue/journal)
+- `referenced_works` (list of OpenAlex IDs, e.g., `["https://openalex.org/W123", ...]`)
+- `referenced_works_count` (integer)
+- `cited_by_api_url` (URL to fetch citing works)
+- `cited_by_count` (integer)
+
+**Current Serapeum DB schema** already stores:
+```
+abstracts table: paper_id, title, authors, abstract, keywords, year, venue,
+                 pdf_url, work_type, oa_status, cited_by_count,
+                 referenced_works_count, fwci
 ```
 
-**Why:** Chain-of-Thought prompts excel at query expansion ([research](https://arxiv.org/pdf/2305.03653)). LLMs can map natural language to structured filters. Constrain output format to prevent hallucination.
+**Gap:** `referenced_works` (list of IDs) not yet stored.
 
-**Confidence:** MEDIUM - Pattern validated by [LLM query expansion research](https://haystack.deepset.ai/blog/query-expansion), but requires prompt engineering tuning.
+### Required DB Changes
 
-### Pattern 4: Startup Wizard
-
-**What:** First-time users see modal dialog guiding them through creating their first search notebook.
-
-**Implementation:**
-```r
-# Module: mod_startup_wizard.R
-mod_startup_wizard_ui <- function(id) {
-  ns <- NS(id)
-  # Empty - wizard triggered programmatically
-}
-
-mod_startup_wizard_server <- function(id, notebook_count) {
-  moduleServer(id, function(input, output, session) {
-    # Show wizard on first visit
-    observe({
-      if (notebook_count() == 0 && !wizard_dismissed()) {
-        showModal(modalDialog(
-          title = "Welcome to Serapeum Discovery",
-          wizard_page_1_ui(session$ns),
-          footer = tagList(
-            actionButton(session$ns("next_1"), "Next"),
-            modalButton("Skip")
-          )
-        ))
-      }
-    })
-
-    # Multi-step wizard with observeEvent for each step
-    # Use removeModal() and showModal() to transition
-  })
-}
-```
-
-**Why:** [Shiny modal dialogs](https://shiny.posit.co/r/articles/build/modal-dialogs/) support wizard patterns. Break onboarding into steps (introduce features → create first notebook → run search). Use localStorage or DB flag to track dismissal.
-
-**Confidence:** HIGH - Standard Shiny pattern documented in [Mastering Shiny](https://mastering-shiny.org/action-dynamic.html).
-
-## Database Schema Extensions
-
-### New Tables for Discovery
+**Migration needed:** Add `referenced_works` column to `abstracts` table.
 
 ```sql
--- Store topic hierarchy for offline browsing
-CREATE TABLE topics (
-  topic_id VARCHAR PRIMARY KEY,
-  display_name VARCHAR,
-  description TEXT,
-  domain_id VARCHAR,
-  domain_name VARCHAR,
-  field_id VARCHAR,
-  field_name VARCHAR,
-  subfield_id VARCHAR,
-  subfield_name VARCHAR,
-  works_count INTEGER,
-  updated_date TIMESTAMP
-);
-
--- Store citation relationships for graph visualization (future)
-CREATE TABLE citations (
-  source_paper_id VARCHAR,  -- paper doing the citing
-  target_paper_id VARCHAR,  -- paper being cited
-  notebook_id INTEGER,
-  PRIMARY KEY (source_paper_id, target_paper_id, notebook_id)
-);
-
--- Wizard dismissal tracking
-CREATE TABLE user_preferences (
-  key VARCHAR PRIMARY KEY,
-  value TEXT,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+ALTER TABLE abstracts ADD COLUMN referenced_works VARCHAR DEFAULT '[]'
 ```
 
-**Why:** Topics table enables offline hierarchical browsing. Citations table supports future graph features. DuckDB handles JSON arrays natively via LIST type - no need for junction tables for `referenced_works`.
+Store as JSON array string (existing pattern from `excluded_paper_ids` in notebooks table).
 
-**Confidence:** HIGH - DuckDB [JSON/LIST support](https://duckdb.org/docs/stable/data/json/overview) verified.
+### Bulk Citation Fetching
 
-## Alternatives Considered
+**OpenAlex API capability:** Fetch up to 50 works in one call using pipe separator.
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| OpenAlex Client | Custom httr2 | openalexR package | Already have working httr2 client in `api_openalex.R`. Adding openalexR = dependency bloat + architectural inconsistency. |
-| Topic System | OpenAlex Topics | OpenAlex Concepts | Concepts deprecated, ~65K items vs 4.5K Topics. Topics have cleaner hierarchy and active maintenance. |
-| Query Builder Approach | LLM prompt engineering | Keyword extraction + templates | LLMs handle natural language variation better. Chain-of-Thought prompts proven for query expansion. |
-| Wizard UI | Shiny modalDialog | Dedicated onboarding page | Modals less disruptive, dismissible, don't block navigation. Standard Shiny pattern. |
-| Related Works Discovery | OpenAlex `related_to` filter | Compute similarity via embeddings | OpenAlex precomputes relationships across 240M works. Reinventing = expensive + slower. Use their API. |
+**Example:**
+```r
+# From stored referenced_works: ["W2753353163", "W123456", ...]
+ids <- c("W2753353163", "W123456", "W789012")
+filter_param <- paste0("openalex:", paste(ids, collapse = "|"))
+# https://api.openalex.org/works?filter=openalex:W2753353163|W123456|W789012
+```
 
-## What NOT to Use
+**Performance:** Use existing `build_openalex_request()` + `search_papers()` patterns from `api_openalex.R`.
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| OpenAlex Concepts API | Deprecated in favor of Topics | Topics API (`/topics`) |
-| Web scraping for citations | OpenAlex provides structured data | OpenAlex filters (`cites`, `cited_by`) |
-| Manual JSON flattening | jsonlite handles it | `fromJSON(..., flatten = TRUE)` |
-| `httr` package | Superseded by httr2 | `httr2` (already in use) |
-| Semantic Scholar API | Not currently integrated, scope creep | Focus on OpenAlex for milestone |
+**Confidence:** HIGH
+- **Source:** [OpenAlex blog post on bulk fetching](https://blog.ourresearch.org/fetch-multiple-dois-in-one-openalex-api-request/), [API docs](https://docs.openalex.org/api-entities/works/search-works)
 
-## Installation
+---
 
-**No new R packages required.** All dependencies already in Serapeum:
+## BibTeX Export Strategy
+
+### Option 1: Build from OpenAlex Data (Recommended)
+
+**Approach:** Construct BibTeX strings directly from stored paper metadata.
+
+**Why:**
+- Zero dependencies
+- Full control over field mapping
+- OpenAlex provides all required fields
+- BibTeX format is simple text-based
+
+**BibTeX required fields** (per [BibTeX.com spec](https://www.bibtex.com/g/bibtex-format/)):
+- `@article`: author, title, journal (venue), year
+- `@inproceedings`: author, title, booktitle, year
+- `@book`: author, title, publisher, year
+
+**OpenAlex → BibTeX mapping:**
+```r
+# Pseudocode
+generate_bibtex <- function(paper) {
+  entry_type <- if (paper$work_type == "article") "@article" else "@misc"
+  cite_key <- paste0(substr(paper$authors[1], 1, 10), paper$year)
+
+  sprintf("%s{%s,\n  author = {%s},\n  title = {%s},\n  journal = {%s},\n  year = {%d},\n  doi = {%s}\n}",
+    entry_type, cite_key,
+    paste(paper$authors, collapse = " and "),
+    paper$title, paper$venue, paper$year, paper$doi
+  )
+}
+```
+
+**Confidence:** HIGH
+- **Source:** [BibTeX format spec](https://www.bibtex.com/g/bibtex-format/), OpenAlex field availability confirmed
+- **Evidence:** BibTeX is well-documented plain text format. All required fields available in DB.
+
+### Option 2: Use handlr Package
+
+**Approach:** Convert OpenAlex JSON → Citeproc → BibTeX/RIS via handlr.
+
+**Workflow:**
+```r
+library(handlr)
+
+# Convert paper metadata to Citeproc JSON
+citeproc_json <- list(
+  type = "article-journal",
+  title = paper$title,
+  author = lapply(authors, function(a) list(family = a)),
+  issued = list("date-parts" = list(c(paper$year))),
+  DOI = paper$doi,
+  "container-title" = paper$venue
+)
+
+# Write as BibTeX
+client <- HandlrClient$new(x = jsonlite::toJSON(citeproc_json, auto_unbox = TRUE))
+client$read(format = "citeproc")
+bibtex_output <- client$write(format = "bibtex")
+```
+
+**Why consider:**
+- Multi-format support (RIS, Schema.org, RDF/XML)
+- Standards-compliant output
+- rOpenSci maintained
+
+**Why NOT primary recommendation:**
+- Adds dependency
+- Requires Citeproc intermediate format construction
+- OpenAlex data → handlr mapping needs validation
+- Direct construction is simpler for BibTeX/CSV
+
+**Confidence:** MEDIUM
+- **Source:** [handlr docs](https://docs.ropensci.org/handlr/reference/HandlrClient.html), [CRAN](https://cran.r-project.org/web/packages/handlr/index.html)
+- **Evidence:** Package actively maintained (Mar 2025), but no direct evidence of OpenAlex → handlr pattern in wild. Needs phase-specific research to validate field mapping.
+
+**Recommendation:** Use **Option 1** for BibTeX/CSV (simple, zero dependencies). Consider **Option 2** only if user requests RIS/RDF/Schema.org formats later.
+
+---
+
+## CSV Export Strategy
+
+**Approach:** Use base R `write.csv()` with Shiny `downloadHandler()`.
+
+**Implementation:**
+```r
+output$download_citations_csv <- downloadHandler(
+  filename = function() {
+    paste0("citations-", Sys.Date(), ".csv")
+  },
+  content = function(file) {
+    # papers is reactive data.frame from selected papers
+    df <- data.frame(
+      Title = papers$title,
+      Authors = sapply(papers$authors, paste, collapse = "; "),
+      Year = papers$year,
+      Journal = papers$venue,
+      DOI = papers$doi,
+      CitedBy = papers$cited_by_count
+    )
+    write.csv(df, file, row.names = FALSE)
+  }
+)
+```
+
+**Why:**
+- Zero dependencies (base R + Shiny built-ins)
+- Straightforward data frame → CSV
+- `downloadHandler()` already validated in project
+
+**Confidence:** HIGH
+- **Source:** [Shiny downloadHandler docs](https://shiny.posit.co/r/reference/shiny/latest/downloadhandler.html), [Mastering Shiny Ch. 9](https://mastering-shiny.org/action-transfer.html)
+- **Evidence:** Standard Shiny pattern, well-documented, no version-specific issues.
+
+---
+
+## Synthesis Export Strategy
+
+**Approach:** Markdown or plain text export via `downloadHandler()`.
+
+**Rationale:**
+- LLM-generated synthesis is already text/markdown
+- User likely wants copy-paste or save to file
+- No special formatting needed beyond what LLM provides
+
+**Implementation:**
+```r
+output$download_synthesis <- downloadHandler(
+  filename = function() {
+    paste0("synthesis-", Sys.Date(), ".md")
+  },
+  content = function(file) {
+    writeLines(synthesis_text(), file)
+  }
+)
+```
+
+**Alternative formats (if requested later):**
+- HTML: Wrap markdown in minimal HTML template
+- PDF: Use `rmarkdown::render()` (adds dependency, likely overkill)
+
+**Confidence:** HIGH
+- **Source:** Base R `writeLines()`, Shiny `downloadHandler()`
+- **Evidence:** Simplest approach for text export.
+
+---
+
+## Citation Network Visualization Stack
+
+### Core: visNetwork Package
+
+**Why visNetwork over alternatives:**
+
+| Package | Pros | Cons | Verdict |
+|---------|------|------|---------|
+| **visNetwork** | vis.js-based, htmlwidget, native Shiny proxy, 20+ layouts, active (Sept 2025) | Larger bundle size | ✅ **Recommended** |
+| networkD3 | Lightweight, D3.js-based | Limited interactivity, no Shiny proxy | ❌ Less suitable |
+| shinyCyJS | Cytoscape.js, customizable | More complex API | ❌ Overkill |
+| g6R | New (2025), 20 layouts, G6 engine | Very new (0.1.0), less proven | ⚠️ Monitor for future |
+
+**Confidence:** HIGH
+- **Source:** [CRAN visNetwork](https://cran.r-project.org/web/packages/visNetwork/index.html), [Package comparison](https://www.statworx.com/en/content-hub/blog/interactive-network-visualization-with-r), [R Graph Gallery](https://r-graph-gallery.com/network-interactive.html)
+- **Evidence:** visNetwork most mature, best Shiny integration, proven citation network use cases.
+
+### Implementation Pattern
+
+**Minimal working example:**
+```r
+library(visNetwork)
+
+# In UI
+visNetworkOutput("citation_network")
+
+# In Server
+output$citation_network <- renderVisNetwork({
+  nodes <- data.frame(
+    id = papers$paper_id,
+    label = papers$title,
+    title = paste0(papers$title, "\n(", papers$year, ")") # Hover tooltip
+  )
+
+  edges <- data.frame(
+    from = citing_paper_id,
+    to = cited_paper_id,
+    arrows = "to"
+  )
+
+  visNetwork(nodes, edges) %>%
+    visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+    visPhysics(stabilization = FALSE) %>%
+    visInteraction(navigationButtons = TRUE)
+})
+```
+
+**Reactive updates** (without full redraw):
+```r
+observe({
+  visNetworkProxy("citation_network") %>%
+    visUpdateNodes(nodes = updated_nodes_df)
+})
+```
+
+**Confidence:** HIGH
+- **Source:** [visNetwork Shiny docs](https://datastorm-open.github.io/visNetwork/shiny.html), [CRAN vignette](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html)
+- **Evidence:** Official Shiny integration examples, `visNetworkProxy()` documented for reactive updates.
+
+---
+
+## Integration Points with Existing Code
+
+### 1. Database (`R/db.R`)
+
+**Changes needed:**
+- Add migration for `referenced_works` column (VARCHAR, JSON array string)
+- Add helper function `get_citation_network(con, paper_ids)` to fetch papers + their references
+
+**Pattern to follow:** Existing migrations at lines 98-149 (keywords, excluded_paper_ids, work_type, oa_status, etc.)
+
+### 2. OpenAlex API (`R/api_openalex.R`)
+
+**Changes needed:**
+- Extract `referenced_works` in `parse_openalex_work()` (currently extracts `referenced_works_count` at line 224 but not the list itself)
+- Add batch fetching helper `fetch_works_batch(work_ids, email, api_key)` using pipe-separated filter
+
+**Pattern to follow:** Existing `search_papers()` function structure (lines 256-350)
+
+### 3. Shiny Modules
+
+**New module:** `R/mod_citation_export.R`
+- Export buttons (BibTeX, CSV, synthesis)
+- Network visualization UI + server logic
+- Uses existing module pattern (`mod_*_ui()`, `mod_*_server()`)
+
+**Pattern to follow:** `R/mod_cost_tracker.R` (value boxes, tables, download handlers)
+
+### 4. App Routing (`app.R`)
+
+**Changes needed:**
+- Wire citation export module into search/document notebooks
+- No new sidebar links needed (export actions live within notebooks)
+
+**Pattern to follow:** Existing module wiring at app.R server function
+
+---
+
+## What NOT to Add
+
+### ❌ Do NOT Add
+
+| Technology | Why Not |
+|------------|---------|
+| **RefManageR** | Last updated Sept 2022 (stale). Handlr is more current. If neither needed, build BibTeX directly. |
+| **rbibutils** | Low-level bibutils wrapper. Overkill for simple BibTeX generation. |
+| **knitcitations** | Designed for R Markdown, not Shiny apps. |
+| **bib2df** | Only reads BibTeX, doesn't write. |
+| **networkD3** | Less interactive than visNetwork, no Shiny proxy. |
+| **igraph** | Graph *analysis* library, not visualization. visNetwork can consume igraph objects if needed. |
+| **ggplot2 + ggraph** | Static plots, not interactive. Not suitable for citation networks. |
+
+### ❌ Do NOT Create New Data Sources
+
+- OpenAlex already provides citation relationships
+- No need for Crossref, Semantic Scholar, etc. (OpenAlex aggregates)
+- No need for separate graph database (DuckDB + JSON arrays sufficient for ~thousands of papers)
+
+---
+
+## Version Constraints & Compatibility
+
+### R Version
+**Minimum:** R 4.5.1 (project standard per CLAUDE.md)
+
+### Package Compatibility Matrix
+
+| Package | Version | R Requirement | Notes |
+|---------|---------|---------------|-------|
+| visNetwork | 2.1.4 | R >= 3.5.0 | No conflicts with existing stack |
+| handlr | 0.3.1 | R >= 3.5.0 | Optional, only if multi-format needed |
+
+**Tested configuration:**
+- Shiny 1.11.1 + bslib 0.9.0 + visNetwork 2.1.4 (all current as of Feb 2026)
+
+**Confidence:** HIGH
+- **Source:** CRAN package metadata
+- **Evidence:** All packages support R >= 3.5, well below project's R 4.5.1 baseline.
+
+---
+
+## Performance Considerations
+
+### Citation Network Size
+
+**Scenario analysis:**
+
+| Papers in Network | Nodes | Edges (avg 20 refs/paper) | visNetwork Performance |
+|-------------------|-------|---------------------------|------------------------|
+| 10 papers | 10 | ~200 | ✅ Instant |
+| 50 papers | 50 | ~1,000 | ✅ Fast |
+| 100 papers | 100 | ~2,000 | ✅ Good |
+| 500 papers | 500 | ~10,000 | ⚠️ May need layout optimization |
+
+**Mitigation for large networks:**
+- Limit initial depth (1-hop vs. 2-hop citations)
+- Use `visPhysics(stabilization = FALSE)` for faster initial render
+- Implement server-side filtering (show top-cited only)
+
+**Confidence:** MEDIUM
+- **Source:** visNetwork docs, general htmlwidget performance characteristics
+- **Evidence:** vis.js handles thousands of nodes but browser performance degrades. Needs phase-specific testing with real data.
+
+### OpenAlex API Rate Limits
+
+**Constraint:** 50 works per batched request, 10 requests/second (polite pool with email).
+
+**Fetching 100-paper network:**
+- 100 papers + ~2,000 referenced works (if not cached) = ~40 API calls at 50 works/batch
+- At 10 req/sec: ~4 seconds
+- **Solution:** Cache fetched works in DuckDB, only fetch missing ones.
+
+**Confidence:** HIGH
+- **Source:** [OpenAlex rate limits](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication)
+- **Evidence:** Existing project uses polite pool pattern in `api_openalex.R`.
+
+---
+
+## Installation & Setup
+
+### For Citation Network Visualization Only
 
 ```r
-# Verify existing packages (already in renv if present)
-library(httr2)      # HTTP client
-library(jsonlite)   # JSON parsing
-library(DuckDB)     # Database
-library(shiny)      # UI framework
-library(bslib)      # Bootstrap components
+install.packages("visNetwork")
 ```
 
-**New OpenAlex API requirements (as of Feb 2025):**
-- Free API key required (100,000 credits/day)
-- Add to `config.yml`: `openalex.api_key`
-- Pass via `req_headers("Authorization" = paste("Bearer", api_key))`
+### For Multi-Format Citation Export
 
-## Version Compatibility
+```r
+install.packages("handlr")
+```
 
-| Package | Version | Compatible With | Notes |
-|---------|---------|-----------------|-------|
-| httr2 | ≥ 1.0.0 | jsonlite ≥ 1.8.0 | Use `resp_body_json()` for auto-parsing |
-| DuckDB | ≥ 0.9.0 | R ≥ 4.0 | Native JSON support introduced 0.9.x |
-| shiny | ≥ 1.8.0 | bslib ≥ 0.6.0 | Modal dialogs stable across versions |
-| bslib | ≥ 0.6.0 | Bootstrap 5.x | Offcanvas, cards require Bootstrap 5 |
+### Database Migration
 
-**Note:** OpenAlex API does not version endpoints. Breaking changes announced via [mailing list](https://groups.google.com/g/openalex-community).
+Run migration on app startup (existing pattern in `db.R`):
+```sql
+ALTER TABLE abstracts ADD COLUMN referenced_works VARCHAR DEFAULT '[]'
+```
+
+**No breaking changes:** All additions are backward-compatible.
+
+---
+
+## Decision Log
+
+| Decision | Rationale | Alternatives Rejected |
+|----------|-----------|----------------------|
+| Use visNetwork for citation graphs | Best Shiny integration, mature, actively maintained | networkD3 (limited), g6R (too new), shinyCyJS (complex) |
+| Build BibTeX directly vs. handlr | Simpler, zero dependencies, OpenAlex maps cleanly | handlr (adds complexity), RefManageR (stale) |
+| Store cited works as JSON array in DuckDB | Matches existing pattern (`excluded_paper_ids`), portable, sufficient for ~1000s papers | Separate graph DB (overkill), normalized tables (premature) |
+| Use base R `write.csv()` | Built-in, simple, works with `downloadHandler()` | writexl (adds dependency), data.table (overkill) |
+| Make handlr optional | Only needed if user wants RIS/RDF/Schema.org formats later | Install upfront (premature) |
+
+---
+
+## Open Questions (For Phase-Specific Research)
+
+1. **Field mapping validation:** Does OpenAlex `authorships` structure map cleanly to BibTeX author format? Need to handle multi-author edge cases.
+
+2. **Citation network UI/UX:** Where to place network viz in notebook UI? Dedicated tab vs. modal vs. sidebar panel?
+
+3. **Network depth:** Default to 1-hop (papers + their direct references) or 2-hop (references of references)? Performance vs. insight tradeoff.
+
+4. **Export scope:** Export all papers in notebook, or only selected/visible papers? Needs UX decision.
+
+5. **handlr necessity:** Can we defer installing handlr until user requests non-BibTeX formats? Or install proactively?
+
+---
+
+## Summary Table: Stack Additions
+
+| Feature | Package Required | Version | Status | Confidence |
+|---------|-----------------|---------|--------|-----------|
+| Citation network graph | **visNetwork** | 2.1.4 | ✅ Install | HIGH |
+| BibTeX export | Base R (build directly) | Built-in | ✅ Use existing | HIGH |
+| CSV export | Base R utils | Built-in | ✅ Use existing | HIGH |
+| Synthesis export | Base R writeLines | Built-in | ✅ Use existing | HIGH |
+| RIS/RDF/Schema.org export | handlr (optional) | 0.3.1 | ⚠️ Install if needed | MEDIUM |
+| Bulk citation fetching | httr2 + jsonlite (existing) | 1.2.1, 2.0.0 | ✅ Use existing | HIGH |
+| Citation storage | DuckDB (existing) | 1.3.2 | ✅ Add column | HIGH |
+
+---
 
 ## Sources
 
-**Official Documentation (HIGH confidence):**
-- [OpenAlex Works API](https://docs.openalex.org/api-entities/works) - Endpoints, filters, search
-- [OpenAlex Filter Works](https://docs.openalex.org/api-entities/works/filter-works) - Complete filter reference
-- [OpenAlex Work Object](https://docs.openalex.org/api-entities/works/work-object) - Field structure
-- [OpenAlex Topics](https://docs.openalex.org/api-entities/topics) - Topic hierarchy
-- [OpenAlex Topic Object](https://docs.openalex.org/api-entities/topics/topic-object) - Topic structure
-- [httr2 Documentation](https://httr2.r-lib.org/) - R HTTP client
-- [httr2 Wrapping APIs Guide](https://httr2.r-lib.org/articles/wrapping-apis.html) - Best practices
-- [DuckDB JSON Overview](https://duckdb.org/docs/stable/data/json/overview) - JSON handling
-- [Shiny Modal Dialogs](https://shiny.posit.co/r/articles/build/modal-dialogs/) - Wizard patterns
+**Network Visualization:**
+- [visNetwork CRAN page](https://cran.r-project.org/web/packages/visNetwork/index.html)
+- [visNetwork official docs](https://datastorm-open.github.io/visNetwork/)
+- [visNetwork Shiny integration](https://datastorm-open.github.io/visNetwork/shiny.html)
+- [Interactive Network Visualization with R](https://www.statworx.com/en/content-hub/blog/interactive-network-visualization-with-r)
+- [R Graph Gallery - Interactive Networks](https://r-graph-gallery.com/network-interactive.html)
 
-**R Package Documentation (HIGH confidence):**
-- [openalexR on CRAN](https://cran.r-project.org/web/packages/openalexR/) - Version 2.0.2
-- [jsonlite Reference Manual](http://jeroen.r-universe.dev/jsonlite/doc/manual.html) - Parsing nested JSON
+**Citation Export:**
+- [handlr CRAN page](https://cran.r-project.org/web/packages/handlr/index.html)
+- [handlr rOpenSci docs](https://docs.ropensci.org/handlr/)
+- [handlr HandlrClient reference](https://docs.ropensci.org/handlr/reference/HandlrClient.html)
+- [BibTeX format specification](https://www.bibtex.com/g/bibtex-format/)
+- [BibTeX entry types](https://www.bibtex.com/e/entry-types/)
 
-**Research Papers (MEDIUM confidence):**
-- [Query Expansion with LLMs (arXiv)](https://arxiv.org/pdf/2305.03653) - Chain-of-Thought for search
-- [Haystack Query Expansion](https://haystack.deepset.ai/blog/query-expansion) - RAG techniques
+**OpenAlex API:**
+- [OpenAlex Works documentation](https://docs.openalex.org/api-entities/works)
+- [OpenAlex Work object fields](https://docs.openalex.org/api-entities/works/work-object)
+- [Fetch multiple DOIs in one request](https://blog.ourresearch.org/fetch-multiple-dois-in-one-openalex-api-request/)
 
-**Community Resources (MEDIUM confidence):**
-- [Engineering Production-Grade Shiny Apps](https://engineering-shiny.org/structuring-project.html) - Module patterns
-- [Mastering Shiny - Modules](https://mastering-shiny.org/scaling-modules.html) - Best practices
-- [Mastering Shiny - Dynamic UI](https://mastering-shiny.org/action-dynamic.html) - Wizards
+**Shiny Export:**
+- [Shiny downloadHandler reference](https://shiny.posit.co/r/reference/shiny/latest/downloadhandler.html)
+- [Mastering Shiny - Uploads and Downloads](https://mastering-shiny.org/action-transfer.html)
 
----
-*Stack research for: Serapeum Discovery Features*
-*Researched: 2026-02-10*
+**R Ecosystem:**
+- [rOpenSci BibTeX tools roundup](https://ropensci.org/blog/2020/05/07/rmd-citations/)

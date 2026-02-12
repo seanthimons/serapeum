@@ -20,9 +20,6 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#59](https://github.com/seanthimons/serapeum/issues/59) | regression: 401 error code from OpenAlex on topic searches | Medium | High |
-| [#65](https://github.com/seanthimons/serapeum/issues/65) | dev: OpenAlex/OpenRouter rate limit or other error codes | Low | High |
-| [#73](https://github.com/seanthimons/serapeum/issues/73) | ui: Collapsible Journal Quality card to save vertical space | Low | Medium |
 | [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
 | [#66](https://github.com/seanthimons/serapeum/issues/66) | feat: DOI on abstract preview | Low | Medium |
 | [#67](https://github.com/seanthimons/serapeum/issues/67) | dev: Export abstract to seeded paper search | Medium | High |
@@ -42,9 +39,11 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#29](https://github.com/seanthimons/serapeum/issues/29) | feat: Image/chart injection into slides | High | High |
 | [#38](https://github.com/seanthimons/serapeum/issues/38) | dev: PDF image extraction process | High | High |
 | [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
+| [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement (#53, #66, #67, #71) | High | High |
+| [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export (#49, #50, #63, #64) | High | High |
+| [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis (#27, #63) | High | High |
 | [#63](https://github.com/seanthimons/serapeum/issues/63) | feat: Additional synthesis outputs | High | High |
 | [#64](https://github.com/seanthimons/serapeum/issues/64) | feat: Citation export | Medium | Medium |
-| [#68](https://github.com/seanthimons/serapeum/issues/68) | bug: Swapping tabs retriggers OpenAlex request | High | Medium |
 | [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
@@ -72,7 +71,6 @@ Nice-to-have features and research tasks.
 | [#61](https://github.com/seanthimons/serapeum/issues/61) | ui: Icon for conclusion/future direction synthesis | Low | Low |
 | [#62](https://github.com/seanthimons/serapeum/issues/62) | ui: Icons for summarize, key points, outline, etc. | Low | Low |
 | [#69](https://github.com/seanthimons/serapeum/issues/69) | dev: Add/update community standards | Low | Low |
-| [#72](https://github.com/seanthimons/serapeum/issues/72) | ui: Block journal badge vertical misalignment | Low | Low |
 
 ---
 
@@ -118,6 +116,11 @@ High-effort, high-payoff features for the future.
 - [x] [#17](https://github.com/seanthimons/serapeum/issues/17): Enhanced keyword tag behavior (v1.1 Phase 7)
 - [x] [#26](https://github.com/seanthimons/serapeum/issues/26): Ban/hard filter for suspect journals (v1.1 Phase 8)
 - [x] [#57](https://github.com/seanthimons/serapeum/issues/57): Seed discovery email prompt bug fix
+- [x] [#59](https://github.com/seanthimons/serapeum/issues/59): Fix 401 error on OpenAlex topic searches (v1.2 Phase 9)
+- [x] [#65](https://github.com/seanthimons/serapeum/issues/65): User-friendly API error messages (v1.2 Phase 9)
+- [x] [#68](https://github.com/seanthimons/serapeum/issues/68): Fix tab-swap OpenAlex re-request (v1.2 Phase 9)
+- [x] [#73](https://github.com/seanthimons/serapeum/issues/73): Collapsible Journal Quality card (v1.2 Phase 10)
+- [x] [#72](https://github.com/seanthimons/serapeum/issues/72): Fix block badge vertical misalignment (v1.2 Phase 10)
 
 ---
 

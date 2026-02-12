@@ -1,538 +1,628 @@
-# Architecture Research: Discovery Features in Shiny
+# Architecture Patterns: Citation Network Graph, DOI Storage, Export Workflows
 
-**Domain:** Research discovery tools (seed paper search, query builder, topic exploration)
-**Researched:** 2026-02-10
+**Domain:** Research Assistant - Discovery Workflow Enhancement
+**Researched:** 2026-02-12
 **Confidence:** HIGH
 
-## Recommended Architecture
+## Integration with Existing Architecture
 
-### System Overview
+### Current Architecture Pattern: Producer-Consumer
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      app.R (Orchestrator)                        │
-│  - Notebook lifecycle management                                │
-│  - Current view state                                            │
-│  - Module coordination                                           │
-├─────────────────────────────────────────────────────────────────┤
-│                      Discovery Features Layer                    │
-├──────────────┬──────────────┬──────────────┬───────────────────┤
-│   Startup    │ Seed Paper   │ Query        │  Topic Explorer   │
-│   Wizard     │ Search       │ Builder      │                   │
-│   Module     │ Module       │ Module       │  Module           │
-│              │              │              │                   │
-│  (1st-time   │  (DOI/URL    │  (Visual     │  (Concept/field   │
-│   guidance)  │   lookup)    │   filters)   │   navigation)     │
-└──────┬───────┴──────┬───────┴──────┬───────┴───────┬───────────┘
-       │              │              │               │
-       ├──────────────┴──────────────┴───────────────┘
-       │
-┌──────┴──────────────────────────────────────────────────────────┐
-│              Existing Search Notebook Module                     │
-│  - Paper list, keyword panel, abstract viewer                   │
-│  - Receives initial query from discovery modules                │
-│  - Already 1,760 lines (DO NOT EXPAND FURTHER)                  │
-└─────────────────────────────────┬───────────────────────────────┘
-                                  │
-┌─────────────────────────────────┴───────────────────────────────┐
-│                    Infrastructure Layer                          │
-├─────────────────────┬────────────────────┬──────────────────────┤
-│  R/api_openalex.R   │  R/db.R            │  R/_ragnar.R         │
-│  - Paper search     │  - DuckDB queries  │  - Vector search     │
-│  - DOI lookup       │  - Schema          │  - Embedding         │
-│  - Facet queries    │  - Migrations      │                      │
-└─────────────────────┴────────────────────┴──────────────────────┘
+**Existing workflow:**
+1. Discovery modules (mod_seed_discovery, mod_query_builder, mod_topic_explorer) produce reactive requests
+2. app.R consumes these requests via observeEvent()
+3. Consumer fetches papers from OpenAlex API
+4. Consumer creates notebook and populates abstracts table
+
+**New features follow same pattern:**
+- DOI storage: Data layer enhancement (no new modules)
+- Citation network graph: New consumer in abstract detail view
+- Export-to-seed: New producer button in abstract detail view
+- Export data: New consumer in search notebook module
+
+## Component Architecture
+
+### 1. DOI Storage (Data Layer Only)
+
+**Integration Point:** Database schema migration
+
+**New Component:** Migration file `migrations/002_add_doi_column.sql`
+
+```sql
+-- Add DOI column to abstracts table
+ALTER TABLE abstracts ADD COLUMN doi VARCHAR;
 ```
 
-### Component Responsibilities
+**Modified Component:** `R/db.R`
+- `create_abstract()` function signature already has all parameters from parse_openalex_work()
+- parse_openalex_work() extracts DOI (line 181-186 in api_openalex.R)
+- create_abstract() must be updated to accept and store `doi` parameter
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| **app.R** | Orchestration, notebook lifecycle, view switching | Reactive state management, module server calls |
-| **mod_startup_wizard** | First-time user guidance, choice between seed/search/topic entry | Multi-step UI with conditional progression |
-| **mod_seed_paper_search** | DOI/URL lookup, related paper discovery, relevance ranking | API calls to OpenAlex works endpoint, citation graph traversal |
-| **mod_query_builder** | Visual query construction with facets (year, field, type, venue) | Reactive filter panel, OpenAlex filter syntax generation |
-| **mod_topic_explorer** | Browse OpenAlex topics/concepts, navigate hierarchy | Tree/accordion UI, concept search, drill-down navigation |
-| **mod_search_notebook** | Display results, keyword filtering, embedding, chat | Existing 1,760-line module - receives query from discovery features |
-| **api_openalex.R** | External API communication, response parsing | httr2 requests, JSON handling, pagination |
-| **db.R** | Data persistence, query execution, migrations | DuckDB operations, schema management |
-
-## Recommended Project Structure
-
+**Data Flow:**
 ```
-R/
-├── mod_startup_wizard.R          # New: First-time user onboarding
-├── mod_seed_paper_search.R       # New: Seed paper discovery
-├── mod_query_builder.R           # New: Visual query construction
-├── mod_topic_explorer.R          # New: Topic/concept browsing
-├── mod_search_notebook.R         # Existing: DO NOT EXPAND (1,760 lines)
-├── mod_document_notebook.R       # Existing: 420 lines
-├── mod_settings.R                # Existing
-├── mod_about.R                   # Existing
-├── mod_slides.R                  # Existing
-├── api_openalex.R                # Extend: Add DOI lookup, topic queries
-├── api_openrouter.R              # Existing: LLM/embedding
-├── db.R                          # Extend: Add startup state tracking (1,030 lines)
-└── _ragnar.R                     # Existing: Vector search
+OpenAlex API → parse_openalex_work() → doi field (already extracted)
+                                     ↓
+                         create_abstract() (needs doi parameter)
+                                     ↓
+                              abstracts.doi column
 ```
 
-### Structure Rationale
+**No module changes required** - all API callers in app.R already pass through parsed work objects to create_abstract().
 
-- **One module per feature**: Each discovery mode gets its own module to avoid bloating mod_search_notebook.R
-- **Shared infrastructure**: All modules use common api_openalex.R and db.R
-- **Module composition**: Startup wizard orchestrates calls to other discovery modules
-- **Clear boundaries**: Discovery modules **output** a query/filter set; search notebook **receives** and executes it
+### 2. Citation Network Graph
 
-## Architectural Patterns
+**Integration Point:** Abstract detail view in mod_search_notebook.R (lines 691-833)
 
-### Pattern 1: Module as Query Producer/Consumer
+**New Component:** `R/mod_citation_network.R` (Shiny module)
 
-**What:** Discovery modules produce query parameters, search notebook consumes them
-
-**When to use:** When you need clean separation between "how query is built" and "what happens with query"
-
-**Trade-offs:**
-- **Pro:** Search notebook doesn't need to know about seed papers, query builders, or topic trees
-- **Pro:** Discovery modules can be tested independently
-- **Con:** Requires clear contract for query parameter format
-
-**Example:**
+**UI Structure:**
 ```r
-# In mod_seed_paper_search.R
-mod_seed_paper_search_server <- function(id) {
-  moduleServer(id, function(input, output, session) {
-    # Returns reactive containing query parameters
-    query_params <- reactive({
-      list(
-        search_query = paste("related_to:", input$seed_doi),
-        filters = list(
-          from_year = input$year_start,
-          to_year = input$year_end,
-          is_oa = input$open_access_only
-        )
-      )
-    })
-
-    return(query_params)
-  })
-}
-
-# In app.R
-seed_query <- mod_seed_paper_search_server("seed_search")
-
-observeEvent(input$start_seed_search, {
-  params <- seed_query()
-  # Create search notebook with these parameters
-  create_notebook(con, params$search_query, params$filters)
-})
-```
-
-### Pattern 2: Wizard with Conditional Routing
-
-**What:** Multi-step wizard that routes to different discovery modules based on user choice
-
-**When to use:** First-time user experience, onboarding flows
-
-**Trade-offs:**
-- **Pro:** Guides users to the right starting point
-- **Pro:** Can be shown once or on-demand
-- **Con:** Requires state management for "has user seen wizard?"
-
-**Example:**
-```r
-# In mod_startup_wizard.R
-mod_startup_wizard_ui <- function(id) {
+mod_citation_network_ui <- function(id) {
   ns <- NS(id)
-  tagList(
-    # Step 1: Choose entry mode
-    radioButtons(ns("entry_mode"), "How would you like to start?",
-      choices = c("I have a seed paper (DOI/URL)" = "seed",
-                  "I want to search by keywords" = "search",
-                  "I want to explore topics" = "topics")
-    ),
-    # Step 2: Conditional content based on choice
-    uiOutput(ns("entry_content")),
-    # Step 3: Confirmation
-    actionButton(ns("start_search"), "Create Search Notebook")
-  )
-}
-
-# Conditionally render the appropriate discovery module
-output$entry_content <- renderUI({
-  switch(input$entry_mode,
-    "seed" = mod_seed_paper_search_ui(ns("seed")),
-    "search" = mod_query_builder_ui(ns("query")),
-    "topics" = mod_topic_explorer_ui(ns("topics"))
-  )
-})
-```
-
-### Pattern 3: Reactive Parameter Passing
-
-**What:** Pass reactive expressions (not values) between modules
-
-**When to use:** Always, when modules need to react to changes in other modules
-
-**Trade-offs:**
-- **Pro:** Proper reactive chain
-- **Pro:** Modules update automatically
-- **Con:** Must validate inputs are reactive
-
-**Example:**
-```r
-# In mod_query_builder.R
-mod_query_builder_server <- function(id, config) {
-  moduleServer(id, function(input, output, session) {
-    # Validate config is reactive
-    stopifnot(is.reactive(config))
-
-    # Build query reactively
-    query_params <- reactive({
-      # Uses config() to access reactive value
-      build_openalex_query(
-        input$keywords,
-        from_year = input$year_start,
-        to_year = input$year_end,
-        openalex_email = config()$openalex$email
-      )
-    })
-
-    return(query_params)
-  })
-}
-```
-
-### Pattern 4: Namespace Composition for Nested Modules
-
-**What:** Use ns() when calling child modules from parent modules
-
-**When to use:** Whenever a module contains another module
-
-**Trade-offs:**
-- **Pro:** Prevents ID collisions
-- **Pro:** Proper Shiny namespacing
-- **Con:** Must remember to use ns() in UI calls
-
-**Example:**
-```r
-# In mod_startup_wizard.R (parent)
-mod_startup_wizard_ui <- function(id) {
-  ns <- NS(id)
-  tagList(
-    # Nest child module with ns()
-    mod_seed_paper_search_ui(ns("seed_module"))
-  )
-}
-
-# Server side
-mod_startup_wizard_server <- function(id) {
-  moduleServer(id, function(input, output, session) {
-    # Call child module server (no ns needed here)
-    seed_params <- mod_seed_paper_search_server("seed_module")
-  })
-}
-```
-
-## Data Flow
-
-### Request Flow: Discovery → Search Notebook
-
-```
-User Action (e.g., "Search with this seed paper")
-    ↓
-Discovery Module (e.g., mod_seed_paper_search)
-    ↓
-Build query parameters
-    ↓
-Return reactive(list(search_query, filters))
-    ↓
-app.R observeEvent
-    ↓
-create_notebook(con, query, filters)
-    ↓
-current_notebook(new_id)
-    ↓
-mod_search_notebook_server receives notebook_id
-    ↓
-Fetches papers from OpenAlex
-    ↓
-Displays results
-```
-
-### State Management
-
-```
-Startup State (db.R: settings table)
-    ↓
-app.R checks: has_seen_wizard?
-    ↓ NO
-Show Startup Wizard
-    ↓
-User selects entry mode → Discovery Module
-    ↓
-Query parameters generated
-    ↓
-Create search notebook
-    ↓
-Set has_seen_wizard = TRUE
-    ↓
-Navigate to search notebook view
-```
-
-### Key Data Flows
-
-1. **Seed paper flow:** DOI input → OpenAlex works API (cited_by/references) → Related papers → Query parameters → Search notebook
-2. **Query builder flow:** User selections → OpenAlex filter syntax → Query parameters → Search notebook
-3. **Topic explorer flow:** Topic selection → OpenAlex concepts API → Works filtered by concept → Query parameters → Search notebook
-4. **Notebook refresh flow:** Existing in mod_search_notebook.R → Do NOT modify (already complex)
-
-## Integration Points
-
-### Between Discovery Modules and Search Notebook
-
-| Boundary | Communication | Contract |
-|----------|---------------|----------|
-| Discovery → Search | Return reactive query params | `list(search_query = string, filters = list(...))` |
-| Search → Discovery | None (one-way) | Discovery modules don't know about search results |
-| app.R → Discovery | Pass config reactive | `config()$openalex$email`, `config()$openrouter$api_key` |
-| app.R → Search | Pass notebook_id reactive | `current_notebook()` triggers search notebook to load |
-
-### Module Communication Pattern
-
-```r
-# Discovery modules return standardized query format
-query_params <- reactive({
-  list(
-    search_query = "...",          # OpenAlex search string
-    filters = list(
-      from_year = 2020,
-      to_year = 2025,
-      search_field = "title_and_abstract",
-      is_oa = FALSE,
-      exclude_retracted = TRUE,
-      flag_predatory = TRUE,
-      min_citations = NULL
+  card(
+    card_header("Citation Network"),
+    card_body(
+      visNetworkOutput(ns("network_graph")),
+      # Controls
+      radioButtons(ns("direction"),
+        choices = c("Incoming citations" = "incoming",
+                    "Outgoing references" = "outgoing",
+                    "Both" = "both"),
+        selected = "both"
+      ),
+      numericInput(ns("depth"), "Network depth", value = 1, min = 1, max = 2)
     )
   )
+}
+```
+
+**Server Structure:**
+```r
+mod_citation_network_server <- function(id, con, paper_id, config) {
+  moduleServer(id, function(input, output, session) {
+    # Reactive: Fetch citation network data
+    network_data <- reactive({
+      req(paper_id())
+      fetch_citation_network(
+        con(),
+        paper_id(),
+        direction = input$direction,
+        depth = input$depth,
+        config()
+      )
+    })
+
+    # Render visNetwork graph
+    output$network_graph <- renderVisNetwork({
+      data <- network_data()
+      visNetwork(data$nodes, data$edges) %>%
+        visOptions(highlightNearest = TRUE) %>%
+        visInteraction(navigationButtons = TRUE)
+    })
+  })
+}
+```
+
+**New Utility Function:** `R/citation_network.R`
+```r
+fetch_citation_network <- function(con, paper_id, direction, depth, config) {
+  # 1. Get seed paper from abstracts table
+  # 2. Call OpenAlex API for citing/cited papers
+  # 3. Build nodes data frame (id, label, group)
+  # 4. Build edges data frame (from, to)
+  # 5. Return list(nodes = nodes_df, edges = edges_df)
+}
+```
+
+**Modified Component:** `R/mod_search_notebook.R`
+- Abstract detail view adds citation network card below metadata section
+- New reactive: `viewed_paper_data()` to share paper info with citation network module
+- Call: `mod_citation_network_server("citation_network", con_r, viewed_paper, effective_config)`
+
+**Data Flow:**
+```
+User clicks paper → viewed_paper() reactive updates
+                           ↓
+            mod_citation_network_server() receives paper_id
+                           ↓
+            fetch_citation_network() calls OpenAlex API
+                           ↓
+            visNetwork renders interactive graph
+```
+
+**Technology Stack:**
+- `visNetwork` R package (CRAN, version 2.1.4+)
+- Uses vis.js JavaScript library for rendering
+- Interactive features: zoom, drag nodes, highlight neighbors, physics simulation
+
+### 3. Export-to-Seed Workflow
+
+**Integration Point:** Abstract detail view actions (mod_search_notebook.R lines 836-844)
+
+**Modified Component:** `R/mod_search_notebook.R`
+
+**UI Change:** Add export button to detail_actions output
+```r
+output$detail_actions <- renderUI({
+  paper <- current_paper_data()
+  if (is.null(paper)) return(NULL)
+
+  div(
+    class = "d-flex gap-2",
+    actionButton(ns("export_to_seed"),
+                 "Use as Seed",
+                 icon = icon("seedling"),
+                 class = "btn-sm btn-success"),
+    actionButton(ns("close_detail"),
+                 "Close",
+                 class = "btn-sm btn-secondary")
+  )
 })
 ```
 
-### External API Integration
+**Server Logic:** New observeEvent handler
+```r
+observeEvent(input$export_to_seed, {
+  paper <- current_paper_data()
+  req(paper, paper$doi)
 
-| Service | Endpoints Needed | Response Format | Notes |
-|---------|------------------|-----------------|-------|
-| **OpenAlex** (existing) | `/works` (search) | JSON, paginated | Already implemented |
-| **OpenAlex** (new) | `/works/{doi}` (seed paper lookup) | JSON, single work | Need to add DOI normalization |
-| **OpenAlex** (new) | `/works/{id}/cited_by` | JSON, paginated | For seed paper related works |
-| **OpenAlex** (new) | `/concepts` | JSON, hierarchical | For topic explorer |
-| **OpenRouter** (existing) | Embeddings | JSON | Already implemented |
+  # Pre-fill DOI input in seed discovery module
+  updateTextInput(session, "seed_doi_input", value = paper$doi)
 
-### Internal Module Boundaries
-
+  # Navigate to discover view
+  # (Requires communication back to app.R via reactive)
+  seed_request(list(
+    doi = paper$doi,
+    source = "notebook_export"
+  ))
+})
 ```
-mod_startup_wizard
-    ↓ (contains)
-mod_seed_paper_search / mod_query_builder / mod_topic_explorer
-    ↓ (outputs to)
-app.R
-    ↓ (creates)
-Search Notebook with query parameters
-    ↓ (uses)
-mod_search_notebook (existing, DO NOT MODIFY STRUCTURE)
+
+**Modified Component:** `app.R`
+- Search notebook module returns seed_request reactive
+- Observer consumes seed_request and navigates to discover view with pre-filled DOI
+
+**Data Flow:**
 ```
+User clicks "Use as Seed" button in abstract detail
+                ↓
+     observeEvent captures paper DOI
+                ↓
+     seed_request() reactive emits {doi, source}
+                ↓
+     app.R observer consumes request
+                ↓
+     current_view("discover") + pre-fill DOI input
+```
+
+**Alternative Pattern (Simpler):** Instead of reactive communication, use modal dialog:
+```r
+observeEvent(input$export_to_seed, {
+  paper <- current_paper_data()
+  showModal(modalDialog(
+    title = "Start Seed Discovery",
+    p("Use this paper to discover related works?"),
+    p(strong(paper$title)),
+    footer = tagList(
+      modalButton("Cancel"),
+      actionButton(ns("confirm_seed"), "Discover", class = "btn-success")
+    )
+  ))
+})
+
+observeEvent(input$confirm_seed, {
+  # Create seed discovery notebook directly
+  # (Same pattern as current seed_discovery → app.R flow)
+  removeModal()
+})
+```
+
+### 4. Citation/Synthesis Export
+
+**Integration Point:** Search notebook chat interface (mod_search_notebook.R)
+
+**New Component:** Export button in chat output section
+
+**UI Addition:** Add download button next to chat response
+```r
+# In render_chat_message() helper or chat output
+div(
+  class = "d-flex justify-content-between align-items-start",
+  div(class = "flex-grow-1", chat_content),
+  downloadButton(ns(paste0("export_", message_id)),
+                 label = NULL,
+                 icon = icon("download"),
+                 class = "btn-sm btn-outline-secondary")
+)
+```
+
+**Server Logic:** New downloadHandler
+```r
+output$export_synthesis <- downloadHandler(
+  filename = function() {
+    paste0("synthesis_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".md")
+  },
+  content = function(file) {
+    # Get current chat messages
+    messages <- chat_history()
+
+    # Format as markdown
+    md_content <- format_chat_as_markdown(messages)
+
+    # Write to file
+    writeLines(md_content, file)
+  }
+)
+```
+
+**Utility Function:** `R/export_utils.R`
+```r
+format_chat_as_markdown <- function(messages) {
+  # Convert chat history to markdown format
+  # Include metadata: date, notebook name, query
+  # Format: # Synthesis\n\n## Query\n...\n## Response\n...
+}
+```
+
+**Data Flow:**
+```
+User clicks download button
+         ↓
+downloadHandler triggered
+         ↓
+format_chat_as_markdown() formats messages
+         ↓
+Browser downloads .md file
+```
+
+**Export Formats:**
+- Markdown (.md): Primary format, preserves structure
+- CSV (.csv): For citations list only (paper_id, title, authors, year, doi)
+- Plain text (.txt): For simple copy-paste
+
+**Additional Export Location:** Abstract list bulk export
+```r
+# In mod_search_notebook.R, add button to abstract list header
+actionButton(ns("export_abstracts"),
+             "Export List",
+             icon = icon("file-export"),
+             class = "btn-sm btn-outline-primary")
+
+output$export_abstracts <- downloadHandler(
+  filename = function() {
+    paste0("abstracts_", notebook_name(), "_", Sys.Date(), ".csv")
+  },
+  content = function(file) {
+    papers <- papers_data()
+    write.csv(papers, file, row.names = FALSE)
+  }
+)
+```
+
+## New vs Modified Components Summary
+
+### New Components
+| File | Type | Purpose |
+|------|------|---------|
+| `migrations/002_add_doi_column.sql` | Migration | Add doi column to abstracts table |
+| `R/mod_citation_network.R` | Module | Citation network graph visualization |
+| `R/citation_network.R` | Utility | Fetch and build citation network data |
+| `R/export_utils.R` | Utility | Format chat/abstracts for export |
+
+### Modified Components
+| File | Changes | Reason |
+|------|---------|--------|
+| `R/db.R` | Add `doi` parameter to create_abstract() | Store DOI from parse_openalex_work() |
+| `R/mod_search_notebook.R` | Add citation network card, export buttons, download handlers | Integrate all 4 new features |
+| `app.R` | Consume seed_request reactive from search notebook | Support export-to-seed workflow |
+
+### No Changes Required
+| Component | Why No Changes |
+|-----------|----------------|
+| `R/api_openalex.R` | Already extracts DOI (line 181-186) |
+| `R/mod_seed_discovery.R` | Already accepts DOI input, no API changes |
+| All API callers in app.R | Already pass parsed work objects through |
+
+## Suggested Build Order
+
+### Phase 1: Data Foundation (1 task)
+**Task 1: DOI Storage**
+- Create migration file
+- Update create_abstract() function signature
+- Test: Verify new abstracts have DOI stored
+
+**Dependencies:** None
+**Validation:** Query abstracts table, check doi column populated
+
+### Phase 2: Visualization (2 tasks)
+**Task 2: Citation Network Module**
+- Create mod_citation_network.R
+- Create citation_network.R utility
+- Install visNetwork package dependency
+- Test: Render network graph for sample paper
+
+**Dependencies:** Task 1 (needs DOI for API calls)
+**Validation:** Graph displays, interactive controls work
+
+**Task 3: Integrate Network into Detail View**
+- Modify mod_search_notebook.R to add network card
+- Wire module into abstract detail view
+- Test: Click paper, see network graph below metadata
+
+**Dependencies:** Task 2
+**Validation:** Network appears in UI, updates on paper selection
+
+### Phase 3: Export Workflows (3 tasks)
+**Task 4: Export-to-Seed Button**
+- Add button to detail_actions in mod_search_notebook.R
+- Add observeEvent handler
+- Wire seed_request reactive to app.R
+- Test: Click button, navigate to discover view with pre-filled DOI
+
+**Dependencies:** Task 1 (needs DOI)
+**Validation:** DOI pre-fills, discover workflow works
+
+**Task 5: Chat Export**
+- Create export_utils.R
+- Add download button to chat output
+- Add downloadHandler for markdown export
+- Test: Download synthesis markdown file
+
+**Dependencies:** None
+**Validation:** Downloaded file contains formatted chat
+
+**Task 6: Abstract List Export**
+- Add export button to abstract list header
+- Add downloadHandler for CSV export
+- Test: Download abstract list as CSV
+
+**Dependencies:** Task 1 (include DOI in export)
+**Validation:** CSV contains all abstract fields including DOI
+
+## Data Flow Diagrams
+
+### DOI Flow
+```
+OpenAlex API Response
+        ↓
+parse_openalex_work() [api_openalex.R:181-186]
+        ↓
+parsed_work.doi field
+        ↓
+create_abstract(doi = ...) [db.R]
+        ↓
+abstracts.doi column [database]
+        ↓
+Abstract detail view displays DOI link
+Export-to-seed uses DOI
+Citation network uses DOI for API calls
+```
+
+### Citation Network Flow
+```
+User clicks paper in list
+        ↓
+viewed_paper() reactive updates [mod_search_notebook.R]
+        ↓
+mod_citation_network_server receives paper_id
+        ↓
+fetch_citation_network() [citation_network.R]
+        ↓
+get_citing_papers() / get_cited_papers() [api_openalex.R]
+        ↓
+Build nodes/edges data frames
+        ↓
+visNetwork() renders graph [mod_citation_network.R]
+```
+
+### Export-to-Seed Flow
+```
+User clicks "Use as Seed" in detail view
+        ↓
+observeEvent(input$export_to_seed) [mod_search_notebook.R]
+        ↓
+seed_request() reactive emits {doi, source}
+        ↓
+app.R observer consumes seed_request
+        ↓
+current_view("discover")
+updateTextInput for DOI field in mod_seed_discovery
+```
+
+### Export Data Flow
+```
+User clicks "Export" button
+        ↓
+downloadHandler triggered
+        ↓
+format_chat_as_markdown() / write.csv() [export_utils.R]
+        ↓
+Browser downloads file
+```
+
+## Architecture Patterns to Follow
+
+### Pattern 1: Database Migrations
+**What:** Use db_migrations.R pattern for schema changes
+**When:** Adding/modifying database columns
+**Example:**
+```r
+# migrations/002_add_doi_column.sql
+ALTER TABLE abstracts ADD COLUMN doi VARCHAR;
+```
+**Why:** Existing databases need migration path, not just init_schema() changes
+
+### Pattern 2: Producer-Consumer with Reactives
+**What:** Modules emit reactive requests, app.R consumes and executes
+**When:** Cross-module navigation or data passing
+**Example:**
+```r
+# In module
+seed_request <- reactiveVal(NULL)
+observeEvent(input$export_to_seed, {
+  seed_request(list(doi = paper$doi))
+})
+return(seed_request)
+
+# In app.R
+seed_req <- mod_search_notebook_server(...)
+observeEvent(seed_req(), {
+  # Handle request
+})
+```
+**Why:** Decouples modules, maintains single responsibility
+
+### Pattern 3: Download Handlers for Export
+**What:** Use downloadButton + downloadHandler pattern
+**When:** Exporting data as files
+**Example:**
+```r
+# UI
+downloadButton(ns("export"), "Export", icon = icon("download"))
+
+# Server
+output$export <- downloadHandler(
+  filename = function() { paste0("data_", Sys.Date(), ".csv") },
+  content = function(file) { write.csv(data, file) }
+)
+```
+**Why:** Standard Shiny pattern, handles file generation and download
+
+### Pattern 4: Shiny Modules for Reusable Components
+**What:** Encapsulate UI + server logic in modules
+**When:** Component used in multiple places or logically distinct
+**Example:**
+```r
+mod_citation_network_ui <- function(id) { ... }
+mod_citation_network_server <- function(id, ...) { ... }
+```
+**Why:** Namespace isolation, reusability, testability
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: God Module
+### Anti-Pattern 1: Direct Schema Changes in init_schema()
+**What:** Adding new columns via ALTER TABLE in init_schema() tryCatch blocks
+**Why bad:** Doesn't track migration history, hard to debug version conflicts
+**Instead:** Use migrations/ directory with versioned SQL files
+**Detection:** If seeing "column already exists" errors in logs
 
-**What people do:** Add all new features to mod_search_notebook.R (already 1,760 lines)
+### Anti-Pattern 2: Tight Module Coupling
+**What:** Module A directly calls Module B's inputs/outputs
+**Why bad:** Breaks namespace isolation, hard to test, brittle
+**Instead:** Use reactive values to communicate through parent scope (app.R)
+**Detection:** If seeing ns() calls across module boundaries
 
-**Why it's wrong:**
-- Module becomes unmaintainable
-- Testing becomes nightmare
-- Multiple developers can't work on features simultaneously
-- Mixing concerns (query building vs result display)
+### Anti-Pattern 3: Blocking API Calls in Render Functions
+**What:** Calling OpenAlex API directly in renderUI() or renderPlot()
+**Why bad:** Blocks UI thread, no loading indicators, poor UX
+**Instead:** Use reactive() for data fetching + withProgress() for long operations
+**Detection:** UI freezes during API calls
 
-**Do this instead:** Create separate modules for each discovery mode, keep search notebook focused on displaying/managing results
+### Anti-Pattern 4: Duplicating parse_openalex_work() Logic
+**What:** Re-parsing OpenAlex responses in new code
+**Why bad:** Inconsistent field extraction, breaks if API changes
+**Instead:** Always use parse_openalex_work() from api_openalex.R
+**Detection:** Direct access to work$doi instead of parsed_work$doi
 
-### Anti-Pattern 2: Direct Module-to-Module Communication
+## Technology Dependencies
 
-**What people do:** Have mod_seed_paper_search directly call functions from mod_search_notebook
+### New Package: visNetwork
+**Purpose:** Interactive network graph visualization
+**Installation:** `install.packages("visNetwork")`
+**Version:** 2.1.4+ (CRAN stable)
+**License:** MIT
+**Bundle size:** ~500KB (vis.js included)
+**Browser requirements:** Modern browsers (ES6)
 
-**Why it's wrong:**
-- Tight coupling
-- Breaks module encapsulation
-- Hard to test in isolation
-- Violates single responsibility principle
-
-**Do this instead:** Route all module communication through app.R using reactive values
-
-### Anti-Pattern 3: Passing Reactive Values Instead of Expressions
-
-**What people do:**
+**Integration:**
 ```r
-# WRONG
-config_value <- config()  # Evaluate immediately
-mod_query_builder_server("query", config_value)
+# In DESCRIPTION
+Imports:
+  visNetwork (>= 2.1.4)
+
+# In R/mod_citation_network.R
+library(visNetwork)
 ```
 
-**Why it's wrong:** Module only gets current value, doesn't react to changes
+**Performance considerations:**
+- Handles up to ~1000 nodes smoothly
+- Physics simulation can be disabled for larger graphs
+- Client-side rendering (no server round-trips)
 
-**Do this instead:**
-```r
-# CORRECT
-mod_query_builder_server("query", config)  # Pass reactive expression
-```
+### Existing Packages (No Changes)
+- shiny: Modal dialogs, download handlers
+- bslib: Card layouts for network graph
+- DBI/duckdb: Database migrations
+- httr2: OpenAlex API calls (already used)
 
-### Anti-Pattern 4: Monolithic UI Function
+## Scalability Considerations
 
-**What people do:** Put all wizard steps in one giant UI function with conditional panels
+| Concern | At 10 papers | At 100 papers | At 1000 papers |
+|---------|--------------|---------------|----------------|
+| DOI storage | Instant | Instant | Instant (indexed column) |
+| Citation network rendering | Instant | 1-2 seconds | 5+ seconds (disable physics) |
+| Network API calls | 1 request | 1 request | 1 request (pagination handled) |
+| Export file size | <1KB | ~50KB | ~500KB (CSV), ~1MB (markdown) |
+| Download handler memory | Negligible | <10MB | ~50MB (stream large exports) |
 
-**Why it's wrong:**
-- Hard to read
-- Difficult to extract for reuse
-- Poor separation of concerns
+**Optimization strategies:**
+- Citation network: Limit depth to 2, add "Load more" button for depth 3+
+- Export: Stream large CSV files instead of loading all into memory
+- DOI lookup: Add index on abstracts.doi column for fast searches
 
-**Do this instead:** Use nested modules with proper namespacing
+## Error Handling
 
-## Build Order and Dependencies
+### DOI Missing
+**Scenario:** OpenAlex paper has no DOI
+**Handling:** Store as NA, hide "Use as Seed" button if NA
+**UI:** Show "DOI not available" message in abstract detail
 
-### Phase 1: Infrastructure (No UI dependencies)
+### Network Fetch Failure
+**Scenario:** OpenAlex API timeout or rate limit
+**Handling:** Display error message in network card, retry button
+**UI:** "Failed to load network. [Retry]"
 
-**Build first:**
-1. **api_openalex.R extensions**
-   - Add `get_work_by_doi()` function
-   - Add `get_related_works()` function (cited_by + references)
-   - Add `get_concepts_tree()` function
-   - Add `build_concept_filter()` function
+### Export Failure
+**Scenario:** File write error (permissions, disk full)
+**Handling:** showNotification with error message
+**UI:** "Export failed: [error message]"
 
-2. **db.R extensions**
-   - Add `has_seen_wizard` setting to track first-time users
-   - Add helper: `save_db_setting(con, "has_seen_wizard", TRUE)`
-   - Add helper: `get_db_setting(con, "has_seen_wizard")`
+## Testing Strategy
 
-**Why first:** These have no UI dependencies, can be tested in isolation, used by all discovery modules
+### Unit Tests
+- `test-db-migrations.R`: Test DOI column migration
+- `test-citation-network.R`: Test network data building
+- `test-export-utils.R`: Test markdown formatting
 
-### Phase 2: Individual Discovery Modules (Parallel work possible)
+### Integration Tests
+- Test DOI flow: API → parse → store → display
+- Test network: Paper selection → API call → graph render
+- Test export: Button click → download → file contents
 
-**Build in parallel:**
-
-1. **mod_seed_paper_search.R**
-   - UI: DOI/URL input, related paper preview, relevance slider
-   - Server: Validate DOI, fetch seed paper, get cited_by/references, rank by relevance
-   - Output: Query parameters for search notebook
-   - **Dependencies:** api_openalex.R (get_work_by_doi, get_related_works)
-
-2. **mod_query_builder.R**
-   - UI: Year range, field selector, document type checkboxes, venue search
-   - Server: Build OpenAlex filter syntax, preview query
-   - Output: Query parameters for search notebook
-   - **Dependencies:** None (pure UI → query string transformation)
-
-3. **mod_topic_explorer.R**
-   - UI: Concept search, tree navigation, breadcrumb trail
-   - Server: Search concepts, fetch hierarchy, build filters
-   - Output: Query parameters for search notebook
-   - **Dependencies:** api_openalex.R (get_concepts_tree, build_concept_filter)
-
-**Why parallel:** These modules are independent, different developers can work on them simultaneously
-
-### Phase 3: Wizard Orchestration (Depends on Phase 2)
-
-**Build third:**
-
-1. **mod_startup_wizard.R**
-   - UI: Step 1 (choose mode), Step 2 (conditional module), Step 3 (confirm)
-   - Server: Manage wizard state, route to appropriate discovery module
-   - Output: Trigger notebook creation with discovery module's query parameters
-   - **Dependencies:** All Phase 2 modules
-
-**Why third:** Needs all discovery modules to exist first, orchestrates them
-
-### Phase 4: App Integration (Depends on all above)
-
-**Build last:**
-
-1. **app.R modifications**
-   - Check `has_seen_wizard` on startup
-   - Add wizard modal/view
-   - Wire discovery module outputs to `create_notebook()`
-   - Update view switching logic
-   - **Dependencies:** All modules above
-
-2. **mod_search_notebook.R modifications** (MINIMAL)
-   - **ONLY** modify to accept initial query parameters on creation
-   - **DO NOT** add discovery UI here
-   - Keep at current scope (1,760 lines is enough)
-
-**Why last:** Integrates everything, most complex interactions
-
-### Dependency Graph
-
-```
-Phase 1: Infrastructure
-  ├── api_openalex.R (DOI lookup, concepts)
-  └── db.R (wizard state)
-       ↓
-Phase 2: Discovery Modules (parallel)
-  ├── mod_seed_paper_search.R → uses api_openalex
-  ├── mod_query_builder.R → no deps
-  └── mod_topic_explorer.R → uses api_openalex
-       ↓
-Phase 3: Wizard
-  └── mod_startup_wizard.R → uses all Phase 2 modules
-       ↓
-Phase 4: Integration
-  ├── app.R → uses wizard + all discovery modules
-  └── mod_search_notebook.R → receives output from discovery
-```
-
-## Suggested Implementation Order
-
-1. **Week 1: Infrastructure + Seed Paper**
-   - api_openalex.R extensions (DOI lookup, related works)
-   - db.R wizard state tracking
-   - mod_seed_paper_search.R (most valuable, test end-to-end flow)
-
-2. **Week 2: Query Builder + Topic Explorer**
-   - mod_query_builder.R (simplest, no API)
-   - api_openalex.R concepts extension
-   - mod_topic_explorer.R
-
-3. **Week 3: Wizard + Integration**
-   - mod_startup_wizard.R
-   - app.R integration
-   - mod_search_notebook.R minimal modifications
-
-**Rationale:** Start with highest-value feature (seed paper), validate architecture, then parallelize remaining discovery modes, finally integrate everything.
-
-## Scaling Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 1-10 notebooks | Current architecture is fine, modules in memory per session |
-| 10-100 notebooks | Consider caching OpenAlex concept trees in database (avoid repeated API calls) |
-| 100+ notebooks | Add background job queue for embedding (don't block UI), consider concept tree materialized view |
-
-### Scaling Priorities
-
-1. **First bottleneck:** OpenAlex API rate limits (600 req/hr for polite pool, 100k/day for authenticated)
-   - **Fix:** Cache concept hierarchies, implement request pooling, show rate limit status
-
-2. **Second bottleneck:** Embedding generation cost/time for large paper sets
-   - **Fix:** Already addressed with deferred embedding (user-triggered), add batch size limits
+### Manual Testing Checklist
+- [ ] New abstracts have DOI populated
+- [ ] Abstract detail shows DOI link (if available)
+- [ ] Citation network graph renders and is interactive
+- [ ] "Use as Seed" button pre-fills DOI in discover view
+- [ ] Chat export downloads markdown with correct format
+- [ ] Abstract list export downloads CSV with all fields
+- [ ] All existing functionality still works
 
 ## Sources
 
-- [Shiny modules - Official Posit documentation](https://shiny.posit.co/r/articles/improve/modules/)
-- [Mastering Shiny: Chapter 19 - Shiny modules](https://mastering-shiny.org/scaling-modules.html)
-- [Engineering Production-Grade Shiny Apps: Chapter 3 - Structuring Your Project](https://engineering-shiny.org/structuring-project.html)
-- [Communication between modules - Official Posit documentation](https://shiny.posit.co/r/articles/improve/communicate-bet-modules/)
-- [Wizard UI Pattern: When to Use It and How to Get It Right](https://www.eleken.co/blog-posts/wizard-ui-pattern-explained)
-- [shinyQueryBuilder: Construct Complex Filtering Queries in 'Shiny'](https://rdrr.io/cran/shinyQueryBuilder/)
-- [Build Interactive Data Explorer Dashboard: Complete Shiny Tutorial](https://www.datanovia.com/learn/tools/shiny-apps/practical-projects/data-explorer.html)
-- [Shiny Code Organization: Professional Project Structure Guide](https://www.datanovia.com/learn/tools/shiny-apps/best-practices/code-organization.html)
+**R Shiny Network Visualization:**
+- [Interactive Network Visualization with R](https://www.statworx.com/en/content-hub/blog/interactive-network-visualization-with-r)
+- [visNetwork: Network Visualization using 'vis.js' Library](https://datastorm-open.github.io/visNetwork/)
+- [Introduction to visNetwork](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html)
+- [visNetwork GitHub Repository](https://github.com/datastorm-open/visNetwork)
+- [cyjShiny: A cytoscape.js R Shiny Widget for network visualization](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0285339)
+- [Interactive network chart with R](https://r-graph-gallery.com/network-interactive.html)
 
----
-*Architecture research for: Serapeum discovery features*
-*Researched: 2026-02-10*
+**Shiny Export Patterns:**
+- [Create a download button or link — downloadButton](https://rstudio.github.io/shiny/reference/downloadButton.html)
+- [Help users download data from your app - Posit](https://shiny.posit.co/r/articles/build/download/)
+- [Chapter 9 Uploads and downloads | Mastering Shiny](https://mastering-shiny.org/action-transfer.html)
+
+**Shiny Modal Patterns:**
+- [Create a modal dialog UI — modalDialog - Shiny](https://shiny.posit.co/r/reference/shiny/1.6.0/modaldialog.html)
+- [Modal — Shiny](https://shiny.posit.co/r/components/display-messages/modal/)

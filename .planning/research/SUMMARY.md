@@ -1,259 +1,277 @@
 # Project Research Summary
 
-**Project:** Serapeum - Fix + Discovery Milestone
-**Domain:** Academic Research Discovery Tool (Local-first R/Shiny)
-**Researched:** 2026-02-10
+**Project:** Serapeum Discovery & Export Enhancements (v1.3)
+**Domain:** Research Assistant - Citation Network Visualization & Citation Export
+**Researched:** 2026-02-12
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Serapeum is a local-first research assistant that needs discovery features comparable to Connected Papers, ResearchRabbit, and Elicit while maintaining privacy guarantees and DuckDB storage. The research reveals that academic discovery tools converge on three core modes: seed paper citation traversal, natural language query building, and topic browsing. OpenAlex provides all necessary APIs (citation networks via `cites`/`cited_by` filters, topic hierarchy, autocomplete), requiring no new dependencies beyond the existing httr2/DuckDB stack.
+The v1.3 milestone enhances Serapeum's discovery workflow with citation network visualization, citation export (BibTeX/CSV), synthesis export, and DOI-based workflows. Research reveals this is **low-complexity infrastructure enhancement** requiring only one new dependency (visNetwork) while leveraging Serapeum's existing R/Shiny + DuckDB + OpenAlex stack. The technical approach is well-established: citation network tools (Connected Papers, ResearchRabbit) prove visualization is table stakes, while reference managers (Zotero, Mendeley) set export format expectations.
 
-The recommended approach prioritizes modular architecture. The existing mod_search_notebook.R is already 1,760 lines — it cannot absorb new features. Instead, create separate discovery modules (mod_seed_paper_search, mod_query_builder, mod_topic_explorer, mod_startup_wizard) that output standardized query parameters to the search notebook. This producer-consumer pattern enables independent development and testing while avoiding the "God module" anti-pattern.
+The recommended approach builds citation networks incrementally with strict depth limits (1-hop default, 2-hop max) to prevent exponential API explosion. BibTeX export should be constructed directly from OpenAlex metadata rather than adding export dependencies. All features follow existing Serapeum patterns: Shiny modules for UI, DuckDB for persistence, downloadHandler for exports. The primary technical risk is citation graph exponential growth; mitigation requires breadth capping (100 nodes max) and batch API fetching (50 papers per request using OpenAlex OR syntax).
 
-Critical risks center on OpenAlex rate limits (100k credits/day burns fast with naive pagination), LLM query hallucination (must validate generated filters against OpenAlex schema), and embedding relevance traps (semantic search needs hybrid BM25 support). Mitigation strategies are well-documented: credit tracking UI, filter allowlists, cursor pagination, and hybrid search. The Phase 0 refactor foundation (database migrations + module splitting) is non-negotiable before adding features.
+Critical implementation insight: **DOI storage requires migration infrastructure BEFORE feature implementation**. Existing databases have 1000+ papers without DOIs — adding a column is insufficient. A backfill strategy (mark as PENDING, async fetch in batches) prevents user-facing breakage. Cross-module navigation must use session-scoped reactiveValues to avoid state contamination in multi-user deployments. Export features demand UTF-8 encoding discipline and tempdir usage to prevent production failures.
 
 ## Key Findings
 
 ### Recommended Stack
 
-OpenAlex API provides all discovery primitives: citation relationships (`filter=cites:W123` for forward citations, `filter=cited_by:W456` for references), semantic similarity (`filter=related_to:W789`), and a 4-level topic hierarchy (domain → field → subfield → topic). The works endpoint supports autocomplete for seed paper search. All existing Serapeum packages (httr2, jsonlite, DuckDB, shiny, bslib) handle these patterns. **No new R package dependencies required.**
+**Minimal stack additions required.** All core capabilities exist in Serapeum's current infrastructure. Add visNetwork for citation graphs, optionally defer handlr package until multi-format export (RIS/RDF) is requested.
 
-**Core technologies:**
-- **OpenAlex API**: Citation network data, topic taxonomy, autocomplete — already integrated via api_openalex.R, just needs new endpoints (DOI lookup, topic queries)
-- **httr2 (≥1.0.0)**: HTTP client — already in use, modern pipeable API with built-in rate limiting/retry
-- **DuckDB (≥0.9.0)**: Local storage — native JSON/LIST support for citation arrays, need to add topics table and migration versioning
-- **Shiny modalDialog**: Wizard UI pattern — standard Shiny feature for startup wizard, no new dependencies
+**New packages:**
+- **visNetwork 2.1.4**: Interactive network graphs — vis.js wrapper with native Shiny integration, htmlwidget support, proven citation network use cases. Industry standard for R network visualization.
 
-**Key OpenAlex patterns:**
-- **Seed discovery**: `/works/autocomplete` → select seed → `/works?filter=cites:{id}` for forward citations OR `/works?filter=related_to:{id}` for semantic similarity
-- **Topic browsing**: `/topics` with hierarchical filtering by domain/field/subfield → `/works?filter=primary_topic.id:{id}`
-- **Query builder**: Natural language → LLM generates OpenAlex filter syntax → validate against allowlist → execute
+**Optional packages (defer to v1.4):**
+- **handlr 0.3.1**: Multi-format citation export (RIS/RDF/Schema.org) — only needed if users request beyond BibTeX/CSV.
+
+**Existing stack (no changes):**
+- **httr2 1.2.1**: Bulk citation fetching from OpenAlex (pipe-separated IDs, up to 50 per request)
+- **DuckDB 1.3.2**: Store citation relationships (add referenced_works column as JSON array)
+- **Base R utils**: write.csv() for CSV export, writeLines() for BibTeX/markdown
+- **Shiny 1.11.1**: downloadHandler() + downloadButton() for all export formats
+
+**Data source insight:** OpenAlex already provides citation relationships (referenced_works, cited_by_api_url). No new data sources needed. This is a presentation and export layer, not a data ingestion layer.
 
 ### Expected Features
 
+Research on competitive tools (Connected Papers, Zotero, Mendeley, Web of Science) reveals clear feature expectations.
+
 **Must have (table stakes):**
-- **Seed paper discovery** — All modern tools (Connected Papers, ResearchRabbit) start with seed papers. Users expect citation-based exploration.
-- **Rich sorting** — Citation count, relevance, publication year. Google Scholar conditioning means users expect multiple sort options.
-- **Multi-paper selection** — Checkboxes for batch export/actions. Basic UX expectation from Gmail, file managers.
-- **BibTeX export** — Most common citation format for LaTeX and reference managers.
+- **DOI display on abstract preview** — Standard metadata in all academic tools. Users need to copy DOI for citations.
+- **BibTeX export** — Universal standard for LaTeX users, supported by every reference manager. Non-negotiable.
+- **CSV export** — Expected for data analysis, spreadsheet import. Common in all academic databases.
+- **Basic citation metadata** — Title, authors, year, DOI, journal required for any export.
 
 **Should have (competitive differentiators):**
-- **LLM query builder** — Elicit's natural language queries are a key differentiator. Translates "How does sleep affect memory in teenagers?" into structured filters.
-- **Topic exploration** — Browse OpenAlex's 4,500 topics hierarchically. Less computation-intensive than co-citation analysis, still valuable for domain exploration.
-- **Startup wizard** — First-time users struggle with empty notebooks. Multi-step onboarding reduces abandonment.
-- **Local-first citation networks** — Connected Papers charges for saved graphs. Serapeum's unlimited local storage is a privacy-first differentiator (defer complex visualization to v1.x).
+- **Citation network graph** — Visual discovery beats list-based search. Connected Papers built business on this. Local-first = privacy + offline + unlimited graphs (competitors charge for saved graphs).
+- **Export abstract to seeded search** — One-click workflow (discover in search → seed new search from abstract) vs. manual copy/paste DOI.
+- **Seeded search uses search notebook UI** — Consistency reduces learning curve (same filters, sorting, selection as keyword search).
+- **Export synthesis outputs** — Markdown/HTML export for RAG chat summaries completes the research workflow.
 
 **Defer (v2+):**
-- **Citation network visualization** — High value but high complexity. Validate core discovery features before investing in D3.js graph rendering.
-- **Research feeds** — Persistent queries for ongoing research. Add when users express "track this topic over time" need.
-- **Advanced filtering** — Author, venue, funder filters. Power user features to add when specifically requested.
+- **Multi-format citation export** — RIS, Schema.org, RDF (handlr package). Only if users request. BibTeX + CSV sufficient for v1.3.
+- **PDF export for synthesis** — Requires pandoc or pagedown. Complexity spike. Markdown/HTML covers most use cases.
+- **Multi-origin citation graphs** — Connected Papers allows multiple seed papers. Defer to v1.4. Single-origin is complex enough.
+
+**Anti-features (explicitly avoid):**
+- **Custom citation styles** — APA/MLA/Chicago formatting. Complexity explosion (9000+ styles). Let Zotero/LaTeX handle formatting.
+- **PDF annotation** — Different product category. Users have preferred PDF readers.
+- **Real-time graph physics** — Performance issues with 100+ nodes. Static layout computed once, pan/zoom only.
 
 ### Architecture Approach
 
-Discovery features follow a producer-consumer pattern: new discovery modules (seed search, query builder, topic explorer) produce standardized query parameters (`list(search_query, filters)`), which app.R passes to the existing search notebook module. This prevents bloating mod_search_notebook.R (already 1,760 lines) and enables parallel development. The startup wizard orchestrates discovery modules via conditional routing.
+All features integrate into existing producer-consumer pattern. Discovery modules produce requests, app.R consumes and creates notebooks. New features follow same pattern: citation network consumes from abstract detail view, export features consume from search notebook.
 
 **Major components:**
-1. **mod_startup_wizard** — First-time onboarding, routes to seed/search/topics based on user choice
-2. **mod_seed_paper_search** — DOI/URL lookup, fetch related works (cites/cited_by/related_to), output query params
-3. **mod_query_builder** — Visual filters (year, field, type, venue), LLM-assisted natural language, validate + generate OpenAlex syntax
-4. **mod_topic_explorer** — Browse topic hierarchy (domain → field → subfield → topic), filter works by topic ID
-5. **mod_search_notebook** — Existing module receives query params, displays results (DO NOT EXPAND — already complex)
 
-**Build order:** Phase 1 (infrastructure: API extensions + DB migrations) → Phase 2 (discovery modules in parallel) → Phase 3 (wizard orchestration) → Phase 4 (app integration). Seed paper search comes first for end-to-end validation, then query builder (simplest, no API deps), then topic explorer (API-heavy).
+1. **DOI Storage (data layer enhancement)** — Migration adds doi VARCHAR column to abstracts table. parse_openalex_work() already extracts DOI (line 181-186 in api_openalex.R). Update create_abstract() to store doi parameter. No module changes required (all callers already pass parsed work objects).
+
+2. **Citation Network Module (mod_citation_network.R)** — New Shiny module integrated into abstract detail view (mod_search_notebook.R lines 691-833). Uses visNetwork for rendering, fetch_citation_network() utility for OpenAlex API calls. Reactive updates via visNetworkProxy (no full redraw on filter changes). Caches graph data in DuckDB by seed DOI.
+
+3. **Export-to-Seed Workflow (cross-module communication)** — Abstract detail view adds "Use as Seed" button. Emits seed_request reactive consumed by app.R. Navigates to discover view with pre-filled DOI. Alternative: modal confirmation dialog (simpler than reactive communication).
+
+4. **Citation/Synthesis Export (download handlers)** — Add download buttons to chat output and abstract list. Use Shiny downloadHandler pattern. Export utilities (R/export_utils.R): format_chat_as_markdown() for synthesis, direct BibTeX string construction for citations. Always use tempdir() for intermediate files (production permission safety).
+
+**Integration points:**
+- Database: Add migration for referenced_works column (follow existing migration pattern lines 98-149 in db.R)
+- OpenAlex API: Extract referenced_works list in parse_openalex_work(), add batch fetching helper
+- Shiny modules: Wire citation network into abstract detail, export buttons into search notebook
+- No new sidebar links needed (features live within existing notebooks)
 
 ### Critical Pitfalls
 
-1. **OpenAlex rate limit blindness** — Free API key = 100k credits/day. Paginated list queries cost 10 credits each. Naive implementations burn through quota in hours. Users hit 429 errors and can't search. **Mitigation:** Track credits client-side, display remaining quota, batch entity lookups with OR syntax (`id=W1|W2|W3`), cache aggressively in DuckDB.
+Research identified 12 pitfalls across critical/moderate/minor categories. Top 5 for immediate attention:
 
-2. **LLM query builder hallucinated filters** — LLM generates OpenAlex filters with non-existent fields (`venue.impact_factor`, `author.h_index_recent`) or malformed boolean logic. Queries return zero results. Users lose trust. **Mitigation:** Provide exact OpenAlex filter schema in system prompt, validate LLM output against allowlist before API call, display generated query for user approval.
+1. **Citation Network Exponential Explosion** — Average paper cites 25 others. Recursive fetching without depth limit causes API exhaustion and browser crashes. **Prevention:** Default 1-hop (direct citations only), max 2-hop with warning. Cap at 100 papers per level. Batch fetch using OpenAlex OR syntax (50 IDs per request). Require user confirmation if >1000 API credits estimated.
 
-3. **God module refactor paralysis** — mod_search_notebook.R is 1,760 lines. Adding discovery features here = touching 10+ reactive chains. Bug fixes break unrelated features. Onboarding takes days. **Mitigation:** Split by responsibility into sub-modules (<500 lines each), extract non-reactive logic to pure functions, enforce line limits in PRs.
+2. **DOI Field Migration Breaking Existing Databases** — Adding doi column leaves existing papers with NULL DOI. Feature appears broken for users with 1000+ papers. **Prevention:** Use PRAGMA user_version for migration tracking. Backfill script marks rows as PENDING, async background job fetches DOIs in batches (50 per API call). Progress indicator. Graceful degradation (UI handles NULL DOI, export generates citation keys from title+year if DOI missing).
 
-4. **Database migration ad-hocery** — Add column in dev, push to production. Existing user databases lack column → SQL errors crash app. No rollback mechanism. **Mitigation:** Use `PRAGMA user_version` for schema versioning, numbered migration scripts, apply missing migrations in transaction on app init, test v0→v1 and v0→vN paths.
+3. **Cross-Module State Contamination** — Global reactiveValues shared across sessions causes User A's selections to appear in User B's UI. **Prevention:** Session-scoped reactiveValues (define inside server function, not outside). Pass to modules explicitly as parameters. Test multi-session behavior with shinytest2. Never rely on session$userData for cross-module state.
 
-5. **Deep pagination performance cliff** — Fetching page 100+ takes 20+ seconds or times out. OpenAlex cursor pagination degrades beyond 10k results. **Mitigation:** Use cursor pagination (`cursor=*` then `meta.next_cursor`) for all searches, cap results at 10k with refinement suggestions, implement virtual scrolling in UI.
+4. **BibTeX Export Encoding Corruption** — System locale mismatches cause garbled characters ("café" → "cafÃ©"). LaTeX special characters break compilation. **Prevention:** Specify UTF-8 explicitly in downloadHandler (file(..., encoding = "UTF-8")). Escape LaTeX special characters (&, %, $, _, {, }, ~, ^). Use rbibutils for standards-compliant output or build BibTeX directly with proper escaping.
+
+5. **Download Handler Tempdir Permission Errors** — Works locally but fails on shinyapps.io/RStudio Connect with "Permission denied" errors. Cannot write to working directory in production. **Prevention:** Always use tempdir() for intermediate files. Test on production-like environment with restricted permissions. Windows Storage Sense may delete tempdir contents — check existence before use.
+
+**Phase-specific warnings:**
+- **Phase 05 (DOI Storage):** Migration infrastructure required before adding column. Test with 1000+ paper database.
+- **Phase 06 (Citation Discovery):** Depth/breadth limits non-negotiable. Cycle detection + fallback layouts required.
+- **Phase 07 (Export Features):** UTF-8 handling, tempdir usage, unique citation keys must work from day 1.
 
 ## Implications for Roadmap
 
-Based on research, the milestone should be split into 4-5 phases with clear dependencies. The current GitHub issues (#25, #10, #40, #43, #54, #51, #55) map to these phases but need reordering.
+Based on research, suggested phase structure prioritizes data foundation, then visualization, then export workflows:
 
-### Phase 0: Foundation (Refactor + DB Migrations)
-**Rationale:** Cannot add discovery features to 1,760-line mod_search_notebook.R. Must split before extending. Database migrations (topics table, wizard state) need versioning infrastructure before ANY schema changes.
-
-**Delivers:**
-- Schema versioning (`PRAGMA user_version`, migration scripts)
-- Topics table in DuckDB (topic_id, display_name, hierarchy fields)
-- Wizard state tracking (has_seen_wizard setting)
-- (Optional) Split mod_search_notebook.R into sub-modules if >1,760 lines causes issues
-
-**Addresses:**
-- Pitfall #6 (module refactor paralysis)
-- Pitfall #5 (database migration chaos)
-
-**Avoids:** Bolting features onto unmaintainable module, schema drift breaking user databases
-
-**Research needs:** Standard patterns, no research-phase needed (documented in ARCHITECTURE.md and PITFALLS.md)
-
-### Phase 1: Seed Paper Discovery + API Extensions
-**Rationale:** Highest-value feature for validation. Tests end-to-end flow (user input → API call → query params → search notebook). Validates architecture before parallelizing other discovery modes.
+### Phase 1: DOI Storage & Migration Infrastructure
+**Rationale:** DOI field is dependency for export-to-seed workflow, BibTeX export, and citation network API calls. Migration infrastructure must exist before adding column — existing users have 1000+ papers without DOIs that need backfill.
 
 **Delivers:**
-- api_openalex.R: `get_work_by_doi()`, `get_related_works()` (cites/cited_by/related_to)
-- mod_seed_paper_search module: DOI/URL input, autocomplete, related paper preview
-- Integration: seed module outputs query params → app.R creates search notebook
-- Abstract embedding fix (#55) if needed for seed paper selection quality
+- Migration versioning system (PRAGMA user_version)
+- DOI column in abstracts table
+- Backfill strategy for existing papers (PENDING marker + async batch fetching)
+- DOI normalization utility (URL → bare DOI, validation)
+- Graceful degradation for NULL DOIs in UI
 
-**Addresses:**
-- Feature: Seed paper discovery (table stakes)
-- Issue #25 (seed paper search)
-- Issue #55 (abstract embedding fix — dependency for quality seed results)
+**Addresses:** Database Enhancement requirement from FEATURES.md. Prevents critical pitfall #2 (migration breaking existing databases).
 
-**Avoids:**
-- Pitfall #1 (rate limit blindness via credit tracking)
-- Pitfall #8 (abstract reconstruction errors)
+**Avoids:** Silent feature breakage for existing users. Enables all downstream features.
 
-**Research needs:** Minimal — patterns documented in STACK.md. May need research-phase for embedding quality validation if #55 fix is complex.
-
-### Phase 2: Query Builder + Sorting
-**Rationale:** Simplest discovery module (no API deps beyond existing search). Enables LLM-assisted query construction. Rich sorting is table stakes and low-effort.
+### Phase 2: Citation Network Visualization
+**Rationale:** Marquee differentiator feature. Complex enough to warrant dedicated phase. Dependency on Phase 1 (needs DOI for API calls). Requires careful handling of exponential growth and graph cycles.
 
 **Delivers:**
-- mod_query_builder module: Year range, field selector, document type filters
-- LLM-assisted natural language query → OpenAlex filter syntax
-- Filter validation against allowlist (prevent hallucination)
-- Rich sorting UI in search notebook (#54: relevance/citations/date toggles)
+- visNetwork package integration
+- mod_citation_network.R Shiny module
+- fetch_citation_network() utility with batch API fetching
+- Depth limiting (1-hop default, 2-hop max)
+- Breadth capping (100 nodes)
+- Cycle detection + fallback layouts (force-directed if cycles, hierarchical if DAG)
+- Graph caching in DuckDB by seed DOI
+- Interactive features: zoom, pan, click node → abstract detail
 
-**Addresses:**
-- Feature: LLM query builder (competitive differentiator)
-- Feature: Rich sorting (table stakes)
-- Issue #10 (LLM query builder)
-- Issue #54 (rich sorting)
+**Uses:** visNetwork 2.1.4 (STACK.md), OpenAlex citation API (existing infrastructure).
 
-**Avoids:**
-- Pitfall #3 (LLM hallucinated filters via validation)
-- Pitfall #9 (reactivity over-triggering via debouncing)
+**Implements:** Citation Network Module architecture component. Follows existing producer-consumer pattern.
 
-**Research needs:** Medium — LLM prompt engineering for filter generation needs validation loop. Recommend research-phase for OpenRouter prompt testing.
+**Avoids:** Critical pitfall #1 (exponential explosion) via depth/breadth limits. Moderate pitfall #7 (reactivity cascade) via visNetworkProxy for incremental updates.
 
-### Phase 3: Topic Explorer
-**Rationale:** Requires api_openalex.R extensions for topics endpoint. More API-intensive than query builder. Deferred until seed + query builder validate architecture.
+**Research flag:** Test with seminal papers (500+ citations) to verify performance. May need layout optimization for large graphs.
 
-**Delivers:**
-- api_openalex.R: `get_topics_tree()`, `filter_works_by_topic()`
-- mod_topic_explorer module: Hierarchical topic navigation (domain → field → subfield → topic)
-- Topics table population (fetch OpenAlex taxonomy, store locally for offline browsing)
-- Filter works by `primary_topic.id` or `topics.id`
-
-**Addresses:**
-- Feature: Topic exploration (competitive differentiator)
-- Issue #40 (OpenAlex topics)
-
-**Avoids:**
-- Pitfall #7 (topic false positives via confidence thresholds)
-- Pitfall #12 (filter checkbox overload via hierarchy + search)
-
-**Research needs:** Low — OpenAlex Topics API is well-documented. Standard patterns apply.
-
-### Phase 4: Startup Wizard + Integration
-**Rationale:** Wizard depends on all discovery modules existing. Orchestrates user onboarding by routing to seed/search/topics. App integration wires everything together.
+### Phase 3: Export-to-Seed Workflow
+**Rationale:** Quick win building on Phase 1 DOI infrastructure. Seamless cross-module navigation improves discovery workflow. Lower complexity than citation network or exports.
 
 **Delivers:**
-- mod_startup_wizard module: Multi-step onboarding (choose mode → discovery UI → create notebook)
-- app.R integration: Show wizard on first startup (check has_seen_wizard flag)
-- Wire all discovery modules to notebook creation workflow
-- Dismissal + skip logic (don't block users, sensible defaults)
+- "Use as Seed" button in abstract detail view
+- seed_request reactive communication (search notebook → app.R)
+- Navigation to discover view with pre-filled DOI
+- State preservation (search results persist when switching tabs)
+- Session-scoped reactiveValues for cross-module communication
 
-**Addresses:**
-- Feature: Startup wizard (competitive differentiator)
-- Issue #43 (startup wizard)
+**Addresses:** Export abstract to seeded search (#67), Seeded search same view (#71) from FEATURES.md.
 
-**Avoids:**
-- Pitfall #11 (wizard abandonment via skip option + progressive disclosure)
+**Avoids:** Critical pitfall #3 (state contamination) via session-scoped reactiveValues. Moderate pitfall #9 (navigation state loss) via state persistence in reactiveValues.
 
-**Research needs:** Low — Shiny modal patterns well-documented, wizard UX patterns in PITFALLS.md.
+**Research flag:** Standard Shiny module communication pattern. No phase-specific research needed.
 
-### Phase 5: Slide Citation Fix (Optional)
-**Rationale:** Independent of discovery features. Can be parallel or post-discovery depending on priority.
+### Phase 4: Citation Export (BibTeX, CSV)
+**Rationale:** Table stakes feature. Dependency on Phase 1 (needs DOI). Lower complexity than citation network (no graph rendering). Build BibTeX directly rather than adding export library.
 
 **Delivers:**
-- Fix #51 (slide citation formatting issue)
+- BibTeX formatter (OpenAlex → BibTeX fields, LaTeX escaping)
+- CSV formatter (flatten data frame)
+- Export UI (dropdown: "Export as BibTeX / CSV")
+- downloadHandler with UTF-8 encoding
+- Unique citation key generation (author_year with suffix for duplicates)
+- DOI normalization (bare DOI, not URL)
+- Handle edge cases (missing authors, no DOI, special characters)
 
-**Addresses:**
-- Issue #51 (slide citation fix)
+**Uses:** Base R write.csv(), Shiny downloadHandler (existing stack). No new dependencies.
 
-**Research needs:** None — bug fix, not feature.
+**Addresses:** Citation export (#64) from FEATURES.md. Table stakes requirement from competitive research.
+
+**Avoids:** Critical pitfall #4 (encoding corruption) via explicit UTF-8. Critical pitfall #5 (tempdir permissions) via tempdir() usage. Moderate pitfall #10 (citation key collisions) via suffix generation.
+
+**Research flag:** Test BibTeX import in Zotero/Mendeley to verify format compliance. Test on restricted environment (shinyapps.io) to verify tempdir usage.
+
+### Phase 5: Synthesis Export (Markdown, HTML)
+**Rationale:** Completes research workflow. Lower complexity (text export, no citation formatting). Can defer PDF to v1.4.
+
+**Delivers:**
+- Download button for chat output
+- format_chat_as_markdown() utility
+- Markdown export (.md) for chat summaries
+- HTML export (wrap in basic template)
+- Timestamp and metadata inclusion
+- Full conversation (user + assistant messages)
+
+**Uses:** Base R writeLines(), Shiny downloadHandler (existing stack). No new dependencies.
+
+**Addresses:** Export synthesis outputs (#49) from FEATURES.md.
+
+**Avoids:** Critical pitfall #5 (tempdir permissions). Defers PDF complexity to future milestone.
+
+**Research flag:** Standard text export. No phase-specific research needed.
 
 ### Phase Ordering Rationale
 
-- **Phase 0 first**: Infrastructure before features. Cannot safely add discovery without schema versioning and module boundaries.
-- **Seed paper (Phase 1) validates architecture**: Highest-value feature tests entire flow. If producer-consumer pattern fails, catch early.
-- **Query builder (Phase 2) after seed**: Simplest discovery module (no API deps). Adds LLM validation patterns needed for other features.
-- **Topic explorer (Phase 3) after query builder**: API-heavy. Deferred until architecture validated. Reuses patterns from Phase 1 (api_openalex extensions) and Phase 2 (filter UI).
-- **Wizard (Phase 4) after all discovery modules**: Orchestrator cannot exist before orchestratees.
-- **Dependencies respected**: DB migrations → API extensions → discovery modules → wizard integration.
+- **DOI first** because it's a data dependency for all other features. Migration complexity justifies dedicated phase. Prevents user-facing breakage.
+- **Citation network second** because it's the most complex feature (graph rendering, API management, performance optimization). Marquee differentiator justifies early delivery.
+- **Export-to-seed third** because it's a quick win leveraging DOI infrastructure. Improves UX before adding export features.
+- **Citation export fourth** because it's table stakes but complex (encoding, citation keys, format compliance). Builds on DOI infrastructure.
+- **Synthesis export last** because it's simplest and independent of other phases. Lower priority than citation features.
+
+**Dependency chain:** Phase 1 (DOI) → Phase 2 (citation network), Phase 3 (export-to-seed), Phase 4 (citation export). Phase 5 (synthesis export) is independent.
+
+**Avoids pitfalls through ordering:** Migration infrastructure before features prevents breakage. Complex features (citation network) get dedicated focus. Simple features (synthesis export) defer until core capabilities proven.
 
 ### Research Flags
 
-**Phases likely needing research-phase during planning:**
-- **Phase 2 (Query Builder):** LLM prompt engineering for OpenAlex filter generation needs validation loop. Test with 20-30 sample queries to tune system prompt and validate allowlist coverage.
+**Phases likely needing deeper research during planning:**
+- **Phase 2 (Citation Network):** Graph layout performance optimization for 100+ nodes. Need to test with real seminal papers (500+ citations). May need to research vis.js configuration options for large graphs.
+- **Phase 4 (Citation Export):** BibTeX format compliance validation. Need to verify export works with multiple citation managers (Zotero, Mendeley, EndNote). Field mapping edge cases (no DOI, multiple authors, special characters).
 
 **Phases with standard patterns (skip research-phase):**
-- **Phase 0 (Foundation):** Database migrations and module splitting are documented in PITFALLS.md and ARCHITECTURE.md. Follow existing patterns.
-- **Phase 1 (Seed Paper):** OpenAlex citation endpoints well-documented in STACK.md. Straightforward API integration.
-- **Phase 3 (Topic Explorer):** OpenAlex Topics API documented. Hierarchical UI patterns in ARCHITECTURE.md.
-- **Phase 4 (Wizard):** Shiny modal patterns standard. Wizard UX patterns in PITFALLS.md.
-- **Phase 5 (Slide Citation):** Bug fix, not research-intensive.
+- **Phase 1 (DOI Storage):** Database migrations follow existing pattern (lines 98-149 in db.R). DuckDB ALTER TABLE is documented.
+- **Phase 3 (Export-to-Seed):** Shiny module communication is well-established pattern. Existing codebase has examples.
+- **Phase 5 (Synthesis Export):** Text export via downloadHandler is standard Shiny pattern.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All recommendations verified from OpenAlex official docs and existing Serapeum codebase. No new dependencies needed. |
-| Features | HIGH | Competitor analysis across 5 major tools (Connected Papers, Semantic Scholar, Elicit, ResearchRabbit, Litmaps). Table stakes vs. differentiators well-established. |
-| Architecture | HIGH | Shiny module patterns documented in official Posit guides and Mastering Shiny. Producer-consumer pattern proven. Build order validated by dependency analysis. |
-| Pitfalls | MEDIUM | Mix of official docs (OpenAlex rate limits, DuckDB VSS), academic research (LLM query hallucination), and community best practices (Shiny reactivity). Some pitfalls inferred from similar domains. |
+| Stack | HIGH | visNetwork is mature (v2.1.4, Sept 2025), well-documented, proven Shiny integration. Base R export capabilities verified. OpenAlex API features confirmed. |
+| Features | HIGH | Competitive analysis of Connected Papers, Zotero, Mendeley shows clear table stakes vs. differentiators. BibTeX/CSV are universal standards. |
+| Architecture | HIGH | All features follow existing Serapeum patterns. Integration points identified in current codebase. Producer-consumer pattern proven. |
+| Pitfalls | MEDIUM-HIGH | Critical pitfalls verified with official sources (OpenAlex rate limits, DuckDB limitations, Shiny deployment constraints). Moderate pitfalls based on community best practices and GitHub issues. |
 
 **Overall confidence:** HIGH
 
-Research is comprehensive across all four dimensions. Stack and architecture recommendations are directly verifiable. Feature landscape informed by extensive competitor analysis. Pitfalls research combines high-confidence official sources with medium-confidence community patterns — flagged appropriately.
-
 ### Gaps to Address
 
-- **LLM query builder prompt tuning:** System prompt examples in STACK.md are starting points. Needs empirical validation with 20-30 test queries during Phase 2 planning. Use research-phase to iterate on prompt structure and validate filter allowlist coverage.
+**During Phase Planning:**
+- **Graph layout algorithm selection:** visNetwork supports 20+ layouts. Need to test hierarchical vs. force-directed vs. radial with real citation data to determine best default. Can be decided during Phase 2 planning.
 
-- **Embedding model choice:** STACK.md recommends text-embedding-3-small (already in use) but notes Cohere embed-english-v3.0 is domain-specific for scientific text. If embedding relevance issues emerge during Phase 1 (seed paper selection quality), evaluate Cohere or hybrid BM25+vector approach. Not blocking for initial implementation.
+- **Export format priority:** Research suggests BibTeX + CSV are essential, RIS is nice-to-have. Need user validation during Phase 4 planning to confirm whether RIS should be in v1.3 or defer to v1.4.
 
-- **Startup wizard UX validation:** PITFALLS.md documents abandonment risks. Phase 4 planning should include telemetry for skip rate and completion rate. Consider A/B testing wizard vs. contextual help if abandonment >30%.
+- **Citation network depth defaults:** 1-hop vs. 2-hop default needs UX decision. 1-hop is safer (performance) but 2-hop may be more useful (discovery). Can A/B test during Phase 2 implementation.
 
-- **OpenAlex API quota exhaustion edge cases:** Credit tracking UI designed in Phase 1, but quota exhaustion recovery patterns (exponential backoff, user notification) need testing under realistic usage. Validate during Phase 1 with load testing (50+ searches within 1 hour).
+**During Execution:**
+- **OpenAlex field mapping validation:** handlr package requires Citeproc intermediate format. Need to validate that OpenAlex authorships structure maps cleanly to BibTeX author format (multi-author edge cases). Relevant for Phase 4 if handlr is used (currently recommended to build BibTeX directly).
+
+- **Migration backfill performance:** Async DOI fetching for 1000 papers = ~20 API calls at 50 papers/batch. Estimated 2-4 seconds. Need to verify this is acceptable startup time or needs background job. Relevant for Phase 1 execution.
+
+- **Cross-module navigation UX:** Export-to-seed workflow can use reactive communication (complex) or modal dialog (simpler). Need to prototype both approaches in Phase 3 to determine which feels better.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [OpenAlex Works API](https://docs.openalex.org/api-entities/works) — Endpoints, filters, search (STACK.md)
-- [OpenAlex Filter Works](https://docs.openalex.org/api-entities/works/filter-works) — Complete filter reference (STACK.md)
-- [OpenAlex Work Object](https://docs.openalex.org/api-entities/works/work-object) — Field structure (STACK.md)
-- [OpenAlex Topics](https://docs.openalex.org/api-entities/topics) — Topic hierarchy (STACK.md)
-- [OpenAlex Rate Limits](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication) — Credit system (PITFALLS.md)
-- [OpenAlex Paging](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging) — Cursor pagination (PITFALLS.md)
-- [Shiny Modules](https://shiny.posit.co/r/articles/improve/modules/) — Official Posit documentation (ARCHITECTURE.md)
-- [Mastering Shiny: Modules](https://mastering-shiny.org/scaling-modules.html) — Module patterns (ARCHITECTURE.md)
-- [DuckDB Vector Similarity Search](https://duckdb.org/docs/stable/core_extensions/vss) — Vector index maintenance (PITFALLS.md)
+- [OpenAlex API Works documentation](https://docs.openalex.org/api-entities/works)
+- [OpenAlex Work object fields](https://docs.openalex.org/api-entities/works/work-object)
+- [OpenAlex Rate Limits](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication)
+- [Fetch multiple DOIs in one request](https://blog.ourresearch.org/fetch-multiple-dois-in-one-openalex-api-request/)
+- [visNetwork CRAN page](https://cran.r-project.org/web/packages/visNetwork/index.html)
+- [visNetwork official docs](https://datastorm-open.github.io/visNetwork/)
+- [visNetwork Shiny integration](https://datastorm-open.github.io/visNetwork/shiny.html)
+- [Shiny downloadHandler reference](https://shiny.posit.co/r/reference/shiny/latest/downloadhandler.html)
+- [Mastering Shiny - Uploads and Downloads](https://mastering-shiny.org/action-transfer.html)
+- [DuckDB ALTER TABLE](https://duckdb.org/docs/stable/sql/statements/alter_table)
+- [BibTeX format specification](https://www.bibtex.com/g/bibtex-format/)
 
 ### Secondary (MEDIUM confidence)
-- [Connected Papers, Semantic Scholar, Elicit, ResearchRabbit, Litmaps](https://libguides.lmu.edu/AIresearchtools/CP) — Competitor feature analysis (FEATURES.md)
-- [Engineering Production-Grade Shiny Apps](https://engineering-shiny.org/structuring-project.html) — Module best practices (ARCHITECTURE.md)
-- [Advanced SQLite Patterns for R and Shiny](https://unconj.ca/blog/advanced-sqlite-patterns-for-r-and-shiny.html) — Database migration patterns (PITFALLS.md)
-- [LLM-based Query Expansion](https://dl.acm.org/doi/10.1145/3726302.3730222) — Query hallucination research (PITFALLS.md)
-- [Search Relevance Tuning](https://www.elastic.co/search-labs/blog/search-relevance-tuning-in-semantic-search) — Hybrid search patterns (PITFALLS.md)
-- [Text-to-SQL LLM Accuracy](https://research.aimultiple.com/text-to-sql/) — Query generation benchmarks (PITFALLS.md)
+- [Connected Papers](https://www.connectedpapers.com/) — Citation network visualization patterns
+- [ResearchRabbit](https://www.researchrabbit.ai) — Seeded search workflow patterns
+- [Litmaps](https://www.litmaps.com/) — Visual network UX patterns
+- [Zotero Documentation](https://www.zotero.org/) — BibTeX export expectations
+- [Interactive Network Visualization with R](https://www.statworx.com/en/content-hub/blog/interactive-network-visualization-with-r)
+- [R Graph Gallery - Interactive Networks](https://r-graph-gallery.com/network-interactive.html)
+- [Shiny Modules: Communication Patterns](https://mastering-shiny.org/scaling-modules.html)
+- [handlr rOpenSci docs](https://docs.ropensci.org/handlr/) — Multi-format export reference
 
 ### Tertiary (LOW confidence)
-- Community blog posts and LibGuides for competitor workflows (FEATURES.md)
-- 2026 projection articles for topic modeling techniques (PITFALLS.md)
-- Inference from related domain patterns (e.g., Elasticsearch pagination applied to OpenAlex)
+- [DuckDB NOT NULL Constraint Limitation](https://github.com/duckdb/duckdb/issues/3248) — Migration edge case
+- [Shiny tempdir Windows Issue](https://github.com/rstudio/shiny/issues/2542) — Production deployment concern
+- [Communication Between Modules Anti-Patterns](https://rtask.thinkr.fr/communication-between-modules-and-its-whims/) — Best practices guidance
 
 ---
-*Research completed: 2026-02-10*
+*Research completed: 2026-02-12*
 *Ready for roadmap: yes*
