@@ -11,7 +11,7 @@ mod_citation_network_ui <- function(id) {
     div(
       class = "citation-network-controls mb-3 p-3 bg-light rounded",
       layout_columns(
-        col_widths = c(2, 2, 2, 3, 3),
+        col_widths = c(2, 2, 2, 2, 2, 2),
 
         # Direction toggle
         div(
@@ -52,6 +52,22 @@ mod_citation_network_ui <- function(id) {
           ),
           # Progress indicator
           uiOutput(ns("build_progress"))
+        ),
+
+        # Color palette selector
+        div(
+          selectInput(
+            ns("palette"),
+            "Color Palette",
+            choices = c(
+              "Viridis" = "viridis",
+              "Magma" = "magma",
+              "Plasma" = "plasma",
+              "Inferno" = "inferno",
+              "Cividis" = "cividis"
+            ),
+            selected = "viridis"
+          )
         ),
 
         # Save button
@@ -125,6 +141,12 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     progressive_nodes <- reactiveVal(NULL)
     progressive_edges <- reactiveVal(NULL)
 
+    # Initialize palette from DB setting
+    observe({
+      palette <- get_db_setting(con_r(), "network_palette") %||% "viridis"
+      updateSelectInput(session, "palette", selected = palette)
+    }) |> bindEvent(con_r(), once = TRUE)
+
     # Build progress
     output$build_progress <- renderUI({
       if (build_in_progress()) {
@@ -151,8 +173,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       depth <- input$depth
       node_limit <- input$node_limit
 
-      # Get palette from settings
-      palette <- get_db_setting(con_r(), "network_palette") %||% "viridis"
+      # Get palette from UI control
+      palette <- input$palette %||% "viridis"
 
       # Progress callback for progressive rendering
       progress_cb <- function(message, fraction) {
@@ -257,7 +279,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           smooth = list(type = "continuous")
         ) |>
         visNetwork::visNodes(
-          font = list(size = 0)  # No labels by default
+          font = list(size = 0),  # No labels by default
+          scaling = list(min = 10, max = 50, label = list(enabled = FALSE))
         ) |>
         visNetwork::visInteraction(
           hover = TRUE,
@@ -277,6 +300,28 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       vn
     })
+
+    # Live-recolor nodes when palette changes
+    observeEvent(input$palette, {
+      net_data <- current_network_data()
+      req(net_data)
+
+      palette <- input$palette
+      nodes <- net_data$nodes
+
+      # Recompute colors with new palette
+      nodes$color <- map_year_to_color(nodes$year, palette)
+
+      # Update stored data
+      net_data$nodes <- nodes
+      net_data$metadata$palette <- palette
+      current_network_data(net_data)
+
+      # Update via proxy (no full re-render)
+      visNetwork::visNetworkProxy("network_graph") |>
+        visNetwork::visUpdateNodes(nodes[, c("id", "color", "size", "shape",
+                                              "borderWidth", "color.border")])
+    }, ignoreInit = TRUE)
 
     # Handle node click
     observeEvent(input$node_clicked, {
@@ -500,10 +545,13 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           return()
         }
 
-        # Get palette from settings (use saved palette if available)
+        # Use saved palette, falling back to current UI selection
         palette <- loaded$metadata$palette %||%
-                   get_db_setting(con_r(), "network_palette") %||%
+                   input$palette %||%
                    "viridis"
+
+        # Sync palette selector to loaded network's palette
+        updateSelectInput(session, "palette", selected = palette)
 
         # Build visualization data
         viz_data <- build_network_data(
