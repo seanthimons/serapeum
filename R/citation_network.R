@@ -58,7 +58,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
   nodes_list[[seed_paper_id]] <- list(
     paper_id = seed_paper_id,
     title = seed_paper$title,
-    authors = jsonlite::toJSON(seed_paper$authors, auto_unbox = FALSE),
+    authors = jsonlite::toJSON(as.character(unlist(seed_paper$authors)), auto_unbox = FALSE),
     year = seed_paper$year %||% NA_integer_,
     venue = seed_paper$venue %||% NA_character_,
     doi = seed_paper$doi %||% NA_character_,
@@ -123,7 +123,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
         nodes_list[[paper_id]] <- list(
           paper_id = paper_id,
           title = paper$title,
-          authors = jsonlite::toJSON(paper$authors, auto_unbox = FALSE),
+          authors = jsonlite::toJSON(as.character(unlist(paper$authors)), auto_unbox = FALSE),
           year = paper$year %||% NA_integer_,
           venue = paper$venue %||% NA_character_,
           doi = paper$doi %||% NA_character_,
@@ -316,15 +316,18 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   nodes_df$title <- sprintf(
     "<b>%s</b><br>Authors: %s<br>Year: %s<br>Citations: %s",
     nodes_df$title,
-    sapply(nodes_df$authors, function(a) {
-      authors_list <- jsonlite::fromJSON(a)
+    vapply(nodes_df$authors, function(a) {
+      authors_list <- tryCatch(
+        as.character(unlist(jsonlite::fromJSON(a))),
+        error = function(e) "Unknown"
+      )
       if (length(authors_list) == 0) return("Unknown")
       if (length(authors_list) > 3) {
         paste(paste(authors_list[1:3], collapse = ", "), "et al.")
       } else {
         paste(authors_list, collapse = ", ")
       }
-    }),
+    }, FUN.VALUE = character(1)),
     ifelse(is.na(nodes_df$year), "N/A", nodes_df$year),
     nodes_df$cited_by_count
   )

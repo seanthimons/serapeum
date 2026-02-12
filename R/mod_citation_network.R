@@ -307,7 +307,10 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
               class = "mb-2",
               strong("Authors: "),
               {
-                authors <- jsonlite::fromJSON(node$authors)
+                authors <- tryCatch(
+                  as.character(unlist(jsonlite::fromJSON(node$authors))),
+                  error = function(e) "Unknown"
+                )
                 if (length(authors) == 0) {
                   "Unknown"
                 } else if (length(authors) > 3) {
