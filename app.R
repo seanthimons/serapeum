@@ -181,6 +181,9 @@ server <- function(input, output, session) {
   # Reactive: trigger notebook list refresh
   notebook_refresh <- reactiveVal(0)
 
+  # Reactive: pre-filled DOI for seed discovery
+  pre_fill_doi <- reactiveVal(NULL)
+
   # Reactive: current network ID
   current_network <- reactiveVal(NULL)
 
@@ -856,10 +859,10 @@ server <- function(input, output, session) {
   mod_document_notebook_server("doc_notebook", con_r, current_notebook, effective_config)
 
   # Search notebook module
-  mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh)
+  search_seed_request <- mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh)
 
   # Seed discovery module
-  discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r)
+  discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r, pre_fill_doi)
 
   # Query builder module
   query_request <- mod_query_builder_server("query_builder", reactive(con), config_file_r)
@@ -869,6 +872,19 @@ server <- function(input, output, session) {
 
   # Citation network module
   mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
+
+  # Wire "Use as Seed" from search notebook to seed discovery
+  observeEvent(search_seed_request(), {
+    req <- search_seed_request()
+    if (is.null(req)) return()
+
+    # Navigate to seed discovery view
+    current_view("discover")
+    current_notebook(NULL)
+
+    # Pre-fill DOI in seed discovery module
+    pre_fill_doi(req$doi)
+  }, ignoreInit = TRUE)
 
   # Consume discovery request to create search notebook
   observeEvent(discovery_request(), {

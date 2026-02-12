@@ -34,14 +34,64 @@ mod_seed_discovery_ui <- function(id) {
 #' @param id Module ID
 #' @param con Reactive database connection
 #' @param config Reactive config
+#' @param pre_fill_doi Optional reactiveVal for pre-filling DOI from external sources
 #' @return Reactive discovery_request for app.R to consume
-mod_seed_discovery_server <- function(id, con, config) {
+mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     # Internal state
     seed_paper <- reactiveVal(NULL)
     discovery_request <- reactiveVal(NULL)
+
+    # Handle pre-filled DOI from "Use as Seed" button
+    if (!is.null(pre_fill_doi)) {
+      observeEvent(pre_fill_doi(), {
+        doi <- pre_fill_doi()
+        if (is.null(doi) || nchar(doi) == 0) return()
+
+        # Pre-fill the DOI input
+        updateTextInput(session, "doi_input", value = doi)
+
+        # Auto-trigger lookup - reuse existing lookup logic
+        # Get config values
+        cfg <- config()
+        email <- get_db_setting(con(), "openalex_email") %||%
+                 get_setting(cfg, "openalex", "email")
+        api_key <- get_setting(cfg, "openalex", "api_key")
+
+        if (is.null(email) || nchar(email) == 0) {
+          showNotification(
+            "OpenAlex email not configured. Please go to Settings.",
+            type = "warning", duration = 5
+          )
+          return()
+        }
+
+        # Fetch paper automatically
+        withProgress(message = "Looking up seed paper...", {
+          paper <- tryCatch({
+            get_paper(doi, email, api_key)
+          }, error = function(e) {
+            showNotification(
+              paste("Error fetching paper:", e$message),
+              type = "error", duration = 5
+            )
+            NULL
+          })
+
+          if (!is.null(paper)) {
+            seed_paper(paper)
+            showNotification("Seed paper loaded!", type = "message", duration = 3)
+          } else {
+            showNotification("Paper not found for this DOI.", type = "error", duration = 5)
+          }
+        })
+
+        # Clear pre_fill_doi to prevent re-trigger on navigation
+        pre_fill_doi(NULL)
+      }, ignoreInit = TRUE)
+    }
 
     # Lookup button click
     observeEvent(input$lookup_btn, {
