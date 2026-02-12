@@ -4,28 +4,27 @@
   position: relative;
   background-color: #1a1a2e;
   border-radius: 0.5rem;
-  overflow: visible;
+  overflow: hidden;
 }
 
-/* Ensure visNetwork tooltips render above the side panel */
-.vis-tooltip {
-  z-index: 9999 !important;
-  position: fixed !important;
-  max-width: 350px;
+/* Clip tooltips at graph boundary so they don't overlap side panel */
+.citation-network-container .vis-tooltip {
+  max-width: 300px;
   word-wrap: break-word;
   pointer-events: none;
 }
 
 .citation-network-legend {
   position: absolute;
-  bottom: 20px;
-  left: 20px;
-  background-color: rgba(255, 255, 255, 0.95);
-  padding: 15px;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 255, 255, 0.92);
+  padding: 12px;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   z-index: 1000;
-  min-width: 200px;
+  min-width: 180px;
+  font-size: 0.85rem;
 }
 
 .citation-network-legend h6 {
