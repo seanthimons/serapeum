@@ -66,7 +66,11 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
     ))
   }
 
+  # Track referenced_works for cross-link discovery
+  refs_map <- list()  # paper_id -> character vector of referenced work IDs
+
   # Add seed node
+  refs_map[[seed_paper_id]] <- seed_paper$referenced_works %||% character()
   nodes_list[[seed_paper_id]] <- list(
     paper_id = seed_paper_id,
     title = seed_paper$title,
@@ -157,6 +161,9 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
         # Add to visited set
         visited <- c(visited, paper_id)
 
+        # Track referenced works for cross-link discovery
+        refs_map[[paper_id]] <- paper$referenced_works %||% character()
+
         # Add node data
         nodes_list[[paper_id]] <- list(
           paper_id = paper_id,
@@ -216,6 +223,31 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
     }
 
     current_frontier <- next_frontier
+  }
+
+  # Cross-link discovery: check referenced_works for edges between papers already in graph
+  all_paper_ids <- names(nodes_list)
+  for (pid in all_paper_ids) {
+    refs <- refs_map[[pid]]
+    if (length(refs) == 0) next
+    # Find which referenced works are in our graph
+    # OpenAlex referenced_works are full URLs like "https://openalex.org/W123"
+    # Normalize to just the W-id
+    ref_ids <- sub("^https://openalex\\.org/", "", refs)
+    cross_links <- intersect(ref_ids, all_paper_ids)
+    for (target_id in cross_links) {
+      edge_key <- paste(pid, target_id, sep = "->")
+      if (is.null(edges_list[[edge_key]])) {
+        edges_list[[edge_key]] <- list(
+          from_paper_id = pid,
+          to_paper_id = target_id
+        )
+      }
+    }
+  }
+
+  if (!is.null(progress_callback)) {
+    progress_callback("Discovering cross-links between papers", 0.95)
   }
 
   # Convert lists to data frames

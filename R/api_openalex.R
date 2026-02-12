@@ -249,6 +249,7 @@ parse_openalex_work <- function(work) {
     oa_status = oa_status,
     is_oa = is_oa,
     referenced_works_count = referenced_works_count,
+    referenced_works = if (!is.null(work$referenced_works)) as.character(work$referenced_works) else character(),
     fwci = fwci
   )
 }
