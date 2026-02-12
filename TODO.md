@@ -61,6 +61,8 @@ Valuable features requiring more investment, or moderate-impact improvements.
 |------|-------|------------|--------|
 | Citation Network | [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflows graph container and overlaps side panel | Medium | Medium |
 | Citation Network | [#80](https://github.com/seanthimons/serapeum/issues/80): Expanded progress modal with stop button and detailed logging | Medium | Medium |
+| Citation Network | Cluster density control — slider to adjust physics spacing (gravitational constant / spring length) so dense citation fields are readable | Medium | High |
+| Citation Network | Improved node size scaling — current log1p transform still compresses high-citation papers; consider configurable exponent or breakpoint-based sizing | Low | Medium |
 | Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
 
 ---

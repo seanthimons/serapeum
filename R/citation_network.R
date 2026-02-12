@@ -321,17 +321,20 @@ compute_node_sizes <- function(cited_by_counts) {
   if (n == 0) return(numeric(0))
   if (n == 1) return(30)
 
-  # Use rank-based sizing for even visual distribution
-  # This prevents outliers from compressing all other nodes to minimum
-  ranks <- rank(pmax(cited_by_counts, 0), ties.method = "average")
+  # Use log1p transform: handles power-law distributions while
+  # preserving magnitude differences (unlike rank-based sizing)
+  # log1p(0)=0, log1p(100)=4.6, log1p(1000)=6.9, log1p(14000)=9.5
+  log_counts <- log1p(pmax(cited_by_counts, 0))
 
-  # Normalize ranks to 0-1
-  normalized <- (ranks - 1) / max(n - 1, 1)
+  count_range <- range(log_counts, na.rm = TRUE)
+  if (count_range[2] - count_range[1] == 0) {
+    return(rep(30, n))
+  }
+
+  normalized <- (log_counts - count_range[1]) / (count_range[2] - count_range[1])
 
   # Scale to range 15-50
-  sizes <- 15 + normalized * 35
-
-  sizes
+  15 + normalized * 35
 }
 
 #' Build visNetwork-ready graph data
