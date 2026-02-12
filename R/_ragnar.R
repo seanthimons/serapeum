@@ -38,11 +38,11 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
 
     # Create custom embed function using OpenRouter
     embed_via_openrouter <- function(texts) {
-      # get_embeddings returns a list of numeric vectors
-      embeddings <- get_embeddings(openrouter_api_key, embed_model, texts)
+      # get_embeddings returns list(embeddings, usage, model)
+      result <- get_embeddings(openrouter_api_key, embed_model, texts)
 
-      # Convert to matrix format expected by ragnar (each row is an embedding)
-      do.call(rbind, embeddings)
+      # Extract embeddings and convert to matrix format expected by ragnar (each row is an embedding)
+      do.call(rbind, result$embeddings)
     }
 
     ragnar::ragnar_store_create(

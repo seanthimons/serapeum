@@ -70,13 +70,27 @@ ui <- page_sidebar(
       uiOutput("notebook_list")
     ),
     hr(),
-    # Settings, About, GitHub, and dark mode
+    # Session cost display
+    div(
+      class = "d-flex justify-content-between align-items-center mb-2 px-2",
+      span(class = "text-muted small", icon("coins"), " Session:"),
+      textOutput("session_cost_inline", inline = TRUE) |>
+        tagAppendAttributes(class = "text-muted small fw-semibold")
+    ),
+    hr(),
+    # Settings, About, Costs, GitHub, and dark mode
     div(
       class = "d-flex justify-content-between align-items-center mb-2",
       actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
                  class = "text-muted"),
       actionLink("about_link", label = tagList(icon("info-circle"), "About"),
                  class = "text-muted")
+    ),
+    div(
+      class = "d-flex justify-content-between align-items-center mb-2",
+      actionLink("cost_link", label = tagList(icon("dollar-sign"), "Costs"),
+                 class = "text-muted"),
+      span()  # Empty span for spacing
     ),
     div(
       class = "d-flex justify-content-between align-items-center",
@@ -152,6 +166,9 @@ server <- function(input, output, session) {
   # Reactive: config from file
   config_file_r <- reactive(config_file)
 
+  # Session ID for cost tracking
+  session_id <- session$token
+
   # Reactive: current selected notebook
   current_notebook <- reactiveVal(NULL)
 
@@ -163,6 +180,17 @@ server <- function(input, output, session) {
 
   # Settings module - returns effective config
   effective_config <- mod_settings_server("settings", con_r, config_file_r)
+
+  # Cost tracker module
+  mod_cost_tracker_server("cost_tracker", con_r, reactive(session_id), effective_config)
+
+  # Render inline session cost
+  output$session_cost_inline <- renderText({
+    invalidateLater(10000)  # Poll every 10 seconds
+    costs <- get_session_costs(con, session_id)
+    total <- attr(costs, "total_cost") %||% 0
+    sprintf("$%.4f", total)
+  })
 
   # Render notebook list
   output$notebook_list <- renderUI({
@@ -242,6 +270,12 @@ server <- function(input, output, session) {
   # About link
   observeEvent(input$about_link, {
     current_view("about")
+    current_notebook(NULL)
+  })
+
+  # Cost link
+  observeEvent(input$cost_link, {
+    current_view("costs")
     current_notebook(NULL)
   })
 
@@ -546,6 +580,10 @@ server <- function(input, output, session) {
       return(mod_about_ui("about"))
     }
 
+    if (view == "costs") {
+      return(mod_cost_tracker_ui("cost_tracker"))
+    }
+
     if (view == "discover") {
       return(mod_seed_discovery_ui("seed_discovery"))
     }
@@ -672,11 +710,21 @@ server <- function(input, output, session) {
     api_key <- get_setting(config_file, "openalex", "api_key")
 
     withProgress(message = "Fetching related papers...", {
-      papers <- switch(req$citation_type,
-        cites = get_citing_papers(req$seed_paper$paper_id, email, api_key),
-        cited_by = get_cited_papers(req$seed_paper$paper_id, email, api_key),
-        related_to = get_related_papers(req$seed_paper$paper_id, email, api_key)
-      )
+      papers <- tryCatch({
+        switch(req$citation_type,
+          cites = get_citing_papers(req$seed_paper$paper_id, email, api_key),
+          cited_by = get_cited_papers(req$seed_paper$paper_id, email, api_key),
+          related_to = get_related_papers(req$seed_paper$paper_id, email, api_key)
+        )
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenAlex")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        list()
+      })
 
       if (length(papers) > 0) {
         for (paper in papers) {
@@ -773,7 +821,12 @@ server <- function(input, output, session) {
           lapply(body$results, parse_openalex_work)
         }
       }, error = function(e) {
-        showNotification(paste("Search error:", e$message), type = "error")
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenAlex")
+          show_error_toast(err$message, err$details, err$severity)
+        }
         list()
       })
 
@@ -845,7 +898,12 @@ server <- function(input, output, session) {
       if (is.null(body$results)) list()
       else lapply(body$results, parse_openalex_work)
     }, error = function(e) {
-      showNotification(paste("Search error:", e$message), type = "error")
+      if (inherits(e, "api_error")) {
+        show_error_toast(e$message, e$details, e$severity)
+      } else {
+        err <- classify_api_error(e, "OpenAlex")
+        show_error_toast(err$message, err$details, err$severity)
+      }
       list()
     })
 

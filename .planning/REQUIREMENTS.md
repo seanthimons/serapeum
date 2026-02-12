@@ -1,70 +1,43 @@
-# Requirements: Serapeum
+# Requirements: Serapeum v1.2 Stabilization
 
 **Defined:** 2026-02-11
 **Core Value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration
 
-## v1.1 Requirements
+## v1.2 Requirements
 
-Requirements for v1.1 Quality of Life milestone. Each maps to roadmap phases.
+Requirements for the stabilization release. Bug fixes and UI polish.
 
-### Cost Tracking
+### Bug Fixes
 
-- [ ] **COST-01**: User can see per-request LLM cost after each chat message or embedding call
-- [ ] **COST-02**: User can see running session cost total in the UI
-- [ ] **COST-03**: User can view cost history and trends over time
+- [ ] **BUGF-01**: OpenAlex topic searches succeed without 401 errors - root cause identified and fixed (#59)
+- [ ] **BUGF-02**: User sees friendly, actionable error messages for OpenAlex and OpenRouter API failures instead of raw HTTP status codes (#65)
+- [ ] **BUGF-03**: Navigating away from search notebook and returning does not retrigger the OpenAlex request (#68)
 
-### Model Selection
+### UI Polish
 
-- [ ] **MODL-01**: User can select from expanded list of available OpenRouter models with model info (context window, pricing)
-- [ ] **MODL-02**: User can see current model details (provider, pricing) in settings
-
-### Keyword Filtering
-
-- [ ] **KWRD-01**: User can click a keyword tag to include it as a search filter
-- [ ] **KWRD-02**: User can click a keyword tag to exclude it from search results
-- [ ] **KWRD-03**: User can see visual distinction between included, excluded, and neutral tags
-- [ ] **KWRD-04**: User can filter currently displayed results by keyword tags in real-time
-
-### Journal Quality
-
-- [ ] **JRNL-01**: Search results show predatory journal/publisher warnings with visual badges
-- [ ] **JRNL-02**: User can toggle predatory journal filter on/off (default: off — show all results, user opts in to filter)
-- [ ] **JRNL-03**: User can add journals to a personal blocklist
-- [ ] **JRNL-04**: User can remove journals from their personal blocklist
-
-### Bulk Import (Stretch)
-
-- [ ] **BULK-01**: User can paste multiple DOIs to look up papers in batch
-- [ ] **BULK-02**: User can upload a `.bib` file to import papers
-- [ ] **BULK-03**: User can add imported papers to a search notebook
-- [ ] **BULK-04**: User can add imported papers to a document notebook
-- [ ] **BULK-05**: User can use imported papers as seeds for discovery
+- [ ] **UIPX-01**: User can collapse/expand the Journal Quality filter card to save vertical space in the search notebook right panel (#73)
+- [ ] **UIPX-02**: Block journal badge aligns vertically with other inline badges (year, type, access, journal) in abstract detail view (#72)
 
 ## Future Requirements
 
-### Discovery Enhancements
+### Deferred from v1.1
 
-- **CITE-01**: Citation network graph for paper discovery (#53)
-- **RECSV-01**: Recursive abstract searching (#11)
+- **BULK-01**: Bulk DOI/.bib import for batch paper ingestion (#24)
 
-### Document Understanding
+### Deferred from v1.2
 
-- **CONC-01**: Conclusion synthesis into future directions (#27)
-- **IMG-01**: PDF image pipeline — extraction through to slides (#44)
-
-### Infrastructure
-
-- **LOCAL-01**: Local model support (#8)
+(None - all scoped items included)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Audio overview (#22) | Experimental, low priority |
-| Semantic Scholar integration (#21) | OpenAlex sufficient for current needs |
-| Full OpenAlex corpus ingestion (#41) | Moonshot — requires significant infrastructure |
-| DuckDB native vector search (#42) | Moonshot — current embedding approach works |
-| Demo mode (#30) | Low impact, defer |
+| Citation network graph (#53) | Medium complexity, separate milestone |
+| Recursive abstract searching (#11) | High complexity, future milestone |
+| PDF image pipeline (#44) | Epic-level effort, future milestone |
+| Local model support (#8) | Significant architecture change |
+| DOI on abstract preview (#66) | Low priority, not a bug |
+| Export abstract to seeded search (#67) | New feature, not stabilization |
 
 ## Traceability
 
@@ -72,30 +45,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COST-01 | Phase 5 | Pending |
-| COST-02 | Phase 5 | Pending |
-| COST-03 | Phase 5 | Pending |
-| MODL-01 | Phase 6 | Pending |
-| MODL-02 | Phase 6 | Pending |
-| KWRD-01 | Phase 7 | Pending |
-| KWRD-02 | Phase 7 | Pending |
-| KWRD-03 | Phase 7 | Pending |
-| KWRD-04 | Phase 7 | Pending |
-| JRNL-01 | Phase 8 | Pending |
-| JRNL-02 | Phase 8 | Pending |
-| JRNL-03 | Phase 8 | Pending |
-| JRNL-04 | Phase 8 | Pending |
-| BULK-01 | Phase 9 | Pending |
-| BULK-02 | Phase 9 | Pending |
-| BULK-03 | Phase 9 | Pending |
-| BULK-04 | Phase 9 | Pending |
-| BULK-05 | Phase 9 | Pending |
+| BUGF-01 | Phase 9 | Pending |
+| BUGF-02 | Phase 9 | Pending |
+| BUGF-03 | Phase 9 | Pending |
+| UIPX-01 | Phase 10 | Pending |
+| UIPX-02 | Phase 10 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 18 total (13 core + 5 stretch)
-- Mapped to phases: 18/18 ✓
-- Unmapped: 0
+- v1.2 requirements: 5 total
+- Mapped to phases: 5 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-11*
-*Last updated: 2026-02-11 after roadmap creation with 100% coverage*
+*Last updated: 2026-02-11 after roadmap creation*

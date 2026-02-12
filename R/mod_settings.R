@@ -47,24 +47,21 @@ mod_settings_ui <- function(id) {
         # Right column
         div(
           h5(icon("robot"), " Models"),
-          selectInput(ns("chat_model"), "Chat Model",
-                      choices = c(
-                        # Budget options
-                        "DeepSeek V3 (budget)" = "deepseek/deepseek-chat",
-                        "Gemini 2.0 Flash (budget)" = "google/gemini-2.0-flash-001",
-                        "GPT-4o Mini (budget)" = "openai/gpt-4o-mini",
-                        # Mid-tier
-                        "Kimi K2 0905 (recommended)" = "moonshotai/kimi-k2-0905",
-                        "Claude 3.5 Haiku" = "anthropic/claude-3-5-haiku",
-                        "Llama 3.3 70B" = "meta-llama/llama-3.3-70b-instruct",
-                        # Premium
-                        "Claude Sonnet 4" = "anthropic/claude-sonnet-4",
-                        "GPT-4o" = "openai/gpt-4o",
-                        "Gemini 2.5 Pro" = "google/gemini-2.5-pro-preview"
-                      ),
-                      selected = "moonshotai/kimi-k2-0905"),
-          p(class = "text-muted small mb-3",
-            "Budget < $0.50/M tokens | Mid-tier $0.50-$2/M | Premium > $2/M"),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              selectizeInput(ns("chat_model"), "Chat Model",
+                             choices = format_chat_model_choices(get_default_chat_models()),
+                             selected = "moonshotai/kimi-k2.5")
+            ),
+            actionButton(ns("refresh_chat_models"), NULL,
+                         icon = icon("refresh"),
+                         class = "btn-outline-secondary btn-sm",
+                         title = "Refresh model list",
+                         style = "margin-bottom: 15px;")
+          ),
+          uiOutput(ns("model_info")),
           div(
             class = "d-flex align-items-end gap-2",
             div(
@@ -124,8 +121,12 @@ mod_settings_ui <- function(id) {
 mod_settings_server <- function(id, con, config_rv) {
   moduleServer(id, function(input, output, session) {
 
-    # Reactive value to trigger model refresh
+    # Reactive values to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
+    refresh_chat_trigger <- reactiveVal(0)
+
+    # Store chat models data for info panel
+    chat_models_data <- reactiveVal(NULL)
 
     # Reactive values for API key validation status
     api_status <- reactiveValues(
@@ -212,6 +213,47 @@ mod_settings_server <- function(id, con, config_rv) {
                            selected = selected)
     }
 
+    # Helper function to update chat model choices
+    update_chat_model_choices <- function(api_key, current_selection = NULL) {
+      # Always get models - list_chat_models returns defaults if API key invalid
+      models <- tryCatch({
+        list_chat_models(api_key)
+      }, error = function(e) {
+        get_default_chat_models()
+      })
+
+      # Ensure we have valid data
+      if (is.null(models) || nrow(models) == 0) {
+        models <- get_default_chat_models()
+      }
+
+      # Store models data for info panel
+      chat_models_data(models)
+
+      # Update pricing for cost tracking
+      tryCatch({
+        update_model_pricing(models)
+      }, error = function(e) {
+        # Silently fail pricing update - not critical
+      })
+
+      # Format choices for display
+      choices <- format_chat_model_choices(models)
+
+      # Preserve current selection if it exists in new choices
+      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+        current_selection
+      } else if (length(choices) > 0) {
+        choices[[1]]
+      } else {
+        NULL
+      }
+
+      updateSelectizeInput(session, "chat_model",
+                           choices = choices,
+                           selected = selected)
+    }
+
     # Load current settings on init
     observe({
       cfg <- config_rv()
@@ -225,11 +267,11 @@ mod_settings_server <- function(id, con, config_rv) {
                   get_setting(cfg, "openalex", "email") %||% ""
       updateTextInput(session, "openalex_email", value = oa_email)
 
-      # Models
+      # Chat model - use dynamic approach
       chat_model <- get_db_setting(con(), "chat_model") %||%
                     get_setting(cfg, "defaults", "chat_model") %||%
-                    "moonshotai/kimi-k2-0905"
-      updateSelectInput(session, "chat_model", selected = chat_model)
+                    "moonshotai/kimi-k2.5"
+      update_chat_model_choices(or_key, chat_model)
 
       # Embedding model - get saved selection then populate dropdown
       embed_model <- get_db_setting(con(), "embedding_model") %||%
@@ -270,6 +312,20 @@ mod_settings_server <- function(id, con, config_rv) {
     observeEvent(input$refresh_embed_models, {
       refresh_embed_trigger(refresh_embed_trigger() + 1)
       showNotification("Refreshing embedding models...", type = "message", duration = 2)
+    })
+
+    # Refresh chat models when API key changes or refresh button clicked
+    observe({
+      api_key <- input$openrouter_key
+      refresh_chat_trigger()  # Also trigger on manual refresh
+      current <- input$chat_model
+      update_chat_model_choices(api_key, current)
+    }) |> bindEvent(input$openrouter_key, refresh_chat_trigger(), ignoreInit = TRUE)
+
+    # Handle chat model refresh button click
+    observeEvent(input$refresh_chat_models, {
+      refresh_chat_trigger(refresh_chat_trigger() + 1)
+      showNotification("Refreshing chat models...", type = "message", duration = 2)
     })
 
     # --- API Key Validation ---
@@ -320,6 +376,46 @@ mod_settings_server <- function(id, con, config_rv) {
     output$openalex_status <- renderUI({
       status <- api_status$openalex
       render_status_icon(status$status, status$message)
+    })
+
+    # Model info panel showing details for currently selected chat model
+    output$model_info <- renderUI({
+      req(input$chat_model)
+      models <- chat_models_data()
+      req(models)
+
+      selected <- models[models$id == input$chat_model, ]
+      if (nrow(selected) == 0) return(NULL)
+
+      row <- selected[1, ]
+      tier_badge <- switch(row$tier,
+        "budget" = span(class = "badge bg-success", "Budget"),
+        "mid" = span(class = "badge bg-primary", "Mid-tier"),
+        "premium" = span(class = "badge bg-warning text-dark", "Premium"),
+        span(class = "badge bg-secondary", row$tier)
+      )
+
+      ctx_display <- if (row$context_length >= 1000000) {
+        sprintf("%.1fM tokens", row$context_length / 1000000)
+      } else {
+        sprintf("%sk tokens", format(round(row$context_length / 1000), big.mark = ","))
+      }
+
+      div(
+        class = "card card-body bg-light py-2 px-3 mt-2 small",
+        div(class = "d-flex justify-content-between align-items-center mb-1",
+          span(class = "fw-semibold", row$name),
+          tier_badge
+        ),
+        div(class = "text-muted",
+          icon("window-maximize", class = "me-1"), "Context: ", ctx_display,
+          span(class = "mx-2", "|"),
+          icon("arrow-right-to-bracket", class = "me-1"),
+          sprintf("$%.2f/M in", row$prompt_price),
+          span(class = "mx-1", "/"),
+          sprintf("$%.2f/M out", row$completion_price)
+        )
+      )
     })
 
     # Quality data status
@@ -441,7 +537,7 @@ mod_settings_server <- function(id, con, config_rv) {
         defaults = list(
           chat_model = get_db_setting(con(), "chat_model") %||%
                        get_setting(cfg, "defaults", "chat_model") %||%
-                       "moonshotai/kimi-k2-0905",
+                       "moonshotai/kimi-k2.5",
           embedding_model = get_db_setting(con(), "embedding_model") %||%
                             get_setting(cfg, "defaults", "embedding_model") %||%
                             "openai/text-embedding-3-small"

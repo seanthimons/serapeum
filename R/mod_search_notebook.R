@@ -8,6 +8,33 @@ is_safe_url <- function(url) {
   grepl("^https?://", url, ignore.case = TRUE)
 }
 
+#' Show a user-friendly error toast notification
+#' @param message Plain language error message
+#' @param details Technical details (HTTP status, raw error)
+#' @param severity "error" or "warning"
+#' @param duration Auto-dismiss seconds (default 8 for errors, 5 for warnings)
+show_error_toast <- function(message, details = NULL, severity = "error", duration = NULL) {
+  if (is.null(duration)) {
+    duration <- if (severity == "warning") 5 else 8
+  }
+
+  # Build notification content with optional expandable details
+  content <- if (!is.null(details) && nchar(details) > 0) {
+    HTML(paste0(
+      '<div>', htmltools::htmlEscape(message), '</div>',
+      '<details class="mt-1"><summary class="small text-muted" style="cursor:pointer;">Show details</summary>',
+      '<div class="small text-muted mt-1 font-monospace" style="word-break:break-all;">',
+      htmltools::htmlEscape(details),
+      '</div></details>'
+    ))
+  } else {
+    message
+  }
+
+  type <- if (severity == "warning") "warning" else "error"
+  showNotification(content, type = type, duration = duration)
+}
+
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
@@ -78,12 +105,36 @@ mod_search_notebook_ui <- function(id) {
           card_header("Keywords"),
           card_body(
             style = "max-height: 200px; overflow-y: auto;",
-            uiOutput(ns("keyword_panel"))
+            mod_keyword_filter_ui(ns("keyword_filter"))
           ),
           card_footer(
             class = "d-flex flex-column gap-2",
             uiOutput(ns("embed_button")),
             uiOutput(ns("exclusion_info"))
+          )
+        ),
+        # Journal quality filter panel
+        card(
+          class = "mt-2",
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            style = "cursor: pointer;",
+            `data-bs-toggle` = "collapse",
+            `data-bs-target` = paste0("#", ns("journal_quality_body")),
+            span(icon("shield-halved"), " Journal Quality"),
+            div(
+              class = "d-flex align-items-center gap-2",
+              tags$span(
+                onclick = "event.stopPropagation();",
+                actionLink(ns("manage_blocklist"), icon("list"), class = "text-muted", title = "Manage blocklist")
+              ),
+              icon("chevron-down", class = "text-muted")
+            )
+          ),
+          card_body(
+            id = ns("journal_quality_body"),
+            class = "collapse show",
+            mod_journal_filter_ui(ns("journal_filter"))
           )
         ),
         # Abstract detail view
@@ -173,6 +224,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     viewed_paper <- reactiveVal(NULL)
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+
+    # Keyword filter module - returns filtered papers reactive
+    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
+
+    # Journal filter module - returns filtered papers reactive + block_journal function
+    journal_filter_result <- mod_journal_filter_server("journal_filter", keyword_filtered_papers, con)
+    journal_filtered_papers <- journal_filter_result$filtered_papers
 
     # Helper: Get badge class and style for work type
     get_type_badge <- function(work_type) {
@@ -313,9 +371,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       list_abstracts(con(), nb_id, sort_by = sort_by)
     })
 
-    # Filtered papers based on "has abstract" checkbox
+    # Filtered papers - chain keyword filter -> journal filter -> has_abstract filter
     filtered_papers <- reactive({
-      papers <- papers_data()
+      papers <- journal_filtered_papers()
       if (nrow(papers) == 0) return(papers)
 
       if (isTRUE(input$filter_has_abstract)) {
@@ -324,87 +382,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers
     })
 
-    # Compute quality flags for displayed papers
-    papers_with_quality <- reactive({
-      papers <- filtered_papers()
-      if (nrow(papers) == 0) return(papers)
-
-      # Get current notebook's filter settings
-      nb <- tryCatch(get_notebook(con(), notebook_id()), error = function(e) NULL)
-      if (is.null(nb)) return(papers)
-
-      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
-        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
-      } else {
-        list()
-      }
-
-      flag_predatory <- if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE
-
-      if (!flag_predatory) {
-        papers$quality_flags <- replicate(nrow(papers), character(), simplify = FALSE)
-        papers$is_predatory <- FALSE
-        return(papers)
-      }
-
-      # Get quality lookup sets
-      predatory_journals_set <- tryCatch(get_predatory_journals_set(con()), error = function(e) character())
-      predatory_publishers_set <- tryCatch(get_predatory_publishers_set(con()), error = function(e) character())
-
-      # Compute flags for each paper
-      quality_flags <- vector("list", nrow(papers))
-      is_predatory <- logical(nrow(papers))
-
-      for (i in seq_len(nrow(papers))) {
-        # Build paper object for quality check
-        paper_obj <- list(
-          doi = NA_character_,  # Not stored in abstracts table currently
-          venue = papers$venue[i],
-          publisher = NA_character_  # Would need to add this field
-        )
-
-        quality <- check_paper_quality(
-          paper_obj,
-          retracted_dois = character(),
-          predatory_journals = predatory_journals_set,
-          predatory_publishers = predatory_publishers_set
-        )
-
-        quality_flags[[i]] <- quality$flags
-        is_predatory[i] <- quality$is_predatory_journal || quality$is_predatory_publisher
-      }
-
-      papers$quality_flags <- quality_flags
-      papers$is_predatory <- is_predatory
-      papers
-    })
-
-    # Aggregate keywords from all papers
-    all_keywords <- reactive({
-      papers <- papers_data()
-      if (nrow(papers) == 0) return(data.frame(keyword = character(), count = integer()))
-
-      # Parse keywords from each paper and count
-      keyword_list <- lapply(seq_len(nrow(papers)), function(i) {
-        kw <- papers$keywords[i]
-        if (is.na(kw) || is.null(kw) || nchar(kw) == 0) return(character())
-        tryCatch({
-          jsonlite::fromJSON(kw)
-        }, error = function(e) character())
-      })
-
-      all_kw <- unlist(keyword_list)
-      if (length(all_kw) == 0) return(data.frame(keyword = character(), count = integer()))
-
-      # Count and sort
-      kw_table <- table(all_kw)
-      kw_df <- data.frame(
-        keyword = names(kw_table),
-        count = as.integer(kw_table),
-        stringsAsFactors = FALSE
-      )
-      kw_df[order(-kw_df$count), ]
-    })
 
     # Check if papers need embedding (based on filtered view)
     papers_need_embedding <- reactive({
@@ -431,42 +408,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       length(paper_ids) - embedded_count
     })
 
-    # Keyword panel
-    output$keyword_panel <- renderUI({
-      keywords <- all_keywords()
-      papers <- papers_data()
-
-      if (nrow(papers) == 0) {
-        return(div(class = "text-muted text-center py-2", "No papers loaded"))
-      }
-
-      if (nrow(keywords) == 0) {
-        return(div(class = "text-muted text-center py-2", "No keywords available"))
-      }
-
-      # Limit to top 30 keywords
-      keywords <- head(keywords, 30)
-
-      div(
-        div(class = "mb-2 text-muted small",
-            paste(nrow(papers), "papers")),
-        div(
-          class = "d-flex flex-wrap gap-1",
-          lapply(seq_len(nrow(keywords)), function(i) {
-            kw <- keywords[i, ]
-            actionLink(
-              ns(paste0("kw_", gsub("[^a-zA-Z0-9]", "_", kw$keyword))),
-              span(
-                class = "badge bg-secondary",
-                style = "cursor: pointer;",
-                paste0(kw$keyword, " (", kw$count, ")")
-              ),
-              title = paste("Click to remove", kw$count, "papers")
-            )
-          })
-        )
-      )
-    })
 
     # Embed button
     output$embed_button <- renderUI({
@@ -546,96 +487,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       showNotification("Exclusions cleared", type = "message")
     })
 
-    # Store for tracking keyword observers
-    keyword_observers <- reactiveValues(active = list())
 
-    # Handle keyword clicks - show confirmation then delete
-    observe({
-      keywords <- all_keywords()
-      if (nrow(keywords) == 0) return()
-
-      # Limit to top 30 to match the UI
-      keywords <- head(keywords, 30)
-
-      lapply(seq_len(nrow(keywords)), function(i) {
-        kw <- keywords[i, ]
-        input_id <- paste0("kw_", gsub("[^a-zA-Z0-9]", "_", kw$keyword))
-
-        observeEvent(input[[input_id]], {
-          # Store keyword info for the confirmation handler
-          keyword_observers$pending_keyword <- kw$keyword
-          keyword_observers$pending_count <- kw$count
-
-          showModal(modalDialog(
-            title = "Delete Papers",
-            paste0("Delete ", kw$count, " papers tagged '", kw$keyword, "'?"),
-            footer = tagList(
-              modalButton("Cancel"),
-              actionButton(ns("confirm_delete_keyword"), "Delete", class = "btn-danger")
-            )
-          ))
-        }, ignoreInit = TRUE)
-      })
-    })
-
-    # Handle keyword delete confirmation
-    observeEvent(input$confirm_delete_keyword, {
-      removeModal()
-
-      keyword_to_delete <- keyword_observers$pending_keyword
-      if (is.null(keyword_to_delete)) return()
-
-      # Find papers with this keyword
-      papers <- papers_data()
-      papers_to_delete <- character()
-
-      for (j in seq_len(nrow(papers))) {
-        paper_kw <- tryCatch({
-          jsonlite::fromJSON(papers$keywords[j])
-        }, error = function(e) character())
-
-        if (keyword_to_delete %in% paper_kw) {
-          papers_to_delete <- c(papers_to_delete, papers$paper_id[j])
-        }
-      }
-
-      if (length(papers_to_delete) == 0) return()
-
-      # Add to exclusion list
-      nb <- get_notebook(con(), notebook_id())
-      existing_excluded <- tryCatch({
-        if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
-          jsonlite::fromJSON(nb$excluded_paper_ids)
-        } else {
-          character()
-        }
-      }, error = function(e) character())
-
-      new_excluded <- unique(c(existing_excluded, papers_to_delete))
-      update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
-
-      # Delete from database
-      for (paper_id in papers_to_delete) {
-        abstract_row <- dbGetQuery(con(),
-          "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
-          list(notebook_id(), paper_id))
-        if (nrow(abstract_row) > 0) {
-          delete_abstract(con(), abstract_row$id[1])
-        }
-      }
-
-      # Clear pending
-      keyword_observers$pending_keyword <- NULL
-      keyword_observers$pending_count <- NULL
-
-      # Trigger refresh
-      paper_refresh(paper_refresh() + 1)
-
-      showNotification(
-        paste("Deleted", length(papers_to_delete), "papers tagged '", keyword_to_delete, "'"),
-        type = "message"
-      )
-    })
 
     # Handle individual paper delete (no confirmation needed)
     observe({
@@ -673,7 +525,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Paper list
     output$paper_list <- renderUI({
-      papers <- papers_with_quality()
+      papers <- filtered_papers()
       current_viewed <- viewed_paper()
 
       if (nrow(papers) == 0) {
@@ -710,9 +562,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         has_pdf <- is_safe_url(paper$pdf_url)
 
         # Check quality flags
-        is_flagged <- isTRUE(paper$is_predatory)
-        quality_flags <- paper$quality_flags[[1]] %||% character()
-        flag_tooltip <- if (length(quality_flags) > 0) paste(quality_flags, collapse = "; ") else ""
+        is_flagged <- isTRUE(paper$is_flagged)
+        flag_tooltip <- if (!is.na(paper$quality_flag_text) && nchar(paper$quality_flag_text) > 0) {
+          paper$quality_flag_text
+        } else {
+          ""
+        }
 
         # Get type badge info
         type_badge <- get_type_badge(paper$work_type)
@@ -902,7 +757,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         div(
           class = "mb-3",
           div(
-            class = "d-flex flex-wrap gap-2 mb-2",
+            class = "d-flex flex-wrap gap-2 mb-2 align-items-center",
             if (!is.null(paper$year) && !is.na(paper$year)) {
               span(class = "badge bg-secondary", paper$year)
             },
@@ -924,6 +779,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             },
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
               span(class = "badge bg-light text-dark border", paper$venue)
+            }
+            ,
+            if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
+              actionLink(
+                ns(paste0("block_journal_", paper$id)),
+                span(class = "badge bg-danger", icon("ban"), " Block"),
+                title = paste("Block all papers from", paper$venue),
+                style = "text-decoration: none; line-height: 1;"
+              )
             }
           ),
           div(class = "text-muted", author_str),
@@ -981,6 +845,82 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     observeEvent(input$close_detail, {
       viewed_paper(NULL)
+    })
+
+    # Block journal observers
+    observe({
+      papers <- filtered_papers()
+      if (nrow(papers) == 0) return()
+      lapply(papers$id, function(paper_id) {
+        observeEvent(input[[paste0("block_journal_", paper_id)]], {
+          paper <- papers[papers$id == paper_id, ]
+          if (nrow(paper) > 0 && !is.na(paper$venue) && nchar(paper$venue) > 0) {
+            journal_filter_result$block_journal(paper$venue)
+            showNotification(
+              paste("Blocked:", paper$venue),
+              type = "message", duration = 3
+            )
+          }
+        }, ignoreInit = TRUE)
+      })
+    })
+
+    # Manage blocklist modal
+    observeEvent(input$manage_blocklist, {
+      blocked <- list_blocked_journals(con())
+
+      if (nrow(blocked) == 0) {
+        body_content <- div(
+          class = "text-center text-muted py-4",
+          icon("check-circle", class = "fa-2x mb-2"),
+          p("No journals blocked yet."),
+          p(class = "small", "You can block journals from the paper detail view.")
+        )
+      } else {
+        body_content <- div(
+          style = "max-height: 400px; overflow-y: auto;",
+          lapply(seq_len(nrow(blocked)), function(i) {
+            j <- blocked[i, ]
+            div(
+              class = "d-flex justify-content-between align-items-center border-bottom py-2",
+              div(
+                span(class = "fw-semibold", j$journal_name),
+                div(class = "text-muted small", paste("Blocked:", format(as.POSIXct(j$added_at), "%Y-%m-%d")))
+              ),
+              actionButton(
+                ns(paste0("unblock_", j$id)),
+                icon("trash"),
+                class = "btn-sm btn-outline-danger",
+                title = "Remove from blocklist"
+              )
+            )
+          })
+        )
+      }
+
+      showModal(modalDialog(
+        title = span(icon("shield-halved"), " Blocked Journals"),
+        body_content,
+        size = "m",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+    })
+
+    # Unblock journal observers
+    observe({
+      blocked <- tryCatch(list_blocked_journals(con()), error = function(e) data.frame())
+      if (nrow(blocked) == 0) return()
+
+      lapply(blocked$id, function(block_id) {
+        observeEvent(input[[paste0("unblock_", block_id)]], {
+          remove_blocked_journal(con(), block_id)
+          showNotification("Journal unblocked", type = "message", duration = 3)
+          removeModal()
+          # Trigger blocklist refresh in the journal filter module
+          journal_filter_result$block_journal("")  # Empty string signals refresh without adding
+        }, ignoreInit = TRUE)
+      })
     })
 
     # Chat button with message count badge
@@ -1099,9 +1039,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
           checkboxInput(ns("edit_exclude_retracted"), "Exclude retracted papers",
                         value = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE),
-
-          checkboxInput(ns("edit_flag_predatory"), "Flag predatory journals/publishers",
-                        value = if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE),
 
           numericInput(ns("edit_min_citations"), "Minimum citations (optional)",
                        value = filters$min_citations,
@@ -1328,7 +1265,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         has_abstract = if (!is.null(existing_filters$has_abstract)) existing_filters$has_abstract else TRUE,
         # Quality filters
         exclude_retracted = input$edit_exclude_retracted %||% TRUE,
-        flag_predatory = input$edit_flag_predatory %||% TRUE,
         min_citations = input$edit_min_citations,
         # Document type filter
         work_types = work_types
@@ -1349,8 +1285,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       search_refresh_trigger(search_refresh_trigger() + 1)
     })
 
-    # Refresh search (triggered by button or save)
-    observeEvent(list(input$refresh_search, search_refresh_trigger()), ignoreInit = TRUE, {
+    # Extract refresh logic into a local function
+    do_search_refresh <- function() {
       nb_id <- notebook_id()
       req(nb_id)
 
@@ -1390,8 +1326,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             work_types = filters$work_types
           )
         }, error = function(e) {
-          showNotification(paste("Search error:", e$message),
-                           type = "error", duration = 10)
+          if (inherits(e, "api_error")) {
+            show_error_toast(e$message, e$details, e$severity)
+          } else {
+            err <- classify_api_error(e, "OpenAlex")
+            show_error_toast(err$message, err$details, err$severity)
+          }
           return(list())
         })
 
@@ -1401,28 +1341,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
 
         incProgress(0.4, detail = paste("Found", length(papers), "papers"))
-
-        # Check predatory status if enabled
-        flag_predatory <- if (!is.null(filters$flag_predatory)) filters$flag_predatory else TRUE
-        if (flag_predatory) {
-          incProgress(0.5, detail = "Checking quality data...")
-
-          # Get quality lookup sets
-          predatory_journals_set <- tryCatch(get_predatory_journals_set(con()), error = function(e) character())
-          predatory_publishers_set <- tryCatch(get_predatory_publishers_set(con()), error = function(e) character())
-
-          # Check each paper and add quality flags
-          for (i in seq_along(papers)) {
-            quality <- check_paper_quality(
-              papers[[i]],
-              retracted_dois = character(),  # Already filtered by API
-              predatory_journals = predatory_journals_set,
-              predatory_publishers = predatory_publishers_set
-            )
-            papers[[i]]$quality_flags <- quality$flags
-            papers[[i]]$is_predatory <- quality$is_predatory_journal || quality$is_predatory_publisher
-          }
-        }
 
         incProgress(0.6, detail = "Processing papers...")
 
@@ -1486,7 +1404,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       paper_refresh(paper_refresh() + 1)
       showNotification(paste("Loaded", length(papers), "papers"), type = "message")
-    })
+    }
+
+    # Explicit refresh button - use ignoreInit = TRUE and also ignoreNULL = TRUE
+    observeEvent(input$refresh_search, {
+      do_search_refresh()
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
+
+    # Programmatic refresh (from save_search)
+    observeEvent(search_refresh_trigger(), {
+      do_search_refresh()
+    }, ignoreInit = TRUE)
 
     # Handle embed button click (embeds only filtered papers)
     observeEvent(input$embed_papers, {
@@ -1764,9 +1692,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, user_msg, nb_id)
+        rag_query(con(), cfg, user_msg, nb_id, use_ragnar = TRUE, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        paste("Sorry, I encountered an error processing your question.")
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response)))

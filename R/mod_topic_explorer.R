@@ -90,11 +90,12 @@ mod_topic_explorer_server <- function(id, con, config) {
           topics_df <- tryCatch({
             fetch_all_topics(email, api_key)
           }, error = function(e) {
-            showNotification(
-              paste("Error fetching topics:", e$message),
-              type = "error",
-              duration = 5
-            )
+            if (inherits(e, "api_error")) {
+              show_error_toast(e$message, e$details, e$severity)
+            } else {
+              err <- classify_api_error(e, "OpenAlex")
+              show_error_toast(err$message, err$details, err$severity)
+            }
             NULL
           })
 
@@ -146,11 +147,12 @@ mod_topic_explorer_server <- function(id, con, config) {
         topics_df <- tryCatch({
           fetch_all_topics(email, api_key)
         }, error = function(e) {
-          showNotification(
-            paste("Error fetching topics:", e$message),
-            type = "error",
-            duration = 5
-          )
+          if (inherits(e, "api_error")) {
+            show_error_toast(e$message, e$details, e$severity)
+          } else {
+            err <- classify_api_error(e, "OpenAlex")
+            show_error_toast(err$message, err$details, err$severity)
+          }
           NULL
         })
 

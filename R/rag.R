@@ -58,8 +58,9 @@ build_context <- function(chunks) {
 #' @param question User question
 #' @param notebook_id Notebook to query
 #' @param use_ragnar Try ragnar hybrid search first (default TRUE)
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
 #' @return Generated response with citations
-rag_query <- function(con, config, question, notebook_id, use_ragnar = TRUE) {
+rag_query <- function(con, config, question, notebook_id, use_ragnar = TRUE, session_id = NULL) {
   # Extract settings with defensive scalar checks
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
@@ -94,7 +95,15 @@ rag_query <- function(con, config, question, notebook_id, use_ragnar = TRUE) {
     # Embed the question for legacy search
     question_embedding <- tryCatch({
       result <- get_embeddings(api_key, embed_model, question)
-      if (is.list(result) && length(result) > 0) result[[1]] else NULL
+
+      # Log cost if session_id provided
+      if (!is.null(session_id) && !is.null(result$usage)) {
+        cost <- estimate_cost(embed_model, result$usage$prompt_tokens %||% 0, 0)
+        log_cost(con, "embedding", embed_model, result$usage$prompt_tokens %||% 0, 0,
+                 result$usage$total_tokens %||% 0, cost, session_id)
+      }
+
+      if (is.list(result$embeddings) && length(result$embeddings) > 0) result$embeddings[[1]] else NULL
     }, error = function(e) {
       return(NULL)
     })
@@ -135,7 +144,21 @@ rag_query <- function(con, config, question, notebook_id, use_ragnar = TRUE) {
 
   # Generate response
   response <- tryCatch({
-    chat_completion(api_key, chat_model, messages)
+    result <- chat_completion(api_key, chat_model, messages)
+
+    # Log cost if session_id provided
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+      log_cost(con, "chat", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
   }, error = function(e) {
     return(sprintf("Error generating response: %s", e$message))
   })
@@ -148,8 +171,9 @@ rag_query <- function(con, config, question, notebook_id, use_ragnar = TRUE) {
 #' @param config App config
 #' @param notebook_id Notebook ID
 #' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
 #' @return Generated content
-generate_preset <- function(con, config, notebook_id, preset_type) {
+generate_preset <- function(con, config, notebook_id, preset_type, session_id = NULL) {
   presets <- list(
     summarize = "Provide a comprehensive summary of all the documents. Highlight the main themes, key findings, and important conclusions. Organize your summary with clear sections.",
     keypoints = "Extract the key points from these documents as a bulleted list. Focus on the most important facts, findings, arguments, and conclusions. Group related points together.",
@@ -218,7 +242,21 @@ generate_preset <- function(con, config, notebook_id, preset_type) {
   messages <- format_chat_messages(system_prompt, user_prompt)
 
   response <- tryCatch({
-    chat_completion(api_key, chat_model, messages)
+    result <- chat_completion(api_key, chat_model, messages)
+
+    # Log cost if session_id provided
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+      log_cost(con, "chat", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
   }, error = function(e) {
     return(sprintf("Error generating content: %s", e$message))
   })

@@ -33,7 +33,7 @@ format_chat_messages <- function(system_prompt, user_message, history = list()) 
 #' @param api_key API key
 #' @param model Model ID
 #' @param messages Message list
-#' @return Response content
+#' @return List with content, usage (tokens), model, and id
 chat_completion <- function(api_key, model, messages) {
   req <- build_openrouter_request(api_key, "chat/completions") |>
     req_body_json(list(
@@ -45,7 +45,7 @@ chat_completion <- function(api_key, model, messages) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    stop("OpenRouter API error: ", e$message)
+    stop_api_error(e, "OpenRouter")
   })
 
   body <- resp_body_json(resp)
@@ -54,14 +54,19 @@ chat_completion <- function(api_key, model, messages) {
     stop("OpenRouter error: ", body$error$message)
   }
 
-  body$choices[[1]]$message$content
+  list(
+    content = body$choices[[1]]$message$content,
+    usage = body$usage,
+    model = model,
+    id = body$id
+  )
 }
 
 #' Get embeddings for text
 #' @param api_key API key
 #' @param model Embedding model ID
 #' @param text Text to embed (character vector)
-#' @return List of embedding vectors
+#' @return List with embeddings (list of vectors), usage (tokens), and model
 get_embeddings <- function(api_key, model, text) {
   req <- build_openrouter_request(api_key, "embeddings") |>
     req_body_json(list(
@@ -73,7 +78,7 @@ get_embeddings <- function(api_key, model, text) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    stop("OpenRouter embeddings error: ", e$message)
+    stop_api_error(e, "OpenRouter")
   })
 
   body <- resp_body_json(resp)
@@ -82,7 +87,11 @@ get_embeddings <- function(api_key, model, text) {
     stop("OpenRouter error: ", body$error$message)
   }
 
-  lapply(body$data, function(x) unlist(x$embedding))
+  list(
+    embeddings = lapply(body$data, function(x) unlist(x$embedding)),
+    usage = body$usage,
+    model = model
+  )
 }
 
 #' List available models from OpenRouter
@@ -186,6 +195,213 @@ list_embedding_models <- function(api_key) {
 
   # Sort by price (cheapest first)
   df[order(df$price_per_million), ]
+}
+
+#' Get fallback chat model list when API unavailable
+#' @return Data frame of chat models with id, name, context_length, prompt_price, completion_price, tier
+get_default_chat_models <- function() {
+  data.frame(
+    id = c(
+      # Budget tier
+      "deepseek/deepseek-v3.2",
+      "google/gemini-2.5-flash",
+      "openai/gpt-4.1-mini",
+      "openai/gpt-5-mini",
+      # Mid tier
+      "moonshotai/kimi-k2.5",
+      "anthropic/claude-haiku-4.5",
+      "google/gemini-2.5-pro",
+      "openai/gpt-5",
+      # Premium tier
+      "anthropic/claude-sonnet-4.5",
+      "openai/gpt-5.2",
+      "google/gemini-3-pro-preview"
+    ),
+    name = c(
+      # Budget tier
+      "DeepSeek V3.2",
+      "Gemini 2.5 Flash",
+      "GPT-4.1 Mini",
+      "GPT-5 Mini",
+      # Mid tier
+      "Kimi K2.5",
+      "Claude Haiku 4.5",
+      "Gemini 2.5 Pro",
+      "GPT-5",
+      # Premium tier
+      "Claude Sonnet 4.5",
+      "GPT-5.2",
+      "Gemini 3 Pro"
+    ),
+    context_length = c(
+      # Budget tier
+      163840, 1048576, 1047576, 400000,
+      # Mid tier
+      262144, 200000, 1048576, 400000,
+      # Premium tier
+      1000000, 400000, 1048576
+    ),
+    prompt_price = c(
+      # Budget tier
+      0.25, 0.30, 0.40, 0.25,
+      # Mid tier
+      0.45, 1.00, 1.25, 1.25,
+      # Premium tier
+      3.00, 1.75, 2.00
+    ),
+    completion_price = c(
+      # Budget tier
+      0.38, 2.50, 1.60, 2.00,
+      # Mid tier
+      2.25, 5.00, 10.00, 10.00,
+      # Premium tier
+      15.00, 14.00, 12.00
+    ),
+    tier = c(
+      # Budget tier
+      "budget", "budget", "budget", "budget",
+      # Mid tier
+      "mid", "mid", "mid", "mid",
+      # Premium tier
+      "premium", "premium", "premium"
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' List available chat models from OpenRouter
+#' @param api_key API key
+#' @return Data frame of chat models with id, name, context_length, prompt_price, completion_price, tier
+list_chat_models <- function(api_key) {
+  if (is.null(api_key) || nchar(api_key) < 10) {
+    return(get_default_chat_models())
+  }
+
+  req <- build_openrouter_request(api_key, "models")
+
+  resp <- tryCatch({
+    req_perform(req)
+  }, error = function(e) {
+    return(NULL)
+  })
+
+  if (is.null(resp)) {
+    return(get_default_chat_models())
+  }
+
+  body <- tryCatch({
+    resp_body_json(resp)
+  }, error = function(e) {
+    return(NULL)
+  })
+
+  if (is.null(body) || is.null(body$data)) {
+    return(get_default_chat_models())
+  }
+
+  # Filter to chat models (text generation, not embeddings)
+  chat_models <- Filter(function(m) {
+    # Check modality contains "text" and does NOT contain "embed"
+    modality <- tolower(m$architecture$modality %||% "")
+    id <- tolower(m$id %||% "")
+
+    has_text <- grepl("text", modality)
+    no_embed_modality <- !grepl("embed", modality)
+    no_embed_id <- !grepl("embed", id)
+
+    has_text && no_embed_modality && no_embed_id
+  }, body$data)
+
+  if (length(chat_models) == 0) {
+    return(get_default_chat_models())
+  }
+
+  # Curated provider list
+  allowed_providers <- c("openai", "anthropic", "google", "meta-llama",
+                         "deepseek", "moonshotai", "mistralai", "qwen", "cohere")
+
+  # Extract data and filter to curated providers
+  df <- data.frame(
+    id = sapply(chat_models, function(x) x$id),
+    name = sapply(chat_models, function(x) x$name %||% x$id),
+    context_length = sapply(chat_models, function(x) as.integer(x$context_length %||% 0)),
+    prompt_price = sapply(chat_models, function(x) {
+      as.numeric(x$pricing$prompt %||% 0) * 1000000
+    }),
+    completion_price = sapply(chat_models, function(x) {
+      as.numeric(x$pricing$completion %||% 0) * 1000000
+    }),
+    stringsAsFactors = FALSE
+  )
+
+  # Filter to curated providers
+  df <- df[sapply(df$id, function(id) {
+    provider <- strsplit(id, "/")[[1]][1]
+    provider %in% allowed_providers
+  }), ]
+
+  # Assign tier based on prompt_price
+  df$tier <- sapply(df$prompt_price, function(price) {
+    if (price < 0.50) "budget"
+    else if (price <= 2.00) "mid"
+    else "premium"
+  })
+
+  # Sort by tier then name
+  df <- df[order(match(df$tier, c("budget", "mid", "premium")), df$name), ]
+
+  # Return defaults if filtering resulted in empty set
+  if (nrow(df) == 0) {
+    return(get_default_chat_models())
+  }
+
+  df
+}
+
+#' Format chat model choices for selectizeInput
+#' @param models_df Data frame from list_chat_models or get_default_chat_models
+#' @return Named character vector (names = display labels, values = model IDs)
+format_chat_model_choices <- function(models_df) {
+  tier_icons <- c("budget" = "$", "mid" = "$$", "premium" = "$$$")
+
+  labels <- sapply(1:nrow(models_df), function(i) {
+    row <- models_df[i, ]
+
+    # Format context length
+    ctx <- if (row$context_length >= 1000000) {
+      sprintf("%.1fM", row$context_length / 1000000)
+    } else {
+      sprintf("%dk", round(row$context_length / 1000))
+    }
+
+    # Build label
+    sprintf("[%s] %s (ctx: %s, $%.2f/M in, $%.2f/M out)",
+            tier_icons[row$tier],
+            row$name,
+            ctx,
+            row$prompt_price,
+            row$completion_price)
+  })
+
+  setNames(models_df$id, labels)
+}
+
+#' Get OpenRouter account credits
+#' @param api_key API key
+#' @return list(total_credits, total_usage, remaining) or NULL on error
+get_openrouter_credits <- function(api_key) {
+  if (is.null(api_key) || nchar(api_key) < 10) return(NULL)
+
+  tryCatch({
+    resp <- build_openrouter_request(api_key, "credits") |> req_perform()
+    body <- resp_body_json(resp)
+    data <- body$data
+    list(
+      total_credits = as.numeric(data$total_credits %||% 0),
+      total_usage = as.numeric(data$total_usage %||% 0),
+      remaining = as.numeric(data$total_credits %||% 0) - as.numeric(data$total_usage %||% 0)
+    )
+  }, error = function(e) NULL)
 }
 
 #' Validate OpenRouter API key

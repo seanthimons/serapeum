@@ -86,11 +86,25 @@ OUTPUT (valid JSON only, no markdown, no code fences):
       withProgress(message = "Generating query...", {
         # Call LLM
         response <- tryCatch({
-          chat_completion(
+          result <- chat_completion(
             api_key,
             model,
             format_chat_messages(system_prompt, input$nl_query)
           )
+
+          # Log cost
+          if (!is.null(result$usage)) {
+            cost <- estimate_cost(model,
+                                result$usage$prompt_tokens %||% 0,
+                                result$usage$completion_tokens %||% 0)
+            log_cost(con(), "query_build", model,
+                     result$usage$prompt_tokens %||% 0,
+                     result$usage$completion_tokens %||% 0,
+                     result$usage$total_tokens %||% 0,
+                     cost, session$token)
+          }
+
+          result$content
         }, error = function(e) {
           showNotification(
             paste("Error calling LLM:", e$message),

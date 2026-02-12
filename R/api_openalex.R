@@ -3,6 +3,93 @@ library(jsonlite)
 
 OPENALEX_BASE_URL <- "https://api.openalex.org"
 
+#' Classify an API error into user-friendly message with details
+#' @param e Error object or condition
+#' @param service Service name ("OpenAlex" or "OpenRouter")
+#' @return list(message, details, severity) where severity is "error" or "warning"
+classify_api_error <- function(e, service = "API") {
+  msg <- conditionMessage(e)
+
+  # Extract HTTP status code if present (httr2 pattern)
+  status <- NULL
+  if (grepl("HTTP (\\d{3})", msg)) {
+    status <- as.integer(regmatches(msg, regexpr("\\d{3}", msg)))
+  }
+
+  # Classify by status code
+  if (!is.null(status)) {
+    result <- switch(as.character(status),
+      "401" = list(
+        message = paste(service, "authentication failed. Check your API key in Settings."),
+        severity = "error"
+      ),
+      "403" = list(
+        message = paste(service, "access denied. Your API key may lack required permissions."),
+        severity = "error"
+      ),
+      "404" = list(
+        message = paste(service, "resource not found. The requested endpoint may have changed."),
+        severity = "error"
+      ),
+      "429" = list(
+        message = paste(service, "rate limit reached. Please wait a moment and try again."),
+        severity = "warning"
+      ),
+      "500" = list(
+        message = paste(service, "is experiencing issues. Please try again later."),
+        severity = "error"
+      ),
+      "502" = ,
+      "503" = ,
+      "504" = list(
+        message = paste(service, "is temporarily unavailable. Please try again in a few minutes."),
+        severity = "warning"
+      ),
+      # Default for other status codes
+      list(
+        message = paste(service, "request failed. Please try again."),
+        severity = "error"
+      )
+    )
+  } else if (grepl("timed? ?out|timeout", msg, ignore.case = TRUE)) {
+    result <- list(
+      message = paste(service, "request timed out. The service may be slow — try again."),
+      severity = "warning"
+    )
+  } else if (grepl("could not resolve|connection refused|no internet", msg, ignore.case = TRUE)) {
+    result <- list(
+      message = paste("Cannot reach", service, ". Check your internet connection."),
+      severity = "error"
+    )
+  } else {
+    result <- list(
+      message = paste(service, "request failed unexpectedly."),
+      severity = "error"
+    )
+  }
+
+  result$details <- msg
+  result
+}
+
+#' Classify and throw an API error as a custom condition
+#' The condition carries message, details, and severity so callers
+#' can extract all three without re-classifying.
+#' @param e Original error/condition
+#' @param service Service name ("OpenAlex" or "OpenRouter")
+stop_api_error <- function(e, service = "API") {
+  err <- classify_api_error(e, service)
+  cond <- structure(
+    class = c("api_error", "error", "condition"),
+    list(
+      message = err$message,
+      details = err$details,
+      severity = err$severity
+    )
+  )
+  stop(cond)
+}
+
 #' Build OpenAlex API request
 #' @param endpoint API endpoint
 #' @param email User email for polite pool
@@ -16,7 +103,7 @@ build_openalex_request <- function(endpoint, email = NULL, api_key = NULL) {
   }
 
   if (!is.null(api_key) && nchar(api_key) > 0) {
-    req <- req |> req_headers("Authorization" = paste("Bearer", api_key))
+    req <- req |> req_url_query(api_key = api_key)
   }
 
   req |> req_timeout(30)
@@ -251,7 +338,7 @@ search_papers <- function(query, email, api_key = NULL,
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    stop("OpenAlex API error: ", e$message)
+    stop_api_error(e, "OpenAlex")
   })
 
   body <- resp_body_json(resp)
@@ -422,7 +509,8 @@ get_citing_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    message("OpenAlex API error in get_citing_papers: ", e$message)
+    err <- classify_api_error(e, "OpenAlex")
+    message("OpenAlex API error in get_citing_papers: ", err$message, " (", err$details, ")")
     return(NULL)
   })
 
@@ -460,7 +548,8 @@ get_cited_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    message("OpenAlex API error in get_cited_papers: ", e$message)
+    err <- classify_api_error(e, "OpenAlex")
+    message("OpenAlex API error in get_cited_papers: ", err$message, " (", err$details, ")")
     return(NULL)
   })
 
@@ -498,7 +587,8 @@ get_related_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    message("OpenAlex API error in get_related_papers: ", e$message)
+    err <- classify_api_error(e, "OpenAlex")
+    message("OpenAlex API error in get_related_papers: ", err$message, " (", err$details, ")")
     return(NULL)
   })
 
@@ -621,7 +711,7 @@ fetch_all_topics <- function(email, api_key = NULL, per_page = 100) {
     resp <- tryCatch({
       req_perform(req)
     }, error = function(e) {
-      stop("OpenAlex API error while fetching topics: ", e$message)
+      stop_api_error(e, "OpenAlex")
     })
 
     body <- resp_body_json(resp)

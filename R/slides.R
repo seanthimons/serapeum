@@ -267,8 +267,11 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 #' @param chunks Data frame with content, doc_name, page_number
 #' @param options List with length, audience, citation_style, include_notes, theme, custom_instructions
 #' @param notebook_name Name of notebook (for title)
+#' @param con Optional database connection for cost logging (default NULL)
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
 #' @return List with qmd (content string), qmd_path (temp file), or error
-generate_slides <- function(api_key, model, chunks, options, notebook_name = "Presentation") {
+generate_slides <- function(api_key, model, chunks, options, notebook_name = "Presentation",
+                             con = NULL, session_id = NULL) {
   # Build prompt
   prompt <- build_slides_prompt(chunks, options)
 
@@ -276,7 +279,21 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   messages <- format_chat_messages(prompt$system, prompt$user)
 
   qmd_content <- tryCatch({
-    chat_completion(api_key, model, messages)
+    result <- chat_completion(api_key, model, messages)
+
+    # Log cost if con and session_id provided
+    if (!is.null(con) && !is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+      log_cost(con, "slide_generation", model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
   }, error = function(e) {
     return(list(qmd = NULL, error = paste("LLM error:", e$message)))
   })

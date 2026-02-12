@@ -186,6 +186,21 @@ init_schema <- function(con) {
     )
   ")
 
+  # Cost tracking table
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS cost_log (
+      id VARCHAR PRIMARY KEY,
+      session_id VARCHAR NOT NULL,
+      operation VARCHAR NOT NULL,
+      model VARCHAR NOT NULL,
+      prompt_tokens INTEGER DEFAULT 0,
+      completion_tokens INTEGER DEFAULT 0,
+      total_tokens INTEGER DEFAULT 0,
+      estimated_cost DOUBLE DEFAULT 0.0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
@@ -1216,4 +1231,89 @@ get_hierarchy_choices <- function(con, level = "domain", parent_id = NULL) {
     # Invalid level
     return(character(0))
   }
+}
+
+# ============================================================================
+# Blocked Journals Functions (Phase 8 - Journal Quality Controls)
+# ============================================================================
+
+#' Add a journal to the personal blocklist
+#' @param con DuckDB connection
+#' @param journal_name Journal name to block
+#' @return TRUE on success
+add_blocked_journal <- function(con, journal_name) {
+  if (is.null(journal_name) || is.na(journal_name) || journal_name == "") {
+    return(FALSE)
+  }
+
+  # Normalize name using quality_filter.R function
+  journal_name_normalized <- normalize_name(journal_name)
+
+  # Get next ID
+  max_id_result <- dbGetQuery(con, "SELECT COALESCE(MAX(id), 0) as max_id FROM blocked_journals")
+  next_id <- max_id_result$max_id[1] + 1
+
+  # Insert using ON CONFLICT to prevent duplicates
+  tryCatch({
+    dbExecute(con, "
+      INSERT INTO blocked_journals (id, journal_name, journal_name_normalized)
+      VALUES (?, ?, ?)
+      ON CONFLICT (journal_name_normalized) DO NOTHING
+    ", list(as.integer(next_id), journal_name, journal_name_normalized))
+
+    TRUE
+  }, error = function(e) {
+    message("[db] Failed to add blocked journal: ", e$message)
+    FALSE
+  })
+}
+
+#' Remove a journal from the blocklist
+#' @param con DuckDB connection
+#' @param id Journal ID to remove
+#' @return TRUE on success
+remove_blocked_journal <- function(con, id) {
+  if (is.null(id) || is.na(id)) {
+    return(FALSE)
+  }
+
+  dbExecute(con, "DELETE FROM blocked_journals WHERE id = ?", list(as.integer(id)))
+  TRUE
+}
+
+#' List all blocked journals
+#' @param con DuckDB connection
+#' @return Data frame of blocked journals (id, journal_name, journal_name_normalized, added_at)
+list_blocked_journals <- function(con) {
+  dbGetQuery(con, "
+    SELECT id, journal_name, journal_name_normalized, added_at
+    FROM blocked_journals
+    ORDER BY added_at DESC
+  ")
+}
+
+#' Check if a journal is in the blocklist (single check)
+#' @param con DuckDB connection
+#' @param journal_name Journal name to check
+#' @return TRUE if blocked, FALSE otherwise
+is_journal_blocked <- function(con, journal_name) {
+  if (is.null(journal_name) || is.na(journal_name) || journal_name == "") {
+    return(FALSE)
+  }
+
+  journal_name_normalized <- normalize_name(journal_name)
+
+  result <- dbGetQuery(con, "
+    SELECT 1 FROM blocked_journals WHERE journal_name_normalized = ? LIMIT 1
+  ", list(journal_name_normalized))
+
+  nrow(result) > 0
+}
+
+#' Get all blocked journal names (normalized) for batch matching
+#' @param con DuckDB connection
+#' @return Character vector of normalized journal names
+get_blocked_journals_set <- function(con) {
+  result <- dbGetQuery(con, "SELECT journal_name_normalized FROM blocked_journals")
+  result$journal_name_normalized
 }
