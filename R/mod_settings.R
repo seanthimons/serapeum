@@ -107,7 +107,15 @@ mod_settings_ui <- function(id) {
           uiOutput(ns("quality_data_status")),
           actionButton(ns("download_quality_data"), "Download Quality Data",
                        class = "btn-outline-secondary btn-sm mt-2",
-                       icon = icon("download"))
+                       icon = icon("download")),
+          hr(),
+          h5(icon("fingerprint"), " DOI Management"),
+          p(class = "text-muted small",
+            "Backfill missing DOIs for legacy papers by fetching from OpenAlex."),
+          uiOutput(ns("doi_status")),
+          actionButton(ns("backfill_dois"), "Backfill Missing DOIs",
+                       class = "btn-outline-primary btn-sm mt-2",
+                       icon = icon("rotate"))
         )
       )
     )
@@ -416,6 +424,54 @@ mod_settings_server <- function(id, con, config_rv) {
           sprintf("$%.2f/M out", row$completion_price)
         )
       )
+    })
+
+    # DOI backfill status
+    doi_refresh <- reactiveVal(0)
+
+    output$doi_status <- renderUI({
+      doi_refresh()  # Dependency for refresh
+
+      status <- tryCatch({
+        get_doi_backfill_status(con())
+      }, error = function(e) {
+        list(total_papers = 0, has_doi = 0, missing_doi = 0)
+      })
+
+      div(
+        class = "small",
+        span(class = "badge bg-success me-2", paste(status$has_doi, "with DOI")),
+        span(class = "badge bg-warning text-dark", paste(status$missing_doi, "missing DOI"))
+      )
+    })
+
+    # Backfill DOIs button handler
+    observeEvent(input$backfill_dois, {
+      # Get email from settings
+      email <- get_db_setting(con(), "openalex_email")
+
+      if (is.null(email) || nchar(email) == 0) {
+        showNotification("OpenAlex email not configured. Please set it in Settings.",
+                         type = "error", duration = 5)
+        return()
+      }
+
+      withProgress(message = "Backfilling DOIs...", {
+        total_updated <- 0
+        repeat {
+          updated <- backfill_dois(con(), email = email, batch_size = 50)
+          total_updated <- total_updated + updated
+          incProgress(0.1, detail = paste(total_updated, "papers updated"))
+          if (updated < 50) break  # No more papers to backfill
+          Sys.sleep(0.5)  # Be polite to OpenAlex API
+        }
+      })
+
+      showNotification(paste("Backfill complete:", total_updated, "DOIs updated"),
+                       type = "message", duration = 5)
+
+      # Refresh status display
+      doi_refresh(doi_refresh() + 1)
     })
 
     # Quality data status
