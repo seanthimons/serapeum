@@ -49,7 +49,7 @@
 **Plans:** 1 plan
 
 Plans:
-- [ ] 09-01-PLAN.md — Fix OpenAlex 401 auth, friendly error toasts, prevent duplicate requests on tab navigation
+- [x] 09-01-PLAN.md — Fix OpenAlex 401 auth, friendly error toasts, prevent duplicate requests on tab navigation - completed 2026-02-12
 
 #### Phase 10: UI Polish
 
@@ -81,8 +81,8 @@ Plans:
 | 6. Model Selection | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 9. Bug Fixes | v1.2 | 0/1 | Planned | - |
+| 9. Bug Fixes | v1.2 | 1/1 | Complete | 2026-02-12 |
 | 10. UI Polish | v1.2 | 0/TBD | Not started | - |
 
 ---
-*Updated: 2026-02-11 after Phase 9 planning*
+*Updated: 2026-02-12 after Phase 9 execution complete*
