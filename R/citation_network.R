@@ -428,7 +428,9 @@ compute_layout_positions <- function(nodes_df, edges_df) {
   # Compute Fruchterman-Reingold layout
   layout_coords <- igraph::layout_with_fr(g)
 
-  # Scale by 800x for vis.js coordinate system
+  # Center on origin and scale for vis.js coordinate system
+  layout_coords[, 1] <- layout_coords[, 1] - mean(layout_coords[, 1])
+  layout_coords[, 2] <- layout_coords[, 2] - mean(layout_coords[, 2])
   nodes_df$x <- layout_coords[, 1] * 800
   nodes_df$y <- layout_coords[, 2] * 800
 
