@@ -42,25 +42,36 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Personal journal blocklist (JRNL-03) — v1.1
 - ✓ Blocklist management (JRNL-04) — v1.1
 
+- ✓ Fix 401 error on OpenAlex topic searches #59 (BUGF-01) — v1.2
+- ✓ User-friendly API error messages #65 (BUGF-02) — v1.2
+- ✓ Prevent tab-swap OpenAlex re-request #68 (BUGF-03) — v1.2
+- ✓ Collapsible Journal Quality card #73 (UIPX-01) — v1.2
+- ✓ Fix block badge misalignment #72 (UIPX-02) — v1.2
+
 ### Active
 
-#### v1.2 Stabilization
+## Current Milestone: v2.0 Discovery Workflow & Output
 
-- [ ] **BUGF-01**: Fix 401 error on OpenAlex topic searches (#59)
-- [ ] **BUGF-02**: User-friendly error messages for OpenAlex/OpenRouter API failures (#65)
-- [ ] **BUGF-03**: Prevent OpenAlex re-request when swapping tabs (#68)
-- [ ] **UIPX-01**: Collapsible Journal Quality card (#73)
-- [ ] **UIPX-02**: Fix block journal badge vertical misalignment (#72)
+**Goal:** Make discovery modes fluid and interconnected, add DOI visibility, and enable research output export (citations, synthesis).
+
+**Target features:**
+- DOI on abstract preview (#66)
+- Export abstract to seeded paper search (#67)
+- Seeded search same view as abstract preview (#71)
+- Citation network graph (#53)
+- Citation export (#64)
+- Export synthesis outputs (#49)
 
 ### Out of Scope
 
-- Citation network graph (#53) — deferred to future milestone
 - Recursive abstract searching (#11) — high complexity, future milestone
 - PDF image pipeline (#44) — epic-level effort, future milestone
 - Local model support (#8) — significant architecture change, future
 - Conclusion synthesis (#27) — depends on better document understanding first
 - Audio overview (#22) — experimental, low priority
-- Bulk DOI/.bib import (#24) — deferred from v1.1 stretch to v1.2
+- Bulk DOI/.bib import (#24) — deferred, needs UX design
+- Rich output preview (#50) — deferred, build export first
+- Additional synthesis outputs (#63) — deferred, build export first
 
 ## Context
 
@@ -99,4 +110,4 @@ Dynamic model pricing fetched from OpenRouter API with curated provider filter.
 | Defer Bulk Import to v1.2 | Stretch goal, all core v1.1 features shipped | ✓ Good — clean milestone |
 
 ---
-*Last updated: 2026-02-11 after v1.2 milestone started*
+*Last updated: 2026-02-12 after v2.0 milestone started*

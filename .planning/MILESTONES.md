@@ -19,6 +19,24 @@
 ---
 
 
+## v1.2 Stabilization (Shipped: 2026-02-12)
+
+**Phases completed:** 2 phases (9-10), 2 plans
+
+**Key accomplishments:**
+- Fixed 401 error on OpenAlex topic searches (#59)
+- User-friendly error messages for OpenAlex/OpenRouter API failures (#65)
+- Prevented OpenAlex re-request when swapping tabs (#68)
+- Collapsible Journal Quality card (#73)
+- Fixed block journal badge vertical misalignment (#72)
+
+**Stats:** 5 files changed, bug fixes and UI polish
+**Timeline:** 1 day (2026-02-12)
+**Git range:** feat(09-01) → feat(10-01)
+
+---
+
+
 ## v1.1 Quality of Life (Shipped: 2026-02-11)
 
 **Phases completed:** 4 phases (5-8), 6 plans
