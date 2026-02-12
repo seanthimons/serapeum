@@ -367,7 +367,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Add user message
       msgs <- messages()
-      msgs <- c(msgs, list(list(role = "user", content = user_msg)))
+      msgs <- c(msgs, list(list(role = "user", content = user_msg, timestamp = Sys.time())))
       messages(msgs)
 
       # Generate response
@@ -380,7 +380,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         sprintf("Error: %s", e$message)
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response)))
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
     })
@@ -397,7 +397,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       is_processing(TRUE)
 
       msgs <- messages()
-      msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label))))
+      msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label), timestamp = Sys.time())))
       messages(msgs)
 
       nb_id <- notebook_id()
@@ -409,7 +409,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         sprintf("Error: %s", e$message)
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response)))
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
     }

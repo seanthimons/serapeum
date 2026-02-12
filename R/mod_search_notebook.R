@@ -1790,7 +1790,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       is_processing(TRUE)
 
       msgs <- messages()
-      msgs <- c(msgs, list(list(role = "user", content = user_msg)))
+      msgs <- c(msgs, list(list(role = "user", content = user_msg, timestamp = Sys.time())))
       messages(msgs)
 
       nb_id <- notebook_id()
@@ -1808,7 +1808,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         paste("Sorry, I encountered an error processing your question.")
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response)))
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
     })
