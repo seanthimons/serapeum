@@ -61,7 +61,10 @@ ui <- page_sidebar(
                    icon = icon("wand-magic-sparkles")),
       actionButton("explore_topics", "Explore Topics",
                    class = "btn-outline-warning",
-                   icon = icon("compass"))
+                   icon = icon("compass")),
+      actionButton("new_network", "Citation Network",
+                   class = "btn-outline-danger",
+                   icon = icon("diagram-project"))
     ),
     hr(),
     # Notebook list
@@ -178,6 +181,12 @@ server <- function(input, output, session) {
   # Reactive: trigger notebook list refresh
   notebook_refresh <- reactiveVal(0)
 
+  # Reactive: current network ID
+  current_network <- reactiveVal(NULL)
+
+  # Reactive: trigger network list refresh
+  network_refresh <- reactiveVal(0)
+
   # Settings module - returns effective config
   effective_config <- mod_settings_server("settings", con_r, config_file_r)
 
@@ -244,6 +253,36 @@ server <- function(input, output, session) {
             )
           })
         )
+      },
+      # NETWORKS section
+      {
+        networks <- list_networks(con)
+        if (nrow(networks) > 0) {
+          tagList(
+            div(class = "text-muted small fw-semibold mb-2 mt-3", "NETWORKS"),
+            lapply(seq_len(nrow(networks)), function(i) {
+              net <- networks[i, ]
+              div(
+                class = "d-flex justify-content-between align-items-center py-2 px-2 rounded hover-bg-light",
+                actionLink(
+                  inputId = paste0("select_network_", net$id),
+                  label = tagList(
+                    icon("diagram-project", class = "text-danger me-2"),
+                    span(class = "text-truncate", net$name)
+                  ),
+                  class = "flex-grow-1 text-decoration-none"
+                ),
+                actionButton(
+                  paste0("delete_network_", net$id),
+                  icon("times"),
+                  class = "btn-sm btn-link text-muted p-0",
+                  style = "border: none;",
+                  title = "Delete network"
+                )
+              )
+            })
+          )
+        }
       }
     )
   })
@@ -257,6 +296,40 @@ server <- function(input, output, session) {
       observeEvent(input[[paste0("select_nb_", nb_id)]], {
         current_notebook(nb_id)
         current_view("notebook")
+      }, ignoreInit = TRUE)
+    })
+  })
+
+  # Observe network selection clicks
+  observe({
+    network_refresh()
+    networks <- list_networks(con)
+    lapply(networks$id, function(net_id) {
+      observeEvent(input[[paste0("select_network_", net_id)]], {
+        current_network(net_id)
+        current_notebook(NULL)
+        current_view("network")
+      }, ignoreInit = TRUE)
+    })
+  })
+
+  # Observe network deletion clicks
+  observe({
+    network_refresh()
+    networks <- list_networks(con)
+    lapply(networks$id, function(net_id) {
+      observeEvent(input[[paste0("delete_network_", net_id)]], {
+        # Delete immediately without confirmation (per plan requirement)
+        delete_network(con, net_id)
+        network_refresh(network_refresh() + 1)
+
+        # If deleted network is currently viewed, go back to welcome
+        if (!is.null(current_network()) && current_network() == net_id) {
+          current_network(NULL)
+          current_view("welcome")
+        }
+
+        showNotification("Network deleted", type = "message")
       }, ignoreInit = TRUE)
     })
   })
@@ -371,6 +444,109 @@ server <- function(input, output, session) {
   observeEvent(input$explore_topics, {
     current_notebook(NULL)
     current_view("topic_explorer")
+  })
+
+  # New citation network button - show seed paper search modal
+  observeEvent(input$new_network, {
+    showModal(modalDialog(
+      title = tagList(icon("diagram-project"), "New Citation Network"),
+      p("Search for a seed paper to build a citation network around."),
+      textInput("network_seed_search", "Search for Paper",
+                placeholder = "e.g., attention is all you need"),
+      uiOutput("network_seed_results"),
+      footer = tagList(
+        modalButton("Cancel")
+      ),
+      size = "l"
+    ))
+  })
+
+  # Network seed search
+  network_seed_papers <- reactiveVal(NULL)
+
+  observeEvent(input$network_seed_search, {
+    query <- trimws(input$network_seed_search)
+    if (nchar(query) == 0) {
+      network_seed_papers(NULL)
+      return()
+    }
+
+    config <- config_file_r()
+    email <- get_setting(config, "openalex", "email")
+
+    # Debounce search
+    invalidateLater(500, session)
+
+    # Search OpenAlex
+    tryCatch({
+      req_obj <- build_openalex_request("works", email, api_key = NULL) |>
+        req_url_query(search = query, per_page = 10)
+
+      resp <- req_perform(req_obj)
+      body <- resp_body_json(resp)
+
+      if (!is.null(body$results) && length(body$results) > 0) {
+        papers <- lapply(body$results, parse_openalex_work)
+        network_seed_papers(papers)
+      } else {
+        network_seed_papers(list())
+      }
+    }, error = function(e) {
+      network_seed_papers(list())
+    })
+  })
+
+  output$network_seed_results <- renderUI({
+    papers <- network_seed_papers()
+    if (is.null(papers)) return(NULL)
+
+    if (length(papers) == 0) {
+      return(div(class = "text-muted small", "No papers found"))
+    }
+
+    div(
+      class = "mt-3",
+      style = "max-height: 400px; overflow-y: auto;",
+      h6("Select a seed paper:"),
+      lapply(seq_along(papers), function(i) {
+        paper <- papers[[i]]
+        actionLink(
+          paste0("select_network_seed_", i),
+          label = div(
+            class = "border rounded p-2 mb-2",
+            strong(paper$title),
+            div(
+              class = "small text-muted",
+              paste(
+                paste(if (length(paper$authors) > 3) c(paper$authors[1:3], "et al.") else paper$authors, collapse = ", "),
+                "|", paper$year, "|", paper$cited_by_count, "citations"
+              )
+            )
+          ),
+          class = "text-decoration-none d-block"
+        )
+      })
+    )
+  })
+
+  # Handle seed paper selection
+  observe({
+    papers <- network_seed_papers()
+    if (is.null(papers) || length(papers) == 0) return()
+
+    lapply(seq_along(papers), function(i) {
+      observeEvent(input[[paste0("select_network_seed_", i)]], {
+        paper <- papers[[i]]
+        removeModal()
+
+        # Set current network to NULL and view to network
+        # This will trigger network module to show with the seed paper
+        current_network(paper$paper_id)
+        current_view("network")
+
+        showNotification(paste("Building network for:", paper$title), type = "message")
+      }, ignoreInit = TRUE)
+    })
   })
 
   # New document notebook modal
@@ -596,6 +772,10 @@ server <- function(input, output, session) {
       return(mod_topic_explorer_ui("topic_explorer"))
     }
 
+    if (view == "network") {
+      return(mod_citation_network_ui("citation_network"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
@@ -685,6 +865,9 @@ server <- function(input, output, session) {
 
   # Topic explorer module
   topic_request <- mod_topic_explorer_server("topic_explorer", reactive(con), config_file_r)
+
+  # Citation network module
+  mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
 
   # Consume discovery request to create search notebook
   observeEvent(discovery_request(), {

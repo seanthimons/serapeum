@@ -490,40 +490,47 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       network_id <- network_id_r()
       req(network_id)
 
-      # Load from database
-      loaded <- load_network(con_r(), network_id)
-      if (is.null(loaded)) {
-        showNotification("Network not found", type = "error")
-        return()
+      # Check if this is a paper_id (starts with W) or network UUID
+      if (grepl("^W\\d+", network_id)) {
+        # This is a paper_id for a new network - just set as seed
+        current_seed_id(network_id)
+        # Don't auto-build - let user click "Build Network"
+      } else {
+        # This is a saved network UUID - load from database
+        loaded <- load_network(con_r(), network_id)
+        if (is.null(loaded)) {
+          showNotification("Network not found", type = "error")
+          return()
+        }
+
+        # Get palette from settings (use saved palette if available)
+        palette <- loaded$metadata$palette %||%
+                   get_db_setting(con_r(), "network_palette") %||%
+                   "viridis"
+
+        # Build visualization data
+        viz_data <- build_network_data(
+          loaded$nodes,
+          loaded$edges,
+          palette,
+          loaded$metadata$seed_paper_id
+        )
+
+        # Set current network
+        current_network_data(list(
+          nodes = viz_data$nodes,
+          edges = viz_data$edges,
+          metadata = loaded$metadata
+        ))
+
+        # Update controls
+        updateRadioButtons(session, "direction", selected = loaded$metadata$direction)
+        updateSliderInput(session, "depth", value = loaded$metadata$depth)
+        updateSliderInput(session, "node_limit", value = loaded$metadata$node_limit)
+
+        # Set seed ID
+        current_seed_id(loaded$metadata$seed_paper_id)
       }
-
-      # Get palette from settings (use saved palette if available)
-      palette <- loaded$metadata$palette %||%
-                 get_db_setting(con_r(), "network_palette") %||%
-                 "viridis"
-
-      # Build visualization data
-      viz_data <- build_network_data(
-        loaded$nodes,
-        loaded$edges,
-        palette,
-        loaded$metadata$seed_paper_id
-      )
-
-      # Set current network
-      current_network_data(list(
-        nodes = viz_data$nodes,
-        edges = viz_data$edges,
-        metadata = loaded$metadata
-      ))
-
-      # Update controls
-      updateRadioButtons(session, "direction", selected = loaded$metadata$direction)
-      updateSliderInput(session, "depth", value = loaded$metadata$depth)
-      updateSliderInput(session, "node_limit", value = loaded$metadata$node_limit)
-
-      # Set seed ID
-      current_seed_id(loaded$metadata$seed_paper_id)
     })
 
     # Return network state for external use

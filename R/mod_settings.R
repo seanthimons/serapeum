@@ -100,6 +100,19 @@ mod_settings_ui <- function(id) {
           p(class = "text-muted small",
             "Number of paper abstracts to fetch from OpenAlex per search (max 100)."),
           hr(),
+          h5(icon("diagram-project"), " Citation Networks"),
+          selectInput(ns("network_palette"), "Color Palette",
+                      choices = c(
+                        "Viridis (Default)" = "viridis",
+                        "Magma" = "magma",
+                        "Plasma" = "plasma",
+                        "Inferno" = "inferno",
+                        "Cividis (Colorblind-safe)" = "cividis"
+                      ),
+                      selected = "viridis"),
+          p(class = "text-muted small",
+            "Choose a colorblind-friendly palette for network node colors. Applied to new and loaded networks."),
+          hr(),
           h5(icon("shield-halved"), " Quality Data"),
           p(class = "text-muted small",
             "Download lists of predatory journals/publishers and retracted papers ",
@@ -300,6 +313,10 @@ mod_settings_server <- function(id, con, config_rv) {
       abstracts_per_search <- get_db_setting(con(), "abstracts_per_search") %||%
                               get_setting(cfg, "app", "abstracts_per_search") %||% 25
       updateNumericInput(session, "abstracts_per_search", value = abstracts_per_search)
+
+      # Network settings
+      network_palette <- get_db_setting(con(), "network_palette") %||% "viridis"
+      updateSelectInput(session, "network_palette", selected = network_palette)
 
       # Validate initial API key values using helper functions
       validate_and_update_openrouter_status(or_key)
@@ -568,6 +585,7 @@ mod_settings_server <- function(id, con, config_rv) {
         save_db_setting(con(), "chunk_size", input$chunk_size)
         save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
         save_db_setting(con(), "abstracts_per_search", input$abstracts_per_search)
+        save_db_setting(con(), "network_palette", input$network_palette)
 
         showNotification("Settings saved!", type = "message")
       }, error = function(e) {
