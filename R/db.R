@@ -532,13 +532,14 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
 #' @param cited_by_count Number of citations this paper has received
 #' @param referenced_works_count Number of references in this paper
 #' @param fwci Field-weighted citation impact
+#' @param doi Digital Object Identifier (DOI) in bare format (optional)
 #' @return Abstract ID
 create_abstract <- function(con, notebook_id, paper_id, title, authors,
                             abstract, year, venue, pdf_url, keywords = NULL,
                             work_type = NULL, work_type_crossref = NULL,
                             oa_status = NULL, is_oa = FALSE,
                             cited_by_count = 0, referenced_works_count = 0,
-                            fwci = NULL) {
+                            fwci = NULL, doi = NULL) {
   id <- uuid::UUIDgenerate()
 
  # Handle edge cases
@@ -572,10 +573,13 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
   referenced_works_count_val <- if (is.null(referenced_works_count) || is.na(referenced_works_count)) 0L else as.integer(referenced_works_count)
   fwci_val <- if (is.null(fwci) || (is.numeric(fwci) && is.na(fwci))) NA_real_ else as.numeric(fwci)
 
+  # Normalize DOI to bare format for storage
+  doi_val <- if (is.null(doi) || is.na(doi) || doi == "") NA_character_ else normalize_doi_bare(doi)
+
   dbExecute(con, "
-    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref, oa_status, is_oa, cited_by_count, referenced_works_count, fwci)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val, oa_status_val, is_oa_val, cited_by_count_val, referenced_works_count_val, fwci_val))
+    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref, oa_status, is_oa, cited_by_count, referenced_works_count, fwci, doi)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val, oa_status_val, is_oa_val, cited_by_count_val, referenced_works_count_val, fwci_val, doi_val))
 
   id
 }
