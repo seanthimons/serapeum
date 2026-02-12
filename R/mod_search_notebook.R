@@ -118,10 +118,22 @@ mod_search_notebook_ui <- function(id) {
           class = "mt-2",
           card_header(
             class = "d-flex justify-content-between align-items-center",
+            style = "cursor: pointer;",
+            `data-bs-toggle` = "collapse",
+            `data-bs-target` = paste0("#", ns("journal_quality_body")),
             span(icon("shield-halved"), " Journal Quality"),
-            actionLink(ns("manage_blocklist"), icon("list"), class = "text-muted", title = "Manage blocklist")
+            div(
+              class = "d-flex align-items-center gap-2",
+              tags$span(
+                onclick = "event.stopPropagation();",
+                actionLink(ns("manage_blocklist"), icon("list"), class = "text-muted", title = "Manage blocklist")
+              ),
+              icon("chevron-down", class = "text-muted")
+            )
           ),
           card_body(
+            id = ns("journal_quality_body"),
+            class = "collapse show",
             mod_journal_filter_ui(ns("journal_filter"))
           )
         ),
