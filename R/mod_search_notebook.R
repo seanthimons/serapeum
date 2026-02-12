@@ -792,7 +792,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           ),
           div(class = "text-muted", author_str),
           # Citation metrics (Phase 2)
-          format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count)
+          format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count),
+          # DOI or citation key fallback
+          if (!is.null(paper$doi) && !is.na(paper$doi) && nchar(paper$doi) > 0) {
+            div(
+              class = "mt-2",
+              tags$small(class = "text-muted", "DOI: "),
+              tags$a(
+                href = paste0("https://doi.org/", paper$doi),
+                target = "_blank",
+                rel = "noopener noreferrer",
+                class = "text-primary",
+                paper$doi
+              )
+            )
+          } else {
+            citation_key <- generate_citation_key(paper$title, paper$year)
+            div(
+              class = "mt-2",
+              tags$small(class = "text-muted", "Citation Key: "),
+              tags$code(citation_key),
+              tags$small(class = "text-muted ms-2", "(DOI unavailable)")
+            )
+          }
         ),
 
         hr(),
