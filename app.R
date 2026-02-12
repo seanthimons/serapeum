@@ -710,11 +710,21 @@ server <- function(input, output, session) {
     api_key <- get_setting(config_file, "openalex", "api_key")
 
     withProgress(message = "Fetching related papers...", {
-      papers <- switch(req$citation_type,
-        cites = get_citing_papers(req$seed_paper$paper_id, email, api_key),
-        cited_by = get_cited_papers(req$seed_paper$paper_id, email, api_key),
-        related_to = get_related_papers(req$seed_paper$paper_id, email, api_key)
-      )
+      papers <- tryCatch({
+        switch(req$citation_type,
+          cites = get_citing_papers(req$seed_paper$paper_id, email, api_key),
+          cited_by = get_cited_papers(req$seed_paper$paper_id, email, api_key),
+          related_to = get_related_papers(req$seed_paper$paper_id, email, api_key)
+        )
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenAlex")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        list()
+      })
 
       if (length(papers) > 0) {
         for (paper in papers) {
@@ -811,7 +821,12 @@ server <- function(input, output, session) {
           lapply(body$results, parse_openalex_work)
         }
       }, error = function(e) {
-        showNotification(paste("Search error:", e$message), type = "error")
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenAlex")
+          show_error_toast(err$message, err$details, err$severity)
+        }
         list()
       })
 
@@ -883,7 +898,12 @@ server <- function(input, output, session) {
       if (is.null(body$results)) list()
       else lapply(body$results, parse_openalex_work)
     }, error = function(e) {
-      showNotification(paste("Search error:", e$message), type = "error")
+      if (inherits(e, "api_error")) {
+        show_error_toast(e$message, e$details, e$severity)
+      } else {
+        err <- classify_api_error(e, "OpenAlex")
+        show_error_toast(err$message, err$details, err$severity)
+      }
       list()
     })
 

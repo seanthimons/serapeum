@@ -8,6 +8,33 @@ is_safe_url <- function(url) {
   grepl("^https?://", url, ignore.case = TRUE)
 }
 
+#' Show a user-friendly error toast notification
+#' @param message Plain language error message
+#' @param details Technical details (HTTP status, raw error)
+#' @param severity "error" or "warning"
+#' @param duration Auto-dismiss seconds (default 8 for errors, 5 for warnings)
+show_error_toast <- function(message, details = NULL, severity = "error", duration = NULL) {
+  if (is.null(duration)) {
+    duration <- if (severity == "warning") 5 else 8
+  }
+
+  # Build notification content with optional expandable details
+  content <- if (!is.null(details) && nchar(details) > 0) {
+    HTML(paste0(
+      '<div>', htmltools::htmlEscape(message), '</div>',
+      '<details class="mt-1"><summary class="small text-muted" style="cursor:pointer;">Show details</summary>',
+      '<div class="small text-muted mt-1 font-monospace" style="word-break:break-all;">',
+      htmltools::htmlEscape(details),
+      '</div></details>'
+    ))
+  } else {
+    message
+  }
+
+  type <- if (severity == "warning") "warning" else "error"
+  showNotification(content, type = type, duration = duration)
+}
+
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
@@ -1286,8 +1313,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             work_types = filters$work_types
           )
         }, error = function(e) {
-          showNotification(paste("Search error:", e$message),
-                           type = "error", duration = 10)
+          if (inherits(e, "api_error")) {
+            show_error_toast(e$message, e$details, e$severity)
+          } else {
+            err <- classify_api_error(e, "OpenAlex")
+            show_error_toast(err$message, err$details, err$severity)
+          }
           return(list())
         })
 
@@ -1640,7 +1671,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       response <- tryCatch({
         rag_query(con(), cfg, user_msg, nb_id, use_ragnar = TRUE, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        paste("Sorry, I encountered an error processing your question.")
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response)))
