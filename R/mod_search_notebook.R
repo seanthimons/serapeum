@@ -1387,7 +1387,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             is_oa = paper$is_oa,
             cited_by_count = paper$cited_by_count,
             referenced_works_count = paper$referenced_works_count,
-            fwci = paper$fwci
+            fwci = paper$fwci,
+            doi = paper$doi
           )
 
           # Create chunk for abstract if available

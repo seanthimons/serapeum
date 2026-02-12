@@ -594,6 +594,103 @@ delete_abstract <- function(con, id) {
   dbExecute(con, "DELETE FROM abstracts WHERE id = ?", list(id))
 }
 
+#' Get DOI backfill status
+#'
+#' Returns counts of papers with/without DOIs for progress tracking.
+#'
+#' @param con DuckDB connection
+#' @return List with total_papers, missing_doi, has_doi counts
+get_doi_backfill_status <- function(con) {
+  # Count all abstracts
+  total <- dbGetQuery(con, "SELECT COUNT(*) as count FROM abstracts")$count
+
+  # Count abstracts with DOI
+  has_doi <- dbGetQuery(con, "SELECT COUNT(*) as count FROM abstracts WHERE doi IS NOT NULL")$count
+
+  # Count abstracts missing DOI (only those with OpenAlex paper_id)
+  missing_doi <- dbGetQuery(con, "
+    SELECT COUNT(*) as count
+    FROM abstracts
+    WHERE doi IS NULL AND paper_id LIKE 'W%'
+  ")$count
+
+  list(
+    total_papers = total,
+    has_doi = has_doi,
+    missing_doi = missing_doi
+  )
+}
+
+#' Backfill DOIs for existing papers
+#'
+#' Fetches DOIs from OpenAlex API for papers that have NULL DOI.
+#' Processes in batches to avoid overwhelming the API.
+#'
+#' @param con DuckDB connection
+#' @param email Email for OpenAlex API (polite pool)
+#' @param api_key OpenAlex API key (optional)
+#' @param batch_size Number of papers to process per batch (default 50)
+#' @return Number of papers updated with DOI
+backfill_dois <- function(con, email, api_key = NULL, batch_size = 50) {
+  # Get papers missing DOI (only those with valid OpenAlex paper_id)
+  papers <- dbGetQuery(con, "
+    SELECT id, paper_id
+    FROM abstracts
+    WHERE doi IS NULL AND paper_id LIKE 'W%'
+    LIMIT ?
+  ", list(as.integer(batch_size)))
+
+  if (nrow(papers) == 0) {
+    return(0)
+  }
+
+  # Build pipe-separated OpenAlex filter for batch lookup
+  openalex_ids <- paste(papers$paper_id, collapse = "|")
+  filter_str <- paste0("openalex_id:", openalex_ids)
+
+  # Fetch works from OpenAlex
+  tryCatch({
+    req <- build_openalex_request("works", email, api_key)
+    req <- req |> req_url_query(
+      filter = filter_str,
+      per_page = batch_size
+    )
+
+    resp <- req_perform(req)
+    body <- resp_body_json(resp)
+
+    if (is.null(body$results) || length(body$results) == 0) {
+      return(0)
+    }
+
+    # Update DOIs in database
+    update_count <- 0
+    for (work in body$results) {
+      if (is.null(work$id) || is.null(work$doi)) next
+
+      # Extract paper_id from OpenAlex URL (e.g., "https://openalex.org/W123" -> "W123")
+      work_id <- gsub("^https://openalex.org/", "", work$id)
+
+      # Extract and normalize DOI
+      doi_raw <- gsub("^https://doi.org/", "", work$doi)
+      doi_normalized <- normalize_doi_bare(doi_raw)
+
+      if (is.na(doi_normalized)) next
+
+      # Update database
+      dbExecute(con, "UPDATE abstracts SET doi = ? WHERE paper_id = ?",
+                list(doi_normalized, work_id))
+      update_count <- update_count + 1
+    }
+
+    return(update_count)
+
+  }, error = function(e) {
+    warning("[backfill_dois] API error: ", e$message)
+    return(0)
+  })
+}
+
 #' List abstracts in a notebook
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID
