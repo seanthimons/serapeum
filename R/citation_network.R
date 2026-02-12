@@ -121,11 +121,37 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
       # Combine results
       all_papers <- c(citing_papers, cited_papers)
 
+      # Build lookup sets for edge direction (once per frontier paper)
+      citing_ids <- if (length(citing_papers) > 0) {
+        sapply(citing_papers, function(p) p$paper_id)
+      } else {
+        character()
+      }
+      cited_ids <- if (length(cited_papers) > 0) {
+        sapply(cited_papers, function(p) p$paper_id)
+      } else {
+        character()
+      }
+
       # Process fetched papers
       for (paper in all_papers) {
         paper_id <- paper$paper_id
 
-        # Skip if already visited (cycle detection)
+        # Always add edges, even if node already visited (captures cross-links)
+        if (paper_id %in% citing_ids) {
+          edges_list[[paste(paper_id, frontier_paper, sep = "->")]] <- list(
+            from_paper_id = paper_id,
+            to_paper_id = frontier_paper
+          )
+        }
+        if (paper_id %in% cited_ids) {
+          edges_list[[paste(frontier_paper, paper_id, sep = "->")]] <- list(
+            from_paper_id = frontier_paper,
+            to_paper_id = paper_id
+          )
+        }
+
+        # Skip node creation and frontier expansion if already visited
         if (paper_id %in% visited) next
 
         # Add to visited set
@@ -142,23 +168,6 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
           cited_by_count = paper$cited_by_count %||% 0L,
           is_seed = FALSE
         )
-
-        # Add edge (direction matters: citing -> cited)
-        if (paper_id %in% sapply(citing_papers, function(p) p$paper_id)) {
-          # This paper cites the frontier paper
-          edges_list[[paste(paper_id, frontier_paper, sep = "->")]] <- list(
-            from_paper_id = paper_id,
-            to_paper_id = frontier_paper
-          )
-        }
-
-        if (paper_id %in% sapply(cited_papers, function(p) p$paper_id)) {
-          # The frontier paper cites this paper
-          edges_list[[paste(frontier_paper, paper_id, sep = "->")]] <- list(
-            from_paper_id = frontier_paper,
-            to_paper_id = paper_id
-          )
-        }
 
         # Add to next frontier
         next_frontier <- c(next_frontier, paper_id)
