@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-12)
 
 ## Current Position
 
-Phase: 12 — Citation Network Visualization 🔄
-Plan: 01 of 02 complete
-Status: Executing phase 12
-Last activity: 2026-02-12 — Phase 12 plan 01 complete (data layer)
+Phase: 12 — Citation Network Visualization ✅
+Plan: 02 of 02 complete (human-verified)
+Status: Phase complete — human-verified
+Last activity: 2026-02-12 — Phase 12 verified and approved
 
-Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (2/2 phase 11, 1/2 phase 12 shipped) | Total: 21 plans shipped
+Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 🔄 (4/8 plans shipped: phase 11 + 12) | Total: 22 plans shipped
 
 ## Performance Metrics
 
@@ -28,6 +28,7 @@ Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 �
 | Phase 11 P01 | 4 | 2 tasks | 4 files |
 | Phase 11 P02 | 1.5 | 2 tasks | 2 files |
 | Phase 12 P01 | 9 | 2 tasks | 3 files |
+| Phase 12 P02 | ~30 | 2 tasks + checkpoint | 6 files |
 
 ## Accumulated Context
 
@@ -36,20 +37,20 @@ Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 �
 See PROJECT.md Key Decisions table for full log.
 
 Recent decisions:
-- v1.2: Bootstrap 5 native collapse for single-card simplicity
-- v1.2: Flexbox align-items-center for badge alignment
 - [Phase 11]: Store DOI in bare format (10.xxxx/yyyy) not URL for BibTeX compatibility
 - [Phase 11]: Nullable DOI column for backward compatibility with existing databases
-- [Phase 11]: Separate normalize_doi_bare() from normalize_doi() to avoid naming conflict
-- [Phase 11]: DOI displayed as clickable link opening in new tab with graceful fallback to citation key for legacy papers
 - [Phase 12]: Manual cascade delete for DuckDB (doesn't support CASCADE on foreign keys)
 - [Phase 12]: Store layout positions in network_nodes for instant reload without re-computing
 - [Phase 12]: sqrt transform for citation counts to handle power-law distribution
-- [Phase 12]: Prune BFS frontier to top 100 papers by citation count to prevent exponential blowup
+- [Phase 12]: Plain author display strings instead of JSON serialization (avoids vapply errors)
+- [Phase 12]: Cross-link discovery via referenced_works field (no extra API calls)
+- [Phase 12]: Legend at top-right to avoid visNetwork nav button overlap
+- [Phase 12]: Node cap floor lowered to 5, step to 5
 
 ### Pending Todos
 
-(None)
+- [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflow (tracked for next sprint)
+- [#80](https://github.com/seanthimons/serapeum/issues/80): Progress modal with stop button
 
 ### Blockers/Concerns
 
@@ -58,5 +59,5 @@ Recent decisions:
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Completed phase 12 plan 01 (citation network data layer)
-Next: Execute phase 12 plan 02 (citation network UI module)
+Stopped at: Phase 12 verified and approved
+Next: Execute next phase in v2.0 roadmap (Phase 13: Export-to-Seed Workflow)

@@ -80,8 +80,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 12-01: visNetwork integration, citation fetching utility with depth/breadth limits, and cycle detection
-- [ ] 12-02: Citation network module UI with interactive controls and graph caching
+- [x] 12-01: visNetwork integration, citation fetching utility with depth/breadth limits, and cycle detection
+- [x] 12-02: Citation network module UI with interactive controls and graph caching
 
 #### Phase 13: Export-to-Seed Workflow
 
@@ -157,8 +157,8 @@ Plans:
 | 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 9. Bug Fixes | v1.2 | 1/1 | Complete | 2026-02-12 |
 | 10. UI Polish | v1.2 | 1/1 | Complete | 2026-02-12 |
-| 11. DOI Storage & Migration | v2.0 | 0/2 | Not started | - |
-| 12. Citation Network Visualization | v2.0 | 0/2 | Not started | - |
+| 11. DOI Storage & Migration | v2.0 | 2/2 | Complete | 2026-02-12 |
+| 12. Citation Network Visualization | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 13. Export-to-Seed Workflow | v2.0 | 0/1 | Not started | - |
 | 14. Citation Export | v2.0 | 0/2 | Not started | - |
 | 15. Synthesis Export | v2.0 | 0/1 | Not started | - |
