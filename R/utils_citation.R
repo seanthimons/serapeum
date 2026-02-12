@@ -13,13 +13,19 @@ escape_latex <- function(text) {
   if (is.null(text) || is.na(text)) return(NA_character_)
 
   # CRITICAL: Backslash FIRST to avoid double-escaping
-  text <- gsub("\\\\", "\\\\textbackslash{}", text, fixed = TRUE)
+  # Use a placeholder to avoid the braces in \textbackslash{} being escaped
+  # With fixed=TRUE, pattern "\\" in source = one backslash to match
+  text <- gsub("\\", "<<BACKSLASH>>", text, fixed = TRUE)
 
-  # Then escape braces
-  text <- gsub("{", "\\{", text, fixed = TRUE)
-  text <- gsub("}", "\\}", text, fixed = TRUE)
+  # Then escape braces (need to escape for regex pattern, and escape the \ in replacement)
+  text <- gsub("\\{", "\\\\{", text)
+  text <- gsub("\\}", "\\\\}", text)
 
-  # Then other special chars
+  # Replace placeholder with actual LaTeX command
+  # With fixed=TRUE, replacement "\\" in source = one backslash in output
+  text <- gsub("<<BACKSLASH>>", "\\textbackslash{}", text, fixed = TRUE)
+
+  # Then other special chars (use fixed=TRUE where possible to avoid regex issues)
   text <- gsub("%", "\\%", text, fixed = TRUE)
   text <- gsub("#", "\\#", text, fixed = TRUE)
   text <- gsub("&", "\\&", text, fixed = TRUE)
