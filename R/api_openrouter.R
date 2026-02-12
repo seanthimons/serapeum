@@ -45,7 +45,7 @@ chat_completion <- function(api_key, model, messages) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    stop("OpenRouter API error: ", e$message)
+    stop_api_error(e, "OpenRouter")
   })
 
   body <- resp_body_json(resp)
@@ -78,7 +78,7 @@ get_embeddings <- function(api_key, model, text) {
   resp <- tryCatch({
     req_perform(req)
   }, error = function(e) {
-    stop("OpenRouter embeddings error: ", e$message)
+    stop_api_error(e, "OpenRouter")
   })
 
   body <- resp_body_json(resp)
