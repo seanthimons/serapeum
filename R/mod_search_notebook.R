@@ -757,7 +757,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         div(
           class = "mb-3",
           div(
-            class = "d-flex flex-wrap gap-2 mb-2",
+            class = "d-flex flex-wrap gap-2 mb-2 align-items-center",
             if (!is.null(paper$year) && !is.na(paper$year)) {
               span(class = "badge bg-secondary", paper$year)
             },
@@ -785,7 +785,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               actionLink(
                 ns(paste0("block_journal_", paper$id)),
                 span(class = "badge bg-danger", icon("ban"), " Block"),
-                title = paste("Block all papers from", paper$venue)
+                title = paste("Block all papers from", paper$venue),
+                style = "text-decoration: none; line-height: 1;"
               )
             }
           ),
