@@ -120,8 +120,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 14-01: BibTeX formatter with LaTeX escaping, UTF-8 encoding, and unique citation key generation
-- [ ] 14-02: CSV export formatter and download UI with format selection dropdown
+- [x] 14-01: BibTeX formatter with LaTeX escaping, UTF-8 encoding, and unique citation key generation
+- [x] 14-02: CSV export formatter and download UI with format selection dropdown
 
 #### Phase 15: Synthesis Export
 
@@ -160,7 +160,7 @@ Plans:
 | 11. DOI Storage & Migration | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 12. Citation Network Visualization | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 13. Export-to-Seed Workflow | v2.0 | 1/1 | Complete | 2026-02-12 |
-| 14. Citation Export | v2.0 | 0/2 | Not started | - |
+| 14. Citation Export | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 15. Synthesis Export | v2.0 | 0/1 | Not started | - |
 
 ---
