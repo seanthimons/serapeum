@@ -46,10 +46,10 @@
   2. User sees clear, actionable error messages (not raw HTTP codes) when API calls fail
   3. User can switch between search notebook and other tabs without triggering duplicate OpenAlex requests
 
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 09-01: [To be planned]
+- [ ] 09-01-PLAN.md — Fix OpenAlex 401 auth, friendly error toasts, prevent duplicate requests on tab navigation
 
 #### Phase 10: UI Polish
 
@@ -81,8 +81,8 @@ Plans:
 | 6. Model Selection | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 9. Bug Fixes | v1.2 | 0/TBD | Not started | - |
+| 9. Bug Fixes | v1.2 | 0/1 | Planned | - |
 | 10. UI Polish | v1.2 | 0/TBD | Not started | - |
 
 ---
-*Updated: 2026-02-11 after v1.2 roadmap created*
+*Updated: 2026-02-11 after Phase 9 planning*
