@@ -203,7 +203,10 @@ Delete `data/notebooks.duckdb` to start fresh.
 
 ### Contributing
 
-See `TODO.md` for the feature roadmap and open issues.
+We welcome contributions! Please see:
+- [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards
+- [TODO.md](TODO.md) for the feature roadmap and open issues
 
 ## Disclaimer
 
@@ -216,7 +219,11 @@ See `TODO.md` for the feature roadmap and open issues.
 
 ## License
 
-MIT
+[MIT](LICENSE) - Copyright (c) 2024-2026 Sean Thimons
+
+## Security
+
+To report security vulnerabilities, please see [SECURITY.md](SECURITY.md).
 
 ## Acknowledgments
 
