@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 Fix + Discovery** - Phases 0-4 (shipped 2026-02-11)
 - ✅ **v1.1 Quality of Life** - Phases 5-8 (shipped 2026-02-11)
-- 🚧 **v1.2 Stabilization** - Phases 9-10 (in progress)
+- ✅ **v1.2 Stabilization** - Phases 9-10 (shipped 2026-02-12)
 
 ## Phases
 
@@ -29,7 +29,7 @@
 
 </details>
 
-### 🚧 v1.2 Stabilization (In Progress)
+### ✅ v1.2 Stabilization (Shipped 2026-02-12)
 
 **Milestone Goal:** Fix critical bugs and polish UI elements for stable production use.
 
@@ -66,7 +66,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md — Collapsible Journal Quality card and badge alignment in abstract detail view
+- [x] 10-01-PLAN.md — Collapsible Journal Quality card and badge alignment in abstract detail view - completed 2026-02-12
 
 ## Progress
 
@@ -82,7 +82,7 @@ Plans:
 | 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
 | 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 9. Bug Fixes | v1.2 | 1/1 | Complete | 2026-02-12 |
-| 10. UI Polish | v1.2 | 0/1 | Not started | - |
+| 10. UI Polish | v1.2 | 1/1 | Complete | 2026-02-12 |
 
 ---
-*Updated: 2026-02-12 after Phase 10 planning complete*
+*Updated: 2026-02-12 — v1.2 Stabilization milestone complete*
