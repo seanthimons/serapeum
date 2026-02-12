@@ -100,7 +100,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 13-01: Cross-module communication for seed requests and navigation to discovery view with state preservation
+- [x] 13-01: Cross-module communication for seed requests and navigation to discovery view with state preservation
 
 #### Phase 14: Citation Export
 
@@ -159,7 +159,7 @@ Plans:
 | 10. UI Polish | v1.2 | 1/1 | Complete | 2026-02-12 |
 | 11. DOI Storage & Migration | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 12. Citation Network Visualization | v2.0 | 2/2 | Complete | 2026-02-12 |
-| 13. Export-to-Seed Workflow | v2.0 | 0/1 | Not started | - |
+| 13. Export-to-Seed Workflow | v2.0 | 1/1 | Complete | 2026-02-12 |
 | 14. Citation Export | v2.0 | 0/2 | Not started | - |
 | 15. Synthesis Export | v2.0 | 0/1 | Not started | - |
 
