@@ -224,6 +224,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     viewed_paper <- reactiveVal(NULL)
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+    seed_request <- reactiveVal(NULL)
 
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
@@ -854,20 +855,53 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
-    # Detail actions (close button)
+    # Detail actions (close button and optional "Use as Seed" button)
     output$detail_actions <- renderUI({
       if (is.null(viewed_paper())) return(NULL)
 
-      actionButton(
+      # Look up the paper to check for DOI (same pattern as abstract_detail)
+      papers <- papers_data()
+      paper <- papers[papers$id == viewed_paper(), ]
+
+      seed_btn <- NULL
+      if (nrow(paper) > 0 && !is.na(paper$doi) && nchar(paper$doi) > 0) {
+        seed_btn <- actionButton(
+          ns("use_as_seed"),
+          "Use as Seed",
+          icon = icon("seedling"),
+          class = "btn-sm btn-outline-success me-1"
+        )
+      }
+
+      close_btn <- actionButton(
         ns("close_detail"),
         icon("xmark"),
         class = "btn-sm btn-outline-secondary"
       )
+
+      div(class = "d-flex gap-1", seed_btn, close_btn)
     })
 
     observeEvent(input$close_detail, {
       viewed_paper(NULL)
     })
+
+    # "Use as Seed" button handler
+    observeEvent(input$use_as_seed, {
+      # Get the current viewed paper
+      paper_id <- viewed_paper()
+      if (is.null(paper_id)) return()
+
+      # Look up the paper to get its DOI
+      papers <- papers_data()
+      paper <- papers[papers$id == paper_id, ]
+
+      if (nrow(paper) > 0 && !is.na(paper$doi) && nchar(paper$doi) > 0) {
+        # Set seed_request with DOI and timestamp
+        # Timestamp ensures each click produces a unique value
+        seed_request(list(doi = paper$doi, ts = Sys.time()))
+      }
+    }, ignoreInit = TRUE)
 
     # Block journal observers
     observe({
@@ -1730,5 +1764,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       messages(msgs)
       is_processing(FALSE)
     })
+
+    # Return seed_request reactive for app.R to consume
+    return(seed_request)
   })
 }
