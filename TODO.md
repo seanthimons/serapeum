@@ -59,6 +59,8 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 | Area | Title | Complexity | Impact |
 |------|-------|------------|--------|
+| Citation Network | [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflows graph container and overlaps side panel | Medium | Medium |
+| Citation Network | Expand network-building progress to a larger central modal with stop button and detailed progress logging | Medium | Medium |
 | Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
 
 ---
