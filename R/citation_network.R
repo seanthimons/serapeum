@@ -324,11 +324,14 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 1)
   nodes_df$color.border <- ifelse(nodes_df$is_seed, "#FFD700", "#2B7CE9")
 
-  # Tooltip with paper details
+  # Preserve original paper title before overwriting with tooltip
+  nodes_df$paper_title <- nodes_df$title
+
+  # Tooltip with paper details (visNetwork uses 'title' for hover tooltip)
   nodes_df$title <- sprintf(
     "<b>%s</b><br>Authors: %s<br>Year: %s<br>Citations: %s",
-    nodes_df$title,
-    nodes_df$authors,
+    htmltools::htmlEscape(nodes_df$paper_title),
+    htmltools::htmlEscape(nodes_df$authors),
     ifelse(is.na(nodes_df$year), "N/A", nodes_df$year),
     nodes_df$cited_by_count
   )

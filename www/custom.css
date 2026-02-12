@@ -4,7 +4,14 @@
   position: relative;
   background-color: #1a1a2e;
   border-radius: 0.5rem;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Ensure visNetwork tooltips aren't clipped */
+.citation-network-container .vis-tooltip {
+  z-index: 1050;
+  max-width: 350px;
+  word-wrap: break-word;
 }
 
 .citation-network-legend {

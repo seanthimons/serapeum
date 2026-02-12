@@ -14,26 +14,32 @@ mod_citation_network_ui <- function(id) {
         col_widths = c(2, 2, 2, 3, 3),
 
         # Direction toggle
-        radioButtons(
-          ns("direction"),
-          "Direction",
-          choices = c("Forward" = "forward", "Backward" = "backward", "Both" = "both"),
-          selected = "both",
-          inline = FALSE
+        div(
+          radioButtons(
+            ns("direction"),
+            tags$span("Direction", title = "Forward: papers that cite the seed. Backward: papers the seed cites. Both: all citation links."),
+            choices = c("Forward" = "forward", "Backward" = "backward", "Both" = "both"),
+            selected = "both",
+            inline = FALSE
+          )
         ),
 
         # Depth slider
-        sliderInput(
-          ns("depth"),
-          "Depth",
-          min = 1, max = 3, value = 1, step = 1
+        div(
+          sliderInput(
+            ns("depth"),
+            tags$span("Depth", title = "Number of hops from the seed paper. Depth 1 = direct citations only. Higher depths discover more distant connections but take longer."),
+            min = 1, max = 3, value = 1, step = 1
+          )
         ),
 
         # Node cap slider
-        sliderInput(
-          ns("node_limit"),
-          "Node Cap",
-          min = 25, max = 200, value = 100, step = 25
+        div(
+          sliderInput(
+            ns("node_limit"),
+            tags$span("Node Cap", title = "Maximum number of papers in the network. When exceeded, only the most-cited papers are kept."),
+            min = 5, max = 200, value = 100, step = 5
+          )
         ),
 
         # Build button
@@ -182,7 +188,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             edges = viz_data$edges,
             metadata = list(
               seed_paper_id = seed_id,
-              seed_paper_title = viz_data$nodes$title[viz_data$nodes$is_seed][1],
+              seed_paper_title = viz_data$nodes$paper_title[viz_data$nodes$is_seed][1],
               direction = direction,
               depth = depth,
               node_limit = node_limit,
@@ -300,7 +306,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             actionLink(ns("close_panel"), icon("times"))
           ),
           card_body(
-            h5(node$title),
+            h5(node$paper_title),
 
             # Authors
             div(
