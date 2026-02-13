@@ -180,23 +180,25 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
     # Async task state
     current_interrupt_flag <- reactiveVal(NULL)
+    current_progress_file <- reactiveVal(NULL)
     progress_poller <- reactiveVal(NULL)
 
     # Create ExtendedTask for async network building
-    network_task <- ExtendedTask$new(function(seed_id, email, direction, depth, node_limit, interrupt_flag, app_dir) {
+    network_task <- ExtendedTask$new(function(seed_id, email, direction, depth, node_limit, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         # Source required files in isolated process
         source(file.path(app_dir, "R", "interrupt.R"), local = TRUE)
         source(file.path(app_dir, "R", "api_openalex.R"), local = TRUE)
         source(file.path(app_dir, "R", "citation_network.R"), local = TRUE)
 
-        # Build network with interrupt support
+        # Build network with interrupt and progress support
         result <- fetch_citation_network(
           seed_id, email, api_key = NULL,
           direction = direction, depth = depth,
           node_limit = node_limit,
           progress_callback = NULL,
-          interrupt_flag = interrupt_flag
+          interrupt_flag = interrupt_flag,
+          progress_file = progress_file
         )
 
         # Compute layout for full results only
@@ -207,7 +209,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         result
       }, seed_id = seed_id, email = email, direction = direction,
          depth = depth, node_limit = node_limit,
-         interrupt_flag = interrupt_flag, app_dir = app_dir)
+         interrupt_flag = interrupt_flag, progress_file = progress_file, app_dir = app_dir)
     })
 
     # Initialize palette from DB setting
@@ -352,9 +354,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     observeEvent(input$build_network, {
       req(current_seed_id())
 
-      # Create interrupt flag
+      # Create interrupt and progress files
       flag_file <- create_interrupt_flag(session$token)
       current_interrupt_flag(flag_file)
+      prog_file <- create_progress_file(session$token)
+      current_progress_file(prog_file)
 
       # Show progress modal
       showModal(modalDialog(
@@ -391,25 +395,23 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         depth = input$depth,
         node_limit = input$node_limit,
         interrupt_flag = flag_file,
+        progress_file = prog_file,
         app_dir = getwd()
       )
 
-      # Start polling observer for progress updates
-      poll_count <- reactiveVal(0L)
+      # Start polling observer — reads real progress from file
       poller <- observe({
-        invalidateLater(2000)  # every 2 seconds
-        n <- isolate(poll_count()) + 1L
-        poll_count(n)
-        # Increment progress bar smoothly: 5% -> ~85% over time
-        pct <- min(5 + n * 8, 85)
+        invalidateLater(1000)  # every 1 second
+        pf <- isolate(current_progress_file())
+        prog <- read_progress(pf)
         session$sendCustomMessage("updateBuildProgress", list(
           bar_id = session$ns("build_progress_bar"),
           msg_id = session$ns("build_progress_message"),
-          percent = pct,
-          message = paste0("Fetching citations (step ", n, ")...")
+          percent = max(prog$pct, 5),
+          message = prog$message
         ))
       })
-      progress_poller(poller)  # Store in reactiveVal so cancel/result handlers can destroy it
+      progress_poller(poller)  # Store so cancel/result handlers can destroy it
     })
 
     # Cancel button handler
@@ -420,9 +422,6 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         signal_interrupt(flag_file)
       }
 
-      # Cancel the ExtendedTask
-      network_task$cancel()
-
       # Stop progress poller
       poller <- progress_poller()
       if (!is.null(poller)) {
@@ -430,17 +429,13 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         progress_poller(NULL)
       }
 
-      # Close modal immediately (don't wait for task return)
-      removeModal()
-
-      # Clean up flag
-      clear_interrupt_flag(flag_file)
-      current_interrupt_flag(NULL)
-
-      showNotification(
-        "Network build stopped. Partial results will display if available.",
-        type = "warning", duration = 5
-      )
+      # Update modal to show cancelling state
+      session$sendCustomMessage("updateBuildProgress", list(
+        bar_id = session$ns("build_progress_bar"),
+        msg_id = session$ns("build_progress_message"),
+        percent = 100,
+        message = "Stopping... waiting for partial results"
+      ))
     })
 
     # Task result handler
@@ -458,10 +453,12 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       # Close modal
       removeModal()
 
-      # Clean up interrupt flag
+      # Clean up interrupt flag and progress file
       flag_file <- current_interrupt_flag()
       clear_interrupt_flag(flag_file)
       current_interrupt_flag(NULL)
+      clear_progress_file(current_progress_file())
+      current_progress_file(NULL)
 
       # Handle empty results
       if (is.null(result$nodes) || nrow(result$nodes) == 0) {

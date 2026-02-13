@@ -30,7 +30,8 @@ format_authors_display <- function(authors_list) {
 fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
                                      direction = "both", depth = 2,
                                      node_limit = 100, progress_callback = NULL,
-                                     interrupt_flag = NULL) {
+                                     interrupt_flag = NULL,
+                                     progress_file = NULL) {
 
   # Ensure W prefix
   if (!grepl("^W", seed_paper_id)) {
@@ -135,9 +136,20 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
 
     next_frontier <- character()
     total_fetched <- 0
+    frontier_size <- length(current_frontier)
+
+    # Write hop-start progress
+    write_progress(progress_file, hop, depth, 0, frontier_size,
+                   sprintf("Hop %d of %d: fetching %d papers...", hop, depth, frontier_size))
 
     # For each paper in current frontier, fetch its citations
-    for (frontier_paper in current_frontier) {
+    for (fi in seq_along(current_frontier)) {
+      frontier_paper <- current_frontier[fi]
+
+      # Write per-paper progress
+      write_progress(progress_file, hop, depth, fi, frontier_size,
+                     sprintf("Hop %d of %d \u2014 paper %d of %d", hop, depth, fi, frontier_size))
+
       # Check for interrupt at each frontier paper
       if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
         if (!is.null(progress_callback)) {
@@ -297,6 +309,9 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
 
     current_frontier <- next_frontier
   }
+
+  # Write final-phase progress
+  write_progress(progress_file, depth, depth, 1, 1, "Discovering cross-links between papers...")
 
   # Cross-link discovery: check referenced_works for edges between papers already in graph
   all_paper_ids <- names(nodes_list)
