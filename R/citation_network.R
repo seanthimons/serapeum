@@ -285,7 +285,6 @@ map_year_to_color <- function(years, palette = "viridis") {
 
   # Handle single-year edge case (division by zero)
   if (length(unique(valid_years)) == 1) {
-    # Return middle palette color for all nodes
     palette_colors <- viridisLite::viridis(100, option = palette)
     middle_color <- palette_colors[50]
     colors <- rep(middle_color, length(years))
@@ -293,9 +292,23 @@ map_year_to_color <- function(years, palette = "viridis") {
     return(colors)
   }
 
-  # Normalize years to 0-1 range
-  year_range <- range(valid_years, na.rm = TRUE)
-  normalized <- (years - year_range[1]) / (year_range[2] - year_range[1])
+  # Use 10th percentile as floor so ancient outliers (e.g. Linnaeus 1735)
+  # don't compress the modern range. Papers below the floor get pinned
+  # to the darkest color; the full gradient spreads across the bulk.
+  year_floor <- as.numeric(stats::quantile(valid_years, 0.10, na.rm = TRUE))
+  year_ceil <- max(valid_years, na.rm = TRUE)
+
+  if (year_ceil == year_floor) {
+    palette_colors <- viridisLite::viridis(100, option = palette)
+    middle_color <- palette_colors[50]
+    colors <- rep(middle_color, length(years))
+    colors[is.na(years)] <- "#999999"
+    return(colors)
+  }
+
+  # Clamp to floor, then normalize to 0-1
+  clamped <- pmax(years, year_floor)
+  normalized <- (clamped - year_floor) / (year_ceil - year_floor)
 
   # Map to palette
   palette_colors <- viridisLite::viridis(100, option = palette)
