@@ -468,6 +468,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Compute layout for partial results (skipped in mirai for partials)
       if (isTRUE(result$partial)) {
+        # Filter edges to only include nodes that were collected before cancellation
+        valid_ids <- result$nodes$paper_id
+        result$edges <- result$edges[
+          result$edges$from_paper_id %in% valid_ids & result$edges$to_paper_id %in% valid_ids, , drop = FALSE
+        ]
         result$nodes <- compute_layout_positions(result$nodes, result$edges)
       }
 
