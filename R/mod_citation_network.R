@@ -405,8 +405,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       }
 
       # Create visNetwork
-      vn <- visNetwork::visNetwork(nodes, edges, width = "100%", height = "700px",
-                                    background = "#f0f0f0")
+      vn <- visNetwork::visNetwork(nodes, edges, width = "100%", height = "700px")
 
       # Configure physics based on whether we have positions
       if (has_positions) {
@@ -465,7 +464,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       vn <- vn |>
         visNetwork::visEdges(
           arrows = "to",
-          color = list(color = "#999999", highlight = "#333333"),
+          color = list(color = "#cccccc", highlight = "#666666"),
           smooth = list(type = "continuous")
         ) |>
         visNetwork::visNodes(
