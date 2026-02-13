@@ -30,7 +30,30 @@ ui <- page_sidebar(
     primary = "#6366f1",
     "border-radius" = "0.5rem"
   ),
-  tags$head(tags$script(HTML("
+  tags$head(
+    tags$style(HTML("
+    .chat-markdown > *:first-child { margin-top: 0; }
+    .chat-markdown > *:last-child { margin-bottom: 0; }
+    .chat-markdown h1, .chat-markdown h2, .chat-markdown h3 {
+      font-size: 1.1em; font-weight: 600; margin: 0.6em 0 0.3em;
+    }
+    .chat-markdown h1 { font-size: 1.25em; }
+    .chat-markdown table {
+      border-collapse: collapse; width: 100%; margin: 0.5em 0; font-size: 0.88em;
+    }
+    .chat-markdown th, .chat-markdown td {
+      border: 1px solid #dee2e6; padding: 0.3em 0.5em; text-align: left;
+    }
+    .chat-markdown th { background: #f1f3f5; font-weight: 600; }
+    .chat-markdown pre {
+      background: #f8f9fa; padding: 0.5em; border-radius: 4px;
+      overflow-x: auto; font-size: 0.88em;
+    }
+    .chat-markdown code { font-size: 0.9em; }
+    .chat-markdown p { margin: 0.4em 0; }
+    .chat-markdown ul, .chat-markdown ol { margin: 0.3em 0; padding-left: 1.5em; }
+    ")),
+    tags$script(HTML("
     // Startup wizard localStorage support
     $(document).on('shiny:connected', function() {
       const hasSeenWizard = localStorage.getItem('serapeum_skip_wizard') === 'true';

@@ -1792,9 +1792,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         } else {
           div(
             class = "d-flex justify-content-start mb-2",
-            div(class = "bg-white border p-2 rounded",
+            div(class = "bg-white border p-2 rounded chat-markdown",
                 style = "max-width: 90%;",
-                HTML(gsub("\n", "<br/>", msg$content)))
+                HTML(commonmark::markdown_html(msg$content, extensions = TRUE)))
           )
         }
       })
