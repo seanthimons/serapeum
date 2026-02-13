@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-12)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 16 - UI Polish
+**Current focus:** Phase 17 - Year Range Filter (next)
 
 ## Current Position
 
-Phase: 16 of 19 (UI Polish)
-Plan: 1 of ? in current phase
-Status: In progress
-Last activity: 2026-02-13 — Completed 16-01 (preset icons, favicon, sidebar optimization)
+Phase: 16 of 19 (UI Polish) — COMPLETE
+Plan: 1/1 complete
+Status: Phase complete, verified
+Last activity: 2026-02-13 — Phase 16 executed and verified
 
-Progress: [████████████████░░░░] 79% (15/19 phases complete)
+Progress: [█████████████████░░░] 84% (16/19 phases complete)
 
 ## Performance Metrics
 
@@ -26,9 +26,9 @@ Progress: [████████████████░░░░] 79% (15
 | v1.1 Quality of Life | 5-8 | 6 | 13 days |
 | v1.2 Stabilization | 9-10 | 2 | 1 day |
 | v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
-| v2.1 UI Polish & Enhancements | 16 | 1 | <1 day (in progress) |
+| v2.1 Polish & Analysis | 16 | 1 | <1 day |
 
-**Total:** 26 plans shipped across 15 phases
+**Total:** 26 plans shipped across 16 phases
 
 **Recent Execution (Phase 16-01):**
 - Duration: 2.6 minutes
@@ -71,5 +71,5 @@ Recent decisions affecting v2.1 work:
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Completed 16-01-PLAN.md execution (preset icons, favicon, sidebar optimization)
-Next: Continue with remaining Phase 16 plans or move to Phase 17 (Year Filter)
+Stopped at: Phase 16 complete and verified (3/3 must-haves passed)
+Next: `/gsd:plan-phase 17` to begin Year Range Filter planning

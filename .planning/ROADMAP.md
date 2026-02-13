@@ -65,7 +65,7 @@
 **Plans**: 1 plan
 
 Plans:
-- [ ] 16-01-PLAN.md — Add preset icons, favicon, and optimize sidebar layout
+- [x] 16-01-PLAN.md — Add preset icons, favicon, and optimize sidebar layout (completed 2026-02-13)
 
 #### Phase 17: Interactive Year Range Slider-Filter
 **Goal**: Users can filter papers by year range with histogram preview across search and citation modes
@@ -134,10 +134,10 @@ Phases execute in numeric order: 16 → 17 → 18 → 19
 | 13. Export-to-Seed Workflow | v2.0 | 1/1 | Complete | 2026-02-12 |
 | 14. Citation Export | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 15. Synthesis Export | v2.0 | 1/1 | Complete | 2026-02-12 |
-| 16. UI Polish | v2.1 | 0/1 | Planning complete | - |
+| 16. UI Polish | v2.1 | 1/1 | Complete | 2026-02-13 |
 | 17. Year Range Filter | v2.1 | 0/? | Not started | - |
 | 18. Progress Modal | v2.1 | 0/? | Not started | - |
 | 19. Conclusion Synthesis | v2.1 | 0/? | Not started | - |
 
 ---
-*Updated: 2026-02-13 — Phase 16 planned (1 plan)*
+*Updated: 2026-02-13 — Phase 16 complete (1/1 plans)*
