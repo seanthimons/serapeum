@@ -456,16 +456,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       if (nrow(year_counts) == 0) {
         # Empty plot
-        ggplot() + theme_void()
+        ggplot2::ggplot() + ggplot2::theme_void()
       } else {
         # Minimal histogram
-        ggplot(year_counts, aes(x = year, y = count)) +
-          geom_col(fill = "#6366f1", width = 0.8, alpha = 0.7) +
-          theme_void() +
-          theme(
-            plot.background = element_blank(),
-            panel.background = element_blank(),
-            plot.margin = margin(0, 0, 0, 0)
+        ggplot2::ggplot(year_counts, ggplot2::aes(x = year, y = count)) +
+          ggplot2::geom_col(fill = "#6366f1", width = 0.8, alpha = 0.7) +
+          ggplot2::theme_void() +
+          ggplot2::theme(
+            plot.background = ggplot2::element_blank(),
+            panel.background = ggplot2::element_blank(),
+            plot.margin = ggplot2::margin(0, 0, 0, 0)
           )
       }
     }, bg = "transparent")
