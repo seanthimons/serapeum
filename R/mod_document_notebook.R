@@ -44,6 +44,9 @@ mod_document_notebook_ui <- function(id) {
             actionButton(ns("btn_outline"), "Outline",
                          class = "btn-sm btn-outline-primary",
                          icon = icon("list-ol")),
+            actionButton(ns("btn_conclusions"), "Conclusions",
+                         class = "btn-sm btn-outline-success",
+                         icon = icon("microscope")),
             actionButton(ns("btn_slides"), "Slides",
                          class = "btn-sm btn-outline-primary",
                          icon = icon("file-powerpoint"))
@@ -348,14 +351,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             )
           )
         } else {
-          div(
-            class = "d-flex justify-content-start mb-2",
-            div(
-              class = "bg-white border p-2 rounded chat-markdown",
-              style = "max-width: 90%;",
-              HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
-            )
+          # Check if this is a synthesis response
+          is_synthesis <- !is.null(msg$preset_type) && identical(msg$preset_type, "conclusions")
+
+          content_html <- div(
+            class = "bg-white border p-2 rounded chat-markdown",
+            style = "max-width: 90%;",
+            if (is_synthesis) {
+              div(
+                class = "alert alert-warning py-2 px-3 mb-2 small",
+                role = "alert",
+                tags$strong(icon("triangle-exclamation"), " AI-Generated Content"),
+                " - Verify all claims against original sources before use."
+              )
+            },
+            HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
           )
+
+          div(class = "d-flex justify-content-start mb-2", content_html)
         }
       })
 
@@ -465,6 +478,30 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_keypoints, handle_preset("keypoints", "Key Points"))
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
     observeEvent(input$btn_outline, handle_preset("outline", "Outline"))
+
+    # Conclusions preset handler
+    observeEvent(input$btn_conclusions, {
+      req(!is_processing())
+      req(has_api_key())
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+
+      nb_id <- notebook_id()
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "document", session_id = session$token)
+      }, error = function(e) {
+        sprintf("Error: %s", e$message)
+      })
+
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+      is_processing(FALSE)
+    })
 
     # Slides module
     mod_slides_server("slides", con, notebook_id, config, slides_trigger)

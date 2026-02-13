@@ -237,6 +237,16 @@ mod_search_notebook_ui <- function(id) {
       # Body
       div(
         class = "offcanvas-body d-flex flex-column p-0",
+        # Preset buttons row (above messages)
+        div(
+          class = "border-bottom px-3 py-2",
+          div(
+            class = "btn-group btn-group-sm w-100",
+            actionButton(ns("btn_conclusions"), "Conclusions",
+                         class = "btn-sm btn-outline-success",
+                         icon = icon("microscope"))
+          )
+        ),
         # Messages area
         div(
           id = ns("chat_messages"),
@@ -1888,12 +1898,23 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 style = "max-width: 85%;", msg$content)
           )
         } else {
-          div(
-            class = "d-flex justify-content-start mb-2",
-            div(class = "bg-white border p-2 rounded chat-markdown",
-                style = "max-width: 90%;",
-                HTML(commonmark::markdown_html(msg$content, extensions = TRUE)))
+          is_synthesis <- !is.null(msg$preset_type) && identical(msg$preset_type, "conclusions")
+
+          content_html <- div(
+            class = "bg-white border p-2 rounded chat-markdown",
+            style = "max-width: 90%;",
+            if (is_synthesis) {
+              div(
+                class = "alert alert-warning py-2 px-3 mb-2 small",
+                role = "alert",
+                tags$strong(icon("triangle-exclamation"), " AI-Generated Content"),
+                " - Verify all claims against original sources before use."
+              )
+            },
+            HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
           )
+
+          div(class = "d-flex justify-content-start mb-2", content_html)
         }
       })
 
@@ -1946,6 +1967,36 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Conclusions preset handler
+    observeEvent(input$btn_conclusions, {
+      req(!is_processing())
+      req(has_api_key())
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+
+      nb_id <- notebook_id()
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        "Sorry, I encountered an error generating the synthesis."
+      })
+
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
       messages(msgs)
       is_processing(FALSE)
     })
