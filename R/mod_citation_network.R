@@ -416,16 +416,41 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             stabilization = FALSE
           )
       } else {
+        # Scale physics parameters based on graph density
+        n_nodes <- nrow(nodes)
+        n_edges <- nrow(edges)
+
+        # More nodes need stronger repulsion and longer springs to spread out
+        # Base values tuned for ~30 nodes; scale up for larger graphs
+        gravity <- if (n_nodes <= 30) -120
+                   else if (n_nodes <= 100) -200
+                   else if (n_nodes <= 200) -350
+                   else -500
+        spring <- if (n_nodes <= 30) 350
+                  else if (n_nodes <= 100) 450
+                  else if (n_nodes <= 200) 600
+                  else 800
+        # Dense graphs (high edge:node ratio) need even more repulsion
+        edge_ratio <- n_edges / max(n_nodes, 1)
+        if (edge_ratio > 3) {
+          gravity <- gravity * 1.5
+          spring <- spring * 1.3
+        }
+        # More iterations for larger graphs so layout can fully resolve
+        stab_iters <- if (n_nodes <= 50) 300
+                      else if (n_nodes <= 150) 600
+                      else 1000
+
         # Enable physics for initial build, auto-freeze after stabilization
         vn <- vn |>
           visNetwork::visPhysics(
             solver = "forceAtlas2Based",
             forceAtlas2Based = list(
-              gravitationalConstant = -120,
-              springLength = 350,
+              gravitationalConstant = gravity,
+              springLength = spring,
               damping = 0.4
             ),
-            stabilization = list(iterations = 300)
+            stabilization = list(iterations = stab_iters)
           ) |>
           visNetwork::visLayout(randomSeed = 42) |>
           visNetwork::visEvents(
