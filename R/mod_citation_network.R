@@ -296,17 +296,23 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             stabilization = FALSE
           )
       } else {
-        # Enable physics for initial build
+        # Enable physics for initial build, auto-freeze after stabilization
         vn <- vn |>
           visNetwork::visPhysics(
             solver = "forceAtlas2Based",
             forceAtlas2Based = list(
-              gravitationalConstant = -50,
-              springLength = 200
+              gravitationalConstant = -120,
+              springLength = 350,
+              damping = 0.4
             ),
-            stabilization = list(iterations = 200)
+            stabilization = list(iterations = 300)
           ) |>
-          visNetwork::visLayout(randomSeed = 42)
+          visNetwork::visLayout(randomSeed = 42) |>
+          visNetwork::visEvents(
+            stabilizationIterationsDone = "function() {
+              this.setOptions({ physics: false });
+            }"
+          )
       }
 
       # Configure appearance
@@ -319,8 +325,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         visNetwork::visNodes(
           font = list(size = 0),  # No labels by default
           scaling = list(
-            min = 15,
-            max = 50,
+            min = 10,
+            max = 100,
             label = list(enabled = FALSE),
             customScalingFunction = htmlwidgets::JS(
               "function(min, max, total, value) {

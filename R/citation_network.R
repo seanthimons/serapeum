@@ -285,7 +285,6 @@ map_year_to_color <- function(years, palette = "viridis") {
 
   # Handle single-year edge case (division by zero)
   if (length(unique(valid_years)) == 1) {
-    # Return middle palette color for all nodes
     palette_colors <- viridisLite::viridis(100, option = palette)
     middle_color <- palette_colors[50]
     colors <- rep(middle_color, length(years))
@@ -293,9 +292,23 @@ map_year_to_color <- function(years, palette = "viridis") {
     return(colors)
   }
 
-  # Normalize years to 0-1 range
-  year_range <- range(valid_years, na.rm = TRUE)
-  normalized <- (years - year_range[1]) / (year_range[2] - year_range[1])
+  # Use 10th percentile as floor so ancient outliers (e.g. Linnaeus 1735)
+  # don't compress the modern range. Papers below the floor get pinned
+  # to the darkest color; the full gradient spreads across the bulk.
+  year_floor <- as.numeric(stats::quantile(valid_years, 0.10, na.rm = TRUE))
+  year_ceil <- max(valid_years, na.rm = TRUE)
+
+  if (year_ceil == year_floor) {
+    palette_colors <- viridisLite::viridis(100, option = palette)
+    middle_color <- palette_colors[50]
+    colors <- rep(middle_color, length(years))
+    colors[is.na(years)] <- "#999999"
+    return(colors)
+  }
+
+  # Clamp to floor, then normalize to 0-1
+  clamped <- pmax(years, year_floor)
+  normalized <- (clamped - year_floor) / (year_ceil - year_floor)
 
   # Map to palette
   palette_colors <- viridisLite::viridis(100, option = palette)
@@ -310,31 +323,32 @@ map_year_to_color <- function(years, palette = "viridis") {
 
 #' Compute node sizes from citation counts
 #'
-#' Applies sqrt transform to handle power-law distribution,
+#' Applies cube-root transform to handle power-law distribution,
 #' then scales to visNetwork size range.
 #'
 #' @param cited_by_counts Numeric vector of citation counts
-#' @return Numeric vector of node sizes (10-50)
+#' @return Numeric vector of node sizes (10-100)
 compute_node_sizes <- function(cited_by_counts) {
   n <- length(cited_by_counts)
 
   if (n == 0) return(numeric(0))
   if (n == 1) return(30)
 
-  # Use log1p transform: handles power-law distributions while
-  # preserving magnitude differences (unlike rank-based sizing)
-  # log1p(0)=0, log1p(100)=4.6, log1p(1000)=6.9, log1p(14000)=9.5
-  log_counts <- log1p(pmax(cited_by_counts, 0))
+  # Cube-root transform: better spread than log1p for power-law data.
+  # cbrt(100)=4.6, cbrt(1000)=10, cbrt(15000)=24.7
+  # Gives 5x visual difference between 1k and 15k citations
+  # (log1p only gives 1.4x — high-citation nodes look the same)
+  transformed <- pmax(cited_by_counts, 0)^(1/3)
 
-  count_range <- range(log_counts, na.rm = TRUE)
+  count_range <- range(transformed, na.rm = TRUE)
   if (count_range[2] - count_range[1] == 0) {
     return(rep(30, n))
   }
 
-  normalized <- (log_counts - count_range[1]) / (count_range[2] - count_range[1])
+  normalized <- (transformed - count_range[1]) / (count_range[2] - count_range[1])
 
-  # Scale to range 15-50
-  15 + normalized * 35
+  # Scale to range 10-100 (landmark papers should visually dominate)
+  10 + normalized * 90
 }
 
 #' Build visNetwork-ready graph data
@@ -378,6 +392,8 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
 
   # Edges: visNetwork expects 'from' and 'to' columns
   if (nrow(edges_df) > 0) {
+    # Drop self-loops (OpenAlex sometimes lists a paper in its own referenced_works)
+    edges_df <- edges_df[edges_df$from_paper_id != edges_df$to_paper_id, ]
     edges_df$from <- edges_df$from_paper_id
     edges_df$to <- edges_df$to_paper_id
     edges_df$arrows <- "to"  # Directional arrows
