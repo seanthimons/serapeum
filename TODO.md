@@ -138,6 +138,8 @@ High-effort, high-payoff features for the future.
 - [x] Citation network year-to-color percentile mapping (fix/citation-node-sizing)
 - [x] Citation network physics auto-freeze + spacing (fix/citation-node-sizing)
 - [x] [#80](https://github.com/seanthimons/serapeum/issues/80): Progress modal with stop button for citation network (v2.1 Phase 18)
+- [ ] Chat UX improvements: busy spinners instead of grey-out (grey-out implies error), progress status messages for long LLM requests, modal messaging for synthesis operations
+- [ ] `complexity:high` `impact:high` Rethink conclusion synthesis as split presets — break "Conclusions" into separate focused prompts (e.g., "Research Conclusions", "Agreements & Gaps", "Future Directions") each hitting a smaller context window for faster responses. Current single-prompt 3-section synthesis is too slow. Could also enable streaming responses per-section.
 
 ---
 
