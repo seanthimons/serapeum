@@ -1,628 +1,654 @@
-# Architecture Patterns: Citation Network Graph, DOI Storage, Export Workflows
+# Architecture Integration Analysis: v2.1 Polish & Analysis
 
-**Domain:** Research Assistant - Discovery Workflow Enhancement
-**Researched:** 2026-02-12
-**Confidence:** HIGH
+**Project:** Serapeum v2.1
+**Researched:** 2026-02-13
+**Domain:** R/Shiny Research Assistant
 
-## Integration with Existing Architecture
+## Executive Summary
 
-### Current Architecture Pattern: Producer-Consumer
+v2.1 adds four feature categories to the existing R/Shiny application: year range slider filtering, conclusion synthesis, progress modals with cancellation, and UI polish. The existing architecture supports these additions through established patterns:
 
-**Existing workflow:**
-1. Discovery modules (mod_seed_discovery, mod_query_builder, mod_topic_explorer) produce reactive requests
-2. app.R consumes these requests via observeEvent()
-3. Consumer fetches papers from OpenAlex API
-4. Consumer creates notebook and populates abstracts table
+1. **Year Range Slider:** Extends the composable filter chain (keyword → journal quality → display) with a new reactive filter step. Integrates with both search notebook UI and citation network visualization.
 
-**New features follow same pattern:**
-- DOI storage: Data layer enhancement (no new modules)
-- Citation network graph: New consumer in abstract detail view
-- Export-to-seed: New producer button in abstract detail view
-- Export data: New consumer in search notebook module
+2. **Conclusion Synthesis:** New RAG variant function that targets conclusion sections via multi-step prompting. Uses existing `rag_query()` pattern with specialized context filtering and prompt engineering.
 
-## Component Architecture
+3. **Progress Modal with Cancellation:** Shiny's `withProgress()` has no native cancellation. Requires custom interruption mechanism via reactive polling and external flag. Build on existing `progress_callback` pattern in `fetch_citation_network()`.
 
-### 1. DOI Storage (Data Layer Only)
+4. **UI Polish:** Icon changes and sidebar modifications are isolated CSS/UI updates. No architectural changes required.
 
-**Integration Point:** Database schema migration
+**Integration Complexity:** LOW to MEDIUM. All features build on existing patterns. Year filter and conclusion synthesis are compositional. Only progress cancellation requires new infrastructure (interrupt flag pattern).
 
-**New Component:** Migration file `migrations/002_add_doi_column.sql`
+## Integration Point Analysis
 
-```sql
--- Add DOI column to abstracts table
-ALTER TABLE abstracts ADD COLUMN doi VARCHAR;
+### 1. Year Range Slider Filter
+
+#### Where It Fits in Filter Chain
+
+**Current Filter Chain (Search Notebook):**
+```
+papers_data (DB query with sort)
+  → keyword_filtered_papers (mod_keyword_filter)
+  → journal_filtered_papers (mod_journal_filter)
+  → filtered_papers (has_abstract checkbox)
+  → display (paper_list UI)
 ```
 
-**Modified Component:** `R/db.R`
-- `create_abstract()` function signature already has all parameters from parse_openalex_work()
-- parse_openalex_work() extracts DOI (line 181-186 in api_openalex.R)
-- create_abstract() must be updated to accept and store `doi` parameter
+**Integration Point:** Insert between `journal_filtered_papers` and `has_abstract` filter.
 
-**Data Flow:**
+**New Chain:**
 ```
-OpenAlex API → parse_openalex_work() → doi field (already extracted)
-                                     ↓
-                         create_abstract() (needs doi parameter)
-                                     ↓
-                              abstracts.doi column
+papers_data
+  → keyword_filtered_papers
+  → journal_filtered_papers
+  → year_filtered_papers (NEW)
+  → filtered_papers (has_abstract)
+  → display
 ```
 
-**No module changes required** - all API callers in app.R already pass through parsed work objects to create_abstract().
+**Implementation:**
+- Add `sliderInput()` to search notebook UI (alongside has_abstract checkbox)
+- Add reactive `year_filtered_papers()` that filters `journal_filtered_papers()` by year range
+- Update `filtered_papers()` to consume `year_filtered_papers()` instead of `journal_filtered_papers()`
+- Save year range to `notebooks.search_filters` JSON (same pattern as existing filters)
 
-### 2. Citation Network Graph
+**Data Flow:** Reactive chain, no new modules needed.
 
-**Integration Point:** Abstract detail view in mod_search_notebook.R (lines 691-833)
+#### Citation Network Integration
 
-**New Component:** `R/mod_citation_network.R` (Shiny module)
+**Different Data Flow:** Citation networks use `fetch_citation_network()` which returns nodes directly, not via filter chain.
 
-**UI Structure:**
+**Integration Point:** Filter nodes AFTER fetch, BEFORE visualization.
+
+**Current Flow:**
+```
+fetch_citation_network() → result$nodes
+  → compute_layout_positions()
+  → build_network_data()
+  → current_network_data()
+  → visNetwork render
+```
+
+**New Flow:**
+```
+fetch_citation_network() → result$nodes
+  → filter_by_year_range(nodes, year_min, year_max) (NEW)
+  → compute_layout_positions()
+  → build_network_data()
+  → current_network_data()
+  → visNetwork render
+```
+
+**Implementation:**
+- Add `sliderInput()` to citation network controls (near direction/depth/node_limit)
+- Add `filter_by_year_range()` helper function in `citation_network.R`
+- Apply filter in `observeEvent(input$build_network)` before visualization
+- Store year range in network metadata (for saved networks)
+
+**Key Difference:** Search notebook = filter reactive chain. Citation network = filter raw data frame before viz.
+
+### 2. Conclusion Synthesis
+
+#### New Module vs. Extend Existing?
+
+**Analysis:** Extend existing `rag.R` with new function, NOT a new module.
+
+**Rationale:**
+- Conclusion synthesis is a RAG variant, not a separate UI component
+- Uses existing chat model, cost logging, chunk retrieval
+- Adds to search/document notebook chat, not standalone feature
+
+**Integration Point:** New function `rag_query_conclusions()` in `rag.R`, callable from existing chat handlers.
+
+#### RAG Targeting Architecture
+
+**Problem:** Need to filter retrieved chunks to conclusion sections before LLM processing.
+
+**Current RAG Flow (`rag_query()`):**
+```
+1. User question → embed OR hybrid search
+2. search_chunks() / search_chunks_hybrid() → top 5 chunks
+3. build_context(chunks) → formatted context
+4. chat_completion(system + context + question) → response
+```
+
+**Conclusion-Targeted Flow (`rag_query_conclusions()`):**
+```
+1. User question → embed OR hybrid search with "conclusion" keyword boost
+2. search_chunks() with conclusion filtering → top 5 conclusion chunks
+3. build_context(chunks) → formatted context
+4. chat_completion(CONCLUSION_SYSTEM_PROMPT + context + question) → synthesis
+```
+
+**Key Changes:**
+1. **Retrieval Filtering:** Modify search query to prefer chunks containing conclusion keywords ("conclusion", "summary", "findings", "implications")
+2. **Specialized Prompt:** Different system prompt focusing on synthesis across papers
+
+**Implementation in Ragnar (Hybrid Search):**
 ```r
-mod_citation_network_ui <- function(id) {
-  ns <- NS(id)
-  card(
-    card_header("Citation Network"),
-    card_body(
-      visNetworkOutput(ns("network_graph")),
-      # Controls
-      radioButtons(ns("direction"),
-        choices = c("Incoming citations" = "incoming",
-                    "Outgoing references" = "outgoing",
-                    "Both" = "both"),
-        selected = "both"
-      ),
-      numericInput(ns("depth"), "Network depth", value = 1, min = 1, max = 2)
-    )
-  )
+search_chunks_hybrid_conclusions <- function(con, query, notebook_id, limit = 10) {
+  # Boost query with conclusion terms
+  boosted_query <- paste(query, "conclusion findings summary implications")
+  chunks <- search_chunks_hybrid(con, boosted_query, notebook_id, limit = limit)
+
+  # Post-filter: prefer chunks mentioning conclusion keywords
+  chunks$conclusion_score <- str_count(tolower(chunks$content),
+    "conclusion|summary|findings|implications|in conclusion|to summarize")
+  chunks <- chunks[order(-chunks$conclusion_score), ]
+  head(chunks, limit)
 }
 ```
 
-**Server Structure:**
+**Implementation in Legacy (Cosine Search):**
 ```r
-mod_citation_network_server <- function(id, con, paper_id, config) {
-  moduleServer(id, function(input, output, session) {
-    # Reactive: Fetch citation network data
-    network_data <- reactive({
-      req(paper_id())
-      fetch_citation_network(
-        con(),
-        paper_id(),
-        direction = input$direction,
-        depth = input$depth,
-        config()
-      )
-    })
+# No modification to embedding itself
+# Post-filter chunks by keyword matching
+conclusion_keywords <- c("conclusion", "findings", "summary", "implications")
+chunks$is_conclusion <- grepl(paste(conclusion_keywords, collapse = "|"),
+                               tolower(chunks$content))
+chunks <- chunks[chunks$is_conclusion | chunks$similarity > 0.9, ]
+```
 
-    # Render visNetwork graph
-    output$network_graph <- renderVisNetwork({
-      data <- network_data()
-      visNetwork(data$nodes, data$edges) %>%
-        visOptions(highlightNearest = TRUE) %>%
-        visInteraction(navigationButtons = TRUE)
-    })
+#### Multi-Step Prompt Pipeline
+
+**Question:** Do we need multi-step prompting (retrieve → summarize each → synthesize)?
+
+**Answer:** NO for v2.1. Use single-step synthesis with specialized prompt.
+
+**Single-Step Architecture (RECOMMENDED):**
+```
+1. Retrieve top 10 conclusion-tagged chunks (5 per paper limit)
+2. Build context with paper titles as separators
+3. Prompt: "Synthesize the key conclusions across these papers.
+   Identify common themes, contradictions, and gaps. Cite each paper."
+4. Generate synthesis in one LLM call
+```
+
+**Multi-Step Architecture (FUTURE):**
+```
+1. Retrieve all conclusion chunks
+2. For each paper: summarize_conclusions(paper_chunks) → paper_summary
+3. synthesize_across_papers([paper_summary_1, paper_summary_2, ...]) → final_synthesis
+```
+
+**Rationale for Single-Step:**
+- Simpler implementation, fewer API calls, lower cost
+- Current context window (Claude Sonnet 4: 200K tokens) can handle 10 abstracts easily
+- Multi-step adds latency without clear quality improvement for typical notebook sizes (5-50 papers)
+
+**When to Use Multi-Step:**
+- Notebooks with >100 papers (context overflow)
+- Need per-paper summaries as intermediate artifacts
+- Requires complex reasoning chains (contradiction resolution, evidence weighing)
+
+#### Integration with Existing Chat
+
+**UI Integration Point:** Add "Synthesize Conclusions" preset button to chat panel.
+
+**Current Presets (Document Notebook):**
+- Summarize
+- Key Points
+- Study Guide
+- Outline
+
+**New Preset (Search Notebook):**
+- **Synthesize Conclusions** → calls `rag_query_conclusions()`
+
+**Implementation:**
+```r
+# In mod_search_notebook.R chat panel
+actionButton(ns("preset_synthesize"), "Synthesize Conclusions",
+             class = "btn-outline-info btn-sm", icon = icon("lightbulb"))
+
+observeEvent(input$preset_synthesize, {
+  response <- rag_query_conclusions(con(), config(), notebook_id(),
+                                     session_id = session$token)
+  msgs <- messages()
+  msgs <- c(msgs, list(
+    list(role = "assistant", content = response, timestamp = Sys.time())
+  ))
+  messages(msgs)
+})
+```
+
+**No Module Needed:** Extends existing chat offcanvas, uses existing `messages()` reactive.
+
+### 3. Progress Modal with Cancellation
+
+#### Shiny Interruption Limitations
+
+**Core Problem:** Shiny's `withProgress()` has no built-in cancellation mechanism.
+
+**From Documentation ([Mastering Shiny](https://mastering-shiny.org/action-feedback.html)):**
+> "withProgress wraps the scope of your work and causes a new progress panel to be created; when withProgress exits, the corresponding progress panel will be removed."
+
+**From RStudio Docs ([Case Study: Async](https://rstudio.github.io/promises/articles/casestudy.html)):**
+> "The withProgress function cannot be used with async operations; withProgress is designed to wrap a slow synchronous action and dismisses its progress dialog when the code completes."
+
+**Limitation:** No standard way to interrupt a running reactive computation.
+
+#### Interrupt Mechanism Architecture
+
+**Pattern (from [Long Running Tasks With Shiny](https://blog.fellstat.com/?p=407)):**
+> "To enable cancellation and monitoring, you can use a file where progress and interrupt requests are read and written—if the user clicks the cancel button, "interrupt" is written to the file, and during computation the analysis code checks whether interrupt has been signaled and throws an error."
+
+**Implementation for Serapeum:**
+
+**Step 1: Create Interrupt Flag System**
+```r
+# In new file: R/interrupt.R
+create_interrupt_flag <- function(session_id) {
+  flag_file <- tempfile(pattern = paste0("interrupt_", session_id, "_"))
+  writeLines("running", flag_file)
+  flag_file
+}
+
+check_interrupt <- function(flag_file) {
+  if (!file.exists(flag_file)) return(FALSE)
+  status <- readLines(flag_file, n = 1, warn = FALSE)
+  status == "interrupt"
+}
+
+signal_interrupt <- function(flag_file) {
+  if (file.exists(flag_file)) writeLines("interrupt", flag_file)
+}
+
+clear_interrupt_flag <- function(flag_file) {
+  if (file.exists(flag_file)) unlink(flag_file)
+}
+```
+
+**Step 2: Modify Long-Running Operations**
+
+**Current (Search Refresh):**
+```r
+observeEvent(input$refresh_search, {
+  withProgress(message = "Searching OpenAlex...", {
+    # Fetch papers
+    for (paper in papers) {
+      # Process...
+    }
   })
+})
+```
+
+**New (With Cancellation):**
+```r
+observeEvent(input$refresh_search, {
+  flag_file <- create_interrupt_flag(session$token)
+  on.exit(clear_interrupt_flag(flag_file))
+
+  withProgress(message = "Searching OpenAlex...", {
+    for (i in seq_along(papers)) {
+      # Check for interrupt every 5 papers
+      if (i %% 5 == 0 && check_interrupt(flag_file)) {
+        showNotification("Search cancelled", type = "warning")
+        return()
+      }
+      # Process paper...
+      incProgress(1 / length(papers))
+    }
+  })
+})
+
+# Cancel button handler
+observeEvent(input$cancel_search, {
+  flag_file <- paste0(tempdir(), "/interrupt_", session$token, "_*")
+  files <- Sys.glob(flag_file)
+  lapply(files, signal_interrupt)
+})
+```
+
+**Step 3: Modify `fetch_citation_network()` for Cancellation**
+
+**Current Signature:**
+```r
+fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
+                                   direction = "both", depth = 2,
+                                   node_limit = 100, progress_callback = NULL)
+```
+
+**New Signature:**
+```r
+fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
+                                   direction = "both", depth = 2,
+                                   node_limit = 100, progress_callback = NULL,
+                                   interrupt_flag = NULL)  # NEW
+```
+
+**Implementation:**
+```r
+for (hop in seq_len(depth)) {
+  # Check for interrupt at start of each hop
+  if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+    if (!is.null(progress_callback)) {
+      progress_callback("Cancelled by user", 1.0)
+    }
+    # Return partial results
+    return(list(
+      nodes = do.call(rbind, lapply(nodes_list, as.data.frame)),
+      edges = do.call(rbind, lapply(edges_list, as.data.frame)),
+      partial = TRUE
+    ))
+  }
+
+  # Continue with BFS traversal...
 }
 ```
 
-**New Utility Function:** `R/citation_network.R`
+**Key Decisions:**
+- **Interrupt check frequency:** Every BFS hop (depth 3 = max 3 checks) + every 10 API calls
+- **Partial results:** Return accumulated nodes/edges on interrupt (useful for large networks)
+- **Error handling:** Interrupt is NOT an error, returns normally with `partial = TRUE` flag
+
+#### UI for Progress Modal
+
+**Current:** `withProgress()` shows auto-positioned progress bar (top-right corner).
+
+**New:** Custom modal dialog with progress bar + cancel button.
+
+**Implementation:**
 ```r
-fetch_citation_network <- function(con, paper_id, direction, depth, config) {
-  # 1. Get seed paper from abstracts table
-  # 2. Call OpenAlex API for citing/cited papers
-  # 3. Build nodes data frame (id, label, group)
-  # 4. Build edges data frame (from, to)
-  # 5. Return list(nodes = nodes_df, edges = edges_df)
-}
-```
-
-**Modified Component:** `R/mod_search_notebook.R`
-- Abstract detail view adds citation network card below metadata section
-- New reactive: `viewed_paper_data()` to share paper info with citation network module
-- Call: `mod_citation_network_server("citation_network", con_r, viewed_paper, effective_config)`
-
-**Data Flow:**
-```
-User clicks paper → viewed_paper() reactive updates
-                           ↓
-            mod_citation_network_server() receives paper_id
-                           ↓
-            fetch_citation_network() calls OpenAlex API
-                           ↓
-            visNetwork renders interactive graph
-```
-
-**Technology Stack:**
-- `visNetwork` R package (CRAN, version 2.1.4+)
-- Uses vis.js JavaScript library for rendering
-- Interactive features: zoom, drag nodes, highlight neighbors, physics simulation
-
-### 3. Export-to-Seed Workflow
-
-**Integration Point:** Abstract detail view actions (mod_search_notebook.R lines 836-844)
-
-**Modified Component:** `R/mod_search_notebook.R`
-
-**UI Change:** Add export button to detail_actions output
-```r
-output$detail_actions <- renderUI({
-  paper <- current_paper_data()
-  if (is.null(paper)) return(NULL)
-
+# Show custom progress modal
+showModal(modalDialog(
+  title = tagList(icon("spinner", class = "fa-spin"), " Building Network"),
   div(
-    class = "d-flex gap-2",
-    actionButton(ns("export_to_seed"),
-                 "Use as Seed",
-                 icon = icon("seedling"),
-                 class = "btn-sm btn-success"),
-    actionButton(ns("close_detail"),
-                 "Close",
-                 class = "btn-sm btn-secondary")
-  )
-})
-```
+    class = "progress",
+    div(class = "progress-bar progress-bar-striped progress-bar-animated",
+        role = "progressbar",
+        id = ns("build_progress_bar"),
+        style = "width: 0%")
+  ),
+  uiOutput(ns("build_progress_message")),
+  footer = tagList(
+    actionButton(ns("cancel_build"), "Cancel", class = "btn-warning")
+  ),
+  size = "m",
+  easyClose = FALSE
+))
 
-**Server Logic:** New observeEvent handler
-```r
-observeEvent(input$export_to_seed, {
-  paper <- current_paper_data()
-  req(paper, paper$doi)
-
-  # Pre-fill DOI input in seed discovery module
-  updateTextInput(session, "seed_doi_input", value = paper$doi)
-
-  # Navigate to discover view
-  # (Requires communication back to app.R via reactive)
-  seed_request(list(
-    doi = paper$doi,
-    source = "notebook_export"
+# Update progress from callback
+progress_cb <- function(message, fraction) {
+  session$sendCustomMessage("updateProgress", list(
+    percent = fraction * 100,
+    message = message
   ))
-})
-```
-
-**Modified Component:** `app.R`
-- Search notebook module returns seed_request reactive
-- Observer consumes seed_request and navigates to discover view with pre-filled DOI
-
-**Data Flow:**
-```
-User clicks "Use as Seed" button in abstract detail
-                ↓
-     observeEvent captures paper DOI
-                ↓
-     seed_request() reactive emits {doi, source}
-                ↓
-     app.R observer consumes request
-                ↓
-     current_view("discover") + pre-fill DOI input
-```
-
-**Alternative Pattern (Simpler):** Instead of reactive communication, use modal dialog:
-```r
-observeEvent(input$export_to_seed, {
-  paper <- current_paper_data()
-  showModal(modalDialog(
-    title = "Start Seed Discovery",
-    p("Use this paper to discover related works?"),
-    p(strong(paper$title)),
-    footer = tagList(
-      modalButton("Cancel"),
-      actionButton(ns("confirm_seed"), "Discover", class = "btn-success")
-    )
-  ))
-})
-
-observeEvent(input$confirm_seed, {
-  # Create seed discovery notebook directly
-  # (Same pattern as current seed_discovery → app.R flow)
-  removeModal()
-})
-```
-
-### 4. Citation/Synthesis Export
-
-**Integration Point:** Search notebook chat interface (mod_search_notebook.R)
-
-**New Component:** Export button in chat output section
-
-**UI Addition:** Add download button next to chat response
-```r
-# In render_chat_message() helper or chat output
-div(
-  class = "d-flex justify-content-between align-items-start",
-  div(class = "flex-grow-1", chat_content),
-  downloadButton(ns(paste0("export_", message_id)),
-                 label = NULL,
-                 icon = icon("download"),
-                 class = "btn-sm btn-outline-secondary")
-)
-```
-
-**Server Logic:** New downloadHandler
-```r
-output$export_synthesis <- downloadHandler(
-  filename = function() {
-    paste0("synthesis_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".md")
-  },
-  content = function(file) {
-    # Get current chat messages
-    messages <- chat_history()
-
-    # Format as markdown
-    md_content <- format_chat_as_markdown(messages)
-
-    # Write to file
-    writeLines(md_content, file)
-  }
-)
-```
-
-**Utility Function:** `R/export_utils.R`
-```r
-format_chat_as_markdown <- function(messages) {
-  # Convert chat history to markdown format
-  # Include metadata: date, notebook name, query
-  # Format: # Synthesis\n\n## Query\n...\n## Response\n...
 }
 ```
 
-**Data Flow:**
-```
-User clicks download button
-         ↓
-downloadHandler triggered
-         ↓
-format_chat_as_markdown() formats messages
-         ↓
-Browser downloads .md file
+**JavaScript Handler:**
+```javascript
+Shiny.addCustomMessageHandler('updateProgress', function(data) {
+  $('#build_progress_bar').css('width', data.percent + '%');
+  $('#build_progress_message').text(data.message);
+});
 ```
 
-**Export Formats:**
-- Markdown (.md): Primary format, preserves structure
-- CSV (.csv): For citations list only (paper_id, title, authors, year, doi)
-- Plain text (.txt): For simple copy-paste
+**Alternative (Simpler):** Use `Progress` reference class instead of `withProgress()`.
 
-**Additional Export Location:** Abstract list bulk export
 ```r
-# In mod_search_notebook.R, add button to abstract list header
-actionButton(ns("export_abstracts"),
-             "Export List",
-             icon = icon("file-export"),
-             class = "btn-sm btn-outline-primary")
+# Supports manual control and long-lived progress objects
+progress <- Progress$new(session, min = 0, max = 1)
+progress$set(message = "Building network", value = 0)
 
-output$export_abstracts <- downloadHandler(
-  filename = function() {
-    paste0("abstracts_", notebook_name(), "_", Sys.Date(), ".csv")
-  },
-  content = function(file) {
-    papers <- papers_data()
-    write.csv(papers, file, row.names = FALSE)
-  }
-)
+# Update from anywhere
+progress$set(value = 0.5, detail = "Hop 2 of 3")
+
+# Close when done
+progress$close()
 ```
 
-## New vs Modified Components Summary
+**Recommendation:** Use `Progress` reference class for cancellable operations. Simpler than custom modals, supports `detail` for sub-messages.
 
-### New Components
-| File | Type | Purpose |
-|------|------|---------|
-| `migrations/002_add_doi_column.sql` | Migration | Add doi column to abstracts table |
-| `R/mod_citation_network.R` | Module | Citation network graph visualization |
-| `R/citation_network.R` | Utility | Fetch and build citation network data |
-| `R/export_utils.R` | Utility | Format chat/abstracts for export |
+### 4. UI Polish
 
-### Modified Components
-| File | Changes | Reason |
-|------|---------|--------|
-| `R/db.R` | Add `doi` parameter to create_abstract() | Store DOI from parse_openalex_work() |
-| `R/mod_search_notebook.R` | Add citation network card, export buttons, download handlers | Integrate all 4 new features |
-| `app.R` | Consume seed_request reactive from search notebook | Support export-to-seed workflow |
+#### Icon Changes
 
-### No Changes Required
-| Component | Why No Changes |
-|-----------|----------------|
-| `R/api_openalex.R` | Already extracts DOI (line 181-186) |
-| `R/mod_seed_discovery.R` | Already accepts DOI input, no API changes |
-| All API callers in app.R | Already pass parsed work objects through |
+**Current Icons (app.R sidebar):**
+- New Document Notebook: `icon("file-pdf")`
+- New Search Notebook: `icon("magnifying-glass")`
+- Discover from Paper: `icon("seedling")`
+- Build a Query: `icon("wand-magic-sparkles")`
+- Explore Topics: `icon("compass")`
+- Citation Network: `icon("diagram-project")`
 
-## Suggested Build Order
+**Integration:** Direct replacement in UI code, no reactive changes.
 
-### Phase 1: Data Foundation (1 task)
-**Task 1: DOI Storage**
-- Create migration file
-- Update create_abstract() function signature
-- Test: Verify new abstracts have DOI stored
-
-**Dependencies:** None
-**Validation:** Query abstracts table, check doi column populated
-
-### Phase 2: Visualization (2 tasks)
-**Task 2: Citation Network Module**
-- Create mod_citation_network.R
-- Create citation_network.R utility
-- Install visNetwork package dependency
-- Test: Render network graph for sample paper
-
-**Dependencies:** Task 1 (needs DOI for API calls)
-**Validation:** Graph displays, interactive controls work
-
-**Task 3: Integrate Network into Detail View**
-- Modify mod_search_notebook.R to add network card
-- Wire module into abstract detail view
-- Test: Click paper, see network graph below metadata
-
-**Dependencies:** Task 2
-**Validation:** Network appears in UI, updates on paper selection
-
-### Phase 3: Export Workflows (3 tasks)
-**Task 4: Export-to-Seed Button**
-- Add button to detail_actions in mod_search_notebook.R
-- Add observeEvent handler
-- Wire seed_request reactive to app.R
-- Test: Click button, navigate to discover view with pre-filled DOI
-
-**Dependencies:** Task 1 (needs DOI)
-**Validation:** DOI pre-fills, discover workflow works
-
-**Task 5: Chat Export**
-- Create export_utils.R
-- Add download button to chat output
-- Add downloadHandler for markdown export
-- Test: Download synthesis markdown file
-
-**Dependencies:** None
-**Validation:** Downloaded file contains formatted chat
-
-**Task 6: Abstract List Export**
-- Add export button to abstract list header
-- Add downloadHandler for CSV export
-- Test: Download abstract list as CSV
-
-**Dependencies:** Task 1 (include DOI in export)
-**Validation:** CSV contains all abstract fields including DOI
-
-## Data Flow Diagrams
-
-### DOI Flow
-```
-OpenAlex API Response
-        ↓
-parse_openalex_work() [api_openalex.R:181-186]
-        ↓
-parsed_work.doi field
-        ↓
-create_abstract(doi = ...) [db.R]
-        ↓
-abstracts.doi column [database]
-        ↓
-Abstract detail view displays DOI link
-Export-to-seed uses DOI
-Citation network uses DOI for API calls
-```
-
-### Citation Network Flow
-```
-User clicks paper in list
-        ↓
-viewed_paper() reactive updates [mod_search_notebook.R]
-        ↓
-mod_citation_network_server receives paper_id
-        ↓
-fetch_citation_network() [citation_network.R]
-        ↓
-get_citing_papers() / get_cited_papers() [api_openalex.R]
-        ↓
-Build nodes/edges data frames
-        ↓
-visNetwork() renders graph [mod_citation_network.R]
-```
-
-### Export-to-Seed Flow
-```
-User clicks "Use as Seed" in detail view
-        ↓
-observeEvent(input$export_to_seed) [mod_search_notebook.R]
-        ↓
-seed_request() reactive emits {doi, source}
-        ↓
-app.R observer consumes seed_request
-        ↓
-current_view("discover")
-updateTextInput for DOI field in mod_seed_discovery
-```
-
-### Export Data Flow
-```
-User clicks "Export" button
-        ↓
-downloadHandler triggered
-        ↓
-format_chat_as_markdown() / write.csv() [export_utils.R]
-        ↓
-Browser downloads file
-```
-
-## Architecture Patterns to Follow
-
-### Pattern 1: Database Migrations
-**What:** Use db_migrations.R pattern for schema changes
-**When:** Adding/modifying database columns
 **Example:**
 ```r
-# migrations/002_add_doi_column.sql
-ALTER TABLE abstracts ADD COLUMN doi VARCHAR;
-```
-**Why:** Existing databases need migration path, not just init_schema() changes
+# Before
+actionButton("new_document_nb", "New Document Notebook",
+             icon = icon("file-pdf"))
 
-### Pattern 2: Producer-Consumer with Reactives
-**What:** Modules emit reactive requests, app.R consumes and executes
-**When:** Cross-module navigation or data passing
-**Example:**
-```r
-# In module
-seed_request <- reactiveVal(NULL)
-observeEvent(input$export_to_seed, {
-  seed_request(list(doi = paper$doi))
-})
-return(seed_request)
-
-# In app.R
-seed_req <- mod_search_notebook_server(...)
-observeEvent(seed_req(), {
-  # Handle request
-})
-```
-**Why:** Decouples modules, maintains single responsibility
-
-### Pattern 3: Download Handlers for Export
-**What:** Use downloadButton + downloadHandler pattern
-**When:** Exporting data as files
-**Example:**
-```r
-# UI
-downloadButton(ns("export"), "Export", icon = icon("download"))
-
-# Server
-output$export <- downloadHandler(
-  filename = function() { paste0("data_", Sys.Date(), ".csv") },
-  content = function(file) { write.csv(data, file) }
-)
-```
-**Why:** Standard Shiny pattern, handles file generation and download
-
-### Pattern 4: Shiny Modules for Reusable Components
-**What:** Encapsulate UI + server logic in modules
-**When:** Component used in multiple places or logically distinct
-**Example:**
-```r
-mod_citation_network_ui <- function(id) { ... }
-mod_citation_network_server <- function(id, ...) { ... }
-```
-**Why:** Namespace isolation, reusability, testability
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Direct Schema Changes in init_schema()
-**What:** Adding new columns via ALTER TABLE in init_schema() tryCatch blocks
-**Why bad:** Doesn't track migration history, hard to debug version conflicts
-**Instead:** Use migrations/ directory with versioned SQL files
-**Detection:** If seeing "column already exists" errors in logs
-
-### Anti-Pattern 2: Tight Module Coupling
-**What:** Module A directly calls Module B's inputs/outputs
-**Why bad:** Breaks namespace isolation, hard to test, brittle
-**Instead:** Use reactive values to communicate through parent scope (app.R)
-**Detection:** If seeing ns() calls across module boundaries
-
-### Anti-Pattern 3: Blocking API Calls in Render Functions
-**What:** Calling OpenAlex API directly in renderUI() or renderPlot()
-**Why bad:** Blocks UI thread, no loading indicators, poor UX
-**Instead:** Use reactive() for data fetching + withProgress() for long operations
-**Detection:** UI freezes during API calls
-
-### Anti-Pattern 4: Duplicating parse_openalex_work() Logic
-**What:** Re-parsing OpenAlex responses in new code
-**Why bad:** Inconsistent field extraction, breaks if API changes
-**Instead:** Always use parse_openalex_work() from api_openalex.R
-**Detection:** Direct access to work$doi instead of parsed_work$doi
-
-## Technology Dependencies
-
-### New Package: visNetwork
-**Purpose:** Interactive network graph visualization
-**Installation:** `install.packages("visNetwork")`
-**Version:** 2.1.4+ (CRAN stable)
-**License:** MIT
-**Bundle size:** ~500KB (vis.js included)
-**Browser requirements:** Modern browsers (ES6)
-
-**Integration:**
-```r
-# In DESCRIPTION
-Imports:
-  visNetwork (>= 2.1.4)
-
-# In R/mod_citation_network.R
-library(visNetwork)
+# After (if changing to different icon)
+actionButton("new_document_nb", "New Document Notebook",
+             icon = icon("file-alt"))
 ```
 
-**Performance considerations:**
-- Handles up to ~1000 nodes smoothly
-- Physics simulation can be disabled for larger graphs
-- Client-side rendering (no server round-trips)
+**Verification:** Check [Font Awesome 6.x](https://fontawesome.com/icons) for available icon names.
 
-### Existing Packages (No Changes)
-- shiny: Modal dialogs, download handlers
-- bslib: Card layouts for network graph
-- DBI/duckdb: Database migrations
-- httr2: OpenAlex API calls (already used)
+#### Sidebar Modifications
 
-## Scalability Considerations
+**Current Structure:**
+```
+Sidebar (280px)
+├── New Notebook Buttons (6 buttons)
+├── Notebook List (scrollable)
+│   ├── DOCUMENTS section
+│   ├── SEARCHES section
+│   └── NETWORKS section
+├── Session Cost Display
+├── Settings / About / Costs Links
+└── GitHub Link + Dark Mode Toggle
+```
 
-| Concern | At 10 papers | At 100 papers | At 1000 papers |
-|---------|--------------|---------------|----------------|
-| DOI storage | Instant | Instant | Instant (indexed column) |
-| Citation network rendering | Instant | 1-2 seconds | 5+ seconds (disable physics) |
-| Network API calls | 1 request | 1 request | 1 request (pagination handled) |
-| Export file size | <1KB | ~50KB | ~500KB (CSV), ~1MB (markdown) |
-| Download handler memory | Negligible | <10MB | ~50MB (stream large exports) |
+**Potential Modifications:**
+- Adjust button sizing/spacing
+- Reorder sections
+- Add collapsible sections
+- Change color scheme
 
-**Optimization strategies:**
-- Citation network: Limit depth to 2, add "Load more" button for depth 3+
-- Export: Stream large CSV files instead of loading all into memory
-- DOI lookup: Add index on abstracts.doi column for fast searches
+**Integration Point:** Pure UI changes in `app.R` sidebar definition. No server logic affected.
 
-## Error Handling
+**Testing Needs:**
+- Ensure responsive layout at different window sizes
+- Verify scrollable area (`max-height: calc(100vh - 350px)`) still works
+- Check dark mode compatibility if color changes
 
-### DOI Missing
-**Scenario:** OpenAlex paper has no DOI
-**Handling:** Store as NA, hide "Use as Seed" button if NA
-**UI:** Show "DOI not available" message in abstract detail
+## Component Boundaries
 
-### Network Fetch Failure
-**Scenario:** OpenAlex API timeout or rate limit
-**Handling:** Display error message in network card, retry button
-**UI:** "Failed to load network. [Retry]"
+| Component | What Changes | What Stays Same |
+|-----------|--------------|-----------------|
+| **Search Notebook Module** | Add year slider UI, year filter reactive, year range storage | Filter chain architecture, keyword/journal modules, chat functionality |
+| **Citation Network Module** | Add year slider UI, node filtering function, metadata storage | BFS traversal, visNetwork rendering, physics engine |
+| **RAG System** | New `rag_query_conclusions()` function, conclusion-targeted retrieval | Core `rag_query()`, embedding flow, cost logging |
+| **Database (db.R)** | No changes (year range → JSON in existing `search_filters` column) | Schema, migration system |
+| **UI (app.R)** | Icon changes, sidebar layout tweaks | Module wiring, reactive structure |
+| **Interruption (NEW)** | New `interrupt.R` file with flag system | - |
 
-### Export Failure
-**Scenario:** File write error (permissions, disk full)
-**Handling:** showNotification with error message
-**UI:** "Export failed: [error message]"
+## Data Flow Changes
 
-## Testing Strategy
+### Year Filter Data Flow
 
-### Unit Tests
-- `test-db-migrations.R`: Test DOI column migration
-- `test-citation-network.R`: Test network data building
-- `test-export-utils.R`: Test markdown formatting
+**Search Notebook:**
+```
+User drags slider (input$year_range)
+  → year_filtered_papers() reactive triggers
+  → filters journal_filtered_papers() by year column
+  → filtered_papers() consumes year_filtered_papers()
+  → paper_list UI re-renders
+  → observeEvent saves to notebooks.search_filters JSON
+```
 
-### Integration Tests
-- Test DOI flow: API → parse → store → display
-- Test network: Paper selection → API call → graph render
-- Test export: Button click → download → file contents
+**Citation Network:**
+```
+User drags slider (input$year_range)
+  → triggers rebuild (via observeEvent dependency)
+  → fetch_citation_network() runs
+  → nodes_df returned
+  → filter_by_year_range(nodes_df, input$year_range) applied
+  → build_network_data() proceeds with filtered nodes
+  → visNetwork re-renders
+```
 
-### Manual Testing Checklist
-- [ ] New abstracts have DOI populated
-- [ ] Abstract detail shows DOI link (if available)
-- [ ] Citation network graph renders and is interactive
-- [ ] "Use as Seed" button pre-fills DOI in discover view
-- [ ] Chat export downloads markdown with correct format
-- [ ] Abstract list export downloads CSV with all fields
-- [ ] All existing functionality still works
+### Conclusion Synthesis Data Flow
+
+```
+User clicks "Synthesize Conclusions" preset
+  → rag_query_conclusions() called
+  → search_chunks_hybrid() with conclusion keyword boost
+  → chunks filtered by conclusion keywords
+  → build_context(chunks) with paper titles
+  → chat_completion() with synthesis prompt
+  → response appended to messages()
+  → chat UI re-renders with synthesis
+  → cost logged to database
+```
+
+### Progress Cancellation Data Flow
+
+```
+User clicks action (e.g., "Build Network")
+  → create_interrupt_flag(session_id) → temp file created
+  → Progress$new() creates progress object
+  → fetch_citation_network(..., interrupt_flag) starts
+  → Every BFS hop: check_interrupt(flag_file)
+  → If user clicks "Cancel": signal_interrupt(flag_file)
+  → Next check_interrupt() returns TRUE
+  → Function returns partial results
+  → Progress$close() removes progress UI
+  → clear_interrupt_flag() cleans up temp file
+```
+
+## Build Order & Dependencies
+
+### Phase 1: Foundation (No Dependencies)
+1. **Interrupt System** (NEW file, no deps)
+   - Create `R/interrupt.R` with flag functions
+   - Test with simple example (sleep loop with cancel button)
+
+### Phase 2: Year Range Filter (Depends on UI)
+2. **Year Slider UI** (Search Notebook)
+   - Add `sliderInput()` to `mod_search_notebook_ui()`
+   - Wire to `search_filters` save/restore logic
+
+3. **Year Filter Reactive** (Search Notebook)
+   - Add `year_filtered_papers()` between journal and has_abstract filters
+   - Update `filtered_papers()` to consume it
+
+4. **Year Filter UI** (Citation Network)
+   - Add `sliderInput()` to `mod_citation_network_ui()`
+   - Store in network metadata
+
+5. **Year Filter Logic** (Citation Network)
+   - Add `filter_by_year_range()` helper in `citation_network.R`
+   - Apply in build network observer
+
+### Phase 3: Conclusion Synthesis (Depends on RAG)
+6. **Conclusion Retrieval**
+   - Add `search_chunks_hybrid_conclusions()` variant
+   - Implement keyword boosting
+
+7. **Synthesis Function**
+   - Add `rag_query_conclusions()` to `rag.R`
+   - Define conclusion-specific system prompt
+
+8. **Synthesis UI**
+   - Add preset button to search notebook chat
+   - Wire to new function
+
+### Phase 4: Progress Cancellation (Depends on Interrupt System)
+9. **Citation Network Cancellation**
+   - Modify `fetch_citation_network()` signature (add `interrupt_flag`)
+   - Add interrupt checks in BFS loop
+   - Update module to use `Progress` class
+
+10. **Search Refresh Cancellation**
+    - Add interrupt checks to search loop
+    - Add cancel button to progress UI
+
+### Phase 5: UI Polish (No Dependencies, Can Be Done Anytime)
+11. **Icon Updates**
+    - Replace icon names in `app.R`
+    - Verify Font Awesome names
+
+12. **Sidebar Layout**
+    - Adjust spacing/sizing
+    - Test responsive behavior
+
+## Integration Risks & Mitigations
+
+### Risk 1: Year Filter Performance (Search Notebook)
+
+**Problem:** Adding another reactive filter step increases cascade complexity. If papers_data() has 1000 papers, every year slider drag triggers full filter chain recalculation.
+
+**Mitigation:**
+- Use `debounce(reactive(...), 500)` on year filter to prevent rapid re-filtering during drag
+- Filter chain is already lazy (reactive, not observe), so doesn't recalculate unless downstream consumers invalidated
+- Current chain handles this well (keyword filter already filters 1000s of papers)
+
+**Test:** Load notebook with 200 papers, drag year slider rapidly, ensure UI stays responsive.
+
+### Risk 2: Citation Network Year Filter Breaks Layout
+
+**Problem:** Filtering nodes AFTER layout computation means some nodes may be positioned but hidden, leaving gaps.
+
+**Mitigation:**
+- Filter nodes BEFORE layout computation, not after
+- Correct integration point: `fetch_citation_network() → filter → compute_layout_positions() → build_network_data()`
+- Ensure edge filtering: remove edges where either endpoint was filtered out
+
+**Test:** Build network with year range 2000-2024, then narrow to 2020-2024, verify layout re-computes cleanly.
+
+### Risk 3: Conclusion Synthesis Returns Low-Quality Results
+
+**Problem:** Keyword boosting may retrieve irrelevant chunks if papers don't have explicit conclusion sections.
+
+**Mitigation:**
+- **Fallback strategy:** If <3 chunks with conclusion keywords found, fall back to regular RAG
+- **Prompt engineering:** System prompt instructs LLM to say "Some papers lack explicit conclusions, synthesizing from available content"
+- **UI messaging:** Add note "Works best with papers that have conclusion sections"
+
+**Test:** Test with mixed dataset (some papers with conclusions, some without), verify graceful degradation.
+
+### Risk 4: Interrupt Flag Doesn't Work (Race Conditions)
+
+**Problem:** File-based flag may have read/write race conditions if check happens exactly when signal written.
+
+**Mitigation:**
+- Use atomic file writes (`writeLines()` is atomic on most filesystems)
+- Check interrupt at coarse intervals (every hop, not every paper)
+- Worst case: interrupt takes one extra hop to register (acceptable latency)
+- Use `tryCatch()` around file operations to handle missing files gracefully
+
+**Test:** Rapid start/cancel cycles, verify no crashes and cancellation always eventually works.
+
+### Risk 5: Progress Class Breaks with Multiple Concurrent Operations
+
+**Problem:** If user triggers two long operations (e.g., build network + search refresh), progress objects may conflict.
+
+**Mitigation:**
+- Shiny's `Progress` class is session-scoped, not app-scoped (safe for multi-user)
+- Use separate progress objects per operation (different session IDs if needed)
+- Disable operation buttons while operation running (`build_in_progress()` reactive pattern already exists)
+
+**Test:** Try to trigger two operations simultaneously, verify buttons disabled or operations queued.
 
 ## Sources
 
-**R Shiny Network Visualization:**
-- [Interactive Network Visualization with R](https://www.statworx.com/en/content-hub/blog/interactive-network-visualization-with-r)
-- [visNetwork: Network Visualization using 'vis.js' Library](https://datastorm-open.github.io/visNetwork/)
-- [Introduction to visNetwork](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html)
-- [visNetwork GitHub Repository](https://github.com/datastorm-open/visNetwork)
-- [cyjShiny: A cytoscape.js R Shiny Widget for network visualization](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0285339)
-- [Interactive network chart with R](https://r-graph-gallery.com/network-interactive.html)
+### Shiny Progress and Cancellation
+- [Long Running Tasks With Shiny: Challenges and Solutions](https://blog.fellstat.com/?p=407)
+- [Chapter 8 User feedback | Mastering Shiny](https://mastering-shiny.org/action-feedback.html)
+- [Shiny - Progress indicators](https://shiny.posit.co/r/articles/build/progress/)
+- [Case study: converting a Shiny app to async](https://rstudio.github.io/promises/articles/casestudy.html)
 
-**Shiny Export Patterns:**
-- [Create a download button or link — downloadButton](https://rstudio.github.io/shiny/reference/downloadButton.html)
-- [Help users download data from your app - Posit](https://shiny.posit.co/r/articles/build/download/)
-- [Chapter 9 Uploads and downloads | Mastering Shiny](https://mastering-shiny.org/action-transfer.html)
+### Shiny Reactive Patterns
+- [Chapter 15 Reactive building blocks | Mastering Shiny](https://mastering-shiny.org/reactivity-objects.html)
 
-**Shiny Modal Patterns:**
-- [Create a modal dialog UI — modalDialog - Shiny](https://shiny.posit.co/r/reference/shiny/1.6.0/modaldialog.html)
-- [Modal — Shiny](https://shiny.posit.co/r/components/display-messages/modal/)
+### Shiny Slider Inputs
+- [Shiny - Slider Range](https://shiny.posit.co/r/components/inputs/slider-range/)
+- [Add a year filter: numeric slider input | R](https://campus.datacamp.com/courses/case-studies-building-web-applications-with-shiny-in-r/make-the-perfect-plot-using-shiny?ex=11)
+
+### RAG Architecture
+- [Synergizing RAG and Reasoning: A Systematic Review](https://arxiv.org/html/2504.15909v1)
+- [Retrieval Augmented Generation (RAG) for LLMs | Prompt Engineering Guide](https://www.promptingguide.ai/research/rag)
+- [Advanced RAG Techniques for High-Performance LLM Applications](https://neo4j.com/blog/genai/advanced-rag-techniques/)
