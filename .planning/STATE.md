@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-12)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 18 - Progress Modal (next)
+**Current focus:** Phase 18 - Progress Modal (in progress)
 
 ## Current Position
 
-Phase: 17 of 19 (Year Range Filter) — COMPLETE
-Plan: 2/2 complete
-Status: Phase complete, verified
-Last activity: 2026-02-13 — Phase 17 executed and verified
+Phase: 18 of 19 (Progress Modal with Cancellation) — IN PROGRESS
+Plan: 1/2 complete
+Status: Plan 01 complete (async infrastructure)
+Last activity: 2026-02-13 — Phase 18-01 executed (interrupt utilities + ExtendedTask)
 
-Progress: [█████████████████░░░] 89% (17/19 phases complete)
+Progress: [█████████████████░░░] 90% (17/19 phases complete, 1/2 plans in phase 18)
 
 ## Performance Metrics
 
@@ -26,15 +26,15 @@ Progress: [█████████████████░░░] 89% (17
 | v1.1 Quality of Life | 5-8 | 6 | 13 days |
 | v1.2 Stabilization | 9-10 | 2 | 1 day |
 | v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
-| v2.1 Polish & Analysis | 16-17 | 3 | <1 day |
+| v2.1 Polish & Analysis | 16-18 | 4 | <1 day |
 
-**Total:** 28 plans shipped across 17 phases
+**Total:** 29 plans shipped (28 complete + 1 in progress) across 18 phases
 
-**Recent Execution (Phase 17-02):**
-- Duration: 1.7 minutes (103 seconds)
-- Tasks: 1
-- Files modified: 1
-- Files created: 0
+**Recent Execution (Phase 18-01):**
+- Duration: 4 minutes (249 seconds)
+- Tasks: 2
+- Files modified: 2
+- Files created: 1
 
 ## Accumulated Context
 
@@ -51,6 +51,10 @@ Recent decisions affecting v2.1 work:
 - **v2.1 (17-01) - 400ms debounce on year range slider**: Prevents reactive storm during drag in search notebook
 - **v2.1 (17-01) - Dynamic slider bounds from database with COALESCE fallback**: Ensures valid ranges (2000-2026 default)
 - **v2.1 (17-02) - Apply Filter button for citation network year filter**: Prevents janky graph redraws during slider drag (vs auto-filter in search notebook)
+- **v2.1 (18-01) - File-based interrupt flags for cross-process cancellation**: Mirai executes in isolated R process, so file-based flags enable cancellation across process boundaries
+- **v2.1 (18-01) - ExtendedTask + mirai for async builds**: Replaces blocking withProgress, keeps UI responsive during long network builds
+- **v2.1 (18-01) - Partial result returns with partial=TRUE flag**: Cancelled builds return accumulated nodes/edges for potential user inspection
+- **v2.1 (18-01) - Layout computation deferred for partial results**: Computed in main process (not mirai) to return faster on cancellation
 
 ### Pending Todos
 
@@ -61,8 +65,8 @@ Recent decisions affecting v2.1 work:
 ### Blockers/Concerns
 
 **Phase 18 (Progress Modal):**
-- Shiny lacks native task cancellation — requires interrupt flag pattern
-- Observer cleanup needed to prevent leaked processes
+- ~~Shiny lacks native task cancellation — requires interrupt flag pattern~~ ✅ RESOLVED (18-01: implemented file-based interrupt flags)
+- ~~Observer cleanup needed to prevent leaked processes~~ ✅ RESOLVED (18-01: session cleanup added via onSessionEnded)
 
 **Phase 19 (Conclusion Synthesis):**
 - RAG prompt injection risk — requires OWASP LLM01:2025 hardening
@@ -71,5 +75,5 @@ Recent decisions affecting v2.1 work:
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Phase 17 complete and verified (5/5 success criteria passed)
-Next: `/gsd:plan-phase 18` to begin Progress Modal planning
+Stopped at: Completed 18-01-PLAN.md (async infrastructure with interrupt support)
+Next: Execute 18-02-PLAN.md (progress modal UI with cancel button and polling)
