@@ -14,7 +14,9 @@ A local-first, self-hosted research assistant inspired by NotebookLM. Built with
 Upload PDFs and chat with your documents using RAG (Retrieval-Augmented Generation).
 
 - **Chat with citations** - Get answers with document name and page number references
+- **Markdown rendering** - Assistant responses display with formatted headers, tables, lists, and code blocks
 - **One-click presets** - Summarize, Key Points, Study Guide, Outline, and more
+- **Chat export** - Download conversations as Markdown (.md) or styled HTML (.html)
 - **Full-text search** - Vector embeddings for semantic search across documents
 - **Slide generation** - Generate Quarto RevealJS presentations from your research
 
@@ -32,6 +34,7 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
   - Paper keywords from OpenAlex
   - DOI as clickable link (with citation key fallback for legacy papers)
 - **Citation export** - Download results as BibTeX (.bib) or CSV (.csv) with unique citation keys
+- **Chat export** - Download abstract chat conversations as Markdown or HTML
 - **Export to seed search** - Use any paper as a seed for a new discovery search with one click
 - **Import to documents** - Move curated papers to document notebooks for deeper analysis
 
@@ -193,6 +196,7 @@ serapeum/
 │   ├── slides.R          # Slide generation
 │   ├── utils_doi.R       # DOI normalization and citation keys
 │   ├── utils_citation.R  # BibTeX/CSV export formatters
+│   ├── utils_export.R    # Chat export formatters (Markdown/HTML)
 │   ├── citation_network.R # Citation graph data and layout
 │   ├── quality_filter.R  # Predatory/retraction filtering
 │   ├── mod_about.R       # About page
