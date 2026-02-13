@@ -31,6 +31,9 @@ ui <- page_sidebar(
     "border-radius" = "0.5rem"
   ),
   tags$head(
+    tags$link(rel = "shortcut icon", href = "favicon.ico"),
+    tags$link(rel = "icon", type = "image/png", sizes = "32x32", href = "favicon-32x32.png"),
+    tags$link(rel = "icon", type = "image/png", sizes = "16x16", href = "favicon-16x16.png"),
     tags$style(HTML("
     .chat-markdown > *:first-child { margin-top: 0; }
     .chat-markdown > *:last-child { margin-bottom: 0; }
