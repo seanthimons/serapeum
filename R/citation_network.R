@@ -314,7 +314,7 @@ map_year_to_color <- function(years, palette = "viridis") {
 #' then scales to visNetwork size range.
 #'
 #' @param cited_by_counts Numeric vector of citation counts
-#' @return Numeric vector of node sizes (10-60)
+#' @return Numeric vector of node sizes (10-100)
 compute_node_sizes <- function(cited_by_counts) {
   n <- length(cited_by_counts)
 
@@ -334,8 +334,8 @@ compute_node_sizes <- function(cited_by_counts) {
 
   normalized <- (transformed - count_range[1]) / (count_range[2] - count_range[1])
 
-  # Scale to range 10-60 (wider range for more visual distinction)
-  10 + normalized * 50
+  # Scale to range 10-100 (landmark papers should visually dominate)
+  10 + normalized * 90
 }
 
 #' Build visNetwork-ready graph data
