@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-12)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 18 - Progress Modal (in progress)
+**Current focus:** Phase 19 - Conclusion Synthesis (plan 1 complete, plan 2 pending)
 
 ## Current Position
 
-Phase: 18 of 19 (Progress Modal with Cancellation) — COMPLETE
-Plan: 2/2 complete
-Status: Phase 18 complete (async infrastructure + progress modal with cancellation)
-Last activity: 2026-02-13 — Phase 18-02 executed (progress modal UI with cancel button and real progress tracking)
+Phase: 19 of 19 (Conclusion Synthesis) — IN PROGRESS
+Plan: 1/2 complete
+Status: Phase 19-01 complete (section metadata infrastructure + backend synthesis function)
+Last activity: 2026-02-13 — Phase 19-01 executed (section_hint column, detect_section_hint(), section-filtered RAG, generate_conclusions_preset())
 
-Progress: [███████████████████░] 95% (18/19 phases complete, all plans in phase 18 complete)
+Progress: [███████████████████░] 97% (18/19 phases complete, 1/2 plans in phase 19 complete)
 
 ## Performance Metrics
 
@@ -26,15 +26,16 @@ Progress: [███████████████████░] 95% (18
 | v1.1 Quality of Life | 5-8 | 6 | 13 days |
 | v1.2 Stabilization | 9-10 | 2 | 1 day |
 | v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
-| v2.1 Polish & Analysis | 16-18 | 4 | <1 day |
+| v2.1 Polish & Analysis | 16-19 | 5 | <1 day |
 
-**Total:** 30 plans shipped (30 complete) across 18 phases
+**Total:** 31 plans shipped (31 complete) across 19 phases
 
-**Recent Execution (Phase 18-02):**
-- Duration: 47 minutes (2850 seconds)
+**Recent Execution (Phase 19-01):**
+- Duration: 4 minutes (257 seconds)
 - Tasks: 2
 - Files modified: 4
-- Bug fixes: 4 (cancel crash, real progress, orphan edges, wizard modal)
+- Files created: 1
+- Deviations: 2 (keyword pattern fixes)
 
 ## Accumulated Context
 
@@ -58,6 +59,8 @@ Recent decisions affecting v2.1 work:
 - **v2.1 (18-02) - File-based progress tracking instead of time-based fake progress**: Enables real hop/paper counts from mirai worker to Shiny poller for informative status updates
 - **v2.1 (18-02) - ExtendedTask has no cancel() method**: Removed network_task$cancel() call, rely solely on interrupt flag for cancellation
 - **v2.1 (18-02) - Orphan edge filtering for partial results**: Filter edges to valid node IDs before layout computation to prevent crashes
+- [Phase 19]: Section-targeted RAG with keyword heuristics for conclusion synthesis
+- [Phase 19]: OWASP LLM01:2025 instruction-data separation with clear delimiters
 
 ### Pending Todos
 
@@ -75,11 +78,11 @@ Recent decisions affecting v2.1 work:
 - ~~Partial results with orphan edges crash layout~~ ✅ RESOLVED (18-02: filter edges to valid node IDs before layout)
 
 **Phase 19 (Conclusion Synthesis):**
-- RAG prompt injection risk — requires OWASP LLM01:2025 hardening
-- Section-targeted RAG needs adversarial testing
+- ~~RAG prompt injection risk — requires OWASP LLM01:2025 hardening~~ ✅ RESOLVED (19-01: instruction-data separation with clear delimiters)
+- Section-targeted RAG needs adversarial testing (deferred to post-v2.1)
 
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Phase 18 complete and verified (3/3 must-haves passed)
-Next: `/gsd:plan-phase 19` to begin Conclusion Synthesis planning
+Stopped at: Completed 19-01-PLAN.md (section metadata + backend synthesis complete)
+Next: Execute 19-02-PLAN.md to add UI preset buttons
