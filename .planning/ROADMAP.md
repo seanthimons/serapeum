@@ -80,8 +80,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 17-01-PLAN.md — Add year range slider with histogram and debouncing to search notebook
-- [ ] 17-02-PLAN.md — Add year range filter with Apply button to citation network
+- [x] 17-01-PLAN.md — Add year range slider with histogram and debouncing to search notebook (completed 2026-02-13)
+- [x] 17-02-PLAN.md — Add year range filter with Apply button to citation network (completed 2026-02-13)
 
 #### Phase 18: Progress Modal with Cancellation
 **Goal**: Long-running citation network operations show progress and allow cancellation with partial results
@@ -136,7 +136,7 @@ Phases execute in numeric order: 16 → 17 → 18 → 19
 | 14. Citation Export | v2.0 | 2/2 | Complete | 2026-02-12 |
 | 15. Synthesis Export | v2.0 | 1/1 | Complete | 2026-02-12 |
 | 16. UI Polish | v2.1 | 1/1 | Complete | 2026-02-13 |
-| 17. Year Range Filter | v2.1 | 0/2 | Not started | - |
+| 17. Year Range Filter | v2.1 | 2/2 | Complete | 2026-02-13 |
 | 18. Progress Modal | v2.1 | 0/? | Not started | - |
 | 19. Conclusion Synthesis | v2.1 | 0/? | Not started | - |
 
