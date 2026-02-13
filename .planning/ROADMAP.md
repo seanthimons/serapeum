@@ -6,6 +6,7 @@
 - ✅ **v1.1 Quality of Life** - Phases 5-8 (shipped 2026-02-11)
 - ✅ **v1.2 Stabilization** - Phases 9-10 (shipped 2026-02-12)
 - ✅ **v2.0 Discovery Workflow & Output** - Phases 11-15 (shipped 2026-02-13)
+- ✅ **v2.1 Polish & Analysis** - Phases 16-19 (shipped 2026-02-13)
 
 ## Phases
 
@@ -49,26 +50,27 @@
 
 </details>
 
+<details>
+<summary>✅ v2.1 Polish & Analysis (Phases 16-19) - SHIPPED 2026-02-13</summary>
+
+- [x] Phase 16: UI Polish (1/1 plan) - completed 2026-02-13
+- [x] Phase 17: Year Range Slider-Filter (2/2 plans) - completed 2026-02-13
+- [x] Phase 18: Progress Modal with Cancellation (2/2 plans) - completed 2026-02-13
+- [x] Phase 19: Conclusion Synthesis (2/2 plans) - completed 2026-02-13
+
+</details>
+
 ## Progress
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 0. Foundation | v1.0 | 1/1 | Complete | 2026-02-10 |
-| 1. Seed Paper Discovery | v1.0 | 2/2 | Complete | 2026-02-10 |
-| 2. Query Builder + Sorting | v1.0 | 2/2 | Complete | 2026-02-10 |
-| 3. Topic Explorer | v1.0 | 2/2 | Complete | 2026-02-11 |
-| 4. Startup Wizard + Polish | v1.0 | 2/2 | Complete | 2026-02-11 |
-| 5. Cost Visibility | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 6. Model Selection | v1.1 | 1/1 | Complete | 2026-02-11 |
-| 7. Interactive Keywords | v1.1 | 1/1 | Complete | 2026-02-11 |
-| 8. Journal Quality Controls | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 9. Bug Fixes | v1.2 | 1/1 | Complete | 2026-02-12 |
-| 10. UI Polish | v1.2 | 1/1 | Complete | 2026-02-12 |
-| 11. DOI Storage & Migration | v2.0 | 2/2 | Complete | 2026-02-12 |
-| 12. Citation Network Visualization | v2.0 | 2/2 | Complete | 2026-02-12 |
-| 13. Export-to-Seed Workflow | v2.0 | 1/1 | Complete | 2026-02-12 |
-| 14. Citation Export | v2.0 | 2/2 | Complete | 2026-02-12 |
-| 15. Synthesis Export | v2.0 | 1/1 | Complete | 2026-02-12 |
+| Phase | Milestone | Plans | Status | Completed |
+|-------|-----------|-------|--------|-----------|
+| 0-4 | v1.0 | 9/9 | Complete | 2026-02-11 |
+| 5-8 | v1.1 | 6/6 | Complete | 2026-02-11 |
+| 9-10 | v1.2 | 2/2 | Complete | 2026-02-12 |
+| 11-15 | v2.0 | 8/8 | Complete | 2026-02-13 |
+| 16-19 | v2.1 | 7/7 | Complete | 2026-02-13 |
+
+**Total: 32 plans across 20 phases, 5 milestones shipped**
 
 ---
-*Updated: 2026-02-13 — v2.0 Discovery Workflow & Output shipped*
+*Updated: 2026-02-13 — v2.1 milestone archived*

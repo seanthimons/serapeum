@@ -351,18 +351,20 @@ delete_document <- function(con, id) {
 #' @param content Chunk text
 #' @param embedding Vector embedding (optional)
 #' @param page_number Page number (optional)
+#' @param section_hint Section classification hint (optional, default "general")
 #' @return Chunk ID
 create_chunk <- function(con, source_id, source_type, chunk_index, content,
-                         embedding = NULL, page_number = NULL) {
+                         embedding = NULL, page_number = NULL, section_hint = "general") {
   id <- uuid::UUIDgenerate()
 
   # Convert NULL to NA for proper DBI binding
   page_num <- if (is.null(page_number)) NA_integer_ else as.integer(page_number)
+  section_hint_val <- if (is.null(section_hint)) "general" else as.character(section_hint)
 
   dbExecute(con, "
-    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number)
-    VALUES (?, ?, ?, ?, ?, ?)
-  ", list(id, source_id, source_type, as.integer(chunk_index), content, page_num))
+    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number, section_hint)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  ", list(id, source_id, source_type, as.integer(chunk_index), content, page_num, section_hint_val))
 
   id
 }
@@ -825,10 +827,12 @@ get_chunks_for_documents <- function(con, document_ids) {
 #' @param limit Number of results
 #' @param ragnar_store Optional RagnarStore object (created if NULL and ragnar available)
 #' @param ragnar_store_path Path to ragnar store database
+#' @param section_filter Optional character vector of section hints to filter by (e.g., c("conclusion", "future_work"))
 #' @return Data frame of matching chunks with source info
 search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
-                                  ragnar_store_path = "data/serapeum.ragnar.duckdb") {
+                                  ragnar_store_path = "data/serapeum.ragnar.duckdb",
+                                  section_filter = NULL) {
 
   # Try ragnar search if available (connect only, don't create new store)
   if (ragnar_available() && file.exists(ragnar_store_path)) {
@@ -868,6 +872,54 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           }, logical(1))
 
           results <- results[keep_rows, , drop = FALSE]
+        }
+
+        # Filter by section_hint if specified
+        if (!is.null(section_filter) && nrow(results) > 0) {
+          # Ragnar results may not have section_hint column, need to look it up from chunks table
+          # Match by content to get section_hint
+          if (!"section_hint" %in% names(results)) {
+            # Query chunks table to get section_hint for matching content
+            # Build a safe query using content matching
+            content_list <- results$content
+            if (length(content_list) > 0) {
+              # Use first 100 chars of content for matching (more robust than full content)
+              content_prefixes <- vapply(content_list, function(x) {
+                substr(as.character(x), 1, 100)
+              }, FUN.VALUE = character(1))
+
+              # Query chunks for section hints (graceful: if no section_hint column exists, this will fail gracefully)
+              tryCatch({
+                placeholders <- paste(rep("?", length(content_prefixes)), collapse = ", ")
+                section_hints <- dbGetQuery(con, sprintf("
+                  SELECT DISTINCT substr(content, 1, 100) as content_prefix, section_hint
+                  FROM chunks
+                  WHERE substr(content, 1, 100) IN (%s)
+                ", placeholders), as.list(content_prefixes))
+
+                # Add section_hint to results by matching prefixes
+                results$section_hint <- vapply(seq_len(nrow(results)), function(i) {
+                  prefix <- substr(results$content[i], 1, 100)
+                  match_idx <- which(section_hints$content_prefix == prefix)
+                  if (length(match_idx) > 0) {
+                    section_hints$section_hint[match_idx[1]]
+                  } else {
+                    "general"  # Default if no match found
+                  }
+                }, FUN.VALUE = character(1))
+              }, error = function(e) {
+                # If section_hint column doesn't exist yet, set all to "general" (graceful degradation)
+                message("[search_chunks_hybrid] section_hint column not found, skipping section filter")
+                results$section_hint <<- rep("general", nrow(results))
+              })
+            }
+          }
+
+          # Now filter by section_hint
+          if ("section_hint" %in% names(results)) {
+            keep_sections <- results$section_hint %in% section_filter
+            results <- results[keep_sections, , drop = FALSE]
+          }
         }
 
         # Look up actual titles for abstract results
@@ -1575,4 +1627,61 @@ update_network_positions <- function(con, network_id, nodes_df) {
   }
 
   invisible(NULL)
+}
+
+# ============================================================================
+# Year Range Filter Functions (Phase 17)
+# ============================================================================
+
+#' Get year distribution for papers in a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame with columns year (INTEGER) and count (INTEGER)
+get_year_distribution <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT year, COUNT(*) AS count
+    FROM abstracts
+    WHERE notebook_id = ? AND year IS NOT NULL
+    GROUP BY year
+    ORDER BY year
+  ", list(notebook_id))
+
+  if (nrow(result) == 0) {
+    return(data.frame(year = integer(), count = integer(), stringsAsFactors = FALSE))
+  }
+
+  result
+}
+
+#' Get count of papers with unknown (NULL) year
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Integer count
+get_unknown_year_count <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT COUNT(*) AS n
+    FROM abstracts
+    WHERE notebook_id = ? AND year IS NULL
+  ", list(notebook_id))
+
+  result$n[1]
+}
+
+#' Get year bounds (min and max) for papers in a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return List with min_year and max_year (defaults to 2000/2026 if no data)
+get_year_bounds <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT
+      COALESCE(MIN(year), 2000) AS min_year,
+      COALESCE(MAX(year), 2026) AS max_year
+    FROM abstracts
+    WHERE notebook_id = ? AND year IS NOT NULL
+  ", list(notebook_id))
+
+  list(
+    min_year = result$min_year[1],
+    max_year = result$max_year[1]
+  )
 }

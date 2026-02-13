@@ -8,8 +8,6 @@ Future enhancements for the Research Notebook tool, organized by priority.
 
 | PR | Title | Status | Branch |
 |----|-------|--------|--------|
-| [PR #70](https://github.com/seanthimons/serapeum/pull/70) | Add GitHub community standards (LICENSE, CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, templates) | open | copilot/update-community-standards-defaults |
-| [PR #56](https://github.com/seanthimons/serapeum/pull/56) | Fix abstract embedding queries missing source_type filter | draft | copilot/fix-abstract-embedding-issue |
 | [PR #39](https://github.com/seanthimons/serapeum/pull/39) | Add R package for PDF image extraction | draft | copilot/add-pdf-image-extraction-package |
 
 ---
@@ -20,9 +18,9 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| ~~[#53](https://github.com/seanthimons/serapeum/issues/53)~~ | ~~feat: Citation network graph for paper discovery~~ | ~~Medium~~ | ~~High~~ |
-| ~~[#66](https://github.com/seanthimons/serapeum/issues/66)~~ | ~~feat: DOI on abstract preview~~ | ~~Low~~ | ~~Medium~~ |
-| ~~[#67](https://github.com/seanthimons/serapeum/issues/67)~~ | ~~dev: Export abstract to seeded paper search~~ | ~~Medium~~ | ~~High~~ |
+| [#81](https://github.com/seanthimons/serapeum/issues/81) | UI improvements to reclaim space | Low | Medium |
+| [#79](https://github.com/seanthimons/serapeum/issues/79) | bug: Tooltip overflows graph container and overlaps side panel | Medium | Medium |
+| — | explore: Partial BFS graph as intentional visualization mode (cancelled builds produce interesting hub-spoke clusters) | Medium | Medium |
 
 ---
 
@@ -32,6 +30,9 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
+| [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + export from abstract to network | High | Medium |
+| [#77](https://github.com/seanthimons/serapeum/issues/77) | dev: ragnar package integration | Medium | Medium |
+| [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
 | [#8](https://github.com/seanthimons/serapeum/issues/8) | dev: Local model support | High | High |
 | [#11](https://github.com/seanthimons/serapeum/issues/11) | feat: Recursive abstract searching | High | High |
 | [#27](https://github.com/seanthimons/serapeum/issues/27) | feat: Conclusion synthesis → future directions | High | High |
@@ -42,14 +43,9 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement (#53, #66, #67, #71) | High | High |
 | [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export (#49, #50, #63, #64) | High | High |
 | [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis (#27, #63) | High | High |
-| ~~[#63](https://github.com/seanthimons/serapeum/issues/63)~~ | ~~feat: Additional synthesis outputs~~ | ~~High~~ | ~~High~~ |
-| ~~[#64](https://github.com/seanthimons/serapeum/issues/64)~~ | ~~feat: Citation export~~ | ~~Medium~~ | ~~Medium~~ |
-| [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
 | [#48](https://github.com/seanthimons/serapeum/issues/48) | dev: Tighter RAG document retrieval controls | Low | Medium |
-| ~~[#49](https://github.com/seanthimons/serapeum/issues/49)~~ | ~~feat: Export synthesis outputs (document notebooks)~~ | ~~Medium~~ | ~~Medium~~ |
-| ~~[#50](https://github.com/seanthimons/serapeum/issues/50)~~ | ~~feat: Rich output preview (document notebook synthesis)~~ | ~~Medium~~ | ~~Medium~~ |
 | [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
 | [#60](https://github.com/seanthimons/serapeum/issues/60) | dev: Toggle/UI to expose API queries | Medium | Medium |
 
@@ -59,10 +55,6 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 | Area | Title | Complexity | Impact |
 |------|-------|------------|--------|
-| Citation Network | [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflows graph container and overlaps side panel | Medium | Medium |
-| Citation Network | [#80](https://github.com/seanthimons/serapeum/issues/80): Expanded progress modal with stop button and detailed logging | Medium | Medium |
-| Citation Network | Cluster density control — slider to adjust physics spacing (gravitational constant / spring length) so dense citation fields are readable | Medium | High |
-| Citation Network | Improved node size scaling — current log1p transform still compresses high-citation papers; consider configurable exponent or breakpoint-based sizing | Low | Medium |
 | Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
 
 ---
@@ -82,7 +74,7 @@ Nice-to-have features and research tasks.
 | [#33](https://github.com/seanthimons/serapeum/issues/33) | ui: Favicon | Low | Low |
 | [#61](https://github.com/seanthimons/serapeum/issues/61) | ui: Icon for conclusion/future direction synthesis | Low | Low |
 | [#62](https://github.com/seanthimons/serapeum/issues/62) | ui: Icons for summarize, key points, outline, etc. | Low | Low |
-| [#69](https://github.com/seanthimons/serapeum/issues/69) | dev: Add/update community standards | Low | Low |
+| [#78](https://github.com/seanthimons/serapeum/issues/78) | Set up GHA/local functions for RDS support files | Low | Medium |
 
 ---
 
@@ -140,6 +132,14 @@ High-effort, high-payoff features for the future.
 - [x] [#49](https://github.com/seanthimons/serapeum/issues/49): Export synthesis outputs as Markdown/HTML (v2.0 Phase 15)
 - [x] [#50](https://github.com/seanthimons/serapeum/issues/50): Rich markdown rendering in chat windows (v2.0 Phase 15)
 - [x] [#63](https://github.com/seanthimons/serapeum/issues/63): Additional synthesis outputs (v2.0 Phase 15)
+- [x] [#69](https://github.com/seanthimons/serapeum/issues/69): Community standards (PR #70)
+- [x] Citation network node sizing — cube-root transform + wider range (fix/citation-node-sizing)
+- [x] Citation network self-loop filtering (fix/citation-node-sizing)
+- [x] Citation network year-to-color percentile mapping (fix/citation-node-sizing)
+- [x] Citation network physics auto-freeze + spacing (fix/citation-node-sizing)
+- [x] [#80](https://github.com/seanthimons/serapeum/issues/80): Progress modal with stop button for citation network (v2.1 Phase 18)
+- [ ] Chat UX improvements: busy spinners instead of grey-out (grey-out implies error), progress status messages for long LLM requests, modal messaging for synthesis operations
+- [ ] `complexity:high` `impact:high` Rethink conclusion synthesis as split presets — break "Conclusions" into separate focused prompts (e.g., "Research Conclusions", "Agreements & Gaps", "Future Directions") each hitting a smaller context window for faster responses. Current single-prompt 3-section synthesis is too slow. Could also enable streaming responses per-section.
 
 ---
 

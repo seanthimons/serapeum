@@ -31,6 +31,9 @@ ui <- page_sidebar(
     "border-radius" = "0.5rem"
   ),
   tags$head(
+    tags$link(rel = "shortcut icon", href = "favicon.ico"),
+    tags$link(rel = "icon", type = "image/png", sizes = "32x32", href = "favicon-32x32.png"),
+    tags$link(rel = "icon", type = "image/png", sizes = "16x16", href = "favicon-16x16.png"),
     tags$style(HTML("
     .chat-markdown > *:first-child { margin-top: 0; }
     .chat-markdown > *:last-child { margin-bottom: 0; }
@@ -96,48 +99,52 @@ ui <- page_sidebar(
       uiOutput("notebook_list")
     ),
     hr(),
-    # Session cost display
+    # Compact footer
     div(
-      class = "d-flex justify-content-between align-items-center mb-2 px-2",
-      span(class = "text-muted small", icon("coins"), " Session:"),
-      textOutput("session_cost_inline", inline = TRUE) |>
-        tagAppendAttributes(class = "text-muted small fw-semibold")
-    ),
-    hr(),
-    # Settings, About, Costs, GitHub, and dark mode
-    div(
-      class = "d-flex justify-content-between align-items-center mb-2",
-      actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
-                 class = "text-muted"),
-      actionLink("about_link", label = tagList(icon("info-circle"), "About"),
-                 class = "text-muted")
-    ),
-    div(
-      class = "d-flex justify-content-between align-items-center mb-2",
-      actionLink("cost_link", label = tagList(icon("dollar-sign"), "Costs"),
-                 class = "text-muted"),
-      span()  # Empty span for spacing
-    ),
-    div(
-      class = "d-flex justify-content-between align-items-center",
-      tags$a(
-        href = "https://github.com/seanthimons/serapeum",
-        target = "_blank",
-        class = "text-muted d-flex align-items-center gap-1",
-        icon("github"), "GitHub"
+      class = "d-flex flex-column gap-2",
+      # Row 1: Session cost
+      div(
+        class = "d-flex justify-content-between align-items-center",
+        span(class = "text-muted small", icon("coins"), " Session:"),
+        textOutput("session_cost_inline", inline = TRUE) |>
+          tagAppendAttributes(class = "text-muted small fw-semibold")
       ),
-      tags$button(
-        id = "dark_mode_toggle",
-        class = "btn btn-sm btn-outline-secondary",
-        onclick = "
-          const html = document.documentElement;
-          const current = html.getAttribute('data-bs-theme');
-          const next = current === 'dark' ? 'light' : 'dark';
-          html.setAttribute('data-bs-theme', next);
-          localStorage.setItem('theme', next);
-          this.innerHTML = next === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
-        ",
-        icon("moon")
+      # Row 2: Settings + About
+      div(
+        class = "d-flex justify-content-between align-items-center",
+        actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
+                   class = "text-muted small"),
+        actionLink("about_link", label = tagList(icon("info-circle"), "About"),
+                   class = "text-muted small")
+      ),
+      # Row 3: Costs + GitHub
+      div(
+        class = "d-flex justify-content-between align-items-center",
+        actionLink("cost_link", label = tagList(icon("dollar-sign"), "Costs"),
+                   class = "text-muted small"),
+        tags$a(
+          href = "https://github.com/seanthimons/serapeum",
+          target = "_blank",
+          class = "text-muted small d-flex align-items-center gap-1",
+          icon("github"), "GitHub"
+        )
+      ),
+      # Row 4: Dark mode toggle (right-aligned)
+      div(
+        class = "d-flex justify-content-end",
+        tags$button(
+          id = "dark_mode_toggle",
+          class = "btn btn-sm btn-outline-secondary",
+          onclick = "
+            const html = document.documentElement;
+            const current = html.getAttribute('data-bs-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-bs-theme', next);
+            localStorage.setItem('theme', next);
+            this.innerHTML = next === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
+          ",
+          icon("moon")
+        )
       )
     ),
     # Script to restore theme preference on load
@@ -420,15 +427,17 @@ server <- function(input, output, session) {
     )
   }
 
-  # Show wizard on first load
+  # Show wizard on first load — only if no notebooks exist yet
   observe({
-    has_seen <- input$has_seen_wizard
-    if (!is.null(has_seen) && !has_seen) {
+    con <- con_r()
+    req(con)
+    notebooks <- list_notebooks(con)
+    if (nrow(notebooks) == 0) {
       shiny::onFlushed(function() {
         showModal(wizard_modal())
       }, once = TRUE)
     }
-  }) |> bindEvent(input$has_seen_wizard, once = TRUE)
+  }) |> bindEvent(con_r(), once = TRUE)
 
   # Wizard routing handlers
   observeEvent(input$wizard_seed_paper, {

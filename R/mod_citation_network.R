@@ -7,6 +7,22 @@ mod_citation_network_ui <- function(id) {
     # Include custom CSS
     tags$head(tags$link(rel = "stylesheet", href = "custom.css")),
 
+    # JavaScript handler for progress updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('updateBuildProgress', function(data) {
+        var bar = document.getElementById(data.bar_id);
+        if (bar) {
+          bar.style.width = data.percent + '%';
+          bar.textContent = data.percent + '%';
+          bar.setAttribute('aria-valuenow', data.percent);
+        }
+        var msg = document.getElementById(data.msg_id);
+        if (msg) {
+          msg.textContent = data.message;
+        }
+      });
+    ")),
+
     # Top controls bar
     div(
       class = "citation-network-controls mb-3 p-3 bg-light rounded",
@@ -49,9 +65,7 @@ mod_citation_network_ui <- function(id) {
             "Build Network",
             class = "btn-primary",
             icon = icon("diagram-project")
-          ),
-          # Progress indicator
-          uiOutput(ns("build_progress"))
+          )
         ),
 
         # Save button
@@ -61,7 +75,10 @@ mod_citation_network_ui <- function(id) {
           class = "btn-outline-success",
           icon = icon("save")
         )
-      )
+      ),
+
+      # Year filter row (hidden until network is built)
+      uiOutput(ns("year_filter_panel"))
     ),
 
     # Main content area with side panel
@@ -150,15 +167,50 @@ mod_citation_network_ui <- function(id) {
 mod_citation_network_server <- function(id, con_r, config_r, network_id_r, network_trigger) {
   moduleServer(id, function(input, output, session) {
 
-    # Current network data
+    # Current network data (may be filtered)
     current_network_data <- reactiveVal(NULL)
+    # Unfiltered snapshot — set when network is built/loaded, never mutated by filters
+    unfiltered_network_data <- reactiveVal(NULL)
     current_seed_id <- reactiveVal(NULL)
     selected_node_id <- reactiveVal(NULL)
-    build_in_progress <- reactiveVal(FALSE)
 
     # Progressive loading state
     progressive_nodes <- reactiveVal(NULL)
     progressive_edges <- reactiveVal(NULL)
+
+    # Async task state
+    current_interrupt_flag <- reactiveVal(NULL)
+    current_progress_file <- reactiveVal(NULL)
+    progress_poller <- reactiveVal(NULL)
+
+    # Create ExtendedTask for async network building
+    network_task <- ExtendedTask$new(function(seed_id, email, direction, depth, node_limit, interrupt_flag, progress_file, app_dir) {
+      mirai::mirai({
+        # Source required files in isolated process
+        source(file.path(app_dir, "R", "interrupt.R"), local = TRUE)
+        source(file.path(app_dir, "R", "api_openalex.R"), local = TRUE)
+        source(file.path(app_dir, "R", "citation_network.R"), local = TRUE)
+
+        # Build network with interrupt and progress support
+        result <- fetch_citation_network(
+          seed_id, email, api_key = NULL,
+          direction = direction, depth = depth,
+          node_limit = node_limit,
+          progress_callback = NULL,
+          interrupt_flag = interrupt_flag,
+          progress_file = progress_file
+        )
+
+        # Compute layout for full results only
+        if (!isTRUE(result$partial) && nrow(result$nodes) > 0) {
+          result$nodes <- compute_layout_positions(result$nodes, result$edges)
+        }
+
+        result
+      }, seed_id = seed_id, email = email, direction = direction,
+         depth = depth, node_limit = node_limit,
+         interrupt_flag = interrupt_flag, progress_file = progress_file, app_dir = app_dir)
+    })
 
     # Initialize palette from DB setting
     observe({
@@ -166,14 +218,117 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       updateSelectInput(session, "palette", selected = palette)
     }) |> bindEvent(con_r(), once = TRUE)
 
-    # Build progress
-    output$build_progress <- renderUI({
-      if (build_in_progress()) {
-        div(
-          class = "mt-2 small text-muted",
-          icon("spinner", class = "fa-spin"), " Building network..."
+    # Year filter panel — only shown when a network exists
+    output$year_filter_panel <- renderUI({
+      req(unfiltered_network_data())
+      ns <- session$ns
+      div(
+        class = "mt-2 pt-2 border-top",
+        layout_columns(
+          col_widths = c(5, 3, 4),
+          div(
+            sliderInput(
+              ns("year_filter"),
+              tags$span("Year Range",
+                        title = "Filter network nodes by publication year. Adjust range then click Apply to update."),
+              min = 1900, max = 2026, value = c(1900, 2026),
+              step = 1, sep = "", ticks = FALSE
+            )
+          ),
+          div(
+            class = "pt-4",
+            checkboxInput(ns("include_unknown_year_network"), "Include unknown year", value = TRUE)
+          ),
+          div(
+            class = "pt-3",
+            actionButton(ns("apply_year_filter"), "Apply Year Filter",
+                         class = "btn-outline-primary btn-sm", icon = icon("filter")),
+            uiOutput(ns("year_filter_preview"))
+          )
         )
+      )
+    })
+
+    # Dynamic slider bounds from unfiltered data (stable — not affected by filtering)
+    observe({
+      net_data <- unfiltered_network_data()
+      req(net_data)
+
+      nodes <- net_data$nodes
+      valid_years <- nodes$year[!is.na(nodes$year)]
+
+      if (length(valid_years) == 0) {
+        min_year <- 1900
+        max_year <- 2026
+      } else {
+        min_year <- min(valid_years)
+        max_year <- max(valid_years)
       }
+
+      updateSliderInput(session, "year_filter",
+                        min = min_year, max = max_year,
+                        value = c(min_year, max_year))
+    })
+
+    # Filter preview — counts against unfiltered data so preview is always accurate
+    output$year_filter_preview <- renderUI({
+      net_data <- unfiltered_network_data()
+      if (is.null(net_data)) return(NULL)
+
+      range <- input$year_filter
+      include_null <- input$include_unknown_year_network
+      if (is.null(range) || is.null(include_null)) return(NULL)
+
+      nodes <- net_data$nodes
+      # Seed paper is always kept
+      is_kept <- nodes$is_seed
+      if (include_null) {
+        is_kept <- is_kept | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
+      } else {
+        is_kept <- is_kept | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
+      }
+
+      div(
+        class = "mt-1 small text-muted",
+        paste(sum(is_kept), "of", nrow(nodes), "nodes")
+      )
+    })
+
+    # Apply year filter — filters from unfiltered snapshot, never destructive
+    observeEvent(input$apply_year_filter, {
+      net_data <- unfiltered_network_data()
+      req(net_data)
+
+      range <- input$year_filter
+      include_null <- input$include_unknown_year_network
+
+      nodes <- net_data$nodes
+      edges <- net_data$edges
+
+      # Always keep seed paper regardless of year filter
+      is_kept <- nodes$is_seed
+      if (include_null) {
+        is_kept <- is_kept | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
+      } else {
+        is_kept <- is_kept | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
+      }
+      filtered_nodes <- nodes[is_kept, ]
+
+      # Keep edges where both endpoints survive
+      filtered_node_ids <- filtered_nodes$id
+      filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
+
+      # Update display data (unfiltered snapshot stays intact)
+      current_network_data(list(
+        nodes = filtered_nodes,
+        edges = filtered_edges,
+        metadata = net_data$metadata
+      ))
+
+      showNotification(
+        paste("Year filter applied:", nrow(filtered_nodes), "of", nrow(nodes), "nodes shown"),
+        type = "message"
+      )
     })
 
     # Dynamic legend gradient that updates with palette
@@ -199,72 +354,164 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     observeEvent(input$build_network, {
       req(current_seed_id())
 
-      build_in_progress(TRUE)
-      on.exit(build_in_progress(FALSE))
+      # Create interrupt and progress files
+      flag_file <- create_interrupt_flag(session$token)
+      current_interrupt_flag(flag_file)
+      prog_file <- create_progress_file(session$token)
+      current_progress_file(prog_file)
 
-      config <- config_r()
-      email <- config$openalex$email
-      api_key <- NULL  # Optional
+      # Show progress modal
+      showModal(modalDialog(
+        title = tagList(icon("spinner", class = "fa-spin"), "Building Citation Network"),
+        tags$div(
+          class = "progress",
+          style = "height: 25px;",
+          tags$div(
+            id = session$ns("build_progress_bar"),
+            class = "progress-bar progress-bar-striped progress-bar-animated",
+            role = "progressbar",
+            style = "width: 5%;",
+            `aria-valuenow` = "5",
+            `aria-valuemin` = "0",
+            `aria-valuemax` = "100",
+            "5%"
+          )
+        ),
+        tags$div(
+          id = session$ns("build_progress_message"),
+          class = "text-muted mt-2",
+          "Initializing..."
+        ),
+        footer = actionButton(session$ns("cancel_build"), "Stop", class = "btn-warning", icon = icon("stop")),
+        easyClose = FALSE,
+        size = "m"
+      ))
 
-      seed_id <- current_seed_id()
-      direction <- input$direction
-      depth <- input$depth
-      node_limit <- input$node_limit
+      # Invoke async task
+      network_task$invoke(
+        seed_id = current_seed_id(),
+        email = config_r()$openalex$email,
+        direction = input$direction,
+        depth = input$depth,
+        node_limit = input$node_limit,
+        interrupt_flag = flag_file,
+        progress_file = prog_file,
+        app_dir = getwd()
+      )
 
-      # Get palette from UI control
-      palette <- input$palette %||% "viridis"
+      # Start polling observer — reads real progress from file
+      poller <- observe({
+        invalidateLater(1000)  # every 1 second
+        pf <- isolate(current_progress_file())
+        prog <- read_progress(pf)
+        session$sendCustomMessage("updateBuildProgress", list(
+          bar_id = session$ns("build_progress_bar"),
+          msg_id = session$ns("build_progress_message"),
+          percent = max(prog$pct, 5),
+          message = prog$message
+        ))
+      })
+      progress_poller(poller)  # Store so cancel/result handlers can destroy it
+    })
 
-      # Progress callback for progressive rendering
-      progress_cb <- function(message, fraction) {
-        # This would update progressive state
-        # For now, we'll do full render after completion
+    # Cancel button handler
+    observeEvent(input$cancel_build, {
+      # Signal interrupt to the running mirai process via file flag
+      flag_file <- current_interrupt_flag()
+      if (!is.null(flag_file)) {
+        signal_interrupt(flag_file)
       }
 
-      withProgress(message = "Fetching citation network...", {
-        tryCatch({
-          # Fetch network
-          result <- fetch_citation_network(
-            seed_id, email, api_key,
-            direction = direction,
-            depth = depth,
-            node_limit = node_limit,
-            progress_callback = progress_cb
-          )
+      # Stop progress poller
+      poller <- progress_poller()
+      if (!is.null(poller)) {
+        poller$destroy()
+        progress_poller(NULL)
+      }
 
-          if (nrow(result$nodes) == 0) {
-            showNotification("No papers found in citation network", type = "warning")
-            return()
-          }
+      # Update modal to show cancelling state
+      session$sendCustomMessage("updateBuildProgress", list(
+        bar_id = session$ns("build_progress_bar"),
+        msg_id = session$ns("build_progress_message"),
+        percent = 100,
+        message = "Stopping... waiting for partial results"
+      ))
+    })
 
-          # Compute layout positions
-          result$nodes <- compute_layout_positions(result$nodes, result$edges)
+    # Task result handler
+    observe({
+      result <- network_task$result()
+      req(result)
 
-          # Build visualization data
-          viz_data <- build_network_data(result$nodes, result$edges, palette, seed_id)
+      # Destroy progress poller
+      poller <- progress_poller()
+      if (!is.null(poller)) {
+        poller$destroy()
+        progress_poller(NULL)
+      }
 
-          # Store current network
-          current_network_data(list(
-            nodes = viz_data$nodes,
-            edges = viz_data$edges,
-            metadata = list(
-              seed_paper_id = seed_id,
-              seed_paper_title = viz_data$nodes$paper_title[viz_data$nodes$is_seed][1],
-              direction = direction,
-              depth = depth,
-              node_limit = node_limit,
-              palette = palette
-            )
-          ))
+      # Close modal
+      removeModal()
 
-          showNotification(
-            paste("Network built:", nrow(viz_data$nodes), "nodes,", nrow(viz_data$edges), "edges"),
-            type = "message"
-          )
+      # Clean up interrupt flag and progress file
+      flag_file <- current_interrupt_flag()
+      clear_interrupt_flag(flag_file)
+      current_interrupt_flag(NULL)
+      clear_progress_file(current_progress_file())
+      current_progress_file(NULL)
 
-        }, error = function(e) {
-          showNotification(paste("Error building network:", e$message), type = "error")
-        })
-      })
+      # Handle empty results
+      if (is.null(result$nodes) || nrow(result$nodes) == 0) {
+        showNotification("No papers found in citation network", type = "warning")
+        return()
+      }
+
+      # Compute layout for partial results (skipped in mirai for partials)
+      if (isTRUE(result$partial)) {
+        # Filter edges to only include nodes that were collected before cancellation
+        valid_ids <- result$nodes$paper_id
+        result$edges <- result$edges[
+          result$edges$from_paper_id %in% valid_ids & result$edges$to_paper_id %in% valid_ids, , drop = FALSE
+        ]
+        result$nodes <- compute_layout_positions(result$nodes, result$edges)
+      }
+
+      # Build visualization data — reuse exact same pattern as current code
+      palette <- input$palette %||% "viridis"
+      seed_id <- current_seed_id()
+      viz_data <- build_network_data(result$nodes, result$edges, palette, seed_id)
+
+      # Store network — same pattern as current code
+      net_list <- list(
+        nodes = viz_data$nodes,
+        edges = viz_data$edges,
+        metadata = list(
+          seed_paper_id = seed_id,
+          seed_paper_title = viz_data$nodes$paper_title[viz_data$nodes$is_seed][1],
+          direction = input$direction,
+          depth = input$depth,
+          node_limit = input$node_limit,
+          palette = palette,
+          partial = isTRUE(result$partial)
+        )
+      )
+      current_network_data(net_list)
+      unfiltered_network_data(net_list)
+
+      # Show different notifications for partial vs full results
+      if (isTRUE(result$partial)) {
+        showNotification(
+          sprintf("Partial network: %d nodes, %d edges (stopped by user)",
+                  nrow(viz_data$nodes), nrow(viz_data$edges)),
+          type = "message", duration = 8
+        )
+      } else {
+        showNotification(
+          sprintf("Network built: %d nodes, %d edges",
+                  nrow(viz_data$nodes), nrow(viz_data$edges)),
+          type = "message"
+        )
+      }
     })
 
     # Render network graph
@@ -296,16 +543,41 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             stabilization = FALSE
           )
       } else {
+        # Scale physics parameters based on graph density
+        n_nodes <- nrow(nodes)
+        n_edges <- nrow(edges)
+
+        # More nodes need stronger repulsion and longer springs to spread out
+        # Base values tuned for ~30 nodes; scale up for larger graphs
+        gravity <- if (n_nodes <= 30) -120
+                   else if (n_nodes <= 100) -200
+                   else if (n_nodes <= 200) -350
+                   else -500
+        spring <- if (n_nodes <= 30) 350
+                  else if (n_nodes <= 100) 450
+                  else if (n_nodes <= 200) 600
+                  else 800
+        # Dense graphs (high edge:node ratio) need even more repulsion
+        edge_ratio <- n_edges / max(n_nodes, 1)
+        if (edge_ratio > 3) {
+          gravity <- gravity * 1.5
+          spring <- spring * 1.3
+        }
+        # More iterations for larger graphs so layout can fully resolve
+        stab_iters <- if (n_nodes <= 50) 300
+                      else if (n_nodes <= 150) 600
+                      else 1000
+
         # Enable physics for initial build, auto-freeze after stabilization
         vn <- vn |>
           visNetwork::visPhysics(
             solver = "forceAtlas2Based",
             forceAtlas2Based = list(
-              gravitationalConstant = -120,
-              springLength = 350,
+              gravitationalConstant = gravity,
+              springLength = spring,
               damping = 0.4
             ),
-            stabilization = list(iterations = 300)
+            stabilization = list(iterations = stab_iters)
           ) |>
           visNetwork::visLayout(randomSeed = 42) |>
           visNetwork::visEvents(
@@ -370,6 +642,14 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       net_data$nodes <- nodes
       net_data$metadata$palette <- palette
       current_network_data(net_data)
+
+      # Also update unfiltered snapshot so next Apply uses new colors
+      uf_data <- unfiltered_network_data()
+      if (!is.null(uf_data)) {
+        uf_data$nodes$color <- map_year_to_color(uf_data$nodes$year, palette)
+        uf_data$metadata$palette <- palette
+        unfiltered_network_data(uf_data)
+      }
 
       # Also save palette to DB so settings stays in sync
       tryCatch(
@@ -621,12 +901,14 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           loaded$metadata$seed_paper_id
         )
 
-        # Set current network
-        current_network_data(list(
+        # Set current network and unfiltered snapshot
+        net_list <- list(
           nodes = viz_data$nodes,
           edges = viz_data$edges,
           metadata = loaded$metadata
-        ))
+        )
+        current_network_data(net_list)
+        unfiltered_network_data(net_list)
 
         # Update controls
         updateRadioButtons(session, "direction", selected = loaded$metadata$direction)
@@ -636,6 +918,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         # Set seed ID
         current_seed_id(loaded$metadata$seed_paper_id)
       }
+    })
+
+    # Session cleanup
+    session$onSessionEnded(function() {
+      cleanup_session_flags(session$token)
     })
 
     # Return network state for external use

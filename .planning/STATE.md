@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-12)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** v2.1 Polish & Analysis
+**Current focus:** v2.1 milestone complete
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-12 — Milestone v2.1 started
+Phase: 19 of 19 (Conclusion Synthesis) — COMPLETE
+Plan: 2/2 complete
+Status: Phase 19 complete, v2.1 milestone shipped
+Last activity: 2026-02-13 — Phase 19-02 verified (conclusion synthesis UI with AI disclaimers)
 
-Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 ✅ (8 plans) | Total: 25 plans shipped
+Progress: [████████████████████] 100% (19/19 phases complete, v2.1 milestone shipped)
 
 ## Performance Metrics
 
@@ -26,23 +26,62 @@ Progress: v1.0 ✅ (9 plans) | v1.1 ✅ (6 plans) | v1.2 ✅ (2 plans) | v2.0 �
 | v1.1 Quality of Life | 5-8 | 6 | 13 days |
 | v1.2 Stabilization | 9-10 | 2 | 1 day |
 | v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
+| v2.1 Polish & Analysis | 16-19 | 6 | <1 day |
+
+**Total:** 32 plans shipped (32 complete) across 19 phases
+
+**Recent Execution (Phase 19):**
+- Plan 19-01: 4 min (section metadata + synthesis backend)
+- Plan 19-02: ~10 min including human verification (UI + disclaimers + 3 bug fixes)
 
 ## Accumulated Context
 
 ### Decisions
 
-See PROJECT.md Key Decisions table for full log (24 decisions across 4 milestones).
+See PROJECT.md Key Decisions table for full log (26 decisions across 4 milestones).
+
+Recent decisions affecting v2.1 work:
+- **v2.0 - Store layout positions in DB**: Avoid recomputation on network reload (Phase 18 benefits)
+- **v2.0 - BFS frontier pruning at 100**: Prevent API explosion (Phase 18 cancellation pattern)
+- **v2.0 - Timestamp-based reactive deduplication**: Cross-module communication (Phase 17 year filter pattern)
+- **v2.1 (16-01) - Use magick package for favicon generation**: R's base png() device crashes in headless mode; magick provides reliable PNG generation with text rendering
+- **v2.1 (16-01) - Single hr() separator in footer**: Reduces visual clutter and saves ~60px vertical space while maintaining clear section separation
+- **v2.1 (17-01) - 400ms debounce on year range slider**: Prevents reactive storm during drag in search notebook
+- **v2.1 (17-01) - Dynamic slider bounds from database with COALESCE fallback**: Ensures valid ranges (2000-2026 default)
+- **v2.1 (17-02) - Apply Filter button for citation network year filter**: Prevents janky graph redraws during slider drag (vs auto-filter in search notebook)
+- **v2.1 (18-01) - File-based interrupt flags for cross-process cancellation**: Mirai executes in isolated R process, so file-based flags enable cancellation across process boundaries
+- **v2.1 (18-01) - ExtendedTask + mirai for async builds**: Replaces blocking withProgress, keeps UI responsive during long network builds
+- **v2.1 (18-01) - Partial result returns with partial=TRUE flag**: Cancelled builds return accumulated nodes/edges for potential user inspection
+- **v2.1 (18-01) - Layout computation deferred for partial results**: Computed in main process (not mirai) to return faster on cancellation
+- **v2.1 (18-02) - File-based progress tracking instead of time-based fake progress**: Enables real hop/paper counts from mirai worker to Shiny poller for informative status updates
+- **v2.1 (18-02) - ExtendedTask has no cancel() method**: Removed network_task$cancel() call, rely solely on interrupt flag for cancellation
+- **v2.1 (18-02) - Orphan edge filtering for partial results**: Filter edges to valid node IDs before layout computation to prevent crashes
+- **v2.1 (19-01) - Content-based keyword heuristics for section detection**: Match on chunk text (not headings) for robustness across paper styles
+- **v2.1 (19-01) - OWASP LLM01:2025 instruction-data separation**: Delimiters (===== BEGIN/END RESEARCH SOURCES =====) prevent prompt injection via RAG content
+- **v2.1 (19-02) - Three-level retrieval fallback for synthesis**: Section-filtered → unfiltered hybrid → direct DB query ensures feature works on all notebooks
+- **v2.1 (19-02) - 10-chunk limit with DESC ordering for fallback**: Prevents timeout while biasing toward conclusion-bearing content
 
 ### Pending Todos
 
 - [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflow (deferred, not in v2.1)
+- Move to renv for package namespace management (tooling)
+- Fix citation network background color blending (ui) — bundle with #79
+- Explore partial BFS graph as intentional visualization mode (cancelled builds produce interesting hub-spoke clusters)
 
 ### Blockers/Concerns
 
-(None)
+**Phase 18 (Progress Modal):**
+- ~~Shiny lacks native task cancellation — requires interrupt flag pattern~~ ✅ RESOLVED (18-01: implemented file-based interrupt flags)
+- ~~Observer cleanup needed to prevent leaked processes~~ ✅ RESOLVED (18-01: session cleanup added via onSessionEnded)
+- ~~Real progress tracking across process boundaries~~ ✅ RESOLVED (18-02: file-based progress files with hop/paper counts)
+- ~~Partial results with orphan edges crash layout~~ ✅ RESOLVED (18-02: filter edges to valid node IDs before layout)
+
+**Phase 19 (Conclusion Synthesis):**
+- ~~RAG prompt injection risk — requires OWASP LLM01:2025 hardening~~ ✅ RESOLVED (19-01: instruction-data separation with clear delimiters)
+- Section-targeted RAG needs adversarial testing (deferred to post-v2.1)
 
 ## Session Continuity
 
-Last session: 2026-02-12
-Stopped at: Defining v2.1 requirements
-Next: Complete requirements → roadmap → /gsd:plan-phase [N]
+Last session: 2026-02-13
+Stopped at: Phase 19 complete and verified (5/5 must-haves passed), v2.1 milestone shipped
+Next: `/gsd:complete-milestone` to archive v2.1 and plan next milestone

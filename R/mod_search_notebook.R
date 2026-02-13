@@ -99,6 +99,31 @@ mod_search_notebook_ui <- function(id) {
               value = TRUE
             )
           ),
+          # Year range filter panel
+          div(
+            class = "mb-2",
+            sliderInput(
+              ns("year_range"),
+              "Publication Year",
+              min = 1900,
+              max = 2026,
+              value = c(1900, 2026),
+              step = 1,
+              sep = "",
+              ticks = FALSE
+            ),
+            plotOutput(ns("year_histogram"), height = "60px"),
+            div(
+              class = "d-flex justify-content-between align-items-center",
+              checkboxInput(
+                ns("include_unknown_year"),
+                "Include unknown year",
+                value = TRUE
+              ),
+              textOutput(ns("unknown_year_count"), inline = TRUE) |>
+                tagAppendAttributes(class = "text-muted small")
+            )
+          ),
           div(
             id = ns("paper_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
@@ -212,6 +237,16 @@ mod_search_notebook_ui <- function(id) {
       # Body
       div(
         class = "offcanvas-body d-flex flex-column p-0",
+        # Preset buttons row (above messages)
+        div(
+          class = "border-bottom px-3 py-2",
+          div(
+            class = "btn-group btn-group-sm w-100",
+            actionButton(ns("btn_conclusions"), "Conclusions",
+                         class = "btn-sm btn-outline-primary",
+                         icon = icon("microscope"))
+          )
+        ),
         # Messages area
         div(
           id = ns("chat_messages"),
@@ -401,14 +436,87 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       list_abstracts(con(), nb_id, sort_by = sort_by)
     })
 
-    # Filtered papers - chain keyword filter -> journal filter -> has_abstract filter
+    # Dynamic slider bounds - updates when papers change
+    observe({
+      papers <- papers_data()
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      bounds <- get_year_bounds(con(), nb_id)
+      updateSliderInput(
+        session,
+        "year_range",
+        min = bounds$min_year,
+        max = bounds$max_year,
+        value = c(bounds$min_year, bounds$max_year)
+      )
+    })
+
+    # Debounced year range reactive
+    year_range_raw <- reactive({ input$year_range })
+    year_range <- debounce(year_range_raw, 400)
+
+    # Year histogram
+    output$year_histogram <- renderPlot({
+      nb_id <- notebook_id()
+      req(nb_id)
+      paper_refresh()  # React to paper changes
+
+      year_counts <- get_year_distribution(con(), nb_id)
+
+      if (nrow(year_counts) == 0) {
+        # Empty plot
+        ggplot2::ggplot() + ggplot2::theme_void()
+      } else {
+        # Minimal histogram
+        ggplot2::ggplot(year_counts, ggplot2::aes(x = year, y = count)) +
+          ggplot2::geom_col(fill = "#6366f1", width = 0.8, alpha = 0.7) +
+          ggplot2::theme_void() +
+          ggplot2::theme(
+            plot.background = ggplot2::element_blank(),
+            panel.background = ggplot2::element_blank(),
+            plot.margin = ggplot2::margin(0, 0, 0, 0)
+          )
+      }
+    }, bg = "transparent")
+
+    # Unknown year count display
+    output$unknown_year_count <- renderText({
+      nb_id <- notebook_id()
+      req(nb_id)
+      paper_refresh()  # React to paper changes
+
+      count <- get_unknown_year_count(con(), nb_id)
+      if (count > 0) {
+        paste0("(", count, " unknown)")
+      } else {
+        ""
+      }
+    })
+
+    # Filtered papers - chain keyword filter -> journal filter -> has_abstract filter -> year filter
     filtered_papers <- reactive({
       papers <- journal_filtered_papers()
       if (nrow(papers) == 0) return(papers)
 
+      # Has abstract filter
       if (isTRUE(input$filter_has_abstract)) {
         papers <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
       }
+
+      # Year range filter
+      range <- year_range()
+      if (!is.null(range) && length(range) == 2) {
+        include_null <- input$include_unknown_year
+        if (isTRUE(include_null)) {
+          # Keep rows where year is NULL OR in range
+          papers <- papers[is.na(papers$year) | (papers$year >= range[1] & papers$year <= range[2]), ]
+        } else {
+          # Keep only rows with non-NULL year in range
+          papers <- papers[!is.na(papers$year) & papers$year >= range[1] & papers$year <= range[2], ]
+        }
+      }
+
       papers
     })
 
@@ -1790,12 +1898,23 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 style = "max-width: 85%;", msg$content)
           )
         } else {
-          div(
-            class = "d-flex justify-content-start mb-2",
-            div(class = "bg-white border p-2 rounded chat-markdown",
-                style = "max-width: 90%;",
-                HTML(commonmark::markdown_html(msg$content, extensions = TRUE)))
+          is_synthesis <- !is.null(msg$preset_type) && identical(msg$preset_type, "conclusions")
+
+          content_html <- div(
+            class = "bg-white border p-2 rounded chat-markdown",
+            style = "max-width: 90%;",
+            if (is_synthesis) {
+              div(
+                class = "alert alert-warning py-2 px-3 mb-2 small",
+                role = "alert",
+                tags$strong(icon("triangle-exclamation"), " AI-Generated Content"),
+                " - Verify all claims against original sources before use."
+              )
+            },
+            HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
           )
+
+          div(class = "d-flex justify-content-start mb-2", content_html)
         }
       })
 
@@ -1848,6 +1967,36 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Conclusions preset handler
+    observeEvent(input$btn_conclusions, {
+      req(!is_processing())
+      req(has_api_key())
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+
+      nb_id <- notebook_id()
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        "Sorry, I encountered an error generating the synthesis."
+      })
+
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
       messages(msgs)
       is_processing(FALSE)
     })

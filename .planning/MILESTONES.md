@@ -74,3 +74,22 @@
 
 ---
 
+
+## v2.1 Polish & Analysis (Shipped: 2026-02-13)
+
+**Phases completed:** 4 phases (16-19), 7 plans
+
+**Key accomplishments:**
+- Distinct preset icons, browser favicon (blue "S" lettermark), and sidebar optimization reclaiming 60-90px vertical space
+- Interactive year range slider with histogram preview for search notebooks, Apply Filter button for citation network
+- Async citation network builds with ExtendedTask + mirai, file-based interrupt flags, progress modal with cancellation and partial results
+- Conclusion synthesis with section-targeted RAG retrieval, keyword-based section detection heuristics, and OWASP LLM01:2025 hardened prompts
+- AI-generated content disclaimer banners on all synthesis outputs across both notebook types
+
+**Stats:** 10 files changed, +1,244 / -142 lines, 12,569 R LOC total
+**Timeline:** <1 day (2026-02-13)
+**Git range:** feat(16-01) → feat(19-02)
+**Tech debt accepted:** Synthesis response time (large context), chat UX spinners needed
+
+---
+
