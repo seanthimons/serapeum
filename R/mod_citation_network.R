@@ -7,6 +7,22 @@ mod_citation_network_ui <- function(id) {
     # Include custom CSS
     tags$head(tags$link(rel = "stylesheet", href = "custom.css")),
 
+    # JavaScript handler for progress updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('updateBuildProgress', function(data) {
+        var bar = document.getElementById(data.bar_id);
+        if (bar) {
+          bar.style.width = data.percent + '%';
+          bar.textContent = data.percent + '%';
+          bar.setAttribute('aria-valuenow', data.percent);
+        }
+        var msg = document.getElementById(data.msg_id);
+        if (msg) {
+          msg.textContent = data.message;
+        }
+      });
+    ")),
+
     # Top controls bar
     div(
       class = "citation-network-controls mb-3 p-3 bg-light rounded",
@@ -340,11 +356,29 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       flag_file <- create_interrupt_flag(session$token)
       current_interrupt_flag(flag_file)
 
-      # Show basic modal
+      # Show progress modal
       showModal(modalDialog(
-        title = "Building Citation Network",
-        "Building network... please wait.",
-        footer = NULL,
+        title = tagList(icon("spinner", class = "fa-spin"), "Building Citation Network"),
+        tags$div(
+          class = "progress",
+          style = "height: 25px;",
+          tags$div(
+            id = session$ns("build_progress_bar"),
+            class = "progress-bar progress-bar-striped progress-bar-animated",
+            role = "progressbar",
+            style = "width: 5%;",
+            `aria-valuenow` = "5",
+            `aria-valuemin` = "0",
+            `aria-valuemax` = "100",
+            "5%"
+          )
+        ),
+        tags$div(
+          id = session$ns("build_progress_message"),
+          class = "text-muted mt-2",
+          "Initializing..."
+        ),
+        footer = actionButton(session$ns("cancel_build"), "Stop", class = "btn-warning", icon = icon("stop")),
         easyClose = FALSE,
         size = "m"
       ))
@@ -359,12 +393,67 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         interrupt_flag = flag_file,
         app_dir = getwd()
       )
+
+      # Start polling observer for progress updates
+      poll_count <- reactiveVal(0L)
+      poller <- observe({
+        invalidateLater(2000)  # every 2 seconds
+        n <- isolate(poll_count()) + 1L
+        poll_count(n)
+        # Increment progress bar smoothly: 5% -> ~85% over time
+        pct <- min(5 + n * 8, 85)
+        session$sendCustomMessage("updateBuildProgress", list(
+          bar_id = session$ns("build_progress_bar"),
+          msg_id = session$ns("build_progress_message"),
+          percent = pct,
+          message = paste0("Fetching citations (step ", n, ")...")
+        ))
+      })
+      progress_poller(poller)  # Store in reactiveVal so cancel/result handlers can destroy it
+    })
+
+    # Cancel button handler
+    observeEvent(input$cancel_build, {
+      # Signal interrupt to the running mirai process via file flag
+      flag_file <- current_interrupt_flag()
+      if (!is.null(flag_file)) {
+        signal_interrupt(flag_file)
+      }
+
+      # Cancel the ExtendedTask
+      network_task$cancel()
+
+      # Stop progress poller
+      poller <- progress_poller()
+      if (!is.null(poller)) {
+        poller$destroy()
+        progress_poller(NULL)
+      }
+
+      # Close modal immediately (don't wait for task return)
+      removeModal()
+
+      # Clean up flag
+      clear_interrupt_flag(flag_file)
+      current_interrupt_flag(NULL)
+
+      showNotification(
+        "Network build stopped. Partial results will display if available.",
+        type = "warning", duration = 5
+      )
     })
 
     # Task result handler
     observe({
       result <- network_task$result()
       req(result)
+
+      # Destroy progress poller
+      poller <- progress_poller()
+      if (!is.null(poller)) {
+        poller$destroy()
+        progress_poller(NULL)
+      }
 
       # Close modal
       removeModal()
@@ -407,11 +496,20 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       current_network_data(net_list)
       unfiltered_network_data(net_list)
 
-      # Notification
-      showNotification(
-        sprintf("Network built: %d nodes, %d edges", nrow(viz_data$nodes), nrow(viz_data$edges)),
-        type = "message"
-      )
+      # Show different notifications for partial vs full results
+      if (isTRUE(result$partial)) {
+        showNotification(
+          sprintf("Partial network: %d nodes, %d edges (stopped by user)",
+                  nrow(viz_data$nodes), nrow(viz_data$edges)),
+          type = "message", duration = 8
+        )
+      } else {
+        showNotification(
+          sprintf("Network built: %d nodes, %d edges",
+                  nrow(viz_data$nodes), nrow(viz_data$edges)),
+          type = "message"
+        )
+      }
     })
 
     # Render network graph
