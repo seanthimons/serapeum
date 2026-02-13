@@ -827,10 +827,12 @@ get_chunks_for_documents <- function(con, document_ids) {
 #' @param limit Number of results
 #' @param ragnar_store Optional RagnarStore object (created if NULL and ragnar available)
 #' @param ragnar_store_path Path to ragnar store database
+#' @param section_filter Optional character vector of section hints to filter by (e.g., c("conclusion", "future_work"))
 #' @return Data frame of matching chunks with source info
 search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
-                                  ragnar_store_path = "data/serapeum.ragnar.duckdb") {
+                                  ragnar_store_path = "data/serapeum.ragnar.duckdb",
+                                  section_filter = NULL) {
 
   # Try ragnar search if available (connect only, don't create new store)
   if (ragnar_available() && file.exists(ragnar_store_path)) {
@@ -870,6 +872,54 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           }, logical(1))
 
           results <- results[keep_rows, , drop = FALSE]
+        }
+
+        # Filter by section_hint if specified
+        if (!is.null(section_filter) && nrow(results) > 0) {
+          # Ragnar results may not have section_hint column, need to look it up from chunks table
+          # Match by content to get section_hint
+          if (!"section_hint" %in% names(results)) {
+            # Query chunks table to get section_hint for matching content
+            # Build a safe query using content matching
+            content_list <- results$content
+            if (length(content_list) > 0) {
+              # Use first 100 chars of content for matching (more robust than full content)
+              content_prefixes <- vapply(content_list, function(x) {
+                substr(as.character(x), 1, 100)
+              }, FUN.VALUE = character(1))
+
+              # Query chunks for section hints (graceful: if no section_hint column exists, this will fail gracefully)
+              tryCatch({
+                placeholders <- paste(rep("?", length(content_prefixes)), collapse = ", ")
+                section_hints <- dbGetQuery(con, sprintf("
+                  SELECT DISTINCT substr(content, 1, 100) as content_prefix, section_hint
+                  FROM chunks
+                  WHERE substr(content, 1, 100) IN (%s)
+                ", placeholders), as.list(content_prefixes))
+
+                # Add section_hint to results by matching prefixes
+                results$section_hint <- vapply(seq_len(nrow(results)), function(i) {
+                  prefix <- substr(results$content[i], 1, 100)
+                  match_idx <- which(section_hints$content_prefix == prefix)
+                  if (length(match_idx) > 0) {
+                    section_hints$section_hint[match_idx[1]]
+                  } else {
+                    "general"  # Default if no match found
+                  }
+                }, FUN.VALUE = character(1))
+              }, error = function(e) {
+                # If section_hint column doesn't exist yet, set all to "general" (graceful degradation)
+                message("[search_chunks_hybrid] section_hint column not found, skipping section filter")
+                results$section_hint <<- rep("general", nrow(results))
+              })
+            }
+          }
+
+          # Now filter by section_hint
+          if ("section_hint" %in% names(results)) {
+            keep_sections <- results$section_hint %in% section_filter
+            results <- results[keep_sections, , drop = FALSE]
+          }
         }
 
         # Look up actual titles for abstract results

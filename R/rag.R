@@ -263,3 +263,141 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
 
   response
 }
+
+#' Generate conclusion synthesis preset
+#'
+#' Synthesizes conclusions, limitations, and future directions from research sources.
+#' Uses section-targeted RAG retrieval for document notebooks (focuses on conclusion/
+#' limitations/future work sections) and generic retrieval for search notebooks (abstracts).
+#'
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param notebook_type Type of notebook ("document" or "search")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @return Generated synthesis content (plain markdown, no AI disclaimer)
+generate_conclusions_preset <- function(con, config, notebook_id, notebook_type = "document", session_id = NULL) {
+  # Extract settings
+  api_key <- get_setting(config, "openrouter", "api_key")
+  if (length(api_key) > 1) api_key <- api_key[1]
+
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(chat_model) > 1) chat_model <- chat_model[1]
+
+  # Check api_key
+  api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
+                   (is.character(api_key) && nchar(api_key) == 0)
+  if (api_key_empty) {
+    return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
+  }
+
+  # Get notebook
+  notebook <- get_notebook(con, notebook_id)
+  if (is.null(notebook)) {
+    return("Error: Notebook not found.")
+  }
+
+  # Retrieve chunks with section filtering for document notebooks
+  chunks <- NULL
+
+  if (notebook_type == "document") {
+    # Try section-filtered search first
+    chunks <- tryCatch({
+      search_chunks_hybrid(
+        con,
+        query = "conclusions limitations future work research gaps directions",
+        notebook_id = notebook_id,
+        limit = 10,
+        section_filter = c("conclusion", "limitations", "future_work", "discussion", "late_section")
+      )
+    }, error = function(e) {
+      message("[generate_conclusions_preset] Section-filtered search failed: ", e$message)
+      NULL
+    })
+
+    # Fallback: retry without section filter (graceful degradation for pre-migration data)
+    if (is.null(chunks) || nrow(chunks) == 0) {
+      message("[generate_conclusions_preset] Retrying without section filter")
+      chunks <- tryCatch({
+        search_chunks_hybrid(
+          con,
+          query = "conclusions limitations future work research gaps directions",
+          notebook_id = notebook_id,
+          limit = 10
+        )
+      }, error = function(e) {
+        message("[generate_conclusions_preset] Fallback search failed: ", e$message)
+        NULL
+      })
+    }
+  } else {
+    # Search notebooks: use generic retrieval (abstracts don't have section structure)
+    chunks <- tryCatch({
+      search_chunks_hybrid(
+        con,
+        query = "conclusions limitations future work research gaps",
+        notebook_id = notebook_id,
+        limit = 10
+      )
+    }, error = function(e) {
+      message("[generate_conclusions_preset] Search notebook retrieval failed: ", e$message)
+      NULL
+    })
+  }
+
+  if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
+    return("No content found in this notebook. Please add documents or search for papers first.")
+  }
+
+  # Build context
+  context <- build_context(chunks)
+
+  # OWASP LLM01:2025 compliant prompt (instructions BEFORE data, clear delimiters)
+  system_prompt <- "You are a research synthesis assistant. Your task is to:
+1. Summarize the key conclusions across the provided research sources
+2. Identify common themes, agreements, and divergent positions
+3. Propose future research directions based on identified gaps and limitations
+
+IMPORTANT: Base your synthesis ONLY on the provided sources. Do not invent findings or cite sources not provided. If sources conflict, note the disagreement explicitly.
+
+OUTPUT FORMAT:
+## Research Conclusions
+[Synthesized conclusions with citations using [Source Name] format]
+
+## Agreements & Disagreements
+[Where sources agree and diverge]
+
+## Research Gaps & Future Directions
+[Proposed directions based on limitations and gaps identified in the sources]"
+
+  user_prompt <- sprintf("===== BEGIN RESEARCH SOURCES =====
+%s
+===== END RESEARCH SOURCES =====
+
+Synthesize the conclusions and future research directions from the sources above.", context)
+
+  messages <- format_chat_messages(system_prompt, user_prompt)
+
+  # Generate response
+  response <- tryCatch({
+    result <- chat_completion(api_key, chat_model, messages)
+
+    # Log cost if session_id provided
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+      log_cost(con, "conclusion_synthesis", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
+  }, error = function(e) {
+    return(sprintf("Error generating synthesis: %s", e$message))
+  })
+
+  response
+}
