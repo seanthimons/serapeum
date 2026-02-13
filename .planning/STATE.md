@@ -56,6 +56,7 @@ Recent decisions affecting v2.1 work:
 
 - [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflow (deferred, not in v2.1)
 - Move to renv for package namespace management (tooling)
+- Fix citation network background color blending (ui) — bundle with #79
 
 ### Blockers/Concerns
 
