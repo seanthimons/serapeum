@@ -532,13 +532,14 @@ search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
 #' @param cited_by_count Number of citations this paper has received
 #' @param referenced_works_count Number of references in this paper
 #' @param fwci Field-weighted citation impact
+#' @param doi Digital Object Identifier (DOI) in bare format (optional)
 #' @return Abstract ID
 create_abstract <- function(con, notebook_id, paper_id, title, authors,
                             abstract, year, venue, pdf_url, keywords = NULL,
                             work_type = NULL, work_type_crossref = NULL,
                             oa_status = NULL, is_oa = FALSE,
                             cited_by_count = 0, referenced_works_count = 0,
-                            fwci = NULL) {
+                            fwci = NULL, doi = NULL) {
   id <- uuid::UUIDgenerate()
 
  # Handle edge cases
@@ -572,10 +573,13 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
   referenced_works_count_val <- if (is.null(referenced_works_count) || is.na(referenced_works_count)) 0L else as.integer(referenced_works_count)
   fwci_val <- if (is.null(fwci) || (is.numeric(fwci) && is.na(fwci))) NA_real_ else as.numeric(fwci)
 
+  # Normalize DOI to bare format for storage
+  doi_val <- if (is.null(doi) || is.na(doi) || doi == "") NA_character_ else normalize_doi_bare(doi)
+
   dbExecute(con, "
-    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref, oa_status, is_oa, cited_by_count, referenced_works_count, fwci)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val, oa_status_val, is_oa_val, cited_by_count_val, referenced_works_count_val, fwci_val))
+    INSERT INTO abstracts (id, notebook_id, paper_id, title, authors, abstract, keywords, year, venue, pdf_url, work_type, work_type_crossref, oa_status, is_oa, cited_by_count, referenced_works_count, fwci, doi)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, paper_id, title, authors_json, abstract_val, keywords_json, year_val, venue_val, pdf_url_val, work_type_val, work_type_crossref_val, oa_status_val, is_oa_val, cited_by_count_val, referenced_works_count_val, fwci_val, doi_val))
 
   id
 }
@@ -588,6 +592,103 @@ delete_abstract <- function(con, id) {
   dbExecute(con, "DELETE FROM chunks WHERE source_id = ?", list(id))
   # Delete the abstract
   dbExecute(con, "DELETE FROM abstracts WHERE id = ?", list(id))
+}
+
+#' Get DOI backfill status
+#'
+#' Returns counts of papers with/without DOIs for progress tracking.
+#'
+#' @param con DuckDB connection
+#' @return List with total_papers, missing_doi, has_doi counts
+get_doi_backfill_status <- function(con) {
+  # Count all abstracts
+  total <- dbGetQuery(con, "SELECT COUNT(*) as count FROM abstracts")$count
+
+  # Count abstracts with DOI
+  has_doi <- dbGetQuery(con, "SELECT COUNT(*) as count FROM abstracts WHERE doi IS NOT NULL")$count
+
+  # Count abstracts missing DOI (only those with OpenAlex paper_id)
+  missing_doi <- dbGetQuery(con, "
+    SELECT COUNT(*) as count
+    FROM abstracts
+    WHERE doi IS NULL AND paper_id LIKE 'W%'
+  ")$count
+
+  list(
+    total_papers = total,
+    has_doi = has_doi,
+    missing_doi = missing_doi
+  )
+}
+
+#' Backfill DOIs for existing papers
+#'
+#' Fetches DOIs from OpenAlex API for papers that have NULL DOI.
+#' Processes in batches to avoid overwhelming the API.
+#'
+#' @param con DuckDB connection
+#' @param email Email for OpenAlex API (polite pool)
+#' @param api_key OpenAlex API key (optional)
+#' @param batch_size Number of papers to process per batch (default 50)
+#' @return Number of papers updated with DOI
+backfill_dois <- function(con, email, api_key = NULL, batch_size = 50) {
+  # Get papers missing DOI (only those with valid OpenAlex paper_id)
+  papers <- dbGetQuery(con, "
+    SELECT id, paper_id
+    FROM abstracts
+    WHERE doi IS NULL AND paper_id LIKE 'W%'
+    LIMIT ?
+  ", list(as.integer(batch_size)))
+
+  if (nrow(papers) == 0) {
+    return(0)
+  }
+
+  # Build pipe-separated OpenAlex filter for batch lookup
+  openalex_ids <- paste(papers$paper_id, collapse = "|")
+  filter_str <- paste0("openalex_id:", openalex_ids)
+
+  # Fetch works from OpenAlex
+  tryCatch({
+    req <- build_openalex_request("works", email, api_key)
+    req <- req |> req_url_query(
+      filter = filter_str,
+      per_page = batch_size
+    )
+
+    resp <- req_perform(req)
+    body <- resp_body_json(resp)
+
+    if (is.null(body$results) || length(body$results) == 0) {
+      return(0)
+    }
+
+    # Update DOIs in database
+    update_count <- 0
+    for (work in body$results) {
+      if (is.null(work$id) || is.null(work$doi)) next
+
+      # Extract paper_id from OpenAlex URL (e.g., "https://openalex.org/W123" -> "W123")
+      work_id <- gsub("^https://openalex.org/", "", work$id)
+
+      # Extract and normalize DOI
+      doi_raw <- gsub("^https://doi.org/", "", work$doi)
+      doi_normalized <- normalize_doi_bare(doi_raw)
+
+      if (is.na(doi_normalized)) next
+
+      # Update database
+      dbExecute(con, "UPDATE abstracts SET doi = ? WHERE paper_id = ?",
+                list(doi_normalized, work_id))
+      update_count <- update_count + 1
+    }
+
+    return(update_count)
+
+  }, error = function(e) {
+    warning("[backfill_dois] API error: ", e$message)
+    return(0)
+  })
 }
 
 #' List abstracts in a notebook
@@ -1316,4 +1417,162 @@ is_journal_blocked <- function(con, journal_name) {
 get_blocked_journals_set <- function(con) {
   result <- dbGetQuery(con, "SELECT journal_name_normalized FROM blocked_journals")
   result$journal_name_normalized
+}
+
+# ============================================================================
+# Citation Network Functions (Phase 12 - Citation Network Visualization)
+# ============================================================================
+
+#' Save a citation network to the database
+#'
+#' @param con DuckDB connection
+#' @param id Network ID (generates UUID if NULL)
+#' @param name Network name
+#' @param seed_paper_id OpenAlex Work ID
+#' @param seed_paper_title Seed paper title
+#' @param direction Citation direction: "forward", "backward", or "both"
+#' @param depth Number of hops (1-3)
+#' @param node_limit Maximum nodes (25-200)
+#' @param palette Color palette name
+#' @param nodes_df Data frame with columns: paper_id, is_seed, title, authors, year, venue, doi, cited_by_count, x_position, y_position
+#' @param edges_df Data frame with columns: from_paper_id, to_paper_id
+#' @return Network ID
+save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
+                          direction, depth, node_limit, palette, nodes_df, edges_df) {
+  # Generate ID if not provided
+  if (is.null(id)) {
+    id <- uuid::UUIDgenerate()
+  }
+
+  # Insert network metadata
+  dbExecute(con, "
+    INSERT INTO citation_networks (id, name, seed_paper_id, seed_paper_title, direction, depth, node_limit, palette)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, name, seed_paper_id, seed_paper_title, direction,
+          as.integer(depth), as.integer(node_limit), palette))
+
+  # Prepare nodes for bulk insert
+  if (nrow(nodes_df) > 0) {
+    nodes_clean <- data.frame(
+      network_id = id,
+      paper_id = as.character(nodes_df$paper_id),
+      is_seed = as.logical(nodes_df$is_seed),
+      title = as.character(nodes_df$title),
+      authors = as.character(nodes_df$authors),
+      year = as.integer(nodes_df$year),
+      venue = as.character(nodes_df$venue),
+      doi = as.character(nodes_df$doi),
+      cited_by_count = as.integer(nodes_df$cited_by_count),
+      x_position = as.numeric(nodes_df$x),
+      y_position = as.numeric(nodes_df$y),
+      stringsAsFactors = FALSE
+    )
+
+    # Bulk insert nodes
+    dbWriteTable(con, "network_nodes", nodes_clean, append = TRUE)
+  }
+
+  # Prepare edges for bulk insert
+  if (nrow(edges_df) > 0) {
+    edges_clean <- data.frame(
+      network_id = id,
+      from_paper_id = as.character(edges_df$from_paper_id),
+      to_paper_id = as.character(edges_df$to_paper_id),
+      stringsAsFactors = FALSE
+    )
+
+    # Bulk insert edges
+    dbWriteTable(con, "network_edges", edges_clean, append = TRUE)
+  }
+
+  id
+}
+
+#' Load a citation network from the database
+#'
+#' @param con DuckDB connection
+#' @param network_id Network ID
+#' @return List with metadata, nodes, edges, or NULL if not found
+load_network <- function(con, network_id) {
+  # Load network metadata
+  metadata <- dbGetQuery(con, "
+    SELECT * FROM citation_networks WHERE id = ?
+  ", list(network_id))
+
+  if (nrow(metadata) == 0) {
+    return(NULL)
+  }
+
+  # Load nodes
+  nodes <- dbGetQuery(con, "
+    SELECT * FROM network_nodes WHERE network_id = ?
+  ", list(network_id))
+
+  # Load edges
+  edges <- dbGetQuery(con, "
+    SELECT * FROM network_edges WHERE network_id = ?
+  ", list(network_id))
+
+  list(
+    metadata = metadata,
+    nodes = nodes,
+    edges = edges
+  )
+}
+
+#' List all saved citation networks
+#'
+#' @param con DuckDB connection
+#' @return Data frame with id, name, seed_paper_title, created_at
+list_networks <- function(con) {
+  dbGetQuery(con, "
+    SELECT id, name, seed_paper_title, created_at
+    FROM citation_networks
+    ORDER BY updated_at DESC
+  ")
+}
+
+#' Delete a citation network
+#'
+#' Manually deletes nodes and edges before deleting network
+#' (DuckDB doesn't support CASCADE on foreign keys).
+#'
+#' @param con DuckDB connection
+#' @param network_id Network ID
+delete_network <- function(con, network_id) {
+  # Delete nodes first
+  dbExecute(con, "DELETE FROM network_nodes WHERE network_id = ?", list(network_id))
+
+  # Delete edges
+  dbExecute(con, "DELETE FROM network_edges WHERE network_id = ?", list(network_id))
+
+  # Delete network metadata
+  dbExecute(con, "DELETE FROM citation_networks WHERE id = ?", list(network_id))
+}
+
+#' Update network node positions
+#'
+#' Called after graph stabilization to save final layout.
+#'
+#' @param con DuckDB connection
+#' @param network_id Network ID
+#' @param nodes_df Data frame with paper_id, x_position, y_position columns
+update_network_positions <- function(con, network_id, nodes_df) {
+  if (nrow(nodes_df) == 0) return(invisible(NULL))
+
+  # Update each node's position
+  for (i in seq_len(nrow(nodes_df))) {
+    dbExecute(con, "
+      UPDATE network_nodes
+      SET x_position = ?, y_position = ?
+      WHERE network_id = ? AND paper_id = ?
+    ", list(
+      as.numeric(nodes_df$x_position[i]),
+      as.numeric(nodes_df$y_position[i]),
+      network_id,
+      as.character(nodes_df$paper_id[i])
+    ))
+  }
+
+  invisible(NULL)
 }

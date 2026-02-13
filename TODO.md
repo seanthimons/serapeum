@@ -20,9 +20,9 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#53](https://github.com/seanthimons/serapeum/issues/53) | feat: Citation network graph for paper discovery | Medium | High |
-| [#66](https://github.com/seanthimons/serapeum/issues/66) | feat: DOI on abstract preview | Low | Medium |
-| [#67](https://github.com/seanthimons/serapeum/issues/67) | dev: Export abstract to seeded paper search | Medium | High |
+| ~~[#53](https://github.com/seanthimons/serapeum/issues/53)~~ | ~~feat: Citation network graph for paper discovery~~ | ~~Medium~~ | ~~High~~ |
+| ~~[#66](https://github.com/seanthimons/serapeum/issues/66)~~ | ~~feat: DOI on abstract preview~~ | ~~Low~~ | ~~Medium~~ |
+| ~~[#67](https://github.com/seanthimons/serapeum/issues/67)~~ | ~~dev: Export abstract to seeded paper search~~ | ~~Medium~~ | ~~High~~ |
 
 ---
 
@@ -42,16 +42,28 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement (#53, #66, #67, #71) | High | High |
 | [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export (#49, #50, #63, #64) | High | High |
 | [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis (#27, #63) | High | High |
-| [#63](https://github.com/seanthimons/serapeum/issues/63) | feat: Additional synthesis outputs | High | High |
-| [#64](https://github.com/seanthimons/serapeum/issues/64) | feat: Citation export | Medium | Medium |
+| ~~[#63](https://github.com/seanthimons/serapeum/issues/63)~~ | ~~feat: Additional synthesis outputs~~ | ~~High~~ | ~~High~~ |
+| ~~[#64](https://github.com/seanthimons/serapeum/issues/64)~~ | ~~feat: Citation export~~ | ~~Medium~~ | ~~Medium~~ |
 | [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
 | [#48](https://github.com/seanthimons/serapeum/issues/48) | dev: Tighter RAG document retrieval controls | Low | Medium |
-| [#49](https://github.com/seanthimons/serapeum/issues/49) | feat: Export synthesis outputs (document notebooks) | Medium | Medium |
-| [#50](https://github.com/seanthimons/serapeum/issues/50) | feat: Rich output preview (document notebook synthesis) | Medium | Medium |
+| ~~[#49](https://github.com/seanthimons/serapeum/issues/49)~~ | ~~feat: Export synthesis outputs (document notebooks)~~ | ~~Medium~~ | ~~Medium~~ |
+| ~~[#50](https://github.com/seanthimons/serapeum/issues/50)~~ | ~~feat: Rich output preview (document notebook synthesis)~~ | ~~Medium~~ | ~~Medium~~ |
 | [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
 | [#60](https://github.com/seanthimons/serapeum/issues/60) | dev: Toggle/UI to expose API queries | Medium | Medium |
+
+---
+
+## UI Polish
+
+| Area | Title | Complexity | Impact |
+|------|-------|------------|--------|
+| Citation Network | [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflows graph container and overlaps side panel | Medium | Medium |
+| Citation Network | [#80](https://github.com/seanthimons/serapeum/issues/80): Expanded progress modal with stop button and detailed logging | Medium | Medium |
+| Citation Network | Cluster density control — slider to adjust physics spacing (gravitational constant / spring length) so dense citation fields are readable | Medium | High |
+| Citation Network | Improved node size scaling — current log1p transform still compresses high-citation papers; consider configurable exponent or breakpoint-based sizing | Low | Medium |
+| Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
 
 ---
 
@@ -121,6 +133,13 @@ High-effort, high-payoff features for the future.
 - [x] [#68](https://github.com/seanthimons/serapeum/issues/68): Fix tab-swap OpenAlex re-request (v1.2 Phase 9)
 - [x] [#73](https://github.com/seanthimons/serapeum/issues/73): Collapsible Journal Quality card (v1.2 Phase 10)
 - [x] [#72](https://github.com/seanthimons/serapeum/issues/72): Fix block badge vertical misalignment (v1.2 Phase 10)
+- [x] [#66](https://github.com/seanthimons/serapeum/issues/66): DOI on abstract preview (v2.0 Phase 11)
+- [x] [#53](https://github.com/seanthimons/serapeum/issues/53): Citation network graph for paper discovery (v2.0 Phase 12)
+- [x] [#67](https://github.com/seanthimons/serapeum/issues/67): Export abstract to seeded paper search (v2.0 Phase 13)
+- [x] [#64](https://github.com/seanthimons/serapeum/issues/64): Citation export - BibTeX/CSV (v2.0 Phase 14)
+- [x] [#49](https://github.com/seanthimons/serapeum/issues/49): Export synthesis outputs as Markdown/HTML (v2.0 Phase 15)
+- [x] [#50](https://github.com/seanthimons/serapeum/issues/50): Rich markdown rendering in chat windows (v2.0 Phase 15)
+- [x] [#63](https://github.com/seanthimons/serapeum/issues/63): Additional synthesis outputs (v2.0 Phase 15)
 
 ---
 

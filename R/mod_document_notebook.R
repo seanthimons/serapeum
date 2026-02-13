@@ -29,18 +29,34 @@ mod_document_notebook_ui <- function(id) {
         class = "d-flex justify-content-between align-items-center flex-wrap gap-2",
         span("Chat"),
         div(
-          class = "btn-group",
-          actionButton(ns("btn_summarize"), "Summarize",
-                       class = "btn-sm btn-outline-primary"),
-          actionButton(ns("btn_keypoints"), "Key Points",
-                       class = "btn-sm btn-outline-primary"),
-          actionButton(ns("btn_studyguide"), "Study Guide",
-                       class = "btn-sm btn-outline-primary"),
-          actionButton(ns("btn_outline"), "Outline",
-                       class = "btn-sm btn-outline-primary"),
-          actionButton(ns("btn_slides"), "Slides",
-                       class = "btn-sm btn-outline-primary",
-                       icon = icon("file-powerpoint"))
+          class = "d-flex gap-2",
+          div(
+            class = "btn-group",
+            actionButton(ns("btn_summarize"), "Summarize",
+                         class = "btn-sm btn-outline-primary"),
+            actionButton(ns("btn_keypoints"), "Key Points",
+                         class = "btn-sm btn-outline-primary"),
+            actionButton(ns("btn_studyguide"), "Study Guide",
+                         class = "btn-sm btn-outline-primary"),
+            actionButton(ns("btn_outline"), "Outline",
+                         class = "btn-sm btn-outline-primary"),
+            actionButton(ns("btn_slides"), "Slides",
+                         class = "btn-sm btn-outline-primary",
+                         icon = icon("file-powerpoint"))
+          ),
+          div(
+            class = "btn-group btn-group-sm",
+            tags$button(
+              class = "btn btn-outline-secondary dropdown-toggle",
+              `data-bs-toggle` = "dropdown",
+              icon("download"), " Export"
+            ),
+            tags$ul(
+              class = "dropdown-menu",
+              tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
+              tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
+            )
+          )
         )
       ),
       card_body(
@@ -328,9 +344,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           div(
             class = "d-flex justify-content-start mb-2",
             div(
-              class = "bg-white border p-2 rounded",
+              class = "bg-white border p-2 rounded chat-markdown",
               style = "max-width: 90%;",
-              HTML(gsub("\n", "<br/>", msg$content))
+              HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
             )
           )
         }
@@ -353,6 +369,30 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       tagList(msg_list)
     })
 
+    # Download handlers for chat export
+    output$download_chat_md <- downloadHandler(
+      filename = function() { paste0("chat-", Sys.Date(), ".md") },
+      content = function(file) {
+        msgs <- messages()
+        md_content <- format_chat_as_markdown(msgs)
+        con_file <- file(file, "wb")
+        writeBin(charToRaw(md_content), con_file)
+        close(con_file)
+      }
+    )
+
+    output$download_chat_html <- downloadHandler(
+      filename = function() { paste0("chat-", Sys.Date(), ".html") },
+      content = function(file) {
+        msgs <- messages()
+        html_content <- format_chat_as_html(msgs)
+        con_file <- file(file, "wb")
+        writeBin(charToRaw("\xEF\xBB\xBF"), con_file)  # UTF-8 BOM
+        writeBin(charToRaw(html_content), con_file)
+        close(con_file)
+      }
+    )
+
     # Send message
     observeEvent(input$send, {
       req(input$user_input)
@@ -367,7 +407,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Add user message
       msgs <- messages()
-      msgs <- c(msgs, list(list(role = "user", content = user_msg)))
+      msgs <- c(msgs, list(list(role = "user", content = user_msg, timestamp = Sys.time())))
       messages(msgs)
 
       # Generate response
@@ -380,7 +420,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         sprintf("Error: %s", e$message)
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response)))
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
     })
@@ -397,7 +437,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       is_processing(TRUE)
 
       msgs <- messages()
-      msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label))))
+      msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label), timestamp = Sys.time())))
       messages(msgs)
 
       nb_id <- notebook_id()
@@ -409,7 +449,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         sprintf("Error: %s", e$message)
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response)))
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
     }

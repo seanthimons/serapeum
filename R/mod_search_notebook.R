@@ -51,6 +51,19 @@ mod_search_notebook_ui <- function(id) {
           span("Papers"),
           div(
             class = "d-flex gap-2",
+            div(
+              class = "btn-group btn-group-sm",
+              tags$button(
+                class = "btn btn-outline-primary dropdown-toggle",
+                `data-bs-toggle` = "dropdown",
+                icon("download"), " Export"
+              ),
+              tags$ul(
+                class = "dropdown-menu",
+                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon("file-code"), " BibTeX (.bib)")),
+                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon("file-csv"), " CSV (.csv)"))
+              )
+            ),
             actionButton(ns("edit_search"), NULL,
                          class = "btn-sm btn-outline-secondary",
                          icon = icon("pen-to-square"),
@@ -172,11 +185,27 @@ mod_search_notebook_ui <- function(id) {
       div(
         class = "offcanvas-header border-bottom",
         h5(class = "offcanvas-title", "Chat with Abstracts"),
-        tags$button(
-          type = "button",
-          class = "btn-close",
-          `data-bs-dismiss` = "offcanvas",
-          `aria-label` = "Close"
+        div(
+          class = "d-flex align-items-center gap-2 ms-auto",
+          div(
+            class = "btn-group btn-group-sm",
+            tags$button(
+              class = "btn btn-outline-secondary dropdown-toggle",
+              `data-bs-toggle` = "dropdown",
+              icon("download")
+            ),
+            tags$ul(
+              class = "dropdown-menu dropdown-menu-end",
+              tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
+              tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
+            )
+          ),
+          tags$button(
+            type = "button",
+            class = "btn-close",
+            `data-bs-dismiss` = "offcanvas",
+            `aria-label` = "Close"
+          )
         )
       ),
 
@@ -224,6 +253,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     viewed_paper <- reactiveVal(NULL)
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+    seed_request <- reactiveVal(NULL)
 
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
@@ -382,6 +412,64 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers
     })
 
+    # Download handlers for citation export
+    output$download_bibtex <- downloadHandler(
+      filename = function() {
+        paste0("citations-", Sys.Date(), ".bib")
+      },
+      content = function(file) {
+        papers <- filtered_papers()
+        if (nrow(papers) == 0) {
+          writeLines("% No papers to export", file)
+          return()
+        }
+        bibtex_content <- generate_bibtex_batch(papers)
+        # Write with UTF-8 encoding, add BOM for compatibility
+        con_file <- file(file, "wb")
+        writeBin(charToRaw("\xEF\xBB\xBF"), con_file)  # UTF-8 BOM
+        writeLines(bibtex_content, con_file, useBytes = TRUE)
+        close(con_file)
+      }
+    )
+
+    output$download_csv <- downloadHandler(
+      filename = function() {
+        paste0("citations-", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        papers <- filtered_papers()
+        if (nrow(papers) == 0) {
+          write.csv(data.frame(note = "No papers to export"), file, row.names = FALSE)
+          return()
+        }
+        export_df <- format_csv_export(papers)
+        write.csv(export_df, file, fileEncoding = "UTF-8", row.names = FALSE)
+      }
+    )
+
+    # Download handlers for chat export
+    output$download_chat_md <- downloadHandler(
+      filename = function() { paste0("chat-", Sys.Date(), ".md") },
+      content = function(file) {
+        msgs <- messages()
+        md_content <- format_chat_as_markdown(msgs)
+        con_file <- file(file, "wb")
+        writeBin(charToRaw(md_content), con_file)
+        close(con_file)
+      }
+    )
+
+    output$download_chat_html <- downloadHandler(
+      filename = function() { paste0("chat-", Sys.Date(), ".html") },
+      content = function(file) {
+        msgs <- messages()
+        html_content <- format_chat_as_html(msgs)
+        con_file <- file(file, "wb")
+        writeBin(charToRaw("\xEF\xBB\xBF"), con_file)  # UTF-8 BOM
+        writeBin(charToRaw(html_content), con_file)
+        close(con_file)
+      }
+    )
 
     # Check if papers need embedding (based on filtered view)
     papers_need_embedding <- reactive({
@@ -792,7 +880,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           ),
           div(class = "text-muted", author_str),
           # Citation metrics (Phase 2)
-          format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count)
+          format_citation_metrics(paper$cited_by_count, paper$fwci, paper$referenced_works_count),
+          # DOI or citation key fallback
+          if (!is.null(paper$doi) && !is.na(paper$doi) && nchar(paper$doi) > 0) {
+            div(
+              class = "mt-2",
+              tags$small(class = "text-muted", "DOI: "),
+              tags$a(
+                href = paste0("https://doi.org/", paper$doi),
+                target = "_blank",
+                rel = "noopener noreferrer",
+                class = "text-primary",
+                paper$doi
+              )
+            )
+          } else {
+            citation_key <- generate_citation_key(paper$title, paper$year)
+            div(
+              class = "mt-2",
+              tags$small(class = "text-muted", "Citation Key: "),
+              tags$code(citation_key),
+              tags$small(class = "text-muted ms-2", "(DOI unavailable)")
+            )
+          }
         ),
 
         hr(),
@@ -832,20 +942,53 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
-    # Detail actions (close button)
+    # Detail actions (close button and optional "Use as Seed" button)
     output$detail_actions <- renderUI({
       if (is.null(viewed_paper())) return(NULL)
 
-      actionButton(
+      # Look up the paper to check for DOI (same pattern as abstract_detail)
+      papers <- papers_data()
+      paper <- papers[papers$id == viewed_paper(), ]
+
+      seed_btn <- NULL
+      if (nrow(paper) > 0 && !is.na(paper$doi) && nchar(paper$doi) > 0) {
+        seed_btn <- actionButton(
+          ns("use_as_seed"),
+          "Use as Seed",
+          icon = icon("seedling"),
+          class = "btn-sm btn-outline-success me-1"
+        )
+      }
+
+      close_btn <- actionButton(
         ns("close_detail"),
         icon("xmark"),
         class = "btn-sm btn-outline-secondary"
       )
+
+      div(class = "d-flex gap-1", seed_btn, close_btn)
     })
 
     observeEvent(input$close_detail, {
       viewed_paper(NULL)
     })
+
+    # "Use as Seed" button handler
+    observeEvent(input$use_as_seed, {
+      # Get the current viewed paper
+      paper_id <- viewed_paper()
+      if (is.null(paper_id)) return()
+
+      # Look up the paper to get its DOI
+      papers <- papers_data()
+      paper <- papers[papers$id == paper_id, ]
+
+      if (nrow(paper) > 0 && !is.na(paper$doi) && nchar(paper$doi) > 0) {
+        # Set seed_request with DOI and timestamp
+        # Timestamp ensures each click produces a unique value
+        seed_request(list(doi = paper$doi, ts = Sys.time()))
+      }
+    }, ignoreInit = TRUE)
 
     # Block journal observers
     observe({
@@ -1387,7 +1530,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             is_oa = paper$is_oa,
             cited_by_count = paper$cited_by_count,
             referenced_works_count = paper$referenced_works_count,
-            fwci = paper$fwci
+            fwci = paper$fwci,
+            doi = paper$doi
           )
 
           # Create chunk for abstract if available
@@ -1505,9 +1649,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           if (nrow(chunks) > 0) {
             for (i in seq_len(nrow(chunks))) {
               tryCatch({
-                embedding <- get_embedding(chunks$content[i], api_key_or, embed_model)
-                if (!is.null(embedding)) {
-                  embedding_str <- paste(embedding, collapse = ",")
+                result <- get_embeddings(api_key_or, embed_model, chunks$content[i])
+                if (!is.null(result$embeddings) && length(result$embeddings) > 0) {
+                  embedding_str <- paste(result$embeddings[[1]], collapse = ",")
                   dbExecute(con(), "UPDATE chunks SET embedding = ? WHERE id = ?",
                            list(embedding_str, chunks$id[i]))
                 }
@@ -1648,9 +1792,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         } else {
           div(
             class = "d-flex justify-content-start mb-2",
-            div(class = "bg-white border p-2 rounded",
+            div(class = "bg-white border p-2 rounded chat-markdown",
                 style = "max-width: 90%;",
-                HTML(gsub("\n", "<br/>", msg$content)))
+                HTML(commonmark::markdown_html(msg$content, extensions = TRUE)))
           )
         }
       })
@@ -1685,7 +1829,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       is_processing(TRUE)
 
       msgs <- messages()
-      msgs <- c(msgs, list(list(role = "user", content = user_msg)))
+      msgs <- c(msgs, list(list(role = "user", content = user_msg, timestamp = Sys.time())))
       messages(msgs)
 
       nb_id <- notebook_id()
@@ -1703,9 +1847,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         paste("Sorry, I encountered an error processing your question.")
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response)))
+      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
     })
+
+    # Return seed_request reactive for app.R to consume
+    return(seed_request)
   })
 }

@@ -102,7 +102,7 @@ build_openalex_request <- function(endpoint, email = NULL, api_key = NULL) {
     req <- req |> req_url_query(mailto = email)
   }
 
-  if (!is.null(api_key) && nchar(api_key) > 0) {
+  if (!is.null(api_key) && nchar(api_key) > 0 && !grepl("^your-", api_key)) {
     req <- req |> req_url_query(api_key = api_key)
   }
 
@@ -249,6 +249,7 @@ parse_openalex_work <- function(work) {
     oa_status = oa_status,
     is_oa = is_oa,
     referenced_works_count = referenced_works_count,
+    referenced_works = if (!is.null(work$referenced_works)) as.character(work$referenced_works) else character(),
     fwci = fwci
   )
 }

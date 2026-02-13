@@ -1,0 +1,129 @@
+/* Citation Network Visualization Styles */
+
+.citation-network-container {
+  position: relative;
+  background-color: #1a1a2e;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Clip tooltips at graph boundary so they don't overlap side panel */
+.citation-network-container .vis-tooltip {
+  max-width: 300px;
+  word-wrap: break-word;
+  pointer-events: none;
+}
+
+.citation-network-legend {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 255, 255, 0.92);
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+  font-size: 0.85rem;
+  transition: min-width 0.2s ease, padding 0.2s ease;
+}
+
+.citation-network-legend.collapsed {
+  min-width: auto;
+  padding: 6px 10px;
+}
+
+.citation-network-legend .legend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.citation-network-legend .legend-header h6 {
+  margin-bottom: 0;
+}
+
+.citation-network-legend .legend-body {
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.2s ease;
+  opacity: 1;
+  margin-top: 10px;
+}
+
+.citation-network-legend.collapsed .legend-body {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.citation-network-legend .legend-toggle {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.citation-network-legend .legend-toggle:hover {
+  color: #333;
+}
+
+.citation-network-legend h6 {
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #333;
+}
+
+.citation-network-legend .color-gradient {
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.citation-network-controls {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6;
+}
+
+.citation-network-side-panel {
+  max-height: 700px;
+  overflow-y: auto;
+}
+
+.citation-network-side-panel .card {
+  height: 100%;
+}
+
+.citation-network-side-panel .card-body {
+  overflow-y: auto;
+}
+
+/* Dark theme support for legend */
+[data-bs-theme="dark"] .citation-network-legend {
+  background-color: rgba(30, 30, 46, 0.95);
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .citation-network-legend h6 {
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .citation-network-legend .legend-toggle {
+  color: #aaa;
+}
+
+[data-bs-theme="dark"] .citation-network-legend .legend-toggle:hover {
+  color: #e0e0e0;
+}
+
+/* Hover effects for notebook items */
+.hover-bg-light:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-bs-theme="dark"] .hover-bg-light:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
