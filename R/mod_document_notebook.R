@@ -216,9 +216,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         if (nrow(result$chunks) > 0) {
           for (i in seq_len(nrow(result$chunks))) {
             chunk <- result$chunks[i, ]
+            # Extract section_hint if present, default to "general"
+            section_hint_val <- if ("section_hint" %in% names(chunk)) chunk$section_hint else "general"
             create_chunk(con(), doc_id, "document",
                          chunk$chunk_index, chunk$content,
-                         page_number = chunk$page_number)
+                         page_number = chunk$page_number,
+                         section_hint = section_hint_val)
           }
         }
 

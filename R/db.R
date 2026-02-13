@@ -351,18 +351,20 @@ delete_document <- function(con, id) {
 #' @param content Chunk text
 #' @param embedding Vector embedding (optional)
 #' @param page_number Page number (optional)
+#' @param section_hint Section classification hint (optional, default "general")
 #' @return Chunk ID
 create_chunk <- function(con, source_id, source_type, chunk_index, content,
-                         embedding = NULL, page_number = NULL) {
+                         embedding = NULL, page_number = NULL, section_hint = "general") {
   id <- uuid::UUIDgenerate()
 
   # Convert NULL to NA for proper DBI binding
   page_num <- if (is.null(page_number)) NA_integer_ else as.integer(page_number)
+  section_hint_val <- if (is.null(section_hint)) "general" else as.character(section_hint)
 
   dbExecute(con, "
-    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number)
-    VALUES (?, ?, ?, ?, ?, ?)
-  ", list(id, source_id, source_type, as.integer(chunk_index), content, page_num))
+    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number, section_hint)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  ", list(id, source_id, source_type, as.integer(chunk_index), content, page_num, section_hint_val))
 
   id
 }

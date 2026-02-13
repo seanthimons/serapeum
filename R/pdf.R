@@ -57,6 +57,60 @@ chunk_text <- function(text, chunk_size = 500, overlap = 50) {
   chunks
 }
 
+#' Detect section hint for a chunk based on content and position
+#'
+#' Uses keyword heuristics and page position to classify chunks by paper section.
+#' This enables section-targeted retrieval for conclusion synthesis and similar tasks.
+#'
+#' @param text Chunk text content to analyze
+#' @param page_number Page number of this chunk
+#' @param total_pages Total pages in document
+#' @return Section hint string: "conclusion", "limitations", "future_work", "discussion",
+#'   "introduction", "methods", "results", "late_section", or "general"
+detect_section_hint <- function(text, page_number, total_pages) {
+  # Normalize text for matching (case-insensitive)
+  text_lower <- tolower(text)
+
+  # Check section keywords in priority order (return first match)
+  # Note: These patterns match on chunk CONTENT, not just headings
+
+  if (grepl("\\bconclu[ds]|\\bsummary and conclusion", text_lower)) {
+    return("conclusion")
+  }
+
+  if (grepl("\\b(limitation|constraint|caveat)\\b", text_lower)) {
+    return("limitations")
+  }
+
+  if (grepl("\\b(future work|future research|future direction|further research|open question|open problem)\\b", text_lower)) {
+    return("future_work")
+  }
+
+  if (grepl("\\b(discussion|interpretation|implication)\\b", text_lower)) {
+    return("discussion")
+  }
+
+  if (grepl("\\b(introduction|background)\\b", text_lower)) {
+    return("introduction")
+  }
+
+  if (grepl("\\b(method|methodology|approach|experimental setup)\\b", text_lower)) {
+    return("methods")
+  }
+
+  if (grepl("\\b(result|finding|experiment)\\b", text_lower)) {
+    return("results")
+  }
+
+  # Page position fallback: if in last 20% of document, mark as late_section
+  if (page_number / total_pages > 0.8) {
+    return("late_section")
+  }
+
+  # Default: general content
+  return("general")
+}
+
 #' Process PDF into chunks with page numbers
 #'
 #' Uses ragnar's semantic chunking when available, falls back to word-based
@@ -97,6 +151,15 @@ process_pdf <- function(path, chunk_size = 500, overlap = 50,
     })
 
     if (!is.null(all_chunks) && nrow(all_chunks) > 0) {
+      # Add section_hint column by analyzing each chunk
+      all_chunks$section_hint <- vapply(seq_len(nrow(all_chunks)), function(i) {
+        detect_section_hint(
+          all_chunks$content[i],
+          all_chunks$page_number[i],
+          extracted$page_count
+        )
+      }, FUN.VALUE = character(1))
+
       return(list(
         chunks = all_chunks,
         full_text = paste(extracted$text, collapse = "\n\n"),
@@ -111,6 +174,7 @@ process_pdf <- function(path, chunk_size = 500, overlap = 50,
     content = character(),
     page_number = integer(),
     chunk_index = integer(),
+    section_hint = character(),
     stringsAsFactors = FALSE
   )
 
@@ -131,6 +195,7 @@ process_pdf <- function(path, chunk_size = 500, overlap = 50,
         content = chunk,
         page_number = page_num,
         chunk_index = global_index,
+        section_hint = detect_section_hint(chunk, page_num, extracted$page_count),
         stringsAsFactors = FALSE
       ))
       global_index <- global_index + 1
