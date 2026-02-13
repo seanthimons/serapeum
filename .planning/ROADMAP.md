@@ -6,7 +6,7 @@
 - ✅ **v1.1 Quality of Life** - Phases 5-8 (shipped 2026-02-11)
 - ✅ **v1.2 Stabilization** - Phases 9-10 (shipped 2026-02-12)
 - ✅ **v2.0 Discovery Workflow & Output** - Phases 11-15 (shipped 2026-02-13)
-- 🚧 **v2.1 Polish & Analysis** - Phases 16-19 (in progress)
+- ✅ **v2.1 Polish & Analysis** - Phases 16-19 (shipped 2026-02-13)
 
 ## Phases
 
@@ -50,7 +50,7 @@
 
 </details>
 
-### 🚧 v2.1 Polish & Analysis (In Progress)
+### ✅ v2.1 Polish & Analysis (Shipped 2026-02-13)
 
 **Milestone Goal:** Clean up UI rough edges, add interactive year filtering across discovery modes, and introduce conclusion synthesis with future research directions.
 
@@ -111,8 +111,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 19-01-PLAN.md — Section metadata infrastructure and conclusion synthesis backend
-- [ ] 19-02-PLAN.md — Conclusions preset buttons in both notebook UIs with AI disclaimers
+- [x] 19-01-PLAN.md — Section metadata infrastructure and conclusion synthesis backend (completed 2026-02-13)
+- [x] 19-02-PLAN.md — Conclusions preset buttons in both notebook UIs with AI disclaimers (completed 2026-02-13)
 
 ## Progress
 
@@ -140,7 +140,7 @@ Phases execute in numeric order: 16 → 17 → 18 → 19
 | 16. UI Polish | v2.1 | 1/1 | Complete | 2026-02-13 |
 | 17. Year Range Filter | v2.1 | 2/2 | Complete | 2026-02-13 |
 | 18. Progress Modal | v2.1 | 2/2 | Complete | 2026-02-13 |
-| 19. Conclusion Synthesis | v2.1 | 0/2 | Not started | - |
+| 19. Conclusion Synthesis | v2.1 | 2/2 | Complete | 2026-02-13 |
 
 ---
-*Updated: 2026-02-13 — Phase 19 planned (2 plans for conclusion synthesis)*
+*Updated: 2026-02-13 — Phase 19 complete, v2.1 milestone shipped*

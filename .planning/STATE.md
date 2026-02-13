@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-12)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 19 - Conclusion Synthesis (plan 1 complete, plan 2 pending)
+**Current focus:** v2.1 milestone complete
 
 ## Current Position
 
-Phase: 19 of 19 (Conclusion Synthesis) — IN PROGRESS
-Plan: 1/2 complete
-Status: Phase 19-01 complete (section metadata infrastructure + backend synthesis function)
-Last activity: 2026-02-13 — Phase 19-01 executed (section_hint column, detect_section_hint(), section-filtered RAG, generate_conclusions_preset())
+Phase: 19 of 19 (Conclusion Synthesis) — COMPLETE
+Plan: 2/2 complete
+Status: Phase 19 complete, v2.1 milestone shipped
+Last activity: 2026-02-13 — Phase 19-02 verified (conclusion synthesis UI with AI disclaimers)
 
-Progress: [███████████████████░] 97% (18/19 phases complete, 1/2 plans in phase 19 complete)
+Progress: [████████████████████] 100% (19/19 phases complete, v2.1 milestone shipped)
 
 ## Performance Metrics
 
@@ -26,16 +26,13 @@ Progress: [███████████████████░] 97% (18
 | v1.1 Quality of Life | 5-8 | 6 | 13 days |
 | v1.2 Stabilization | 9-10 | 2 | 1 day |
 | v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
-| v2.1 Polish & Analysis | 16-19 | 5 | <1 day |
+| v2.1 Polish & Analysis | 16-19 | 6 | <1 day |
 
-**Total:** 31 plans shipped (31 complete) across 19 phases
+**Total:** 32 plans shipped (32 complete) across 19 phases
 
-**Recent Execution (Phase 19-01):**
-- Duration: 4 minutes (257 seconds)
-- Tasks: 2
-- Files modified: 4
-- Files created: 1
-- Deviations: 2 (keyword pattern fixes)
+**Recent Execution (Phase 19):**
+- Plan 19-01: 4 min (section metadata + synthesis backend)
+- Plan 19-02: ~10 min including human verification (UI + disclaimers + 3 bug fixes)
 
 ## Accumulated Context
 
@@ -59,8 +56,10 @@ Recent decisions affecting v2.1 work:
 - **v2.1 (18-02) - File-based progress tracking instead of time-based fake progress**: Enables real hop/paper counts from mirai worker to Shiny poller for informative status updates
 - **v2.1 (18-02) - ExtendedTask has no cancel() method**: Removed network_task$cancel() call, rely solely on interrupt flag for cancellation
 - **v2.1 (18-02) - Orphan edge filtering for partial results**: Filter edges to valid node IDs before layout computation to prevent crashes
-- [Phase 19]: Section-targeted RAG with keyword heuristics for conclusion synthesis
-- [Phase 19]: OWASP LLM01:2025 instruction-data separation with clear delimiters
+- **v2.1 (19-01) - Content-based keyword heuristics for section detection**: Match on chunk text (not headings) for robustness across paper styles
+- **v2.1 (19-01) - OWASP LLM01:2025 instruction-data separation**: Delimiters (===== BEGIN/END RESEARCH SOURCES =====) prevent prompt injection via RAG content
+- **v2.1 (19-02) - Three-level retrieval fallback for synthesis**: Section-filtered → unfiltered hybrid → direct DB query ensures feature works on all notebooks
+- **v2.1 (19-02) - 10-chunk limit with DESC ordering for fallback**: Prevents timeout while biasing toward conclusion-bearing content
 
 ### Pending Todos
 
@@ -84,5 +83,5 @@ Recent decisions affecting v2.1 work:
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Completed 19-01-PLAN.md (section metadata + backend synthesis complete)
-Next: Execute 19-02-PLAN.md to add UI preset buttons
+Stopped at: Phase 19 complete and verified (5/5 must-haves passed), v2.1 milestone shipped
+Next: `/gsd:complete-milestone` to archive v2.1 and plan next milestone
