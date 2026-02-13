@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Serapeum is a local-first research assistant built with R/Shiny that helps researchers find, filter, and synthesize academic papers. It combines document notebooks (upload PDFs, chat with RAG) and search notebooks (OpenAlex paper search, quality filtering) with LLM-powered chat and slide generation. Three discovery modes — seed paper lookup, LLM-assisted query building, and topic hierarchy browsing — provide multiple entry points for finding relevant research. Discovery workflows are fluid: view a paper's abstract, explore its citation network, use it as a seed for a new search, or export results as BibTeX/CSV. Quality-of-life features include per-request cost tracking, dynamic model selection, interactive keyword filtering, journal quality controls, and chat export to Markdown/HTML.
+Serapeum is a local-first research assistant built with R/Shiny that helps researchers find, filter, analyze, and synthesize academic papers. It combines document notebooks (upload PDFs, chat with RAG) and search notebooks (OpenAlex paper search, quality filtering) with LLM-powered chat, slide generation, and conclusion synthesis. Three discovery modes — seed paper lookup, LLM-assisted query building, and topic hierarchy browsing — provide multiple entry points for finding relevant research. Discovery workflows are fluid: view a paper's abstract, explore its citation network, use it as a seed for a new search, filter by year range, or export results as BibTeX/CSV. Quality-of-life features include per-request cost tracking, dynamic model selection, interactive keyword filtering, journal quality controls, chat export to Markdown/HTML, async citation network builds with progress/cancellation, and AI-generated conclusion synthesis with disclaimers.
 
 ## Core Value
 
@@ -52,26 +52,27 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Seeded search same view as abstract preview #71 (SEED-02) — v2.0
 - ✓ Citation export #64 (EXPRT-01) — v2.0
 - ✓ Export synthesis outputs #49 (EXPRT-02) — v2.0
+- ✓ Synthesis preset icons and favicon (UIPX-01, UIPX-02) — v2.1
+- ✓ Sidebar space optimization (UIPX-03) — v2.1
+- ✓ Year range slider with histogram (YEAR-01, YEAR-02) — v2.1
+- ✓ Citation network year filtering (YEAR-03) — v2.1
+- ✓ Unknown year handling (YEAR-04) — v2.1
+- ✓ Progress modal with cancellation (PROG-01, PROG-02, PROG-03) — v2.1
+- ✓ Conclusion synthesis presets (SYNTH-01, SYNTH-02) — v2.1
+- ✓ Section-targeted RAG retrieval (SYNTH-03) — v2.1
+- ✓ Research gap synthesis (SYNTH-04) — v2.1
+- ✓ AI-generated content disclaimers (SYNTH-05) — v2.1
 
 ### Active
 
-## Current Milestone: v2.1 Polish & Analysis
-
-**Goal:** Clean up UI rough edges, add interactive year filtering across discovery modes, and introduce conclusion synthesis with future research directions.
-
-**Target features:**
-- UI icon consistency (synthesis icons, favicon)
-- UI space reclamation (sidebar cleanup)
-- Citation network progress modal with stop button
-- Interactive year range slider-filter (search notebooks + citation networks)
-- Conclusion synthesis → future directions (RAG-targeted, both notebook types, heavy disclaimers)
+(No active milestone — run `/gsd:new-milestone` to plan next version)
 
 ### Out of Scope
 
 - Recursive abstract searching (#11) — high complexity, future milestone
 - PDF image pipeline (#44) — epic-level effort, future milestone
 - Local model support (#8) — significant architecture change, future
-- Conclusion synthesis (#27) — depends on better document understanding first
+- ~~Conclusion synthesis (#27)~~ — shipped in v2.1
 - Audio overview (#22) — experimental, low priority
 - Bulk DOI/.bib import (#24) — deferred, needs UX design
 - Rich output preview (#50) — deferred, now that export exists consider for next milestone
@@ -79,14 +80,13 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ## Context
 
-Shipped v2.0 with ~11,500 LOC R across 40 modified files (+8,342 / -57 from v1.2).
-Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark.
+Shipped v2.1 with ~12,569 LOC R across 10+ modified files (+1,244 / -142 from v2.0).
+Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
-6 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks).
-New modules in v2.0: mod_citation_network.R, citation_network.R, utils_doi.R, utils_citation.R, utils_export.R.
-Cross-module reactive bridge pattern for export-to-seed workflow.
-Citation export with BibTeX LaTeX escaping and CSV output (79 unit tests).
-Known tech debt: #79 tooltip overflow, #80 progress modal.
+7 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint).
+Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds with file-based interrupt flags.
+Section-targeted RAG: keyword heuristics classify PDF chunks by section type for focused synthesis.
+Known tech debt: #79 tooltip overflow, synthesis response time (split presets TODO), chat UX spinners.
 
 ## Constraints
 
@@ -123,6 +123,13 @@ Known tech debt: #79 tooltip overflow, #80 progress modal.
 | Placeholder-based LaTeX escaping (v2.0) | Prevents double-escaping of backslashes | ✓ Good — correct BibTeX output |
 | UTF-8 BOM for BibTeX/HTML exports (v2.0) | Ensures reference managers/browsers read encoding | ✓ Good — wide compatibility |
 | Embedded CSS in HTML export (v2.0) | Standalone files work offline in any browser | ✓ Good — no external deps |
+| 400ms debounce on year slider (v2.1) | Prevents reactive storm during drag | ✓ Good — smooth UX |
+| Apply Filter button for citation network (v2.1) | Prevents janky graph redraws during drag | ✓ Good — deliberate interaction |
+| ExtendedTask + mirai for async builds (v2.1) | Replaces blocking withProgress, keeps UI responsive | ✓ Good — non-blocking |
+| File-based interrupt flags (v2.1) | Mirai runs in isolated process, can't share memory | ✓ Good — reliable cross-process |
+| Content-based section heuristics (v2.1) | Match chunk text not headings for robustness | ✓ Good — works across paper styles |
+| OWASP instruction-data separation (v2.1) | Prevents prompt injection via RAG content | ✓ Good — security baseline |
+| Three-level retrieval fallback (v2.1) | Section-filtered → unfiltered → direct DB | ✓ Good — works on all notebooks |
 
 ---
-*Last updated: 2026-02-12 after v2.1 milestone started*
+*Last updated: 2026-02-13 after v2.1 milestone*
