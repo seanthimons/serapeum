@@ -108,10 +108,11 @@ Plans:
   3. Synthesis output aggregates research positions across papers
   4. Synthesis proposes future research directions based on identified gaps
   5. All synthesis outputs display prominent disclaimers about AI-generated content
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 19-01: TBD
+- [ ] 19-01-PLAN.md — Section metadata infrastructure and conclusion synthesis backend
+- [ ] 19-02-PLAN.md — Conclusions preset buttons in both notebook UIs with AI disclaimers
 
 ## Progress
 
@@ -139,7 +140,7 @@ Phases execute in numeric order: 16 → 17 → 18 → 19
 | 16. UI Polish | v2.1 | 1/1 | Complete | 2026-02-13 |
 | 17. Year Range Filter | v2.1 | 2/2 | Complete | 2026-02-13 |
 | 18. Progress Modal | v2.1 | 2/2 | Complete | 2026-02-13 |
-| 19. Conclusion Synthesis | v2.1 | 0/? | Not started | - |
+| 19. Conclusion Synthesis | v2.1 | 0/2 | Not started | - |
 
 ---
-*Updated: 2026-02-13 — Phase 18 complete (progress modal with cancellation)*
+*Updated: 2026-02-13 — Phase 19 planned (2 plans for conclusion synthesis)*
