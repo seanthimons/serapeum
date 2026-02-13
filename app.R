@@ -21,9 +21,25 @@ db_path <- get_setting(config_file, "app", "db_path") %||% "data/notebooks.duckd
 # UI
 ui <- page_sidebar(
   title = div(
-    class = "d-flex align-items-center gap-2",
-    icon("book-open"),
-    "Serapeum"
+    class = "d-flex align-items-center justify-content-between w-100",
+    div(
+      class = "d-flex align-items-center gap-2",
+      icon("book-open"),
+      "Serapeum"
+    ),
+    tags$button(
+      id = "dark_mode_toggle",
+      class = "btn btn-sm btn-outline-secondary border-0",
+      onclick = "
+        const html = document.documentElement;
+        const current = html.getAttribute('data-bs-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-bs-theme', next);
+        localStorage.setItem('theme', next);
+        this.innerHTML = next === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
+      ",
+      icon("moon")
+    )
   ),
   theme = bs_theme(
     preset = "shiny",
@@ -72,7 +88,7 @@ ui <- page_sidebar(
     width = 280,
     # New notebook button
     div(
-      class = "d-grid gap-2 mb-3",
+      class = "d-grid gap-2 mb-2",
       actionButton("new_document_nb", "New Document Notebook",
                    class = "btn-primary",
                    icon = icon("file-pdf")),
@@ -92,22 +108,26 @@ ui <- page_sidebar(
                    class = "btn-outline-danger",
                    icon = icon("diagram-project"))
     ),
-    hr(),
     # Notebook list
     div(
-      style = "max-height: calc(100vh - 350px); overflow-y: auto;",
+      class = "mt-2",
+      style = "max-height: calc(100vh - 320px); overflow-y: auto;",
       uiOutput("notebook_list")
     ),
-    hr(),
     # Compact footer
     div(
-      class = "d-flex flex-column gap-2",
-      # Row 1: Session cost
+      class = "d-flex flex-column gap-1 mt-2",
+      # Row 1: Session cost + Costs link
       div(
         class = "d-flex justify-content-between align-items-center",
         span(class = "text-muted small", icon("coins"), " Session:"),
-        textOutput("session_cost_inline", inline = TRUE) |>
-          tagAppendAttributes(class = "text-muted small fw-semibold")
+        div(
+          class = "d-flex align-items-center gap-2",
+          textOutput("session_cost_inline", inline = TRUE) |>
+            tagAppendAttributes(class = "text-muted small fw-semibold"),
+          actionLink("cost_link", label = tagList(icon("dollar-sign"), "Details"),
+                     class = "text-muted small")
+        )
       ),
       # Row 2: Settings + About
       div(
@@ -116,35 +136,6 @@ ui <- page_sidebar(
                    class = "text-muted small"),
         actionLink("about_link", label = tagList(icon("info-circle"), "About"),
                    class = "text-muted small")
-      ),
-      # Row 3: Costs + GitHub
-      div(
-        class = "d-flex justify-content-between align-items-center",
-        actionLink("cost_link", label = tagList(icon("dollar-sign"), "Costs"),
-                   class = "text-muted small"),
-        tags$a(
-          href = "https://github.com/seanthimons/serapeum",
-          target = "_blank",
-          class = "text-muted small d-flex align-items-center gap-1",
-          icon("github"), "GitHub"
-        )
-      ),
-      # Row 4: Dark mode toggle (right-aligned)
-      div(
-        class = "d-flex justify-content-end",
-        tags$button(
-          id = "dark_mode_toggle",
-          class = "btn btn-sm btn-outline-secondary",
-          onclick = "
-            const html = document.documentElement;
-            const current = html.getAttribute('data-bs-theme');
-            const next = current === 'dark' ? 'light' : 'dark';
-            html.setAttribute('data-bs-theme', next);
-            localStorage.setItem('theme', next);
-            this.innerHTML = next === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
-          ",
-          icon("moon")
-        )
       )
     ),
     # Script to restore theme preference on load
