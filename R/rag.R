@@ -345,6 +345,38 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
     })
   }
 
+  # Final fallback: direct DB query if hybrid search returned nothing
+  # (matches generate_preset pattern — works even without ragnar/embeddings)
+  if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
+    message("[generate_conclusions_preset] Hybrid search empty, falling back to direct DB query")
+    chunks <- tryCatch({
+      if (notebook_type == "document") {
+        dbGetQuery(con, "
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+                 d.filename as doc_name, NULL as abstract_title
+          FROM chunks c
+          JOIN documents d ON c.source_id = d.id
+          WHERE d.notebook_id = ?
+          ORDER BY d.created_at DESC, c.chunk_index DESC
+          LIMIT 20
+        ", list(notebook_id))
+      } else {
+        dbGetQuery(con, "
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+                 NULL as doc_name, a.title as abstract_title
+          FROM chunks c
+          JOIN abstracts a ON c.source_id = a.id
+          WHERE a.notebook_id = ?
+          ORDER BY a.year DESC, c.chunk_index
+          LIMIT 20
+        ", list(notebook_id))
+      }
+    }, error = function(e) {
+      message("[generate_conclusions_preset] Direct DB fallback failed: ", e$message)
+      NULL
+    })
+  }
+
   if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
     return("No content found in this notebook. Please add documents or search for papers first.")
   }
