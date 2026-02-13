@@ -66,27 +66,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| YEAR-01 | — | Pending |
-| YEAR-02 | — | Pending |
-| YEAR-03 | — | Pending |
-| YEAR-04 | — | Pending |
-| SYNTH-01 | — | Pending |
-| SYNTH-02 | — | Pending |
-| SYNTH-03 | — | Pending |
-| SYNTH-04 | — | Pending |
-| SYNTH-05 | — | Pending |
-| PROG-01 | — | Pending |
-| PROG-02 | — | Pending |
-| PROG-03 | — | Pending |
-| UIPX-01 | — | Pending |
-| UIPX-02 | — | Pending |
-| UIPX-03 | — | Pending |
+| UIPX-01 | Phase 16 | Pending |
+| UIPX-02 | Phase 16 | Pending |
+| UIPX-03 | Phase 16 | Pending |
+| YEAR-01 | Phase 17 | Pending |
+| YEAR-02 | Phase 17 | Pending |
+| YEAR-03 | Phase 17 | Pending |
+| YEAR-04 | Phase 17 | Pending |
+| PROG-01 | Phase 18 | Pending |
+| PROG-02 | Phase 18 | Pending |
+| PROG-03 | Phase 18 | Pending |
+| SYNTH-01 | Phase 19 | Pending |
+| SYNTH-02 | Phase 19 | Pending |
+| SYNTH-03 | Phase 19 | Pending |
+| SYNTH-04 | Phase 19 | Pending |
+| SYNTH-05 | Phase 19 | Pending |
 
 **Coverage:**
 - v2.1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-12*
-*Last updated: 2026-02-12 after initial definition*
+*Last updated: 2026-02-13 after roadmap creation*
