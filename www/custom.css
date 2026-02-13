@@ -2,9 +2,13 @@
 
 .citation-network-container {
   position: relative;
-  background-color: #f0f0f0;
+  background-color: #f0f0f0 !important;
   border-radius: 0.5rem;
   overflow: hidden;
+}
+
+.citation-network-container canvas {
+  background-color: #f0f0f0 !important;
 }
 
 /* Clip tooltips at graph boundary so they don't overlap side panel */
