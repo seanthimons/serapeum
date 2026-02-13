@@ -55,7 +55,16 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active milestone — start next with /gsd:new-milestone)
+## Current Milestone: v2.1 Polish & Analysis
+
+**Goal:** Clean up UI rough edges, add interactive year filtering across discovery modes, and introduce conclusion synthesis with future research directions.
+
+**Target features:**
+- UI icon consistency (synthesis icons, favicon)
+- UI space reclamation (sidebar cleanup)
+- Citation network progress modal with stop button
+- Interactive year range slider-filter (search notebooks + citation networks)
+- Conclusion synthesis → future directions (RAG-targeted, both notebook types, heavy disclaimers)
 
 ### Out of Scope
 
@@ -116,4 +125,4 @@ Known tech debt: #79 tooltip overflow, #80 progress modal.
 | Embedded CSS in HTML export (v2.0) | Standalone files work offline in any browser | ✓ Good — no external deps |
 
 ---
-*Last updated: 2026-02-13 after v2.0 milestone shipped*
+*Last updated: 2026-02-12 after v2.1 milestone started*
