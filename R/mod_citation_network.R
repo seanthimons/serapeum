@@ -63,50 +63,8 @@ mod_citation_network_ui <- function(id) {
         )
       ),
 
-      # Year filter row (below main controls)
-      div(
-        class = "mt-2 pt-2 border-top",
-        layout_columns(
-          col_widths = c(5, 3, 4),
-
-          # Year range slider
-          div(
-            sliderInput(
-              ns("year_filter"),
-              tags$span("Year Range",
-                        title = "Filter network nodes by publication year. Adjust range then click Apply to update."),
-              min = 1900,
-              max = 2026,
-              value = c(1900, 2026),
-              step = 1,
-              sep = "",
-              ticks = FALSE
-            )
-          ),
-
-          # Include unknown checkbox
-          div(
-            class = "pt-4",
-            checkboxInput(
-              ns("include_unknown_year_network"),
-              "Include unknown year",
-              value = TRUE
-            )
-          ),
-
-          # Apply filter button + preview count
-          div(
-            class = "pt-3",
-            actionButton(
-              ns("apply_year_filter"),
-              "Apply Year Filter",
-              class = "btn-outline-primary btn-sm",
-              icon = icon("filter")
-            ),
-            uiOutput(ns("year_filter_preview"))
-          )
-        )
-      )
+      # Year filter row (hidden until network is built)
+      uiOutput(ns("year_filter_panel"))
     ),
 
     # Main content area with side panel
@@ -195,8 +153,10 @@ mod_citation_network_ui <- function(id) {
 mod_citation_network_server <- function(id, con_r, config_r, network_id_r, network_trigger) {
   moduleServer(id, function(input, output, session) {
 
-    # Current network data
+    # Current network data (may be filtered)
     current_network_data <- reactiveVal(NULL)
+    # Unfiltered snapshot — set when network is built/loaded, never mutated by filters
+    unfiltered_network_data <- reactiveVal(NULL)
     current_seed_id <- reactiveVal(NULL)
     selected_node_id <- reactiveVal(NULL)
     build_in_progress <- reactiveVal(FALSE)
@@ -211,16 +171,46 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       updateSelectInput(session, "palette", selected = palette)
     }) |> bindEvent(con_r(), once = TRUE)
 
-    # Dynamic slider bounds from network data
+    # Year filter panel — only shown when a network exists
+    output$year_filter_panel <- renderUI({
+      req(unfiltered_network_data())
+      ns <- session$ns
+      div(
+        class = "mt-2 pt-2 border-top",
+        layout_columns(
+          col_widths = c(5, 3, 4),
+          div(
+            sliderInput(
+              ns("year_filter"),
+              tags$span("Year Range",
+                        title = "Filter network nodes by publication year. Adjust range then click Apply to update."),
+              min = 1900, max = 2026, value = c(1900, 2026),
+              step = 1, sep = "", ticks = FALSE
+            )
+          ),
+          div(
+            class = "pt-4",
+            checkboxInput(ns("include_unknown_year_network"), "Include unknown year", value = TRUE)
+          ),
+          div(
+            class = "pt-3",
+            actionButton(ns("apply_year_filter"), "Apply Year Filter",
+                         class = "btn-outline-primary btn-sm", icon = icon("filter")),
+            uiOutput(ns("year_filter_preview"))
+          )
+        )
+      )
+    })
+
+    # Dynamic slider bounds from unfiltered data (stable — not affected by filtering)
     observe({
-      net_data <- current_network_data()
+      net_data <- unfiltered_network_data()
       req(net_data)
 
       nodes <- net_data$nodes
       valid_years <- nodes$year[!is.na(nodes$year)]
 
       if (length(valid_years) == 0) {
-        # Fallback if all years are NA
         min_year <- 1900
         max_year <- 2026
       } else {
@@ -228,18 +218,14 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         max_year <- max(valid_years)
       }
 
-      updateSliderInput(
-        session,
-        "year_filter",
-        min = min_year,
-        max = max_year,
-        value = c(min_year, max_year)
-      )
+      updateSliderInput(session, "year_filter",
+                        min = min_year, max = max_year,
+                        value = c(min_year, max_year))
     })
 
-    # Filter preview
+    # Filter preview — counts against unfiltered data so preview is always accurate
     output$year_filter_preview <- renderUI({
-      net_data <- current_network_data()
+      net_data <- unfiltered_network_data()
       if (is.null(net_data)) return(NULL)
 
       range <- input$year_filter
@@ -247,25 +233,23 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       if (is.null(range) || is.null(include_null)) return(NULL)
 
       nodes <- net_data$nodes
-
-      # Count how many nodes pass the filter
+      # Seed paper is always kept
+      is_kept <- nodes$is_seed
       if (include_null) {
-        filtered_count <- sum(is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2]), na.rm = TRUE)
+        is_kept <- is_kept | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
       } else {
-        filtered_count <- sum(!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2], na.rm = TRUE)
+        is_kept <- is_kept | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
       }
-
-      total_count <- nrow(nodes)
 
       div(
         class = "mt-1 small text-muted",
-        paste(filtered_count, "of", total_count, "nodes")
+        paste(sum(is_kept), "of", nrow(nodes), "nodes")
       )
     })
 
-    # Apply year filter
+    # Apply year filter — filters from unfiltered snapshot, never destructive
     observeEvent(input$apply_year_filter, {
-      net_data <- current_network_data()
+      net_data <- unfiltered_network_data()
       req(net_data)
 
       range <- input$year_filter
@@ -274,21 +258,25 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       nodes <- net_data$nodes
       edges <- net_data$edges
 
-      # Filter nodes by year
+      # Always keep seed paper regardless of year filter
+      is_kept <- nodes$is_seed
       if (include_null) {
-        filtered_nodes <- nodes[is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2]), ]
+        is_kept <- is_kept | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
       } else {
-        filtered_nodes <- nodes[!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2], ]
+        is_kept <- is_kept | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
       }
+      filtered_nodes <- nodes[is_kept, ]
 
-      # Filter edges to keep only those where both from and to are in filtered nodes
+      # Keep edges where both endpoints survive
       filtered_node_ids <- filtered_nodes$id
       filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
 
-      # Update current network data with filtered results
-      net_data$nodes <- filtered_nodes
-      net_data$edges <- filtered_edges
-      current_network_data(net_data)
+      # Update display data (unfiltered snapshot stays intact)
+      current_network_data(list(
+        nodes = filtered_nodes,
+        edges = filtered_edges,
+        metadata = net_data$metadata
+      ))
 
       showNotification(
         paste("Year filter applied:", nrow(filtered_nodes), "of", nrow(nodes), "nodes shown"),
@@ -372,8 +360,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           # Build visualization data
           viz_data <- build_network_data(result$nodes, result$edges, palette, seed_id)
 
-          # Store current network
-          current_network_data(list(
+          # Store current network and unfiltered snapshot
+          net_list <- list(
             nodes = viz_data$nodes,
             edges = viz_data$edges,
             metadata = list(
@@ -384,7 +372,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
               node_limit = node_limit,
               palette = palette
             )
-          ))
+          )
+          current_network_data(net_list)
+          unfiltered_network_data(net_list)
 
           showNotification(
             paste("Network built:", nrow(viz_data$nodes), "nodes,", nrow(viz_data$edges), "edges"),
@@ -500,6 +490,14 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       net_data$nodes <- nodes
       net_data$metadata$palette <- palette
       current_network_data(net_data)
+
+      # Also update unfiltered snapshot so next Apply uses new colors
+      uf_data <- unfiltered_network_data()
+      if (!is.null(uf_data)) {
+        uf_data$nodes$color <- map_year_to_color(uf_data$nodes$year, palette)
+        uf_data$metadata$palette <- palette
+        unfiltered_network_data(uf_data)
+      }
 
       # Also save palette to DB so settings stays in sync
       tryCatch(
@@ -751,12 +749,14 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           loaded$metadata$seed_paper_id
         )
 
-        # Set current network
-        current_network_data(list(
+        # Set current network and unfiltered snapshot
+        net_list <- list(
           nodes = viz_data$nodes,
           edges = viz_data$edges,
           metadata = loaded$metadata
-        ))
+        )
+        current_network_data(net_list)
+        unfiltered_network_data(net_list)
 
         # Update controls
         updateRadioButtons(session, "direction", selected = loaded$metadata$direction)
