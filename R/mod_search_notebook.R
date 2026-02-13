@@ -243,7 +243,7 @@ mod_search_notebook_ui <- function(id) {
           div(
             class = "btn-group btn-group-sm w-100",
             actionButton(ns("btn_conclusions"), "Conclusions",
-                         class = "btn-sm btn-outline-success",
+                         class = "btn-sm btn-outline-primary",
                          icon = icon("microscope"))
           )
         ),

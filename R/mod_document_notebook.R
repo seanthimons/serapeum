@@ -45,7 +45,7 @@ mod_document_notebook_ui <- function(id) {
                          class = "btn-sm btn-outline-primary",
                          icon = icon("list-ol")),
             actionButton(ns("btn_conclusions"), "Conclusions",
-                         class = "btn-sm btn-outline-success",
+                         class = "btn-sm btn-outline-primary",
                          icon = icon("microscope")),
             actionButton(ns("btn_slides"), "Slides",
                          class = "btn-sm btn-outline-primary",
