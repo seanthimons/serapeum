@@ -101,6 +101,11 @@
   overflow-y: auto;
 }
 
+/* Force light background on network container even in dark mode */
+[data-bs-theme="dark"] .citation-network-container {
+  background-color: #f0f0f0;
+}
+
 /* Dark theme support for legend */
 [data-bs-theme="dark"] .citation-network-legend {
   background-color: rgba(30, 30, 46, 0.95);
