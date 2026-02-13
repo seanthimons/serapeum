@@ -61,6 +61,51 @@ mod_citation_network_ui <- function(id) {
           class = "btn-outline-success",
           icon = icon("save")
         )
+      ),
+
+      # Year filter row (below main controls)
+      div(
+        class = "mt-2 pt-2 border-top",
+        layout_columns(
+          col_widths = c(5, 3, 4),
+
+          # Year range slider
+          div(
+            sliderInput(
+              ns("year_filter"),
+              tags$span("Year Range",
+                        title = "Filter network nodes by publication year. Adjust range then click Apply to update."),
+              min = 1900,
+              max = 2026,
+              value = c(1900, 2026),
+              step = 1,
+              sep = "",
+              ticks = FALSE
+            )
+          ),
+
+          # Include unknown checkbox
+          div(
+            class = "pt-4",
+            checkboxInput(
+              ns("include_unknown_year_network"),
+              "Include unknown year",
+              value = TRUE
+            )
+          ),
+
+          # Apply filter button + preview count
+          div(
+            class = "pt-3",
+            actionButton(
+              ns("apply_year_filter"),
+              "Apply Year Filter",
+              class = "btn-outline-primary btn-sm",
+              icon = icon("filter")
+            ),
+            uiOutput(ns("year_filter_preview"))
+          )
+        )
       )
     ),
 
@@ -165,6 +210,91 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       palette <- get_db_setting(con_r(), "network_palette") %||% "viridis"
       updateSelectInput(session, "palette", selected = palette)
     }) |> bindEvent(con_r(), once = TRUE)
+
+    # Dynamic slider bounds from network data
+    observe({
+      net_data <- current_network_data()
+      req(net_data)
+
+      nodes <- net_data$nodes
+      valid_years <- nodes$year[!is.na(nodes$year)]
+
+      if (length(valid_years) == 0) {
+        # Fallback if all years are NA
+        min_year <- 1900
+        max_year <- 2026
+      } else {
+        min_year <- min(valid_years)
+        max_year <- max(valid_years)
+      }
+
+      updateSliderInput(
+        session,
+        "year_filter",
+        min = min_year,
+        max = max_year,
+        value = c(min_year, max_year)
+      )
+    })
+
+    # Filter preview
+    output$year_filter_preview <- renderUI({
+      net_data <- current_network_data()
+      if (is.null(net_data)) return(NULL)
+
+      range <- input$year_filter
+      include_null <- input$include_unknown_year_network
+      if (is.null(range) || is.null(include_null)) return(NULL)
+
+      nodes <- net_data$nodes
+
+      # Count how many nodes pass the filter
+      if (include_null) {
+        filtered_count <- sum(is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2]), na.rm = TRUE)
+      } else {
+        filtered_count <- sum(!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2], na.rm = TRUE)
+      }
+
+      total_count <- nrow(nodes)
+
+      div(
+        class = "mt-1 small text-muted",
+        paste(filtered_count, "of", total_count, "nodes")
+      )
+    })
+
+    # Apply year filter
+    observeEvent(input$apply_year_filter, {
+      net_data <- current_network_data()
+      req(net_data)
+
+      range <- input$year_filter
+      include_null <- input$include_unknown_year_network
+
+      nodes <- net_data$nodes
+      edges <- net_data$edges
+
+      # Filter nodes by year
+      if (include_null) {
+        filtered_nodes <- nodes[is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2]), ]
+      } else {
+        filtered_nodes <- nodes[!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2], ]
+      }
+
+      # Filter edges to keep only those where both from and to are in filtered nodes
+      filtered_node_ids <- filtered_nodes$id
+      filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
+
+      # Update current network data with filtered results
+      net_data$nodes <- filtered_nodes
+      net_data$edges <- filtered_edges
+      current_network_data(net_data)
+
+      showNotification(
+        paste("Year filter applied:", nrow(filtered_nodes), "of", nrow(nodes), "nodes shown"),
+        type = "message"
+      )
+    })
 
     # Build progress
     output$build_progress <- renderUI({
