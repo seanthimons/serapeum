@@ -64,6 +64,7 @@ Recent decisions affecting v2.1 work:
 - [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflow (deferred, not in v2.1)
 - Move to renv for package namespace management (tooling)
 - Fix citation network background color blending (ui) — bundle with #79
+- Explore partial BFS graph as intentional visualization mode (cancelled builds produce interesting hub-spoke clusters)
 
 ### Blockers/Concerns
 
@@ -80,5 +81,5 @@ Recent decisions affecting v2.1 work:
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Completed 18-02-PLAN.md (progress modal UI with cancel button and real progress tracking)
-Next: Phase 19 - Conclusion Synthesis (RAG-based synthesis generation)
+Stopped at: Phase 18 complete and verified (3/3 must-haves passed)
+Next: `/gsd:plan-phase 19` to begin Conclusion Synthesis planning

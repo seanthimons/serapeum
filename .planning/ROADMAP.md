@@ -95,8 +95,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 18-01-PLAN.md — Interrupt utilities, fetch_citation_network interrupt support, ExtendedTask + mirai async invocation
-- [ ] 18-02-PLAN.md — Progress modal UI, JavaScript handler, cancel button, partial result display
+- [x] 18-01-PLAN.md — Interrupt utilities, fetch_citation_network interrupt support, ExtendedTask + mirai async invocation (completed 2026-02-13)
+- [x] 18-02-PLAN.md — Progress modal UI, JavaScript handler, cancel button, partial result display (completed 2026-02-13)
 
 #### Phase 19: Conclusion Synthesis
 **Goal**: Users can synthesize research conclusions and future directions across papers with RAG-targeted retrieval
@@ -138,8 +138,8 @@ Phases execute in numeric order: 16 → 17 → 18 → 19
 | 15. Synthesis Export | v2.0 | 1/1 | Complete | 2026-02-12 |
 | 16. UI Polish | v2.1 | 1/1 | Complete | 2026-02-13 |
 | 17. Year Range Filter | v2.1 | 2/2 | Complete | 2026-02-13 |
-| 18. Progress Modal | v2.1 | 0/2 | Planned | - |
+| 18. Progress Modal | v2.1 | 2/2 | Complete | 2026-02-13 |
 | 19. Conclusion Synthesis | v2.1 | 0/? | Not started | - |
 
 ---
-*Updated: 2026-02-13 — Phase 18 revised (2 plans, split for scope)*
+*Updated: 2026-02-13 — Phase 18 complete (progress modal with cancellation)*
