@@ -310,31 +310,32 @@ map_year_to_color <- function(years, palette = "viridis") {
 
 #' Compute node sizes from citation counts
 #'
-#' Applies sqrt transform to handle power-law distribution,
+#' Applies cube-root transform to handle power-law distribution,
 #' then scales to visNetwork size range.
 #'
 #' @param cited_by_counts Numeric vector of citation counts
-#' @return Numeric vector of node sizes (10-50)
+#' @return Numeric vector of node sizes (10-60)
 compute_node_sizes <- function(cited_by_counts) {
   n <- length(cited_by_counts)
 
   if (n == 0) return(numeric(0))
   if (n == 1) return(30)
 
-  # Use log1p transform: handles power-law distributions while
-  # preserving magnitude differences (unlike rank-based sizing)
-  # log1p(0)=0, log1p(100)=4.6, log1p(1000)=6.9, log1p(14000)=9.5
-  log_counts <- log1p(pmax(cited_by_counts, 0))
+  # Cube-root transform: better spread than log1p for power-law data.
+  # cbrt(100)=4.6, cbrt(1000)=10, cbrt(15000)=24.7
+  # Gives 5x visual difference between 1k and 15k citations
+  # (log1p only gives 1.4x — high-citation nodes look the same)
+  transformed <- pmax(cited_by_counts, 0)^(1/3)
 
-  count_range <- range(log_counts, na.rm = TRUE)
+  count_range <- range(transformed, na.rm = TRUE)
   if (count_range[2] - count_range[1] == 0) {
     return(rep(30, n))
   }
 
-  normalized <- (log_counts - count_range[1]) / (count_range[2] - count_range[1])
+  normalized <- (transformed - count_range[1]) / (count_range[2] - count_range[1])
 
-  # Scale to range 15-50
-  15 + normalized * 35
+  # Scale to range 10-60 (wider range for more visual distinction)
+  10 + normalized * 50
 }
 
 #' Build visNetwork-ready graph data
