@@ -31,6 +31,8 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
+| [#90](https://github.com/seanthimons/serapeum/issues/90) | dev: Move to renv for package namespace management [gsd] | Medium | High |
+| [#78](https://github.com/seanthimons/serapeum/issues/78) | Set up GHA/local functions for RDS support files | Low | High |
 | [#88](https://github.com/seanthimons/serapeum/issues/88) | Rethink conclusion synthesis as split presets for faster responses | High | High |
 | [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging | Medium | Medium |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + vice versa | High | Medium |
@@ -42,7 +44,6 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#29](https://github.com/seanthimons/serapeum/issues/29) | feat: Image/chart injection into slides | High | High |
 | [#38](https://github.com/seanthimons/serapeum/issues/38) | dev: PDF image extraction process | High | High |
 | [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
-| [#63](https://github.com/seanthimons/serapeum/issues/63) | feat: Additional synthesis outputs | High | High |
 | [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
 | [#48](https://github.com/seanthimons/serapeum/issues/48) | dev: Tighter RAG document retrieval controls | Low | Medium |
@@ -56,7 +57,7 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | Area | Title | Complexity | Impact |
 |------|-------|------------|--------|
 | Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
-| Citation Network | [gsd] Fix citation network background color blending (bundle with #79) | Medium | Medium |
+| [#89](https://github.com/seanthimons/serapeum/issues/89) | bug: Citation network background color blending [gsd] (bundle with #79) | Medium | Medium |
 
 ---
 
@@ -72,8 +73,6 @@ Nice-to-have features and research tasks.
 | [#21](https://github.com/seanthimons/serapeum/issues/21) | feat: Semantic Scholar integration | High | Low |
 | [#22](https://github.com/seanthimons/serapeum/issues/22) | feat: Audio overview (NotebookLM style) | High | Medium |
 | [#30](https://github.com/seanthimons/serapeum/issues/30) | feat: Demo mode | Medium | Low |
-| [#78](https://github.com/seanthimons/serapeum/issues/78) | Set up GHA/local functions for RDS support files | Low | Medium |
-| — | [gsd] Move to renv for package namespace management | Medium | Medium |
 
 ---
 
@@ -82,8 +81,8 @@ Nice-to-have features and research tasks.
 | Issue | Title | Sub-issues Status |
 |-------|-------|-------------------|
 | [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete (#53, #66, #67, #71 all shipped) |
-| [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 2/4 complete (#49, #64 shipped; #50, #63 open) |
-| [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis | 1/2 complete (#27 shipped; #63 open) |
+| [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 3/4 complete (#49, #64, #63 shipped; #50 open) |
+| [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis | 2/2 complete (#27, #63 shipped) |
 
 ---
 
@@ -147,11 +146,11 @@ High-effort, high-payoff features for the future.
 - [x] Citation network year-to-color percentile mapping (fix/citation-node-sizing)
 - [x] Citation network physics auto-freeze + spacing (fix/citation-node-sizing)
 - [x] [#80](https://github.com/seanthimons/serapeum/issues/80): Progress modal with stop button for citation network (v2.1 Phase 18)
-- [x] [#81](https://github.com/seanthimons/serapeum/issues/81): UI improvements to reclaim space (v2.1 Phase 16)
 - [x] [#33](https://github.com/seanthimons/serapeum/issues/33): Favicon (v2.1 Phase 16)
 - [x] [#61](https://github.com/seanthimons/serapeum/issues/61): Conclusion synthesis icon (v2.1 Phase 16)
 - [x] [#62](https://github.com/seanthimons/serapeum/issues/62): Preset icons (v2.1 Phase 16)
 - [x] [#27](https://github.com/seanthimons/serapeum/issues/27): Conclusion synthesis → future directions (v2.1 Phase 19)
+- [x] [#81](https://github.com/seanthimons/serapeum/issues/81): UI improvements to reclaim space (sidebar rebalance)
 
 ---
 
