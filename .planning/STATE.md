@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-12)
 
 ## Current Position
 
-Phase: 18 of 19 (Progress Modal with Cancellation) — IN PROGRESS
-Plan: 1/2 complete
-Status: Plan 01 complete (async infrastructure)
-Last activity: 2026-02-13 — Phase 18-01 executed (interrupt utilities + ExtendedTask)
+Phase: 18 of 19 (Progress Modal with Cancellation) — COMPLETE
+Plan: 2/2 complete
+Status: Phase 18 complete (async infrastructure + progress modal with cancellation)
+Last activity: 2026-02-13 — Phase 18-02 executed (progress modal UI with cancel button and real progress tracking)
 
-Progress: [█████████████████░░░] 90% (17/19 phases complete, 1/2 plans in phase 18)
+Progress: [███████████████████░] 95% (18/19 phases complete, all plans in phase 18 complete)
 
 ## Performance Metrics
 
@@ -28,13 +28,13 @@ Progress: [█████████████████░░░] 90% (17
 | v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
 | v2.1 Polish & Analysis | 16-18 | 4 | <1 day |
 
-**Total:** 29 plans shipped (28 complete + 1 in progress) across 18 phases
+**Total:** 30 plans shipped (30 complete) across 18 phases
 
-**Recent Execution (Phase 18-01):**
-- Duration: 4 minutes (249 seconds)
+**Recent Execution (Phase 18-02):**
+- Duration: 47 minutes (2850 seconds)
 - Tasks: 2
-- Files modified: 2
-- Files created: 1
+- Files modified: 4
+- Bug fixes: 4 (cancel crash, real progress, orphan edges, wizard modal)
 
 ## Accumulated Context
 
@@ -55,6 +55,9 @@ Recent decisions affecting v2.1 work:
 - **v2.1 (18-01) - ExtendedTask + mirai for async builds**: Replaces blocking withProgress, keeps UI responsive during long network builds
 - **v2.1 (18-01) - Partial result returns with partial=TRUE flag**: Cancelled builds return accumulated nodes/edges for potential user inspection
 - **v2.1 (18-01) - Layout computation deferred for partial results**: Computed in main process (not mirai) to return faster on cancellation
+- **v2.1 (18-02) - File-based progress tracking instead of time-based fake progress**: Enables real hop/paper counts from mirai worker to Shiny poller for informative status updates
+- **v2.1 (18-02) - ExtendedTask has no cancel() method**: Removed network_task$cancel() call, rely solely on interrupt flag for cancellation
+- **v2.1 (18-02) - Orphan edge filtering for partial results**: Filter edges to valid node IDs before layout computation to prevent crashes
 
 ### Pending Todos
 
@@ -67,6 +70,8 @@ Recent decisions affecting v2.1 work:
 **Phase 18 (Progress Modal):**
 - ~~Shiny lacks native task cancellation — requires interrupt flag pattern~~ ✅ RESOLVED (18-01: implemented file-based interrupt flags)
 - ~~Observer cleanup needed to prevent leaked processes~~ ✅ RESOLVED (18-01: session cleanup added via onSessionEnded)
+- ~~Real progress tracking across process boundaries~~ ✅ RESOLVED (18-02: file-based progress files with hop/paper counts)
+- ~~Partial results with orphan edges crash layout~~ ✅ RESOLVED (18-02: filter edges to valid node IDs before layout)
 
 **Phase 19 (Conclusion Synthesis):**
 - RAG prompt injection risk — requires OWASP LLM01:2025 hardening
@@ -75,5 +80,5 @@ Recent decisions affecting v2.1 work:
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Completed 18-01-PLAN.md (async infrastructure with interrupt support)
-Next: Execute 18-02-PLAN.md (progress modal UI with cancel button and polling)
+Stopped at: Completed 18-02-PLAN.md (progress modal UI with cancel button and real progress tracking)
+Next: Phase 19 - Conclusion Synthesis (RAG-based synthesis generation)
