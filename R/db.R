@@ -1576,3 +1576,60 @@ update_network_positions <- function(con, network_id, nodes_df) {
 
   invisible(NULL)
 }
+
+# ============================================================================
+# Year Range Filter Functions (Phase 17)
+# ============================================================================
+
+#' Get year distribution for papers in a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame with columns year (INTEGER) and count (INTEGER)
+get_year_distribution <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT year, COUNT(*) AS count
+    FROM abstracts
+    WHERE notebook_id = ? AND year IS NOT NULL
+    GROUP BY year
+    ORDER BY year
+  ", list(notebook_id))
+
+  if (nrow(result) == 0) {
+    return(data.frame(year = integer(), count = integer(), stringsAsFactors = FALSE))
+  }
+
+  result
+}
+
+#' Get count of papers with unknown (NULL) year
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Integer count
+get_unknown_year_count <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT COUNT(*) AS n
+    FROM abstracts
+    WHERE notebook_id = ? AND year IS NULL
+  ", list(notebook_id))
+
+  result$n[1]
+}
+
+#' Get year bounds (min and max) for papers in a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return List with min_year and max_year (defaults to 2000/2026 if no data)
+get_year_bounds <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT
+      COALESCE(MIN(year), 2000) AS min_year,
+      COALESCE(MAX(year), 2026) AS max_year
+    FROM abstracts
+    WHERE notebook_id = ? AND year IS NOT NULL
+  ", list(notebook_id))
+
+  list(
+    min_year = result$min_year[1],
+    max_year = result$max_year[1]
+  )
+}

@@ -99,6 +99,31 @@ mod_search_notebook_ui <- function(id) {
               value = TRUE
             )
           ),
+          # Year range filter panel
+          div(
+            class = "mb-2",
+            sliderInput(
+              ns("year_range"),
+              "Publication Year",
+              min = 1900,
+              max = 2026,
+              value = c(1900, 2026),
+              step = 1,
+              sep = "",
+              ticks = FALSE
+            ),
+            plotOutput(ns("year_histogram"), height = "60px"),
+            div(
+              class = "d-flex justify-content-between align-items-center",
+              checkboxInput(
+                ns("include_unknown_year"),
+                "Include unknown year",
+                value = TRUE
+              ),
+              textOutput(ns("unknown_year_count"), inline = TRUE) |>
+                tagAppendAttributes(class = "text-muted small")
+            )
+          ),
           div(
             id = ns("paper_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
@@ -401,14 +426,87 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       list_abstracts(con(), nb_id, sort_by = sort_by)
     })
 
-    # Filtered papers - chain keyword filter -> journal filter -> has_abstract filter
+    # Dynamic slider bounds - updates when papers change
+    observe({
+      papers <- papers_data()
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      bounds <- get_year_bounds(con(), nb_id)
+      updateSliderInput(
+        session,
+        "year_range",
+        min = bounds$min_year,
+        max = bounds$max_year,
+        value = c(bounds$min_year, bounds$max_year)
+      )
+    })
+
+    # Debounced year range reactive
+    year_range_raw <- reactive({ input$year_range })
+    year_range <- debounce(year_range_raw, 400)
+
+    # Year histogram
+    output$year_histogram <- renderPlot({
+      nb_id <- notebook_id()
+      req(nb_id)
+      paper_refresh()  # React to paper changes
+
+      year_counts <- get_year_distribution(con(), nb_id)
+
+      if (nrow(year_counts) == 0) {
+        # Empty plot
+        ggplot() + theme_void()
+      } else {
+        # Minimal histogram
+        ggplot(year_counts, aes(x = year, y = count)) +
+          geom_col(fill = "#6366f1", width = 0.8, alpha = 0.7) +
+          theme_void() +
+          theme(
+            plot.background = element_blank(),
+            panel.background = element_blank(),
+            plot.margin = margin(0, 0, 0, 0)
+          )
+      }
+    }, bg = "transparent")
+
+    # Unknown year count display
+    output$unknown_year_count <- renderText({
+      nb_id <- notebook_id()
+      req(nb_id)
+      paper_refresh()  # React to paper changes
+
+      count <- get_unknown_year_count(con(), nb_id)
+      if (count > 0) {
+        paste0("(", count, " unknown)")
+      } else {
+        ""
+      }
+    })
+
+    # Filtered papers - chain keyword filter -> journal filter -> has_abstract filter -> year filter
     filtered_papers <- reactive({
       papers <- journal_filtered_papers()
       if (nrow(papers) == 0) return(papers)
 
+      # Has abstract filter
       if (isTRUE(input$filter_has_abstract)) {
         papers <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
       }
+
+      # Year range filter
+      range <- year_range()
+      if (!is.null(range) && length(range) == 2) {
+        include_null <- input$include_unknown_year
+        if (isTRUE(include_null)) {
+          # Keep rows where year is NULL OR in range
+          papers <- papers[is.na(papers$year) | (papers$year >= range[1] & papers$year <= range[2]), ]
+        } else {
+          # Keep only rows with non-NULL year in range
+          papers <- papers[!is.na(papers$year) & papers$year >= range[1] & papers$year <= range[2], ]
+        }
+      }
+
       papers
     })
 
