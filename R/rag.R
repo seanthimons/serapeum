@@ -357,8 +357,8 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
           FROM chunks c
           JOIN documents d ON c.source_id = d.id
           WHERE d.notebook_id = ?
-          ORDER BY d.created_at DESC, c.chunk_index DESC
-          LIMIT 20
+          ORDER BY c.chunk_index DESC
+          LIMIT 10
         ", list(notebook_id))
       } else {
         dbGetQuery(con, "
@@ -368,7 +368,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
           JOIN abstracts a ON c.source_id = a.id
           WHERE a.notebook_id = ?
           ORDER BY a.year DESC, c.chunk_index
-          LIMIT 20
+          LIMIT 10
         ", list(notebook_id))
       }
     }, error = function(e) {
