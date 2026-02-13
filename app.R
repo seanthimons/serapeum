@@ -427,15 +427,17 @@ server <- function(input, output, session) {
     )
   }
 
-  # Show wizard on first load
+  # Show wizard on first load — only if no notebooks exist yet
   observe({
-    has_seen <- input$has_seen_wizard
-    if (!is.null(has_seen) && !has_seen) {
+    con <- con_r()
+    req(con)
+    notebooks <- list_notebooks(con)
+    if (nrow(notebooks) == 0) {
       shiny::onFlushed(function() {
         showModal(wizard_modal())
       }, once = TRUE)
     }
-  }) |> bindEvent(input$has_seen_wizard, once = TRUE)
+  }) |> bindEvent(con_r(), once = TRUE)
 
   # Wizard routing handlers
   observeEvent(input$wizard_seed_paper, {
