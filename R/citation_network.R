@@ -379,6 +379,8 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
 
   # Edges: visNetwork expects 'from' and 'to' columns
   if (nrow(edges_df) > 0) {
+    # Drop self-loops (OpenAlex sometimes lists a paper in its own referenced_works)
+    edges_df <- edges_df[edges_df$from_paper_id != edges_df$to_paper_id, ]
     edges_df$from <- edges_df$from_paper_id
     edges_df$to <- edges_df$to_paper_id
     edges_df$arrows <- "to"  # Directional arrows
