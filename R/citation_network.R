@@ -25,10 +25,12 @@ format_authors_display <- function(authors_list) {
 #' @param depth Number of hops from seed (1-3)
 #' @param node_limit Maximum nodes to include (25-200)
 #' @param progress_callback Optional function(message, fraction) for progress updates
+#' @param interrupt_flag Optional path to interrupt flag file for cancellation
 #' @return List with nodes (data.frame) and edges (data.frame), or partial results on error
 fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
                                      direction = "both", depth = 2,
-                                     node_limit = 100, progress_callback = NULL) {
+                                     node_limit = 100, progress_callback = NULL,
+                                     interrupt_flag = NULL) {
 
   # Ensure W prefix
   if (!grepl("^W", seed_paper_id)) {
@@ -95,11 +97,82 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
   for (hop in seq_len(depth)) {
     if (length(current_frontier) == 0) break
 
+    # Check for interrupt at start of each BFS hop
+    if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+      if (!is.null(progress_callback)) {
+        progress_callback("Cancelled by user", 1.0)
+      }
+
+      # Convert accumulated data to data frames
+      nodes_df <- if (length(nodes_list) > 0) {
+        do.call(rbind, lapply(nodes_list, as.data.frame, stringsAsFactors = FALSE))
+      } else {
+        data.frame(
+          paper_id = character(),
+          title = character(),
+          authors = character(),
+          year = integer(),
+          venue = character(),
+          doi = character(),
+          cited_by_count = integer(),
+          is_seed = logical(),
+          stringsAsFactors = FALSE
+        )
+      }
+
+      edges_df <- if (length(edges_list) > 0) {
+        do.call(rbind, lapply(edges_list, as.data.frame, stringsAsFactors = FALSE))
+      } else {
+        data.frame(
+          from_paper_id = character(),
+          to_paper_id = character(),
+          stringsAsFactors = FALSE
+        )
+      }
+
+      return(list(nodes = nodes_df, edges = edges_df, partial = TRUE))
+    }
+
     next_frontier <- character()
     total_fetched <- 0
 
     # For each paper in current frontier, fetch its citations
     for (frontier_paper in current_frontier) {
+      # Check for interrupt at each frontier paper
+      if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+        if (!is.null(progress_callback)) {
+          progress_callback("Cancelled by user", 1.0)
+        }
+
+        # Convert accumulated data to data frames
+        nodes_df <- if (length(nodes_list) > 0) {
+          do.call(rbind, lapply(nodes_list, as.data.frame, stringsAsFactors = FALSE))
+        } else {
+          data.frame(
+            paper_id = character(),
+            title = character(),
+            authors = character(),
+            year = integer(),
+            venue = character(),
+            doi = character(),
+            cited_by_count = integer(),
+            is_seed = logical(),
+            stringsAsFactors = FALSE
+          )
+        }
+
+        edges_df <- if (length(edges_list) > 0) {
+          do.call(rbind, lapply(edges_list, as.data.frame, stringsAsFactors = FALSE))
+        } else {
+          data.frame(
+            from_paper_id = character(),
+            to_paper_id = character(),
+            stringsAsFactors = FALSE
+          )
+        }
+
+        return(list(nodes = nodes_df, edges = edges_df, partial = TRUE))
+      }
       # Fetch citations based on direction
       citing_papers <- list()
       cited_papers <- list()
@@ -266,7 +339,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
     progress_callback(paste("Network built:", nrow(nodes_df), "nodes,", nrow(edges_df), "edges"), 1.0)
   }
 
-  list(nodes = nodes_df, edges = edges_df)
+  list(nodes = nodes_df, edges = edges_df, partial = FALSE)
 }
 
 #' Map publication years to color palette
