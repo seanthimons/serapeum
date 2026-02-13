@@ -1649,9 +1649,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           if (nrow(chunks) > 0) {
             for (i in seq_len(nrow(chunks))) {
               tryCatch({
-                embedding <- get_embedding(chunks$content[i], api_key_or, embed_model)
-                if (!is.null(embedding)) {
-                  embedding_str <- paste(embedding, collapse = ",")
+                result <- get_embeddings(api_key_or, embed_model, chunks$content[i])
+                if (!is.null(result$embeddings) && length(result$embeddings) > 0) {
+                  embedding_str <- paste(result$embeddings[[1]], collapse = ",")
                   dbExecute(con(), "UPDATE chunks SET embedding = ? WHERE id = ?",
                            list(embedding_str, chunks$id[i]))
                 }
