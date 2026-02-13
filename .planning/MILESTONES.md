@@ -55,3 +55,22 @@
 
 ---
 
+
+## v2.0 Discovery Workflow & Output (Shipped: 2026-02-13)
+
+**Phases completed:** 5 phases (11-15), 8 plans, ~16 tasks
+
+**Key accomplishments:**
+- DOI storage infrastructure with migration, normalization, batch backfill, and clickable DOI links in abstract preview
+- Interactive citation network visualization with BFS traversal, visNetwork graphs, save/load persistence, and cross-link discovery via referenced_works
+- Seamless export-to-seed workflow — one-click "Use as Seed" from abstract detail navigates to seed discovery with auto-lookup
+- Citation export as BibTeX and CSV with LaTeX escaping, collision-free citation keys, and 79 unit tests
+- Synthesis export — chat conversations downloadable as Markdown or standalone HTML from both notebook types
+
+**Stats:** 40 files changed, +8,342 / -57 lines, ~11,500 R LOC total
+**Timeline:** 14 days (2026-01-29 → 2026-02-12)
+**Git range:** feat(11-01) → feat(15-01)
+**Tech debt accepted:** #79 tooltip overflow, #80 progress modal, missing Phase 12 VERIFICATION.md
+
+---
+

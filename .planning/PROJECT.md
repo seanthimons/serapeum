@@ -2,11 +2,11 @@
 
 ## What This Is
 
-Serapeum is a local-first research assistant built with R/Shiny that helps researchers find, filter, and synthesize academic papers. It combines document notebooks (upload PDFs, chat with RAG) and search notebooks (OpenAlex paper search, quality filtering) with LLM-powered chat and slide generation. Three discovery modes — seed paper lookup, LLM-assisted query building, and topic hierarchy browsing — provide multiple entry points for finding relevant research. Quality-of-life features include per-request cost tracking, dynamic model selection, interactive keyword filtering, and journal quality controls with personal blocklists.
+Serapeum is a local-first research assistant built with R/Shiny that helps researchers find, filter, and synthesize academic papers. It combines document notebooks (upload PDFs, chat with RAG) and search notebooks (OpenAlex paper search, quality filtering) with LLM-powered chat and slide generation. Three discovery modes — seed paper lookup, LLM-assisted query building, and topic hierarchy browsing — provide multiple entry points for finding relevant research. Discovery workflows are fluid: view a paper's abstract, explore its citation network, use it as a seed for a new search, or export results as BibTeX/CSV. Quality-of-life features include per-request cost tracking, dynamic model selection, interactive keyword filtering, journal quality controls, and chat export to Markdown/HTML.
 
 ## Core Value
 
-Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — all from a guided startup experience.
+Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings.
 
 ## Requirements
 
@@ -41,26 +41,21 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Predatory journal filter toggle (JRNL-02) — v1.1
 - ✓ Personal journal blocklist (JRNL-03) — v1.1
 - ✓ Blocklist management (JRNL-04) — v1.1
-
 - ✓ Fix 401 error on OpenAlex topic searches #59 (BUGF-01) — v1.2
 - ✓ User-friendly API error messages #65 (BUGF-02) — v1.2
 - ✓ Prevent tab-swap OpenAlex re-request #68 (BUGF-03) — v1.2
 - ✓ Collapsible Journal Quality card #73 (UIPX-01) — v1.2
 - ✓ Fix block badge misalignment #72 (UIPX-02) — v1.2
+- ✓ DOI on abstract preview #66 (DOI-01) — v2.0
+- ✓ Citation network graph #53 (CITE-01) — v2.0
+- ✓ Export abstract to seeded paper search #67 (SEED-01) — v2.0
+- ✓ Seeded search same view as abstract preview #71 (SEED-02) — v2.0
+- ✓ Citation export #64 (EXPRT-01) — v2.0
+- ✓ Export synthesis outputs #49 (EXPRT-02) — v2.0
 
 ### Active
 
-## Current Milestone: v2.0 Discovery Workflow & Output
-
-**Goal:** Make discovery modes fluid and interconnected, add DOI visibility, and enable research output export (citations, synthesis).
-
-**Target features:**
-- DOI on abstract preview (#66)
-- Export abstract to seeded paper search (#67)
-- Seeded search same view as abstract preview (#71)
-- Citation network graph (#53)
-- Citation export (#64)
-- Export synthesis outputs (#49)
+(No active milestone — start next with /gsd:new-milestone)
 
 ### Out of Scope
 
@@ -70,18 +65,19 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - Conclusion synthesis (#27) — depends on better document understanding first
 - Audio overview (#22) — experimental, low priority
 - Bulk DOI/.bib import (#24) — deferred, needs UX design
-- Rich output preview (#50) — deferred, build export first
-- Additional synthesis outputs (#63) — deferred, build export first
+- Rich output preview (#50) — deferred, now that export exists consider for next milestone
+- Additional synthesis outputs (#63) — deferred, now that export exists consider for next milestone
 
 ## Context
 
-Shipped v1.1 with ~11,400 LOC R across 17 modified files (+1,569 / -287 from v1.0).
-Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex.
+Shipped v2.0 with ~11,500 LOC R across 40 modified files (+8,342 / -57 from v1.2).
+Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
-mod_search_notebook.R reduced from 1,778 to ~1,410 lines through modularization (keyword filter, journal filter).
-Three new modules added in v1.1: mod_cost_tracker.R, mod_keyword_filter.R, mod_journal_filter.R.
-Cost tracking logs all LLM operations (chat, embedding, query building, slides) to cost_log table.
-Dynamic model pricing fetched from OpenRouter API with curated provider filter.
+6 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks).
+New modules in v2.0: mod_citation_network.R, citation_network.R, utils_doi.R, utils_citation.R, utils_export.R.
+Cross-module reactive bridge pattern for export-to-seed workflow.
+Citation export with BibTeX LaTeX escaping and CSV output (79 unit tests).
+Known tech debt: #79 tooltip overflow, #80 progress modal.
 
 ## Constraints
 
@@ -89,6 +85,7 @@ Dynamic model pricing fetched from OpenRouter API with curated provider filter.
 - **API**: OpenRouter for LLM, OpenAlex for academic data — no new external services
 - **Architecture**: Shiny module pattern (`mod_*.R`) — new features follow existing conventions
 - **Local-first**: No server infrastructure; everything runs on user's machine
+- **Dependencies**: igraph, visNetwork, commonmark added in v2.0 — keep dependency count low
 
 ## Key Decisions
 
@@ -107,7 +104,16 @@ Dynamic model pricing fetched from OpenRouter API with curated provider filter.
 | Composable filter chain pattern (v1.1) | keyword → journal quality → display | ✓ Good — clean modular pipeline |
 | Blocked journals always hidden, predatory toggleable | Blocking is explicit user intent | ✓ Good — intuitive UX |
 | Separate modules for new features (v1.1) | Prevent monolith growth | ✓ Good — reduced main file by 368 lines |
-| Defer Bulk Import to v1.2 | Stretch goal, all core v1.1 features shipped | ✓ Good — clean milestone |
+| Bare DOI storage format (v2.0) | BibTeX/citation managers expect 10.xxxx/yyyy, not URL | ✓ Good — compatible with all exporters |
+| Nullable DOI column (v2.0) | DuckDB can't add NOT NULL to populated tables | ✓ Good — clean migration |
+| Manual cascade delete for DuckDB (v2.0) | DuckDB doesn't support CASCADE on foreign keys | ✓ Good — referential integrity preserved |
+| Store layout positions in DB (v2.0) | Avoid 1-2s layout recomputation on network reload | ✓ Good — instant reload |
+| BFS frontier pruning at 100 (v2.0) | Prevent exponential API call explosion | ✓ Good — manageable network sizes |
+| sqrt transform for citation node sizes (v2.0) | Power-law distribution would dominate graph | ✓ Good — readable visualization |
+| Timestamp-based reactive deduplication (v2.0) | Same paper clicked twice needs unique event | ✓ Good — reliable reactive bridge |
+| Placeholder-based LaTeX escaping (v2.0) | Prevents double-escaping of backslashes | ✓ Good — correct BibTeX output |
+| UTF-8 BOM for BibTeX/HTML exports (v2.0) | Ensures reference managers/browsers read encoding | ✓ Good — wide compatibility |
+| Embedded CSS in HTML export (v2.0) | Standalone files work offline in any browser | ✓ Good — no external deps |
 
 ---
-*Last updated: 2026-02-12 after v2.0 milestone started*
+*Last updated: 2026-02-13 after v2.0 milestone shipped*
