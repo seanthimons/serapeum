@@ -464,7 +464,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       vn <- vn |>
         visNetwork::visEdges(
           arrows = "to",
-          color = list(color = "#cccccc", highlight = "#666666"),
+          color = list(color = "#999999", highlight = "#333333"),
           smooth = list(type = "continuous")
         ) |>
         visNetwork::visNodes(
