@@ -367,3 +367,55 @@ format_cache_status <- function(status) {
 
   format(status$last_updated, "Data updated: %Y-%m-%d %H:%M")
 }
+
+#' Seed quality data from bundled RDS files if tables are empty
+#'
+#' Loads pre-built RDS files from data/support/ into DuckDB on first run.
+#' Only seeds tables that are currently empty. Existing data is never overwritten.
+#'
+#' @param con DuckDB connection
+#' @return Invisible list of seeded table names and row counts
+seed_quality_data <- function(con) {
+  support_dir <- "data/support"
+  if (!dir.exists(support_dir)) return(invisible(list()))
+
+  seeded <- list()
+
+  # Map: RDS filename -> DuckDB table name
+  seed_map <- list(
+    "predatory_publishers.rds" = "predatory_publishers",
+    "predatory_journals.rds" = "predatory_journals",
+    "retracted_papers.rds" = "retracted_papers",
+    "openalex_topics.rds" = "topics"
+  )
+
+  for (rds_file in names(seed_map)) {
+    table_name <- seed_map[[rds_file]]
+    rds_path <- file.path(support_dir, rds_file)
+
+    if (!file.exists(rds_path)) next
+
+    # Only seed if table is empty
+    count <- tryCatch(
+      dbGetQuery(con, paste0("SELECT COUNT(*) AS n FROM ", table_name))$n,
+      error = function(e) 0
+    )
+    if (count > 0) next
+
+    tryCatch({
+      df <- readRDS(rds_path)
+      dbWriteTable(con, table_name, df, append = TRUE)
+
+      # Update cache metadata so UI shows correct status
+      meta_source <- if (table_name == "topics") "openalex_topics" else table_name
+      update_quality_cache_meta(con, meta_source, nrow(df))
+
+      seeded[[table_name]] <- nrow(df)
+      message("[seed] Loaded ", nrow(df), " rows into ", table_name, " from bundled RDS")
+    }, error = function(e) {
+      message("[seed] Failed to seed ", table_name, ": ", e$message)
+    })
+  }
+
+  invisible(seeded)
+}

@@ -160,6 +160,7 @@ server <- function(input, output, session) {
   # Database connection - create fresh for this session
   con <- get_db_connection(db_path)
   init_schema(con)
+  seed_quality_data(con)
 
   # Clean up on session end
   session$onSessionEnded(function() {
