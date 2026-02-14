@@ -13,7 +13,7 @@ mod_settings_ui <- function(id) {
       layout_columns(
         col_widths = c(6, 6),
 
-        # Left column
+        # Left column: API Keys + Advanced + Search + Citation Networks
         div(
           h5(icon("key"), " API Keys"),
           div(
@@ -41,10 +41,38 @@ mod_settings_ui <- function(id) {
           p(class = "text-muted small",
             "Used for polite pool access. Get an API key at ",
             tags$a(href = "https://openalex.org/settings/api",
-                   target = "_blank", "openalex.org"))
+                   target = "_blank", "openalex.org")),
+          hr(),
+          h5(icon("sliders"), " Advanced"),
+          numericInput(ns("chunk_size"), "Chunk Size (words)",
+                       value = 500, min = 100, max = 2000, step = 50),
+          numericInput(ns("chunk_overlap"), "Chunk Overlap (words)",
+                       value = 50, min = 0, max = 200, step = 10),
+          p(class = "text-muted small",
+            "Chunk settings affect how documents are split for processing. ",
+            "Changes only apply to newly uploaded documents."),
+          hr(),
+          h5(icon("magnifying-glass"), " Search"),
+          numericInput(ns("abstracts_per_search"), "Abstracts per Search",
+                       value = 25, min = 5, max = 100, step = 5),
+          p(class = "text-muted small",
+            "Number of paper abstracts to fetch from OpenAlex per search (max 100)."),
+          hr(),
+          h5(icon("diagram-project"), " Citation Networks"),
+          selectInput(ns("network_palette"), "Color Palette",
+                      choices = c(
+                        "Viridis (Default)" = "viridis",
+                        "Magma" = "magma",
+                        "Plasma" = "plasma",
+                        "Inferno" = "inferno",
+                        "Cividis (Colorblind-safe)" = "cividis"
+                      ),
+                      selected = "viridis"),
+          p(class = "text-muted small",
+            "Choose a colorblind-friendly palette for network node colors. Applied to new and loaded networks.")
         ),
 
-        # Right column
+        # Right column: Models + Quality Data + DOI Management
         div(
           h5(icon("robot"), " Models"),
           div(
@@ -81,37 +109,6 @@ mod_settings_ui <- function(id) {
                          title = "Refresh model list",
                          style = "margin-bottom: 15px;")
           ),
-          hr(),
-          h5(icon("sliders"), " Advanced"),
-          layout_columns(
-            col_widths = c(6, 6),
-            numericInput(ns("chunk_size"), "Chunk Size (words)",
-                         value = 500, min = 100, max = 2000, step = 50),
-            numericInput(ns("chunk_overlap"), "Chunk Overlap (words)",
-                         value = 50, min = 0, max = 200, step = 10)
-          ),
-          p(class = "text-muted small",
-            "Chunk settings affect how documents are split for processing. ",
-            "Changes only apply to newly uploaded documents."),
-          hr(),
-          h5(icon("magnifying-glass"), " Search"),
-          numericInput(ns("abstracts_per_search"), "Abstracts per Search",
-                       value = 25, min = 5, max = 100, step = 5),
-          p(class = "text-muted small",
-            "Number of paper abstracts to fetch from OpenAlex per search (max 100)."),
-          hr(),
-          h5(icon("diagram-project"), " Citation Networks"),
-          selectInput(ns("network_palette"), "Color Palette",
-                      choices = c(
-                        "Viridis (Default)" = "viridis",
-                        "Magma" = "magma",
-                        "Plasma" = "plasma",
-                        "Inferno" = "inferno",
-                        "Cividis (Colorblind-safe)" = "cividis"
-                      ),
-                      selected = "viridis"),
-          p(class = "text-muted small",
-            "Choose a colorblind-friendly palette for network node colors. Applied to new and loaded networks."),
           hr(),
           h5(icon("shield-halved"), " Quality Data"),
           p(class = "text-muted small",
