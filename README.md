@@ -88,42 +88,41 @@ Explore citation relationships through interactive network graphs.
 git clone https://github.com/seanthimons/serapeum.git
 cd serapeum
 
-# Install renv if not already installed
-install.packages("renv")
-
-# Restore dependencies
-renv::restore()
+# One-shot setup: installs renv + all R packages
+Rscript setup.R
 ```
+
+This installs all 96 dependencies from the lockfile. No manual package management needed.
 
 ### Configuration
 
-1. Copy the example config:
-   ```bash
-   cp config.example.yml config.yml
-   ```
+Configure API keys via the **Settings** page in the app (recommended), or copy the example config:
 
-2. Edit `config.yml` with your API keys:
-   ```yaml
-   openrouter:
-     api_key: "your-openrouter-key"  # Get from openrouter.ai/keys
+```bash
+cp config.example.yml config.yml
+```
 
-   openalex:
-     email: "your@email.com"  # For polite pool access (faster rate limits)
-   ```
+```yaml
+openrouter:
+  api_key: "your-openrouter-key"  # Get from openrouter.ai/keys
 
-   Or configure via the **Settings** page in the app (recommended).
+openalex:
+  email: "your@email.com"  # For polite pool access (faster rate limits)
+```
 
 ### Run
 
 ```r
-# From R console
 shiny::runApp()
-
-# Or from terminal
-Rscript app.R
 ```
 
 Open http://localhost:8080 in your browser.
+
+### What happens on first run
+
+- DuckDB database is created automatically
+- Quality data (predatory journals, retraction watch, OpenAlex topics) is seeded from bundled RDS files — no download needed
+- Startup wizard guides you through your first search
 
 ## Usage
 
@@ -182,10 +181,11 @@ Open http://localhost:8080 in your browser.
 ```
 serapeum/
 ├── app.R                 # Main Shiny app
+├── setup.R               # One-shot setup script
+├── .Rprofile              # Auto-activates renv
+├── renv.lock              # Locked dependency versions
 ├── config.yml            # Your config (gitignored)
 ├── config.example.yml    # Config template
-├── CLAUDE.md             # AI assistant instructions
-├── TODO.md               # Feature roadmap
 ├── R/
 │   ├── config.R          # Config loading
 │   ├── db.R              # Database operations
@@ -198,17 +198,16 @@ serapeum/
 │   ├── utils_citation.R  # BibTeX/CSV export formatters
 │   ├── utils_export.R    # Chat export formatters (Markdown/HTML)
 │   ├── citation_network.R # Citation graph data and layout
-│   ├── quality_filter.R  # Predatory/retraction filtering
+│   ├── quality_filter.R  # Predatory/retraction filtering + auto-seed
 │   ├── mod_about.R       # About page
 │   ├── mod_citation_network.R  # Network visualization UI
 │   ├── mod_document_notebook.R
 │   ├── mod_search_notebook.R
 │   ├── mod_settings.R
 │   └── mod_slides.R
-├── docs/
-│   └── plans/            # Feature design documents
 ├── data/
-│   └── notebooks.duckdb  # Database file
+│   ├── support/          # Bundled RDS files (quality data, topics)
+│   └── notebooks.duckdb  # Database file (auto-created)
 ├── storage/              # Uploaded PDFs
 ├── output/               # Generated slides
 └── tests/
