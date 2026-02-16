@@ -65,7 +65,7 @@
 
 **Milestone Goal:** Replace the legacy embedding/retrieval system with ragnar as the sole RAG backend, using per-notebook vector stores for clean isolation and optimal retrieval.
 
-- [ ] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle
+- [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
 - [ ] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery
 - [ ] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores
 - [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, digest dependency
@@ -153,7 +153,7 @@ Plans:
 | 9-10 | v1.2 | 2/2 | Complete | 2026-02-12 |
 | 11-15 | v2.0 | 8/8 | Complete | 2026-02-13 |
 | 16-19 | v2.1 | 7/7 | Complete | 2026-02-13 |
-| 20. Foundation & Connection Safety | v3.0 | 0/? | Not started | - |
+| 20. Foundation & Connection Safety | v3.0 | Complete    | 2026-02-16 | - |
 | 21. Store Lifecycle | v3.0 | 0/? | Not started | - |
 | 22. Module Migration | v3.0 | 0/? | Not started | - |
 | 23. Legacy Code Removal | v3.0 | 0/? | Not started | - |
