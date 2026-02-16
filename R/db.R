@@ -294,6 +294,10 @@ delete_notebook <- function(con, id) {
 
   # Delete notebook
   dbExecute(con, "DELETE FROM notebooks WHERE id = ?", list(id))
+
+  # Delete ragnar store file (Phase 21: silent cleanup on notebook deletion)
+  # DB records deleted first - file deletion failure is recoverable (orphan cleanup)
+  delete_notebook_store(id)
 }
 
 #' Create a document record
