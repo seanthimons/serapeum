@@ -118,6 +118,90 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       !is.null(api_key) && nchar(api_key) > 0
     })
 
+    # Reactive: store health (Phase 21)
+    store_healthy <- reactiveVal(NULL)  # NULL = unchecked, TRUE = ok, FALSE = corrupted/missing
+
+    # Proactive integrity check when notebook is opened (Phase 21)
+    observeEvent(notebook_id(), {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      store_path <- get_notebook_ragnar_path(nb_id)
+
+      # Only check if store file exists (no store = not yet created = ok, lazy creation handles this)
+      if (!file.exists(store_path)) {
+        store_healthy(TRUE)  # No store yet is fine - lazy creation will handle it
+        return()
+      }
+
+      # Check integrity of existing store
+      result <- check_store_integrity(store_path)
+      store_healthy(result$ok)
+
+      if (!result$ok) {
+        # Persistent error: show modal with rebuild option (per user decision)
+        showModal(modalDialog(
+          title = "Search Index Needs Rebuild",
+          tags$p("The search index for this notebook appears to be corrupted or damaged.
+                  This can happen after crashes or disk errors."),
+          tags$p("Your documents and notes are safe. Only the search index needs rebuilding."),
+          tags$p(class = "text-muted small",
+                 paste("Error:", result$error)),
+          footer = tagList(
+            actionButton(ns("rebuild_index"), "Rebuild Index", class = "btn-primary"),
+            modalButton("Later")
+          ),
+          easyClose = FALSE
+        ))
+      }
+    })
+
+    # Rebuild index handler (Phase 21)
+    observeEvent(input$rebuild_index, {
+      removeModal()
+
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
+      # Rebuild with progress (per user decision: withProgress with document count)
+      withProgress(message = "Rebuilding search index...", value = 0, {
+        result <- rebuild_notebook_store(
+          notebook_id = nb_id,
+          con = con(),
+          api_key = api_key,
+          embed_model = embed_model,
+          progress_callback = function(count, total) {
+            incProgress(
+              1 / total,
+              detail = paste("Re-embedding", count, "/", total, "items")
+            )
+          }
+        )
+      })
+
+      if (result$success) {
+        store_healthy(TRUE)
+        showNotification(
+          paste("Search index rebuilt successfully.", result$count, "items re-embedded."),
+          type = "message"
+        )
+      } else {
+        store_healthy(FALSE)
+        showNotification(
+          paste("Rebuild failed:", result$error),
+          type = "error",
+          duration = NULL
+        )
+      }
+    })
+
+    # Phase 22: When RAG retrieval is wired in, check store_healthy() before operations
+    # and set store_healthy(FALSE) + show rebuild modal on connection errors
+
     # Document list
     output$document_list <- renderUI({
       doc_refresh()
