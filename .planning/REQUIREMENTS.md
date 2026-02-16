@@ -67,25 +67,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FNDTN-01 | — | Pending |
-| FNDTN-02 | — | Pending |
-| FNDTN-03 | — | Pending |
-| LIFE-01 | — | Pending |
-| LIFE-02 | — | Pending |
-| LIFE-03 | — | Pending |
-| LIFE-04 | — | Pending |
-| LEGC-01 | — | Pending |
-| LEGC-02 | — | Pending |
-| LEGC-03 | — | Pending |
-| LEGC-04 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
+| FNDTN-01 | Phase 20 | Pending |
+| FNDTN-02 | Phase 20 | Pending |
+| FNDTN-03 | Phase 20 | Pending |
+| TEST-02 | Phase 20 | Pending |
+| LIFE-01 | Phase 21 | Pending |
+| LIFE-02 | Phase 21 | Pending |
+| LIFE-03 | Phase 21 | Pending |
+| LIFE-04 | Phase 21 | Pending |
+| (Module Migration) | Phase 22 | Pending |
+| LEGC-01 | Phase 23 | Pending |
+| LEGC-02 | Phase 23 | Pending |
+| LEGC-04 | Phase 23 | Pending |
+| TEST-01 | Phase 24 | Pending |
+| LEGC-03 | Phase 24 | Pending |
 
 **Coverage:**
 - v3.0 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13 ⚠️
+- Mapped to phases: 13/13 ✓
+- Unmapped: 0
+
+**Notes:**
+- Phase 22 has no explicit requirements but enables per-notebook isolation (critical for all subsequent phases)
+- TEST-02 woven into Phase 20 (connection lifecycle patterns established early)
+- LEGC-03 (destructive shared store deletion) deferred to final phase for safety
 
 ---
 *Requirements defined: 2026-02-16*
-*Last updated: 2026-02-16 after initial definition*
+*Last updated: 2026-02-16 after roadmap creation*

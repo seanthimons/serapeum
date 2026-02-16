@@ -5,43 +5,56 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** v3.0 Ragnar RAG Overhaul
+**Current focus:** Phase 20 - Foundation & Connection Safety (v3.0 Ragnar RAG Overhaul)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-16 — Milestone v3.0 started
+Phase: 20 of 24 (Foundation & Connection Safety)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-02-16 — v3.0 roadmap created
+
+Progress: [████████████████████████████████░░░░] 83% (32/37 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
+**Velocity:**
+- Total plans completed: 32 (across v1.0-v2.1)
+- Average duration: N/A (v3.0 starting)
+- Total execution time: ~3 days across 5 milestones
+
 **By Milestone:**
 
-| Milestone | Phases | Plans | Timeline |
-|-----------|--------|-------|----------|
-| v1.0 Fix + Discovery | 0-4 | 9 | 2 days |
-| v1.1 Quality of Life | 5-8 | 6 | 13 days |
-| v1.2 Stabilization | 9-10 | 2 | 1 day |
-| v2.0 Discovery Workflow & Output | 11-15 | 8 | 14 days |
-| v2.1 Polish & Analysis | 16-19 | 7 | <1 day |
-| v3.0 Ragnar RAG Overhaul | — | — | In progress |
+| Milestone | Phases | Plans | Status |
+|-----------|--------|-------|--------|
+| v1.0 | 0-4 | 9 | Complete |
+| v1.1 | 5-8 | 6 | Complete |
+| v1.2 | 9-10 | 2 | Complete |
+| v2.0 | 11-15 | 8 | Complete |
+| v2.1 | 16-19 | 7 | Complete |
+| v3.0 | 20-24 | 0/? | Not started |
 
-**Total:** 32 plans shipped across 19 phases
+**Recent Trend:**
+- v2.1 completed in <1 day (4 phases, 7 plans)
+- Velocity: Stable to improving
+- Trend: Fast iteration on focused milestones
+
+*Will update with v3.0 plan metrics as execution proceeds*
 
 ## Accumulated Context
 
 ### Decisions
 
-See PROJECT.md Key Decisions table for full log.
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
 
-Decisions affecting v3.0 work:
-- **v2.1 - Content-based section heuristics**: Section detection via chunk text keywords — must be preserved in ragnar migration
-- **v2.1 - Three-level retrieval fallback**: Section-filtered → unfiltered → direct DB — will simplify with ragnar-only path
-- **v2.1 - OWASP instruction-data separation**: Must be preserved in new retrieval path
-- **v3.0 - Per-notebook ragnar stores**: Each notebook gets its own .ragnar.duckdb for clean isolation
-- **v3.0 - Ragnar as hard dependency**: No legacy fallback, simpler code
-- **v3.0 - Delete existing data, don't migrate**: Fresh re-embed is cleaner
+- **Per-notebook ragnar stores (v3.0)**: Eliminates cross-notebook pollution, faster retrieval — isolate stores by notebook_id
+- **Ragnar as hard dependency (v3.0)**: Simpler code, no dual codepaths — remove all legacy fallback
+- **Delete legacy embeddings, don't migrate (v3.0)**: Fresh re-embed is cleaner than migration — user choice to start fresh
+- **Section-targeted RAG (v2.1)**: Keyword heuristics classify chunks by section type for focused synthesis
+- **ExtendedTask + mirai for async (v2.1)**: Non-blocking citation builds with progress/cancellation
+
+See PROJECT.md for full decision history.
 
 ### Pending Todos
 
@@ -52,10 +65,18 @@ Decisions affecting v3.0 work:
 
 ### Blockers/Concerns
 
-None yet — milestone just started.
+**v3.0 Migration Considerations:**
+- DuckDB connection locking risk with multiple open ragnar stores (needs single-active-store pattern)
+- Section_hint encoding in origin field needs validation (may need chunks table sidecar backup)
+- Ragnar 0.3.0 API stability unknown (pin version, add compatibility checks)
+- User data loss if legacy deletion happens before validation (dual-write period recommended)
+
+These are research-identified pitfalls to address during planning.
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Milestone v3.0 started, defining requirements
-Next: Complete requirements definition, then roadmap creation
+Last session: 2026-02-16 (roadmap creation)
+Stopped at: ROADMAP.md and STATE.md created for v3.0 milestone
+Resume file: None
+
+**Next action:** Run `/gsd:plan-phase 20` to plan Foundation & Connection Safety phase
