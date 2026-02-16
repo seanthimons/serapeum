@@ -125,7 +125,15 @@ mod_settings_ui <- function(id) {
           uiOutput(ns("doi_status")),
           actionButton(ns("backfill_dois"), "Backfill Missing DOIs",
                        class = "btn-outline-primary btn-sm mt-2",
-                       icon = icon("rotate"))
+                       icon = icon("rotate")),
+          hr(),
+          h5(icon("broom"), " Maintenance"),
+          p(class = "text-muted small",
+            "Remove orphaned search index files left over from failed notebook deletions."),
+          actionButton(ns("cleanup_orphans"), "Clean Up Orphaned Indexes",
+                       class = "btn-outline-secondary btn-sm",
+                       icon = icon("trash-can")),
+          textOutput(ns("cleanup_status"))
         )
       )
     )
@@ -570,6 +578,38 @@ mod_settings_server <- function(id, con, config_rv) {
           type = "error", duration = 10
         )
       }
+    })
+
+    # Orphan store cleanup (Phase 21)
+    observeEvent(input$cleanup_orphans, {
+      orphans <- find_orphaned_stores(con())
+
+      if (length(orphans) == 0) {
+        output$cleanup_status <- renderText("No orphaned indexes found.")
+        return()
+      }
+
+      # Delete orphans
+      removed <- vapply(orphans, function(f) {
+        tryCatch({
+          result <- file.remove(f)
+          # Also clean up WAL/tmp sidecar files
+          suppressWarnings({
+            file.remove(paste0(f, ".wal"))
+            file.remove(paste0(f, ".tmp"))
+          })
+          result
+        }, error = function(e) FALSE)
+      }, logical(1))
+
+      output$cleanup_status <- renderText(
+        paste("Cleaned up", sum(removed), "of", length(orphans), "orphaned indexes.")
+      )
+
+      showNotification(
+        paste("Removed", sum(removed), "orphaned search indexes."),
+        type = "message"
+      )
     })
 
     # Save settings
