@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 20 of 24 (Foundation & Connection Safety)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-16 — v3.0 roadmap created
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-16 — Completed 20-01 (Ragnar Path & Metadata Helpers)
 
-Progress: [████████████████████████████████░░░░] 83% (32/37 estimated plans completed across all milestones)
+Progress: [████████████████████████████████░░░░] 84% (33/39 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32 (across v1.0-v2.1)
-- Average duration: N/A (v3.0 starting)
-- Total execution time: ~3 days across 5 milestones
+- Total plans completed: 33 (across v1.0-v3.0)
+- Average duration: ~2 minutes (v3.0 plan 01)
+- Total execution time: ~3 days across 6 milestones
 
 **By Milestone:**
 
@@ -32,7 +32,7 @@ Progress: [███████████████████████
 | v1.2 | 9-10 | 2 | Complete |
 | v2.0 | 11-15 | 8 | Complete |
 | v2.1 | 16-19 | 7 | Complete |
-| v3.0 | 20-24 | 0/? | Not started |
+| v3.0 | 20-24 | 1/? | In progress |
 
 **Recent Trend:**
 - v2.1 completed in <1 day (4 phases, 7 plans)
@@ -48,6 +48,7 @@ Progress: [███████████████████████
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- **Pipe-delimited metadata encoding (20-01)**: Human-readable format for section/doi/type metadata in ragnar origin field — easier debugging than JSON
 - **Per-notebook ragnar stores (v3.0)**: Eliminates cross-notebook pollution, faster retrieval — isolate stores by notebook_id
 - **Ragnar as hard dependency (v3.0)**: Simpler code, no dual codepaths — remove all legacy fallback
 - **Delete legacy embeddings, don't migrate (v3.0)**: Fresh re-embed is cleaner than migration — user choice to start fresh
@@ -75,8 +76,8 @@ These are research-identified pitfalls to address during planning.
 
 ## Session Continuity
 
-Last session: 2026-02-16 (phase 20 context)
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-foundation-connection-safety/20-CONTEXT.md
+Last session: 2026-02-16 (phase 20 plan 01 execution)
+Stopped at: Completed 20-01-PLAN.md — Ragnar Path & Metadata Helpers
+Resume file: .planning/phases/20-foundation-connection-safety/20-01-SUMMARY.md
 
-**Next action:** Run `/gsd:plan-phase 20` to plan Foundation & Connection Safety phase
+**Next action:** Execute 20-02-PLAN.md (Connection Safety)
