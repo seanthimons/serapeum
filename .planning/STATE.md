@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 20 - Foundation & Connection Safety (v3.0 Ragnar RAG Overhaul)
+**Current focus:** Phase 21 - Store Lifecycle (v3.0 Ragnar RAG Overhaul)
 
 ## Current Position
 
-Phase: 20 of 24 (Foundation & Connection Safety)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-02-16 — Completed 20-02 (Connection Safety)
+Phase: 21 of 24 (Store Lifecycle)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-16 — Completed 21-01 (Store Lifecycle Backend)
 
-Progress: [█████████████████████████████████░░░] 87% (34/39 estimated plans completed across all milestones)
+Progress: [████████████████████████████████████░░] 90% (35/39 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (across v1.0-v3.0)
-- Average duration: ~3 minutes (v3.0 plans 01-02)
+- Total plans completed: 35 (across v1.0-v3.0)
+- Average duration: ~2.5 minutes (v3.0 plans 01-03)
 - Total execution time: ~3 days across 6 milestones
 
 **By Milestone:**
@@ -32,7 +32,7 @@ Progress: [███████████████████████
 | v1.2 | 9-10 | 2 | Complete |
 | v2.0 | 11-15 | 8 | Complete |
 | v2.1 | 16-19 | 7 | Complete |
-| v3.0 | 20-24 | 2/? | In progress |
+| v3.0 | 20-24 | 3/? | In progress |
 
 **Recent Trend:**
 - v2.1 completed in <1 day (4 phases, 7 plans)
@@ -79,8 +79,8 @@ Phase 20 foundation complete — ready for per-notebook CRUD operations in Phase
 
 ## Session Continuity
 
-Last session: 2026-02-16 (phase 20 complete — plans 01-02)
-Stopped at: Completed 20-02-PLAN.md — Connection Safety
-Resume file: .planning/phases/20-foundation-connection-safety/20-02-SUMMARY.md
+Last session: 2026-02-16 (phase 21 in progress — plan 01 complete)
+Stopped at: Completed 21-01-PLAN.md — Store Lifecycle Backend
+Resume file: .planning/phases/21-store-lifecycle/21-01-SUMMARY.md
 
-**Next action:** Plan Phase 21 (Per-Notebook CRUD) or continue v3.0 milestone
+**Next action:** Execute 21-02 (Store Lifecycle UI) or continue v3.0 milestone
