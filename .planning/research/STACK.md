@@ -1,489 +1,257 @@
-# Technology Stack Additions - v2.1 Polish & Analysis
+# Stack Research
 
-**Project:** Serapeum v2.1 Polish & Analysis
-**Researched:** 2026-02-13
+**Domain:** Per-notebook RAG stores (ragnar migration)
+**Researched:** 2026-02-16
 **Confidence:** HIGH
 
-## Executive Summary
+## Recommended Stack
 
-The v2.1 milestone adds **interactive year filtering**, **conclusion synthesis with multi-step prompts**, **progress modals with cancellation**, and **UI icons/favicon** to the existing R/Shiny research assistant. Stack additions are **minimal and focused**:
+### Core Technologies
 
-1. **NO new packages needed** for year range slider (native Shiny sliderInput with histogram overlay)
-2. **NO new packages needed** for multi-step RAG synthesis (existing OpenRouter + prompt engineering)
-3. **NO new packages needed** for progress modal (native Shiny modalDialog + ExtendedTask patterns)
-4. **ONE optional package** for favicon (favawesome or manual HTML approach)
-5. **Existing stack handles everything else** (Shiny 1.11.1, promises 1.3.3, future 1.67.0)
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| ragnar | 0.3.0 | Vector store management with VSS + BM25 hybrid retrieval | Posit's purpose-built RAG package for R, uses DuckDB backend with automatic VSS extension loading, supports both version 1 (flat chunks) and version 2 (documents with chunk ranges) stores |
+| DuckDB | 1.3.2 (via ragnar dependency) | Embedded database for vector storage | Lightweight, no-server database with native VSS extension support, automatic extension installation via ragnar |
+| digest | 0.6.37 | Content hashing for deduplication (version 1 stores) | Currently used in `_ragnar.R` for chunk hash generation in version 1 stores; NOT needed for version 2 stores (ragnar handles hashing internally via `rlang::hash`) |
 
-**Key insight:** All v2.1 features use native Shiny capabilities already in the stack. No external dependencies required except for enhanced favicon support.
+### Supporting Libraries
 
----
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| DBI | 1.2.3 | Database interface for DuckDB operations | Required for all DuckDB connections, accessing store internals, and metadata queries |
+| uuid | (current) | Generate unique store identifiers | Creating per-notebook ragnar store paths and notebook IDs |
+| jsonlite | (current) | Serialize notebook-to-store mappings | Storing notebook metadata that links to ragnar store locations |
 
-## New Features → Stack Mapping
+## Ragnar Store Management API
 
-### 1. Interactive Year Range Slider with Histogram
+### Store Lifecycle
 
-**Requirement:** Year range filter (e.g., 2015-2024) with distribution histogram overlay for search notebooks and citation networks.
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `ragnar_store_create()` | `ragnar_store_create(location, embed, version = 2, overwrite = FALSE, extra_cols = NULL, ...)` | Create new store with embedding function |
+| `ragnar_store_connect()` | `ragnar_store_connect(location, read_only = TRUE)` | Connect to existing store (retrieval only) |
+| `ragnar_store_insert()` | `ragnar_store_insert(store, chunks)` | Insert chunks (version 2: MarkdownDocumentChunks; version 1: data.frame with origin/hash/text) |
+| `ragnar_store_build_index()` | `ragnar_store_build_index(store, type = c("vss", "fts"))` | Build search index (required before retrieval) |
+| `ragnar_retrieve()` | `ragnar_retrieve(store, text, top_k = 3L, deoverlap = TRUE)` | Hybrid VSS + BM25 search |
 
-**Stack Decision:** **Native Shiny sliderInput + custom histogram rendering**
+### Store Deletion
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Shiny sliderInput** | Built-in | Year range selection | Native range slider support (pass vector c(min, max) to value param). Already used throughout app. |
-| **Base R graphics or ggplot2** | Built-in / Existing | Histogram overlay | Render histogram as background image or plotOutput overlay. No new dependencies needed. |
+**No dedicated deletion function.** To delete a ragnar store:
 
-**Alternative Considered:** `histoslider` package (0.1.1)
-- **Why NOT:** Adds React.js dependency, minimal CRAN documentation, last updated July 2025, experimental maturity. Solving a solved problem (Shiny already does range sliders).
-- **When to use:** If future phases need synchronized brush-and-zoom histogram interaction (not in v2.1 scope).
+1. Close DuckDB connection: `DBI::dbDisconnect(store@con, shutdown = TRUE)`
+2. Delete store file: `unlink(store_path)`
+3. Remove notebook metadata linking to deleted store
 
-**Implementation Pattern:**
-```r
-# Year range slider with two-value vector
-sliderInput("year_range", "Publication Years",
-            min = 1990, max = 2026, value = c(2015, 2024),
-            step = 1, sep = "")
+Ragnar stores are self-contained DuckDB files. Deletion is a file system operation.
 
-# Histogram as background via uiOutput + plotOutput overlay
-# Or CSS background-image with data URI encoded PNG
-```
+### Version Differences
 
-**Confidence:** HIGH
-- **Sources:** [Shiny sliderInput docs](https://shiny.posit.co/r/reference/shiny/0.14/sliderinput.html), [Slider Range component](https://shiny.posit.co/r/components/inputs/slider-range/), [histoslider CRAN](https://cran.r-project.org/package=histoslider)
-- **Evidence:** Shiny sliderInput is production-ready. Histogram overlay is standard R graphics. No new dependencies justify minimal UX gain.
+**Version 2 (Recommended for new stores):**
+- Stores full documents with chunk ranges
+- Supports overlapping chunks with de-overlapping at retrieval
+- Input: `MarkdownDocumentChunks` from `markdown_chunk()`
+- Use `markdown_chunk(MarkdownDocument(...))` to prepare chunks
+- Ragnar handles hashing internally
 
----
+**Version 1 (Legacy, used in current implementation):**
+- Stores flat chunks with user-provided hashes
+- Input: data.frame with `origin`, `hash`, `text` columns
+- User must provide `digest::digest()` hash for each chunk
+- No de-overlapping support
 
-### 2. RAG-Targeted Conclusion Synthesis with Multi-Step Prompts
+**Migration path:** Continue using version 1 for existing shared store, use version 2 for new per-notebook stores.
 
-**Requirement:** Generate conclusion section with future research directions using multi-step prompt pipeline (retrieve relevant chunks → synthesize with disclaimers).
+## DuckDB VSS Extension
 
-**Stack Decision:** **Existing OpenRouter API + prompt engineering patterns**
+### Automatic Loading
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **OpenRouter API** | Existing | LLM inference | Already integrated. Supports all frontier models (Claude, GPT-4, Gemini). Multi-step = sequential API calls. |
-| **Existing RAG pipeline** | Existing | Chunk retrieval + ranking | `rag.R` already implements semantic search with embeddings. Reuse for targeted retrieval. |
-| **Prompt engineering** | N/A | Multi-step pipeline control | System prompt → retrieval → synthesis prompt. Pure software pattern, no new packages. |
+Ragnar automatically loads the DuckDB VSS extension when:
+- `ragnar_store_create()` is called with non-NULL `embed` parameter
+- `ragnar_store_build_index(store, type = "vss")` is called
 
-**No New Packages Required**
+Verified via test: ragnar loads `vss` extension automatically alongside `core_functions` and `parquet`.
 
-**Multi-Step Prompt Pipeline Pattern:**
-```r
-# Step 1: Retrieval prompt (find relevant conclusions)
-system_prompt_1 <- "You are a research synthesis assistant. Extract conclusion-related content."
-chunks <- search_similar_chunks(con, notebook_id, query, top_k = 10)
+### Extension Details
 
-# Step 2: Synthesis prompt (generate conclusion with disclaimers)
-system_prompt_2 <- "Based on retrieved research, synthesize conclusions and future directions. Include heavy disclaimers about AI limitations."
-conclusion <- chat_with_openrouter(
-  messages = list(
-    list(role = "system", content = system_prompt_2),
-    list(role = "user", content = paste("Research excerpts:", paste(chunks$text, collapse = "\n\n")))
-  ),
-  model = "anthropic/claude-3.5-sonnet"
-)
-```
-
-**RAG Evolution Context (2026):**
-- **Agentic RAG:** LLM decides when to retrieve (not in scope for v2.1 — fixed pipeline sufficient)
-- **Self-correcting retrieval:** Iterative refinement (not needed — single synthesis step)
-- **StepBack prompting:** Abstract then reason (consider for quality improvement)
+- Extension name: `vss` (Vector Similarity Search)
+- Index type: HNSW (Hierarchical Navigable Small Worlds)
+- Distance metrics: array_distance, array_cosine_distance, array_negative_inner_product
+- Status: Experimental (not production-ready according to DuckDB docs)
+- Limitation: Index must fit in RAM (persisted to disk-backed database file)
+- Installation: Automatic via ragnar (no manual INSTALL/LOAD required)
 
-**Confidence:** HIGH
-- **Sources:** [Prompt Engineering for RAG Pipelines](https://www.stack-ai.com/blog/prompt-engineering-for-rag-pipelines-the-complete-guide-to-prompt-engineering-for-retrieval-augmented-generation), [RAG in 2026](https://www.techment.com/blogs/rag-in-2026/), [Prompting Guide RAG](https://www.promptingguide.ai/techniques/rag)
-- **Evidence:** Existing `rag.R` implements semantic search. OpenRouter supports all models. Multi-step = sequential calls (already done in chat loops).
+**No manual extension management needed.** Ragnar handles VSS extension lifecycle transparently.
 
----
-
-### 3. Progress Modal with Cancellation Support
-
-**Requirement:** Modal dialog showing progress for long-running citation network builds, with "Stop" button to cancel.
-
-**Stack Decision:** **Shiny modalDialog + ExtendedTask + interrupt pattern**
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Shiny modalDialog** | Built-in (1.11.1) | Modal UI container | Native Shiny modal system. Already used for exports in `mod_search_notebook.R`. |
-| **Shiny ExtendedTask** | Built-in (≥1.8.1) | Async task management | Native async support (replaces older future+promises patterns). Queues invocations, non-blocking UI. |
-| **promises** | 1.3.3 | Promise objects | Already installed. Required by ExtendedTask for async return values. |
-| **future** | 1.67.0 | Background execution | Already installed. Used with ExtendedTask via `future_promise()`. |
-
-**No New Packages Required**
-
-**Cancellation Pattern (Manual Interrupt):**
-```r
-# ExtendedTask does NOT have built-in cancel() method (as of Shiny 1.11.1)
-# Workaround: Use reactive flag + periodic checks in task code
-
-# In module server
-cancel_flag <- reactiveVal(FALSE)
-
-task <- ExtendedTask$new(function(seed_id, depth, limit) {
-  future_promise({
-    # Check cancel flag periodically during BFS traversal
-    for (hop in 1:depth) {
-      if (isolate(cancel_flag())) stop("Cancelled by user")
-      # ... fetch citations ...
-    }
-  })
-})
-
-# Cancel button in modal
-observeEvent(input$cancel_btn, {
-  cancel_flag(TRUE)
-  removeModal()
-})
-
-# Show modal with progress updates
-showModal(modalDialog(
-  title = "Building Citation Network",
-  uiOutput(ns("progress_text")),
-  footer = actionButton(ns("cancel_btn"), "Stop", class = "btn-danger")
-))
-```
-
-**Alternative Considered:** `shinybusy::modal_progress()`
-- **Why NOT:** Another dependency for minimal UX gain. Native modalDialog + ExtendedTask sufficient.
-
-**Confidence:** MEDIUM
-- **Sources:** [ExtendedTask reference](https://rstudio.github.io/shiny/reference/ExtendedTask.html), [Mastering Shiny User Feedback](https://mastering-shiny.org/action-feedback.html), [Long Running Tasks with Shiny](https://www.r-bloggers.com/2018/07/long-running-tasks-with-shiny-challenges-and-solutions/), [Async Programming with ExtendedTask](https://rtask.thinkr.fr/parallel-and-asynchronous-programming-in-shiny-with-future-promise-future_promise-and-extendedtask/)
-- **Evidence:** ExtendedTask exists in Shiny 1.11.1, but lacks native cancel() method (confirmed in docs). Manual interrupt flag is standard workaround. Already using promises/future in project.
-- **Limitation:** ExtendedTask queues tasks but doesn't expose cancel() API. Must implement manual interrupt checks in task code.
-
----
-
-### 4. UI Icons and Favicon
-
-**Requirement:** Consistent synthesis icons throughout UI + custom favicon for browser tabs.
-
-#### A. Inline Icons (Throughout UI)
-
-**Stack Decision:** **Continue using existing Shiny icon() system (Font Awesome)**
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Shiny icon()** | Built-in | Font Awesome icons | Already used extensively (25+ icon() calls in app.R). No changes needed. |
-| **Font Awesome** | Free set | Icon library | Default Shiny icon library. 2000+ icons available. |
-
-**Current Usage:**
-```r
-icon("book-open")              # App title
-icon("file-pdf")               # Document notebooks
-icon("magnifying-glass")       # Search notebooks
-icon("diagram-project")        # Citation networks
-icon("seedling")               # Seed discovery
-icon("wand-magic-sparkles")    # Query builder
-icon("compass")                # Topic explorer
-icon("gear"), icon("dollar-sign"), icon("info-circle")  # Sidebar links
-```
-
-**For Synthesis Features:**
-```r
-icon("lightbulb")              # Conclusion synthesis button
-icon("list-check")             # Future directions
-icon("file-lines")             # Export synthesis
-```
-
-**Alternative Considered:** `bsicons` package (0.1.2)
-- **Why NOT:** Experimental lifecycle, minimal advantage over Font Awesome (already integrated). Bootstrap Icons overlap significantly with FA free set.
-- **When to use:** If need specific Bootstrap-only icons not in Font Awesome (unlikely for synthesis features).
-
-**Confidence:** HIGH
-- **Sources:** Existing codebase (25+ icon() calls), [Shiny icon() docs](https://shiny.posit.co/r/reference/shiny/0.14/icon.html), [Font Awesome gallery](https://fontawesome.com/icons), [bsicons GitHub](https://github.com/rstudio/bsicons)
-- **Evidence:** Font Awesome already provides all needed icons. No gaps identified.
-
-#### B. Favicon (Browser Tab Icon)
-
-**Stack Decision:** **Manual HTML tag OR favawesome package (optional)**
-
-| Approach | Complexity | Pros | Cons |
-|----------|-----------|------|------|
-| **Manual HTML** | Low | Zero dependencies, full control, standard practice | Requires icon file creation/hosting |
-| **favawesome package** | Medium | Font Awesome icons as favicons, no file management | Adds dependency, experimental quality |
-
-**Manual HTML Approach (Recommended):**
-```r
-# In app.R ui definition, inside tags$head()
-tags$head(
-  tags$link(rel = "icon", type = "image/png", href = "favicon.png"),
-  tags$link(rel = "apple-touch-icon", sizes = "180x180", href = "apple-touch-icon.png")
-  # ... existing styles ...
-)
-
-# Create favicon.png and place in www/ folder
-# www/favicon.png (32x32 or 64x64 PNG)
-```
-
-**favawesome Package Approach (Optional):**
-```r
-# Install: install.packages("favawesome")
-library(favawesome)
-
-# In app.R ui definition
-ui <- page_sidebar(
-  title = ...,
-  favawesome::fa_favicon("book-open", fill = "#6366f1")  # Uses Font Awesome icon
-)
-```
-
-**Favicon Requirements (2026 Standards):**
-- **Minimum:** 32x32 PNG with `<link rel="icon">` tag
-- **Recommended:** 32x32 + 180x180 for Apple touch icon
-- **Format:** PNG (modern browsers), SVG (progressive enhancement)
-
-**Confidence:** HIGH
-- **Sources:** [R golem favicon docs](https://thinkr-open.github.io/golem/reference/favicon.html), [favawesome CRAN](https://cran.r-project.org/web/packages/favawesome/favawesome.pdf), [Favicon best practices 2026](https://evilmartians.com/chronicles/how-to-favicon-in-2021-six-files-that-fit-most-needs)
-- **Evidence:** Manual HTML is standard web practice. Shiny places www/ files at root path automatically. favawesome is experimental but functional alternative.
-
----
-
-## Existing Stack (No Changes)
-
-These packages **already installed** handle all v2.1 features:
-
-| Technology | Version | New Use Case in v2.1 |
-|------------|---------|----------------------|
-| **Shiny** | 1.11.1 | sliderInput for year range, modalDialog for progress, ExtendedTask for async |
-| **promises** | 1.3.3 | Async task handling with ExtendedTask |
-| **future** | 1.67.0 | Background execution for citation network builds |
-| **bslib** | 0.9.0 | UI layout (cards, sidebar) for new features |
-| **DuckDB** | Existing | Store year range filters in search configs |
-| **OpenRouter** | Existing | LLM inference for multi-step synthesis prompts |
-| **igraph** | Existing | Already used for citation networks (v2.0) |
-| **visNetwork** | Existing | Already used for citation networks (v2.0) — year filter applies to nodes |
-| **viridisLite** | Existing | Color palettes (may use for histogram year distribution) |
-
-**Confidence:** HIGH
-- **Sources:** Verified via `Rscript -e "packageVersion('shiny')"` → 1.11.1, promises 1.3.3, future 1.67.0
-- **Evidence:** All packages validated in v2.0 milestone. No new capabilities required.
-
----
-
-## What NOT to Add
-
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| **histoslider** | React.js dependency, experimental maturity, minimal value over native sliderInput | Native Shiny sliderInput + histogram overlay |
-| **shinybusy** | Adds dependency for modal progress when native modalDialog sufficient | Shiny modalDialog + ExtendedTask |
-| **bsicons** | Experimental lifecycle, no advantage over existing Font Awesome | Continue using Shiny icon() with Font Awesome |
-| **New LLM API clients** | OpenRouter already supports all models (Claude, GPT-4, Gemini) | Existing `api_openrouter.R` |
-| **Separate RAG frameworks** | Over-engineered for v2.1 scope (fixed retrieval pipeline sufficient) | Existing `rag.R` + prompt engineering |
-
----
-
-## Integration Points
-
-### Year Range Slider → Existing Filters
-
-**Where:** `mod_search_notebook.R`, `mod_citation_network.R`
-
-**Pattern:** Add to existing filter chain (keyword → journal quality → year range → display)
+## Installation
 
 ```r
-# In mod_search_notebook.R server
-filtered_papers <- reactive({
-  papers <- all_papers()
+# Core (already installed via renv)
+install.packages("ragnar")  # Version 0.3.0
+install.packages("duckdb")  # Version 1.3.2 (via ragnar dependency)
 
-  # Existing filters
-  papers <- apply_keyword_filter(papers, included, excluded)
-  papers <- apply_journal_filter(papers, blocked_journals, hide_predatory)
+# Currently used (can be removed for version 2 stores)
+install.packages("digest")  # Version 0.6.37 (only needed for version 1 hash generation)
 
-  # NEW: Year range filter
-  year_range <- input$year_range
-  if (!is.null(year_range)) {
-    papers <- papers[papers$year >= year_range[1] & papers$year <= year_range[2], ]
-  }
-
-  papers
-})
+# Already available
+# DBI, uuid, jsonlite (existing dependencies)
 ```
 
-### Multi-Step Synthesis → Existing RAG
+## Migration Strategy
 
-**Where:** `mod_search_notebook.R`, `mod_document_notebook.R`
+### Current State (Phase 1-4)
+- Single shared ragnar store: `data/serapeum.ragnar.duckdb`
+- Version 1 store format
+- Uses `digest::digest()` for chunk hashing
+- Chunks from all notebooks in one store
 
-**Pattern:** Reuse `search_similar_chunks()` + new synthesis prompt
+### Target State (This Milestone)
+- Per-notebook stores: `data/ragnar/notebook-{id}.duckdb`
+- Version 2 store format (for new stores)
+- Ragnar handles hashing internally
+- Isolated stores enable notebook deletion without affecting others
 
-```r
-# In mod_search_notebook.R or mod_document_notebook.R
-observeEvent(input$generate_conclusion, {
-  # Step 1: Retrieve conclusion-relevant chunks
-  query <- "conclusions, findings, future directions, limitations"
-  chunks <- search_similar_chunks(con(), notebook_id, query, top_k = 15)
-
-  # Step 2: Synthesis prompt with disclaimers
-  system_prompt <- "Based on the research excerpts below, synthesize a conclusion section with future research directions. IMPORTANT: Include heavy disclaimers that this is AI-generated and requires expert validation."
-
-  result <- chat_with_openrouter(
-    messages = list(
-      list(role = "system", content = system_prompt),
-      list(role = "user", content = paste("Research excerpts:\n\n", paste(chunks$text, collapse = "\n\n---\n\n")))
-    ),
-    model = selected_model(),
-    api_key = api_key()
-  )
-
-  # Display in UI with warning badges
-})
-```
-
-### Progress Modal → Existing Citation Network
-
-**Where:** `mod_citation_network.R` (already has progress_callback parameter)
-
-**Pattern:** Replace existing `withProgress()` with modalDialog + ExtendedTask
-
-```r
-# Current (v2.0): withProgress() with inline callback
-withProgress(message = "Fetching citation network...", {
-  network <- fetch_citation_network(seed_id, email, api_key, progress_callback = progress_cb)
-})
-
-# New (v2.1): modalDialog + ExtendedTask with cancellation
-showModal(modalDialog(
-  title = "Building Citation Network",
-  textOutput(ns("progress_text")),
-  footer = tagList(
-    actionButton(ns("cancel_btn"), "Stop", class = "btn-danger"),
-    modalButton("Close")
-  ),
-  easyClose = FALSE
-))
-
-network_task$invoke(seed_id, email, api_key)
-```
-
----
-
-## Installation Commands
-
-**No new packages required for core features.**
-
-**Optional (favicon only):**
-```r
-# If using favawesome package instead of manual HTML
-install.packages("favawesome")
-```
-
-**Verify existing packages:**
-```r
-packageVersion("shiny")     # Should be >= 1.8.1 for ExtendedTask (currently 1.11.1)
-packageVersion("promises")  # 1.3.3
-packageVersion("future")    # 1.67.0
-```
-
----
+### Breaking Changes
+- **digest dependency:** Can be removed once all stores migrate to version 2
+- **Legacy embedding fallback:** Remove `search_chunks()` and cosine similarity functions from `db.R`
+- **Store path convention:** Migrate from single `ragnar_store_path` to per-notebook path generation
 
 ## Version Compatibility
 
-| Package A | Compatible With | Notes |
-|-----------|-----------------|-------|
-| Shiny 1.11.1 | promises 1.3.3 | ExtendedTask requires promises for async returns |
-| Shiny 1.11.1 | future 1.67.0 | ExtendedTask works with future via `future_promise()` |
-| Shiny 1.11.1 | bslib 0.9.0 | Full compatibility, native theme integration |
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| ragnar 0.3.0 | DuckDB 1.3.2 | Ragnar depends on DuckDB, version pinned via renv |
+| ragnar 0.3.0 | R >= 4.3.0 | Minimum R version per ragnar DESCRIPTION |
+| VSS extension | DuckDB 1.3.2+ | Loaded automatically by ragnar, no version conflicts |
+| digest 0.6.37 | All R versions | Only needed for version 1 stores; version 2 uses `rlang::hash()` |
 
-**No version conflicts anticipated.**
+## Per-Notebook Store Implementation
 
----
+### Store Path Convention
 
-## Architectural Decisions
+```r
+# Recommended pattern
+get_notebook_ragnar_store_path <- function(notebook_id) {
+  sprintf("data/ragnar/notebook-%s.duckdb", notebook_id)
+}
+```
 
-### Why NOT histoslider?
+### Store Creation (Version 2)
 
-**Reasoning:**
-1. **Dependency cost:** Adds React.js htmlwidget for minimal UX improvement over native sliderInput
-2. **Maturity:** Version 0.1.1, last updated July 2025, limited CRAN documentation
-3. **Already solved:** Shiny sliderInput handles year ranges natively. Histogram overlay is simple R graphics.
-4. **Scope creep:** v2.1 needs basic year filtering, not synchronized brush-and-zoom interaction
+```r
+# Create store for new notebook
+store <- ragnar_store_create(
+  location = get_notebook_ragnar_store_path(notebook_id),
+  embed = embed_via_openrouter,  # Custom OpenRouter embed function
+  version = 2,  # Use version 2 for new stores
+  overwrite = FALSE
+)
 
-**When to reconsider:** If future milestone needs interactive histogram brushing where slider updates based on histogram selection (advanced interaction pattern).
+# Prepare chunks
+doc <- MarkdownDocument(text, origin = sprintf("%s#page=%d", filename, page))
+chunks <- markdown_chunk(doc, target_size = 1600, target_overlap = 0.5)
 
-### Why NOT new RAG framework?
+# Insert and build index
+ragnar_store_insert(store, chunks)
+ragnar_store_build_index(store, type = "vss")
+ragnar_store_build_index(store, type = "fts")
+```
 
-**Reasoning:**
-1. **Existing capabilities sufficient:** `rag.R` already implements semantic search with embeddings
-2. **Scope fit:** v2.1 synthesis is fixed pipeline (retrieve → synthesize), not agentic RAG (LLM-decides-when-to-retrieve)
-3. **Prompt engineering over packages:** Multi-step prompts = sequential API calls. Pure software pattern, no packages needed.
-4. **OpenRouter flexibility:** Already supports all frontier models. No need for model-specific clients.
+### Store Retrieval
 
-**When to reconsider:** If v3.0+ adds agentic RAG (LLM decides retrieval strategy), self-correcting retrieval loops, or multi-modal document understanding.
+```r
+# Connect to existing store (read-only)
+store <- ragnar_store_connect(get_notebook_ragnar_store_path(notebook_id))
 
-### Why ExtendedTask over shinybusy?
+if (!is.null(store)) {
+  results <- ragnar_retrieve(store, query, top_k = 5, deoverlap = TRUE)
+  # results: data.frame with text, origin, score columns
+}
+```
 
-**Reasoning:**
-1. **Native first:** ExtendedTask built into Shiny 1.8.1+, designed for async tasks
-2. **Already using promises/future:** ExtendedTask integrates with existing stack
-3. **shinybusy adds dependency:** For marginal UX gain (spinner themes)
-4. **Cancellation limitation:** ExtendedTask lacks native cancel() method, BUT shinybusy doesn't solve this either (both require manual interrupt pattern)
+### Store Deletion
 
-**When to reconsider:** If need fancy spinner themes or overlay effects (not in v2.1 scope).
+```r
+# When deleting a notebook
+delete_notebook_ragnar_store <- function(notebook_id) {
+  store_path <- get_notebook_ragnar_store_path(notebook_id)
 
----
+  if (file.exists(store_path)) {
+    # Connect to close cleanly
+    store <- tryCatch({
+      ragnar_store_connect(store_path)
+    }, error = function(e) NULL)
 
-## Open Questions & Risks
+    if (!is.null(store)) {
+      DBI::dbDisconnect(store@con, shutdown = TRUE)
+    }
 
-### 1. ExtendedTask Cancellation Workaround
+    # Delete file
+    unlink(store_path)
+  }
+}
+```
 
-**Issue:** ExtendedTask has no built-in `cancel()` method (as of Shiny 1.11.1). Must implement manual interrupt flag.
+## Metadata Schema Extension
 
-**Risk:** If citation network fetch is blocking in C code (e.g., httr2 request), interrupt flag won't be checked until R code resumes.
+Add notebook-to-store mapping in `notebooks` table:
 
-**Mitigation:**
-- Use `timeout` parameter on httr2 requests (allows cancellation at HTTP layer)
-- Check interrupt flag after each API call in BFS traversal loop (not during single blocking call)
-- Document in UI that "Stop" may take 5-10 seconds (completes current API request)
+```sql
+ALTER TABLE notebooks ADD COLUMN ragnar_store_path VARCHAR;
+```
 
-### 2. Year Range Histogram Rendering Performance
+Store path: `data/ragnar/notebook-{id}.duckdb`
 
-**Issue:** Rendering histogram overlay for 1000+ papers on every slider drag may cause lag.
+On notebook creation:
+```r
+ragnar_store_path <- get_notebook_ragnar_store_path(notebook_id)
+dbExecute(con, "UPDATE notebooks SET ragnar_store_path = ? WHERE id = ?",
+          list(ragnar_store_path, notebook_id))
+```
 
-**Risk:** Janky UI if histogram recalculates on every pixel of slider movement.
+## What NOT to Use
 
-**Mitigation:**
-- Use `debounce()` on year range input (500ms delay before updating histogram)
-- Pre-compute histogram bins on paper load, only re-filter on slider change (not re-render entire histogram)
-- Consider static background image histogram (update only on data refresh, not slider movement)
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Manual VSS extension loading | Ragnar handles this automatically; manual loading causes conflicts | Let ragnar load VSS via `ragnar_store_create()` |
+| Version 1 stores for new notebooks | Doesn't support de-overlapping, requires manual hashing | Version 2 stores with `markdown_chunk()` |
+| Single shared store | Prevents notebook isolation, deletion requires complex cleanup | Per-notebook stores in `data/ragnar/` directory |
+| Legacy `search_chunks()` with cosine similarity | Inferior to hybrid VSS + BM25, requires pre-computed embeddings | `ragnar_retrieve()` with hybrid search |
+| `digest::digest()` for version 2 stores | Version 2 uses `rlang::hash()` internally | Let ragnar handle hashing |
 
-### 3. Multi-Step Synthesis Token Costs
+## Ragnar Store Internals
 
-**Issue:** Conclusion synthesis requires 2x API calls (retrieval prompt + synthesis prompt), doubling token costs.
+### Tables (Version 2)
 
-**Risk:** User surprise at cost increase compared to single chat message.
+Verified via inspection of ragnar store:
+- `documents` - Full document storage
+- `chunks` - Chunk ranges referencing documents
+- `embeddings` - Vector embeddings for VSS
+- `metadata` - Store configuration and embed function
 
-**Mitigation:**
-- Show estimated token count BEFORE generating conclusion (count retrieval context + prompt)
-- Display warning: "This synthesis will use ~X tokens ($Y estimated)"
-- Track in cost log as separate operation type ("synthesis" vs "chat")
+Access via `DBI::dbListTables(store@con)` and `DBI::dbGetQuery(store@con, "SELECT ...")`.
 
----
+### Store Object Structure
+
+```r
+# RagnarStore S4 object (class: DuckDBRagnarStore)
+store@location    # File path
+store@embed       # Embedding function (or NULL)
+store@schema      # Extra columns schema
+store@name        # Store name
+store@title       # Store title
+store@con         # DuckDB connection
+store@version     # Store version (1 or 2)
+```
 
 ## Sources
 
-### High Confidence (Official Docs)
-- [Shiny sliderInput Reference](https://shiny.posit.co/r/reference/shiny/0.14/sliderinput.html)
-- [Shiny Slider Range Component](https://shiny.posit.co/r/components/inputs/slider-range/)
-- [ExtendedTask API Reference](https://rstudio.github.io/shiny/reference/ExtendedTask.html)
-- [Promises with Shiny Guide](https://rstudio.github.io/promises/articles/shiny.html)
-- [Mastering Shiny: User Feedback](https://mastering-shiny.org/action-feedback.html)
-- [Font Awesome Icons](https://fontawesome.com/icons)
-- [bsicons GitHub](https://github.com/rstudio/bsicons)
-
-### Medium Confidence (CRAN + Community)
-- [histoslider CRAN Package](https://cran.r-project.org/package=histoslider)
-- [favawesome CRAN Package](https://cran.r-project.org/web/packages/favawesome/favawesome.pdf)
-- [Long Running Tasks with Shiny](https://www.r-bloggers.com/2018/07/long-running-tasks-with-shiny-challenges-and-solutions/)
-- [Async Programming with ExtendedTask](https://rtask.thinkr.fr/parallel-and-asynchronous-programming-in-shiny-with-future-promise-future_promise-and-extendedtask/)
-
-### RAG Architecture (Context Only)
-- [Prompt Engineering for RAG Pipelines 2026](https://www.stack-ai.com/blog/prompt-engineering-for-rag-pipelines-the-complete-guide-to-prompt-engineering-for-retrieval-augmented-generation)
-- [RAG in 2026](https://www.techment.com/blogs/rag-in-2026/)
-- [Prompting Guide: RAG Techniques](https://www.promptingguide.ai/techniques/rag)
-
-### Favicon Standards
-- [Favicon Best Practices 2026](https://evilmartians.com/chronicles/how-to-favicon-in-2021-six-files-that-fit-most-needs)
-- [Favicon.io Generator](https://favicon.io/)
+- ragnar 0.3.0 package documentation (via `help()`) - HIGH confidence
+- DuckDB 1.3.2 renv.lock entry - HIGH confidence
+- [DuckDB VSS Extension Docs](https://duckdb.org/docs/stable/core_extensions/vss) - MEDIUM confidence (WebFetch failed, used WebSearch)
+- [ragnar tidyverse.org](https://ragnar.tidyverse.org/) - MEDIUM confidence (current version confirmed)
+- Existing codebase: `R/_ragnar.R`, `R/db.R` - HIGH confidence (implementation verified)
+- Live testing of ragnar store creation and VSS extension loading - HIGH confidence
 
 ---
-
-*Stack research for: Serapeum v2.1 Polish & Analysis*
-*Researched: 2026-02-13*
-*Researcher: Claude (GSD Phase 6: Research)*
+*Stack research for: ragnar RAG overhaul (per-notebook stores)*
+*Researched: 2026-02-16*
