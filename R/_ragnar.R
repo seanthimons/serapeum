@@ -3,6 +3,137 @@
 #' Manages the ragnar-powered vector store for semantic chunking and retrieval.
 #' This provides VSS (vector similarity search) + BM25 hybrid retrieval.
 
+# ---- Path and Metadata Helpers ----
+
+#' Get deterministic ragnar store path for a notebook
+#'
+#' Constructs the file path for a notebook's isolated ragnar store without
+#' requiring database lookups. This is a pure function for path construction.
+#'
+#' @param notebook_id The notebook ID (UUID)
+#' @return Character path to the ragnar store database file
+#' @examples
+#' get_notebook_ragnar_path("48fb8820-fbc0-4e75-bf46-92c6dae1db0b")
+#' # Returns: "data/ragnar/48fb8820-fbc0-4e75-bf46-92c6dae1db0b.duckdb"
+get_notebook_ragnar_path <- function(notebook_id) {
+  # Validate input
+  if (is.null(notebook_id) || is.na(notebook_id) || nchar(trimws(notebook_id)) == 0) {
+    stop("notebook_id must be a non-empty string")
+  }
+
+  file.path("data", "ragnar", paste0(notebook_id, ".duckdb"))
+}
+
+#' Encode origin metadata into pipe-delimited format
+#'
+#' Encodes section hint, DOI, and source type into the origin field for storage
+#' in ragnar chunks. Uses human-readable pipe-delimited format with key=value pairs.
+#'
+#' @param base_origin The base origin identifier (e.g., "paper.pdf#page=5")
+#' @param section_hint Section classification ("general", "methods", "conclusion", etc.)
+#' @param doi Document DOI (optional, omitted if NULL)
+#' @param source_type Source type identifier (default: "pdf")
+#' @return Character string in format: base_origin|section=...|doi=...|type=...
+#' @examples
+#' encode_origin_metadata("paper.pdf#page=5", "conclusion", "10.1234/abc", "pdf")
+#' # Returns: "paper.pdf#page=5|section=conclusion|doi=10.1234/abc|type=pdf"
+encode_origin_metadata <- function(base_origin,
+                                    section_hint = "general",
+                                    doi = NULL,
+                                    source_type = "pdf") {
+  # Validate required fields
+  if (is.null(section_hint) || nchar(trimws(section_hint)) == 0) {
+    stop("section_hint must be a non-empty string")
+  }
+  if (is.null(source_type) || nchar(trimws(source_type)) == 0) {
+    stop("source_type must be a non-empty string")
+  }
+
+  # Build pipe-delimited string with key=value pairs
+  parts <- c(
+    base_origin,
+    paste0("section=", section_hint),
+    if (!is.null(doi) && nchar(trimws(doi)) > 0) paste0("doi=", doi),
+    paste0("type=", source_type)
+  )
+
+  paste(parts, collapse = "|")
+}
+
+#' Decode origin metadata from pipe-delimited format
+#'
+#' Parses the encoded origin field to extract section hint, DOI, and source type.
+#' Gracefully falls back to "general" section on malformed input.
+#'
+#' @param origin The encoded origin string
+#' @return Named list with: base_origin, section_hint, doi, source_type
+#' @examples
+#' decode_origin_metadata("paper.pdf#page=5|section=conclusion|doi=10.1234/abc|type=pdf")
+#' # Returns: list(base_origin="paper.pdf#page=5", section_hint="conclusion",
+#' #               doi="10.1234/abc", source_type="pdf")
+decode_origin_metadata <- function(origin) {
+  # Wrap in tryCatch for graceful fallback
+  tryCatch({
+    # Split on pipe delimiter
+    parts <- strsplit(origin, "\\|", fixed = FALSE)[[1]]
+
+    if (length(parts) == 0) {
+      # Empty string
+      return(list(
+        base_origin = "",
+        section_hint = "general",
+        doi = NA_character_,
+        source_type = NA_character_
+      ))
+    }
+
+    # First element is always base_origin
+    base_origin <- parts[1]
+
+    # Parse remaining elements as key=value pairs
+    metadata <- list(
+      section_hint = "general",  # Default fallback
+      doi = NA_character_,
+      source_type = NA_character_
+    )
+
+    if (length(parts) > 1) {
+      for (i in 2:length(parts)) {
+        kv <- strsplit(parts[i], "=", fixed = TRUE)[[1]]
+        if (length(kv) == 2) {
+          key <- trimws(kv[1])
+          value <- trimws(kv[2])
+
+          if (key == "section") {
+            metadata$section_hint <- value
+          } else if (key == "doi") {
+            metadata$doi <- value
+          } else if (key == "type") {
+            metadata$source_type <- value
+          }
+        }
+      }
+    }
+
+    list(
+      base_origin = base_origin,
+      section_hint = metadata$section_hint,
+      doi = metadata$doi,
+      source_type = metadata$source_type
+    )
+  }, error = function(e) {
+    # Graceful fallback on any parsing error
+    list(
+      base_origin = origin,
+      section_hint = "general",
+      doi = NA_character_,
+      source_type = NA_character_
+    )
+  })
+}
+
+# ---- Ragnar Store Management ----
+
 #' Check if ragnar is available
 #' @return TRUE if ragnar is installed and loadable
 ragnar_available <- function() {
