@@ -65,7 +65,7 @@
 
 **Milestone Goal:** Replace the legacy embedding/retrieval system with ragnar as the sole RAG backend, using per-notebook vector stores for clean isolation and optimal retrieval.
 
-- [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
+- [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
 - [ ] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery
 - [ ] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores
 - [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, digest dependency
@@ -97,10 +97,11 @@ Plans:
   2. User embeds abstract in search notebook and ragnar store is created automatically on first embed
   3. User deletes notebook and its ragnar store file is removed from disk within same transaction
   4. User sees "Re-build Index" button when ragnar store is missing or corrupted, can rebuild with progress feedback
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 21-01: TBD
+- [ ] 21-01-PLAN.md — Core lifecycle functions, deletion cascade, orphan cleanup
+- [ ] 21-02-PLAN.md — Corruption detection, integrity check on open, rebuild with progress
 
 ### Phase 22: Module Migration
 **Goal**: Document and search notebook modules use per-notebook ragnar stores for all RAG operations, eliminating cross-notebook pollution
@@ -154,12 +155,12 @@ Plans:
 | 11-15 | v2.0 | 8/8 | Complete | 2026-02-13 |
 | 16-19 | v2.1 | 7/7 | Complete | 2026-02-13 |
 | 20. Foundation & Connection Safety | v3.0 | Complete    | 2026-02-16 | - |
-| 21. Store Lifecycle | v3.0 | 0/? | Not started | - |
+| 21. Store Lifecycle | v3.0 | 0/2 | Not started | - |
 | 22. Module Migration | v3.0 | 0/? | Not started | - |
 | 23. Legacy Code Removal | v3.0 | 0/? | Not started | - |
 | 24. Integration Testing & Cleanup | v3.0 | 0/? | Not started | - |
 
-**Total: 32 plans across 20 phases (5 milestones shipped), 5 phases planned for v3.0**
+**Total: 34 plans across 21 phases (5 milestones shipped), 5 phases planned for v3.0**
 
 ---
-*Updated: 2026-02-16 — v3.0 roadmap created*
+*Updated: 2026-02-16 — Phase 21 planned (2 plans)*
