@@ -75,8 +75,8 @@ These are research-identified pitfalls to address during planning.
 
 ## Session Continuity
 
-Last session: 2026-02-16 (roadmap creation)
-Stopped at: ROADMAP.md and STATE.md created for v3.0 milestone
-Resume file: None
+Last session: 2026-02-16 (phase 20 context)
+Stopped at: Phase 20 context gathered
+Resume file: .planning/phases/20-foundation-connection-safety/20-CONTEXT.md
 
 **Next action:** Run `/gsd:plan-phase 20` to plan Foundation & Connection Safety phase
