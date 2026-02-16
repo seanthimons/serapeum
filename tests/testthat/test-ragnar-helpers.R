@@ -1,6 +1,16 @@
 # Tests for ragnar helper functions
 # These are pure functions for path construction and metadata encoding
 
+library(testthat)
+
+# Source required files from project root
+project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
+if (!file.exists(file.path(project_root, "R", "_ragnar.R"))) {
+  # Fallback: we may already be in project root
+  project_root <- getwd()
+}
+source(file.path(project_root, "R", "_ragnar.R"))
+
 test_that("get_notebook_ragnar_path constructs deterministic paths", {
   # Valid UUIDs produce expected paths
   expect_equal(

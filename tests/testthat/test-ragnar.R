@@ -1,6 +1,20 @@
 # Tests for ragnar integration
 # These tests verify the ragnar integration works correctly
 
+library(testthat)
+
+# Source required files from project root
+project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
+if (!file.exists(file.path(project_root, "R", "_ragnar.R"))) {
+  # Fallback: we may already be in project root
+  project_root <- getwd()
+}
+source(file.path(project_root, "R", "config.R"))
+source(file.path(project_root, "R", "api_openrouter.R"))
+source(file.path(project_root, "R", "db_migrations.R"))
+source(file.path(project_root, "R", "db.R"))
+source(file.path(project_root, "R", "_ragnar.R"))
+
 test_that("ragnar_available returns boolean", {
   result <- ragnar_available()
   expect_type(result, "logical")

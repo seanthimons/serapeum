@@ -295,6 +295,159 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
   all_chunks
 }
 
+# ---- Version Check and Connection Lifecycle ----
+
+#' Check ragnar version compatibility (lazy, session-cached)
+#'
+#' Verifies ragnar is installed and meets minimum version requirement.
+#' Caches result in session to avoid repeated checks. Per user decision,
+#' warns but allows use on version mismatch (renv will handle strict pinning).
+#'
+#' @param session Shiny session object for caching (optional)
+#' @return TRUE if ragnar is compatible/allowed, FALSE if not installed
+#' @examples
+#' if (check_ragnar_version(session)) {
+#'   # Proceed with RAG operations
+#' }
+check_ragnar_version <- function(session = NULL) {
+  # Check session cache first
+  if (!is.null(session)) {
+    cached <- session$userData$ragnar_version_checked
+    if (!is.null(cached)) {
+      return(cached)
+    }
+  }
+
+  # Check if ragnar is installed
+  if (!requireNamespace("ragnar", quietly = TRUE)) {
+    message("[ragnar] Package not installed - RAG features disabled")
+    result <- FALSE
+  } else {
+    # Get installed version
+    installed <- as.character(packageVersion("ragnar"))
+    minimum <- "0.3.0"
+
+    # Compare versions (-1 = installed < minimum, 0 = equal, 1 = installed > minimum)
+    comparison <- compareVersion(installed, minimum)
+
+    if (comparison < 0) {
+      # Installed version too old
+      warning(
+        "[ragnar] Version ", installed, " is older than required ", minimum, ". ",
+        "RAG features may not work correctly. Please update ragnar."
+      )
+      result <- FALSE
+    } else if (comparison > 0) {
+      # Installed version newer - allow but warn about potential breaking changes
+      # Per user decision: allow patch updates (0.3.1, 0.3.2), warn on major/minor
+      installed_parts <- strsplit(installed, "\\.")[[1]]
+      minimum_parts <- strsplit(minimum, "\\.")[[1]]
+
+      if (installed_parts[1] != minimum_parts[1] || installed_parts[2] != minimum_parts[2]) {
+        # Major or minor version difference
+        warning(
+          "[ragnar] Version ", installed, " differs from tested ", minimum, ". ",
+          "RAG features may behave unexpectedly. ",
+          # TODO: This could be replaced by renv version pinning
+          "Consider pinning to ", minimum, " via renv."
+        )
+      }
+      result <- TRUE
+    } else {
+      # Exact match
+      result <- TRUE
+    }
+  }
+
+  # Cache result in session
+  if (!is.null(session)) {
+    session$userData$ragnar_version_checked <- result
+  }
+
+  result
+}
+
+#' Execute function with ragnar store, guaranteeing cleanup
+#'
+#' Opens a ragnar store, executes the provided function, and ensures the store
+#' is closed even on error or early return. Per user decision, uses aggressive
+#' cleanup (closes on any exit) with TODO marker for future optimization.
+#'
+#' @param path Path to ragnar store database
+#' @param expr_fn Function to execute, receives store as first argument
+#' @param session Shiny session for global error notifications (optional)
+#' @return Result of expr_fn on success, NULL on error
+#' @examples
+#' with_ragnar_store("data/ragnar/notebook-id.duckdb", function(store) {
+#'   ragnar::ragnar_retrieve(store, "my query")
+#' })
+with_ragnar_store <- function(path, expr_fn, session = NULL) {
+  store <- NULL
+
+  result <- tryCatch({
+    # Open connection
+    store <- ragnar::ragnar_store_connect(path)
+
+    # Guarantee cleanup on ANY exit (error, early return, or normal completion)
+    # TODO: This aggressive cleanup could be relaxed to selective cleanup later
+    on.exit({
+      if (!is.null(store)) {
+        tryCatch({
+          # Ragnar stores are DuckDB connections, close via disconnect
+          DBI::dbDisconnect(store, shutdown = TRUE)
+        }, error = function(e) {
+          # Already closed or invalid, ignore
+        })
+      }
+    }, add = TRUE)
+
+    # Execute user function with store
+    expr_fn(store)
+
+  }, error = function(e) {
+    # Global notification on connection error (per user decision: toast, not inline)
+    msg <- paste("Failed to access notebook search index:", e$message)
+    message("[ragnar] ", msg)
+
+    if (!is.null(session)) {
+      shiny::showNotification(
+        msg,
+        type = "error",
+        duration = 10
+      )
+    }
+
+    NULL
+  })
+
+  result
+}
+
+#' Register session cleanup hook for ragnar store
+#'
+#' Registers a callback to close the active ragnar store when the browser tab
+#' closes or the session ends. Per user decision, closes connections on browser
+#' tab close to prevent resource leaks.
+#'
+#' @param session Shiny session object
+#' @param store_rv reactiveVal holding the active RagnarStore object
+#' @examples
+#' active_store <- reactiveVal(NULL)
+#' register_ragnar_cleanup(session, active_store)
+register_ragnar_cleanup <- function(session, store_rv) {
+  session$onSessionEnded(function() {
+    store <- store_rv()
+    if (!is.null(store)) {
+      tryCatch({
+        # Close ragnar store (DuckDB connection)
+        DBI::dbDisconnect(store, shutdown = TRUE)
+      }, error = function(e) {
+        # Already closed or invalid, ignore
+      })
+    }
+  })
+}
+
 #' Insert chunks into ragnar store with metadata
 #'
 #' Converts our chunk format to ragnar's expected format and inserts.
