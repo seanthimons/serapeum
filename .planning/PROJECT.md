@@ -65,7 +65,17 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active milestone — run `/gsd:new-milestone` to plan next version)
+## Current Milestone: v3.0 Ragnar RAG Overhaul
+
+**Goal:** Replace the legacy embedding/retrieval system with ragnar as the sole RAG backend, using per-notebook vector stores for clean isolation and optimal retrieval.
+
+**Target features:**
+- Make ragnar a hard dependency (remove all fallback paths)
+- Per-notebook ragnar stores (replace shared single store)
+- Delete legacy embedding code (cosine similarity, manual embedding calls)
+- Delete existing chunk/embedding data (fresh re-embed on next use)
+- Integration tests and retrieval benchmarks
+- Resolve rough edges in current ragnar integration
 
 ### Out of Scope
 
@@ -81,12 +91,13 @@ Researchers can efficiently discover relevant academic papers through seed paper
 ## Context
 
 Shipped v2.1 with ~12,569 LOC R across 10+ modified files (+1,244 / -142 from v2.0).
-Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai.
+Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 7 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint).
 Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds with file-based interrupt flags.
 Section-targeted RAG: keyword heuristics classify PDF chunks by section type for focused synthesis.
-Known tech debt: #79 tooltip overflow, synthesis response time (split presets TODO), chat UX spinners.
+Ragnar integration (v2.1): Phases 1-4 of migration done — semantic chunking, hybrid VSS+BM25 retrieval, OpenRouter embedding. Currently uses shared store with legacy fallback paths.
+Known tech debt: #79 tooltip overflow, synthesis response time (split presets TODO), chat UX spinners, dual RAG codepaths.
 
 ## Constraints
 
@@ -94,7 +105,8 @@ Known tech debt: #79 tooltip overflow, synthesis response time (split presets TO
 - **API**: OpenRouter for LLM, OpenAlex for academic data — no new external services
 - **Architecture**: Shiny module pattern (`mod_*.R`) — new features follow existing conventions
 - **Local-first**: No server infrastructure; everything runs on user's machine
-- **Dependencies**: igraph, visNetwork, commonmark added in v2.0 — keep dependency count low
+- **Dependencies**: igraph, visNetwork, commonmark added in v2.0, ragnar added in v3.0 — ragnar is now a hard requirement
+- **RAG**: ragnar is the sole retrieval backend — no legacy cosine similarity fallback
 
 ## Key Decisions
 
@@ -131,5 +143,9 @@ Known tech debt: #79 tooltip overflow, synthesis response time (split presets TO
 | OWASP instruction-data separation (v2.1) | Prevents prompt injection via RAG content | ✓ Good — security baseline |
 | Three-level retrieval fallback (v2.1) | Section-filtered → unfiltered → direct DB | ✓ Good — works on all notebooks |
 
+| Per-notebook ragnar stores (v3.0) | Eliminates cross-notebook pollution, faster retrieval | — Pending |
+| Ragnar as hard dependency (v3.0) | Simpler code, no dual codepaths | — Pending |
+| Delete legacy embeddings, don't migrate (v3.0) | Fresh re-embed is cleaner than migration | — Pending |
+
 ---
-*Last updated: 2026-02-13 after v2.1 milestone*
+*Last updated: 2026-02-16 after v3.0 milestone start*
