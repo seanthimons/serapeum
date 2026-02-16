@@ -18,6 +18,7 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
+| [#98](https://github.com/seanthimons/serapeum/issues/98) | Merge Summarize + Key Points into unified Overview output | Medium | High |
 | [#85](https://github.com/seanthimons/serapeum/issues/85) | Select all to be imported into document notebook | Low | Medium |
 | [#86](https://github.com/seanthimons/serapeum/issues/86) | [BUG] Does the refresh button add more papers after removing? | Low | Medium |
 | [#79](https://github.com/seanthimons/serapeum/issues/79) | bug: Tooltip overflows graph container and overlaps side panel | Medium | Medium |
@@ -31,12 +32,18 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#90](https://github.com/seanthimons/serapeum/issues/90) | dev: Move to renv for package namespace management [gsd] | Medium | High |
-| [#78](https://github.com/seanthimons/serapeum/issues/78) | Set up GHA/local functions for RDS support files | Low | High |
 | [#88](https://github.com/seanthimons/serapeum/issues/88) | Rethink conclusion synthesis as split presets for faster responses | High | High |
+| [#99](https://github.com/seanthimons/serapeum/issues/99) | feat: Literature Review Table (structured comparison matrix) | Medium | Very High |
+| [#100](https://github.com/seanthimons/serapeum/issues/100) | feat: Methodology Extractor preset | Medium | High |
+| [#101](https://github.com/seanthimons/serapeum/issues/101) | feat: Gap Analysis Report preset | Medium | High |
+| [#102](https://github.com/seanthimons/serapeum/issues/102) | feat: Research Question Generator preset | Medium | High |
+| [#103](https://github.com/seanthimons/serapeum/issues/103) | feat: Citation Audit — find missing seminal papers (no LLM) | Medium | High |
+| [#104](https://github.com/seanthimons/serapeum/issues/104) | feat: Argument Map / Claims Network preset | High | Medium |
+| [#105](https://github.com/seanthimons/serapeum/issues/105) | feat: Annotated Bibliography export (APA/MLA) | Medium | Medium |
+| [#106](https://github.com/seanthimons/serapeum/issues/106) | feat: Teaching Materials Generator | Low-Medium | Medium |
 | [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging | Medium | Medium |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + vice versa | High | Medium |
-| [#77](https://github.com/seanthimons/serapeum/issues/77) | dev: ragnar package integration | Medium | Medium |
+| [#77](https://github.com/seanthimons/serapeum/issues/77) | dev: ragnar package integration (Phase 5-6 below) | Medium | High |
 | [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
 | [#8](https://github.com/seanthimons/serapeum/issues/8) | dev: Local model support | High | High |
 | [#11](https://github.com/seanthimons/serapeum/issues/11) | feat: Recursive abstract searching | High | High |
@@ -61,6 +68,29 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 ---
 
+## Ragnar Migration — Phase 5 & 6 ([#77](https://github.com/seanthimons/serapeum/issues/77))
+
+Completing the ragnar integration (Phases 1-4 done). See `docs/RAGNAR_MIGRATION_PLAN.md`.
+
+### Phase 5: Existing Data Migration
+
+| Task | Description | Complexity | Impact |
+|------|-------------|------------|--------|
+| [#91](https://github.com/seanthimons/serapeum/issues/91) 5a. Migrate existing PDF chunks | Re-chunk existing documents via `chunk_with_ragnar()`, insert into ragnar store, re-embed. Requires API key (re-embedding costs). Iterate `chunks` table for docs not yet in ragnar store. | Medium | High |
+| [#92](https://github.com/seanthimons/serapeum/issues/92) 5b. Migrate existing abstracts | Insert abstract text into ragnar store with `abstract:{id}` origin format, re-embed. | Low | High |
+| [#93](https://github.com/seanthimons/serapeum/issues/93) 5c. Fix broken legacy fallback | `search_chunks_hybrid` L965-981 returns empty frame instead of calling `search_chunks()`. Users without ragnar get zero search results. **This is a live bug.** | Low | Critical |
+| [#94](https://github.com/seanthimons/serapeum/issues/94) 5d. Fix lossy metadata persistence | `insert_chunks_to_ragnar` stores metadata as R `attr()` (doesn't persist). Abstract titles show "[Abstract]" placeholder. Encode richer metadata in `origin` field or add a mapping table. | Medium | Medium |
+
+### Phase 6: Integration Testing
+
+| Task | Description | Complexity | Impact |
+|------|-------------|------------|--------|
+| [#95](https://github.com/seanthimons/serapeum/issues/95) 6a. E2E test: PDF → ragnar → query | Upload small PDF, verify chunks land in ragnar store, retrieve by query, confirm source attribution. | Medium | High |
+| [#96](https://github.com/seanthimons/serapeum/issues/96) 6b. E2E test: abstract → ragnar → query | Save abstract, verify ragnar indexing, test notebook-scoped filtering correctness. | Medium | High |
+| [#97](https://github.com/seanthimons/serapeum/issues/97) 6c. Benchmark: ragnar vs legacy | Measure retrieval speed and answer quality with identical queries on same corpus. Document results. | Low | Medium |
+
+---
+
 ## Low Priority (Backlog)
 
 Nice-to-have features and research tasks.
@@ -80,9 +110,10 @@ Nice-to-have features and research tasks.
 
 | Issue | Title | Sub-issues Status |
 |-------|-------|-------------------|
-| [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete (#53, #66, #67, #71 all shipped) |
-| [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 3/4 complete (#49, #64, #63 shipped; #50 open) |
-| [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis | 2/2 complete (#27, #63 shipped) |
+| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 1/10 complete (#88) |
+| [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete — **CLOSED** |
+| [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 4/4 complete — **CLOSED** |
+| [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis | 2/2 complete — **CLOSED** |
 
 ---
 
@@ -151,6 +182,8 @@ High-effort, high-payoff features for the future.
 - [x] [#62](https://github.com/seanthimons/serapeum/issues/62): Preset icons (v2.1 Phase 16)
 - [x] [#27](https://github.com/seanthimons/serapeum/issues/27): Conclusion synthesis → future directions (v2.1 Phase 19)
 - [x] [#81](https://github.com/seanthimons/serapeum/issues/81): UI improvements to reclaim space (sidebar rebalance)
+- [x] [#90](https://github.com/seanthimons/serapeum/issues/90): Move to renv for package namespace management
+- [x] [#78](https://github.com/seanthimons/serapeum/issues/78): Set up GHA/local functions for RDS support files
 
 ---
 
