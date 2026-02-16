@@ -82,10 +82,11 @@
   2. Section_hint metadata survives round-trip through ragnar's origin field encoding/decoding
   3. App detects incompatible ragnar versions on startup and warns user before attempting store operations
   4. Ragnar store connections automatically close on error, session end, and context exit via explicit cleanup hooks
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 20-01: TBD
+- [ ] 20-01-PLAN.md — Path helper + metadata encode/decode (TDD)
+- [ ] 20-02-PLAN.md — Version check, connection lifecycle, directory creation
 
 ### Phase 21: Store Lifecycle
 **Goal**: Per-notebook ragnar stores are created automatically on first content, deleted when notebook is deleted, and can be rebuilt on corruption
