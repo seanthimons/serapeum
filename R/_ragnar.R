@@ -448,6 +448,298 @@ register_ragnar_cleanup <- function(session, store_rv) {
   })
 }
 
+# ---- Store Lifecycle ----
+
+#' Ensure ragnar store exists for a notebook (lazy creation)
+#'
+#' Gets the path for a notebook's ragnar store and either connects to it
+#' (if it exists) or creates it (if it doesn't). Creation is lazy — only
+#' happens when first needed for embedding operations.
+#'
+#' Per user decision: shows brief notification during creation, blocks
+#' embedding action on creation failure.
+#'
+#' @param notebook_id Notebook ID (UUID)
+#' @param session Shiny session for notifications (optional)
+#' @param api_key OpenRouter API key (required for store creation)
+#' @param embed_model Embedding model ID (OpenRouter format)
+#' @return RagnarStore connection or NULL on error
+#' @examples
+#' store <- ensure_ragnar_store("notebook-id", session, api_key, "openai/text-embedding-3-small")
+ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
+                                 embed_model = "openai/text-embedding-3-small") {
+  store_path <- get_notebook_ragnar_path(notebook_id)
+
+  # If store exists, connect and return
+  if (file.exists(store_path)) {
+    return(ragnar::ragnar_store_connect(store_path))
+  }
+
+  # Store doesn't exist - create it with brief notification
+  if (!is.null(session)) {
+    shiny::showNotification(
+      "Setting up search index...",
+      type = "message",
+      duration = 3
+    )
+  }
+
+  # Attempt creation with error handling
+  store <- tryCatch({
+    get_ragnar_store(
+      path = store_path,
+      openrouter_api_key = api_key,
+      embed_model = embed_model
+    )
+  }, error = function(e) {
+    # Creation failed - show persistent error notification
+    error_msg <- paste("Failed to create search index:", e$message)
+    message("[store_lifecycle] ", error_msg)
+
+    if (!is.null(session)) {
+      shiny::showNotification(
+        error_msg,
+        type = "error",
+        duration = NULL
+      )
+    }
+
+    NULL
+  })
+
+  store
+}
+
+#' Check integrity of a ragnar store file
+#'
+#' Pure function that verifies a store file exists and can be opened.
+#' Returns structured result for programmatic decision-making.
+#'
+#' @param store_path Path to ragnar store database file
+#' @return List with ok (logical), missing (logical if store not found), error (character if failed)
+#' @examples
+#' result <- check_store_integrity("data/ragnar/notebook-id.duckdb")
+#' if (!result$ok) { rebuild_store() }
+check_store_integrity <- function(store_path) {
+  # Check if file exists
+  if (!file.exists(store_path)) {
+    return(list(
+      ok = FALSE,
+      missing = TRUE,
+      error = "Store file not found"
+    ))
+  }
+
+  # Try to connect and immediately disconnect
+  tryCatch({
+    store <- ragnar::ragnar_store_connect(store_path)
+    DBI::dbDisconnect(store, shutdown = TRUE)
+
+    list(ok = TRUE)
+
+  }, error = function(e) {
+    list(
+      ok = FALSE,
+      missing = FALSE,
+      error = e$message
+    )
+  })
+}
+
+#' Delete a notebook's ragnar store file
+#'
+#' Removes the ragnar store file and associated DuckDB temp files from disk.
+#' Per user decision: logs warnings but doesn't fail if deletion errors occur.
+#'
+#' @param notebook_id Notebook ID (UUID)
+#' @return TRUE if file was removed or didn't exist, FALSE if removal failed
+#' @examples
+#' deleted <- delete_notebook_store("notebook-id")
+delete_notebook_store <- function(notebook_id) {
+  store_path <- get_notebook_ragnar_path(notebook_id)
+
+  # If file doesn't exist, consider it already deleted
+  if (!file.exists(store_path)) {
+    return(TRUE)
+  }
+
+  # Try to delete main store file
+  tryCatch({
+    result <- file.remove(store_path)
+
+    if (!result) {
+      message("[store_lifecycle] file.remove returned FALSE for: ", store_path)
+      return(FALSE)
+    }
+
+    # Also try to remove DuckDB temp files (ignore failures on these)
+    tryCatch(file.remove(paste0(store_path, ".wal")), error = function(e) {})
+    tryCatch(file.remove(paste0(store_path, ".tmp")), error = function(e) {})
+
+    TRUE
+
+  }, error = function(e) {
+    message("[store_lifecycle] Failed to delete store ", store_path, ": ", e$message)
+    FALSE
+  })
+}
+
+#' Find orphaned store files with no matching notebook
+#'
+#' Scans the ragnar directory for store files that don't have a corresponding
+#' notebook in the database. Used for manual cleanup via app settings.
+#'
+#' @param con DuckDB connection (to check valid notebook IDs)
+#' @return Character vector of orphaned store file paths
+#' @examples
+#' orphans <- find_orphaned_stores(con)
+#' if (length(orphans) > 0) { lapply(orphans, file.remove) }
+find_orphaned_stores <- function(con) {
+  # Get valid notebook IDs from database
+  valid_ids <- DBI::dbGetQuery(con, "SELECT id FROM notebooks")$id
+
+  # Check if ragnar directory exists
+  ragnar_dir <- file.path("data", "ragnar")
+  if (!dir.exists(ragnar_dir)) {
+    return(character(0))
+  }
+
+  # List all .duckdb files in ragnar directory
+  store_files <- list.files(
+    ragnar_dir,
+    pattern = "\\.duckdb$",
+    full.names = TRUE
+  )
+
+  # Filter to orphans (files whose basename ID is not in valid_ids)
+  orphans <- Filter(function(file_path) {
+    # Extract notebook_id from filename (remove .duckdb extension)
+    basename_file <- basename(file_path)
+    notebook_id <- sub("\\.duckdb$", "", basename_file)
+
+    # Exclude .wal and .tmp files
+    if (grepl("\\.(wal|tmp)$", basename_file)) {
+      return(FALSE)
+    }
+
+    # Is this ID missing from valid notebooks?
+    !(notebook_id %in% valid_ids)
+  }, store_files)
+
+  orphans
+}
+
+#' Rebuild a notebook's ragnar store from scratch
+#'
+#' Deletes the existing store, re-chunks all documents, re-embeds all abstracts,
+#' and rebuilds the search index. Used for corruption recovery.
+#'
+#' Per user decision: shows progress via callback, doesn't block other notebook
+#' operations (search/RAG disabled during rebuild).
+#'
+#' @param notebook_id Notebook ID (UUID)
+#' @param con DuckDB connection (to get documents and abstracts)
+#' @param api_key OpenRouter API key (for embedding)
+#' @param embed_model Embedding model ID (OpenRouter format)
+#' @param progress_callback Optional function(current, total) called after each item
+#' @return List with success (logical), count (integer), error (character if failed)
+#' @examples
+#' result <- rebuild_notebook_store(notebook_id, con, api_key, "openai/text-embedding-3-small")
+rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
+                                    progress_callback = NULL) {
+  tryCatch({
+    store_path <- get_notebook_ragnar_path(notebook_id)
+
+    # Delete existing store file
+    delete_notebook_store(notebook_id)
+
+    # Get all documents and abstracts for this notebook
+    documents <- list_documents(con, notebook_id)
+    abstracts <- list_abstracts(con, notebook_id)
+
+    total_items <- nrow(documents) + nrow(abstracts)
+
+    # If no content, nothing to rebuild
+    if (total_items == 0) {
+      return(list(success = TRUE, count = 0))
+    }
+
+    # Create new store
+    store <- get_ragnar_store(
+      path = store_path,
+      openrouter_api_key = api_key,
+      embed_model = embed_model
+    )
+
+    current_count <- 0
+
+    # Re-chunk and embed all documents
+    if (nrow(documents) > 0) {
+      for (i in seq_len(nrow(documents))) {
+        doc <- documents[i, ]
+
+        # Chunk the document
+        pages <- strsplit(doc$full_text, "\f")[[1]]
+        chunks <- chunk_with_ragnar(pages, doc$filename)
+
+        # Insert chunks to store
+        insert_chunks_to_ragnar(store, chunks, doc$id, "document")
+
+        current_count <- current_count + 1
+        if (!is.null(progress_callback)) {
+          progress_callback(current_count, total_items)
+        }
+      }
+    }
+
+    # Re-embed all abstracts
+    if (nrow(abstracts) > 0) {
+      for (i in seq_len(nrow(abstracts))) {
+        abstract <- abstracts[i, ]
+
+        # Create single-chunk data frame for abstract
+        origin <- encode_origin_metadata(
+          paste0("abstract:", abstract$id),
+          section_hint = "general",
+          doi = if (!is.na(abstract$doi)) abstract$doi else NULL,
+          source_type = "abstract"
+        )
+
+        abstract_chunks <- data.frame(
+          content = abstract$abstract,
+          page_number = NA_integer_,
+          chunk_index = 0,
+          context = "",
+          origin = origin,
+          stringsAsFactors = FALSE
+        )
+
+        insert_chunks_to_ragnar(store, abstract_chunks, abstract$id, "abstract")
+
+        current_count <- current_count + 1
+        if (!is.null(progress_callback)) {
+          progress_callback(current_count, total_items)
+        }
+      }
+    }
+
+    # Build the index
+    build_ragnar_index(store)
+
+    # Disconnect store
+    DBI::dbDisconnect(store, shutdown = TRUE)
+
+    list(success = TRUE, count = total_items)
+
+  }, error = function(e) {
+    list(
+      success = FALSE,
+      error = e$message,
+      count = if (exists("current_count")) current_count else 0
+    )
+  })
+}
+
 #' Insert chunks into ragnar store with metadata
 #'
 #' Converts our chunk format to ragnar's expected format and inserts.
