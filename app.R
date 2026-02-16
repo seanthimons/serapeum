@@ -18,6 +18,14 @@ config_file <- load_config()
 # Initialize database
 db_path <- get_setting(config_file, "app", "db_path") %||% "data/notebooks.duckdb"
 
+# Create ragnar store directory for per-notebook stores (v3.0)
+ragnar_dir <- file.path("data", "ragnar")
+if (!dir.create(ragnar_dir, showWarnings = FALSE, recursive = TRUE)) {
+  if (!dir.exists(ragnar_dir)) {
+    stop("Failed to create ", ragnar_dir, " directory. Check permissions and disk space.")
+  }
+}
+
 # UI
 ui <- page_sidebar(
   title = div(
