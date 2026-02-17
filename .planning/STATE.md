@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 23 - Legacy Code Removal (v3.0 Ragnar RAG Overhaul)
+**Current focus:** Phase 24 - Integration Testing & Cleanup (v3.0 Ragnar RAG Overhaul) — COMPLETE
 
 ## Current Position
 
-Phase: 23 of 24 (Legacy Code Removal)
+Phase: 24 of 24 (Integration Testing & Cleanup)
 Plan: 1 of 1 in current phase (phase complete)
-Status: In progress
-Last activity: 2026-02-17 — Completed 23-01: single-sweep legacy code removal
+Status: Complete — v3.0 Ragnar RAG Overhaul complete
+Last activity: 2026-02-17 — Completed 24-01: integration tests, toast notification, ragnar store bug fixes
 
-Progress: [████████████████████████████████████████] 99% (41/41 estimated plans completed across all milestones)
+Progress: [████████████████████████████████████████] 100% (42/42 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
@@ -32,14 +32,18 @@ Progress: [███████████████████████
 | v1.2 | 9-10 | 2 | Complete |
 | v2.0 | 11-15 | 8 | Complete |
 | v2.1 | 16-19 | 7 | Complete |
-| v3.0 | 20-24 | 5/? | In progress |
+| v3.0 | 20-24 | 5 | Complete |
 
 **Recent Trend:**
 - v2.1 completed in <1 day (4 phases, 7 plans)
+- v3.0 completed across 5 phases: foundation, store lifecycle, module migration (3 plans), legacy removal, integration testing
 - Velocity: Stable to improving
 - Trend: Fast iteration on focused milestones
 
-*Will update with v3.0 plan metrics as execution proceeds*
+**v3.0 Plan Metrics:**
+| Phase | Duration | Tasks | Files |
+|-------|----------|-------|-------|
+| 24-integration-testing-cleanup P01 | 9min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -70,6 +74,9 @@ Recent decisions affecting current work:
 - **Section-targeted RAG (v2.1)**: Keyword heuristics classify chunks by section type for focused synthesis
 - **ExtendedTask + mirai for async (v2.1)**: Non-blocking citation builds with progress/cancellation
 
+- **ragnar store version=1 required (24-01)**: insert_chunks_to_ragnar creates v1-format chunks; ragnar_store_create must specify version=1 (default v2 causes mismatch error)
+- **ragnar disconnect via store@con (24-01)**: DBI::dbDisconnect(store, shutdown=TRUE) fails for S7 DuckDBRagnarStore objects — must use store@con slot
+
 See PROJECT.md for full decision history.
 
 ### Pending Todos
@@ -90,11 +97,14 @@ See PROJECT.md for full decision history.
 Phase 20 foundation complete. Phase 21 store lifecycle verified and approved.
 Phase 22 complete — all 3 plans done: backend wiring (22-01), document notebook migration (22-02), search notebook migration (22-03).
 Phase 23 complete — 23-01: single-sweep removal of all legacy RAG code from 6 production files + test cleanup.
+Phase 24 complete — 24-01: deferred toast for legacy store deletion, integration tests (workflow/section_hint/legacy cleanup), ragnar store bug fixes.
+
+v3.0 Ragnar RAG Overhaul complete.
 
 ## Session Continuity
 
-Last session: 2026-02-17 (23-01 complete: removed ragnar_available() guards, cosine_similarity, chunk_text(), digest::digest(), legacy embedding loops; replaced with ragnar-only unconditional paths)
-Stopped at: Completed 23-01-PLAN.md
+Last session: 2026-02-17 (24-01 complete: integration tests passing, toast notification added, ragnar store version and disconnect bugs fixed)
+Stopped at: Completed 24-01-PLAN.md
 Resume file: none
 
-**Next action:** Phase 24 — integration testing and cleanup.
+**Next action:** v3.0 milestone complete. No further planned phases.
