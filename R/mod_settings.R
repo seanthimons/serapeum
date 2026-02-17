@@ -4,6 +4,7 @@ mod_settings_ui <- function(id) {
   ns <- NS(id)
 
   card(
+    fill = FALSE,
     card_header(
       class = "d-flex justify-content-between align-items-center",
       span(icon("gear"), "Settings"),
