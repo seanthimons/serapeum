@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 21 - Store Lifecycle (v3.0 Ragnar RAG Overhaul)
+**Current focus:** Phase 22 - Module Migration (v3.0 Ragnar RAG Overhaul)
 
 ## Current Position
 
-Phase: 21 of 24 (Store Lifecycle)
-Plan: 2 of 2 in current phase
-Status: Awaiting human verification (checkpoint:human-verify at Task 3 of 21-02)
-Last activity: 2026-02-17 — Completed 21-02 tasks, awaiting UI verification checkpoint
+Phase: 22 of 24 (Module Migration)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-02-17 — Phase 21 verified and approved, fixed settings card overflow
 
-Progress: [█████████████████████████████████████░░] 92% (36/39 estimated plans completed across all milestones)
+Progress: [██████████████████████████████████████░░] 93% (37/39 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
@@ -32,7 +32,7 @@ Progress: [███████████████████████
 | v1.2 | 9-10 | 2 | Complete |
 | v2.0 | 11-15 | 8 | Complete |
 | v2.1 | 16-19 | 7 | Complete |
-| v3.0 | 20-24 | 3/? | In progress |
+| v3.0 | 20-24 | 5/? | In progress |
 
 **Recent Trend:**
 - v2.1 completed in <1 day (4 phases, 7 plans)
@@ -78,20 +78,13 @@ See PROJECT.md for full decision history.
 - ~~Ragnar 0.3.0 API stability unknown~~ — RESOLVED: version check with warn-but-allow pattern in Phase 20
 - User data loss if legacy deletion happens before validation (dual-write period recommended) — Phase 23-24
 
-Phase 20 foundation complete — ready for per-notebook CRUD operations in Phase 21.
+Phase 20 foundation complete. Phase 21 store lifecycle verified and approved.
+Ready for Phase 22 — switch modules to per-notebook ragnar stores.
 
 ## Session Continuity
 
-Last session: 2026-02-17 (phase 21 plan 02 — awaiting human verification)
-Stopped at: Checkpoint Task 3 of 21-02-PLAN.md — Store Lifecycle UI (human-verify gate)
-Resume file: .planning/phases/21-store-lifecycle/21-02-SUMMARY.md
+Last session: 2026-02-17 (Phase 21 approved, two bugfixes: settings card overflow + cleanup timestamps)
+Stopped at: Phase 22 ready to plan
+Resume file: none
 
-**Next action:** User verifies store lifecycle UI in-app (see checkpoint details below), then Phase 21 is complete. Phase 22 (RAG Retrieval) follows.
-
-**Checkpoint details for user:**
-1. Start app: `"C:\Program Files\R\R-4.5.1\bin\Rscript.exe" -e "shiny::runApp()"`
-2. Open an existing notebook — verify NO corruption modal (store healthy or not yet created)
-3. Go to Settings tab — verify Maintenance section with "Clean Up Orphaned Indexes" button appears
-4. Click cleanup button — verify status text shows result
-5. (Optional) Corrupt a .duckdb file in data/ragnar/ to test rebuild modal
-Type "approved" or describe issues to resume.
+**Next action:** Plan Phase 22 (Module Migration) — switch document and search notebook modules to per-notebook ragnar stores.
