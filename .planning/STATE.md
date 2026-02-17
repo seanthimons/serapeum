@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 21 of 24 (Store Lifecycle)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-16 — Completed 21-01 (Store Lifecycle Backend)
+Plan: 2 of 2 in current phase
+Status: Awaiting human verification (checkpoint:human-verify at Task 3 of 21-02)
+Last activity: 2026-02-17 — Completed 21-02 tasks, awaiting UI verification checkpoint
 
-Progress: [████████████████████████████████████░░] 90% (35/39 estimated plans completed across all milestones)
+Progress: [█████████████████████████████████████░░] 92% (36/39 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
@@ -48,6 +48,9 @@ Progress: [███████████████████████
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- **Store health tri-state NULL/TRUE/FALSE (21-02)**: NULL=unchecked avoids false positives on startup; proactive check fires on notebook open not app start — avoids penalizing non-RAG users
+- **Rebuild modal easyClose=FALSE (21-02)**: Forces explicit user choice (Rebuild or Later) for corruption recovery
+- **Orphan cleanup as simple settings button (21-02)**: Under Maintenance header, not a dedicated maintenance screen — keeps settings clean
 - **Lazy version check with session cache (20-02)**: Check ragnar version on first RAG use (not startup), cache result per session — avoids penalizing non-RAG users
 - **Warn-but-allow version mismatch (20-02)**: Allow ragnar version differences with warnings, not blocking — renv will handle strict pinning later
 - **Aggressive on.exit() cleanup (20-02)**: Close connections on ANY exit (error or success) — can optimize to selective cleanup later
@@ -79,8 +82,16 @@ Phase 20 foundation complete — ready for per-notebook CRUD operations in Phase
 
 ## Session Continuity
 
-Last session: 2026-02-16 (phase 21 in progress — plan 01 complete)
-Stopped at: Completed 21-01-PLAN.md — Store Lifecycle Backend
-Resume file: .planning/phases/21-store-lifecycle/21-01-SUMMARY.md
+Last session: 2026-02-17 (phase 21 plan 02 — awaiting human verification)
+Stopped at: Checkpoint Task 3 of 21-02-PLAN.md — Store Lifecycle UI (human-verify gate)
+Resume file: .planning/phases/21-store-lifecycle/21-02-SUMMARY.md
 
-**Next action:** Execute 21-02 (Store Lifecycle UI) or continue v3.0 milestone
+**Next action:** User verifies store lifecycle UI in-app (see checkpoint details below), then Phase 21 is complete. Phase 22 (RAG Retrieval) follows.
+
+**Checkpoint details for user:**
+1. Start app: `"C:\Program Files\R\R-4.5.1\bin\Rscript.exe" -e "shiny::runApp()"`
+2. Open an existing notebook — verify NO corruption modal (store healthy or not yet created)
+3. Go to Settings tab — verify Maintenance section with "Clean Up Orphaned Indexes" button appears
+4. Click cleanup button — verify status text shows result
+5. (Optional) Corrupt a .duckdb file in data/ragnar/ to test rebuild modal
+Type "approved" or describe issues to resume.
