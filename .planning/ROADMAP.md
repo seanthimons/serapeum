@@ -68,7 +68,7 @@
 - [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
 - [x] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery (completed 2026-02-17)
 - [x] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores (completed 2026-02-17)
-- [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, replace digest::digest() with rlang::hash()
+- [x] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, replace digest::digest() with rlang::hash() (completed 2026-02-17)
 - [ ] **Phase 24: Integration Testing & Cleanup** - End-to-end tests, shared store deletion
 
 ## Phase Details
@@ -159,7 +159,7 @@ Plans:
 | 20. Foundation & Connection Safety | v3.0 | Complete    | 2026-02-16 | - |
 | 21. Store Lifecycle | v3.0 | 2/2 | Complete | 2026-02-17 |
 | 22. Module Migration | v3.0 | Complete    | 2026-02-17 | - |
-| 23. Legacy Code Removal | v3.0 | 0/? | Not started | - |
+| 23. Legacy Code Removal | v3.0 | Complete    | 2026-02-17 | - |
 | 24. Integration Testing & Cleanup | v3.0 | 0/? | Not started | - |
 
 **Total: 34 plans across 21 phases (5 milestones shipped), 5 phases planned for v3.0**
