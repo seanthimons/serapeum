@@ -26,6 +26,18 @@ if (!dir.create(ragnar_dir, showWarnings = FALSE, recursive = TRUE)) {
   }
 }
 
+# Phase 22: Delete legacy shared store (replaced by per-notebook stores)
+legacy_store <- file.path("data", "serapeum.ragnar.duckdb")
+if (file.exists(legacy_store)) {
+  message("[ragnar] Removing legacy shared store: ", legacy_store)
+  file.remove(legacy_store)
+  # Also remove WAL and tmp files
+  for (ext in c(".wal", ".tmp")) {
+    f <- paste0(legacy_store, ext)
+    if (file.exists(f)) file.remove(f)
+  }
+}
+
 # UI
 ui <- page_sidebar(
   title = div(

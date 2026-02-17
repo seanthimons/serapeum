@@ -629,24 +629,85 @@ find_orphaned_stores <- function(con) {
   orphans
 }
 
+#' Write reindex progress to file
+#'
+#' Writes progress information in pipe-delimited format for cross-process polling.
+#' Format: "count|total|pct|message"
+#'
+#' @param progress_file Path to progress file
+#' @param count Current item number
+#' @param total Total items
+#' @param name Human-readable item name (will be truncated to 60 chars)
+#' @return Invisibly NULL
+write_reindex_progress <- function(progress_file, count, total, name) {
+  if (is.null(progress_file)) return(invisible(NULL))
+  pct <- round(count / max(total, 1) * 100)
+  msg <- paste0("Embedding ", count, " of ", total, ": ", name)
+  tryCatch(
+    writeLines(paste(count, total, pct, msg, sep = "|"), progress_file),
+    error = function(e) NULL
+  )
+  invisible(NULL)
+}
+
+#' Read reindex progress from file
+#'
+#' Reads progress information written by write_reindex_progress() for cross-process
+#' progress polling. Returns initializing state if file doesn't exist.
+#'
+#' @param progress_file Path to progress file
+#' @return List with count, total, pct, message
+read_reindex_progress <- function(progress_file) {
+  if (is.null(progress_file) || !file.exists(progress_file)) {
+    return(list(count = 0, total = 0, pct = 0, message = "Initializing..."))
+  }
+  line <- tryCatch(readLines(progress_file, n = 1, warn = FALSE), error = function(e) "0|0|0|Initializing...")
+  parts <- strsplit(line, "\\|", fixed = FALSE)[[1]]
+  if (length(parts) < 4) return(list(count = 0, total = 0, pct = 0, message = "Initializing..."))
+  list(
+    count = as.integer(parts[1]),
+    total = as.integer(parts[2]),
+    pct = as.integer(parts[3]),
+    message = paste(parts[4:length(parts)], collapse = "|")
+  )
+}
+
 #' Rebuild a notebook's ragnar store from scratch
 #'
 #' Deletes the existing store, re-chunks all documents, re-embeds all abstracts,
-#' and rebuilds the search index. Used for corruption recovery.
+#' and rebuilds the search index. Used for corruption recovery and async re-indexing.
 #'
 #' Per user decision: shows progress via callback, doesn't block other notebook
 #' operations (search/RAG disabled during rebuild).
 #'
+#' Supports async use via mirai workers: pass db_path so the worker can open its own
+#' DBI connection (mirai workers cannot receive serialized connections). Use interrupt_flag
+#' and progress_file for cross-process cancellation and progress polling.
+#'
 #' @param notebook_id Notebook ID (UUID)
-#' @param con DuckDB connection (to get documents and abstracts)
+#' @param con DuckDB connection (to get documents and abstracts); ignored if db_path provided
 #' @param api_key OpenRouter API key (for embedding)
 #' @param embed_model Embedding model ID (OpenRouter format)
-#' @param progress_callback Optional function(current, total) called after each item
-#' @return List with success (logical), count (integer), error (character if failed)
+#' @param progress_callback Optional function(count, total, name) called after each item
+#' @param interrupt_flag Path to interrupt flag file (for cross-process cancellation via mirai)
+#' @param progress_file Path to progress file (for cross-process progress reporting)
+#' @param db_path When provided, open own DBI connection (mirai workers cannot receive serialized con)
+#' @return List with success (logical), count (integer), partial (logical), error (character if failed)
 #' @examples
 #' result <- rebuild_notebook_store(notebook_id, con, api_key, "openai/text-embedding-3-small")
-rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
-                                    progress_callback = NULL) {
+rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model,
+                                    progress_callback = NULL,
+                                    interrupt_flag = NULL,
+                                    progress_file = NULL,
+                                    db_path = NULL) {
+  # If db_path provided, open own connection (for mirai workers)
+  own_con <- FALSE
+  if (!is.null(db_path) && is.null(con)) {
+    con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+    own_con <- TRUE
+    on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  }
+
   tryCatch({
     store_path <- get_notebook_ragnar_path(notebook_id)
 
@@ -658,10 +719,11 @@ rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
     abstracts <- list_abstracts(con, notebook_id)
 
     total_items <- nrow(documents) + nrow(abstracts)
+    count <- 0
 
     # If no content, nothing to rebuild
     if (total_items == 0) {
-      return(list(success = TRUE, count = 0))
+      return(list(success = TRUE, count = 0, partial = FALSE, error = NULL))
     }
 
     # Create new store
@@ -671,12 +733,18 @@ rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
       embed_model = embed_model
     )
 
-    current_count <- 0
-
     # Re-chunk and embed all documents
     if (nrow(documents) > 0) {
       for (i in seq_len(nrow(documents))) {
+        # Check for cancellation before each item
+        if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+          message("[ragnar] Rebuild interrupted after ", count, " of ", total_items, " items")
+          DBI::dbDisconnect(store, shutdown = TRUE)
+          return(list(success = FALSE, count = count, partial = TRUE, error = "Cancelled by user"))
+        }
+
         doc <- documents[i, ]
+        item_name <- substr(doc$filename, 1, 60)
 
         # Chunk the document
         pages <- strsplit(doc$full_text, "\f")[[1]]
@@ -685,9 +753,13 @@ rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
         # Insert chunks to store
         insert_chunks_to_ragnar(store, chunks, doc$id, "document")
 
-        current_count <- current_count + 1
+        count <- count + 1
+
+        if (!is.null(progress_file)) {
+          write_reindex_progress(progress_file, count, total_items, item_name)
+        }
         if (!is.null(progress_callback)) {
-          progress_callback(current_count, total_items)
+          progress_callback(count, total_items, item_name)
         }
       }
     }
@@ -695,7 +767,23 @@ rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
     # Re-embed all abstracts
     if (nrow(abstracts) > 0) {
       for (i in seq_len(nrow(abstracts))) {
+        # Check for cancellation before each item
+        if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+          message("[ragnar] Rebuild interrupted after ", count, " of ", total_items, " items")
+          DBI::dbDisconnect(store, shutdown = TRUE)
+          return(list(success = FALSE, count = count, partial = TRUE, error = "Cancelled by user"))
+        }
+
         abstract <- abstracts[i, ]
+
+        # Derive human-readable item name for progress display
+        item_name <- if (!is.null(abstract$title) && !is.na(abstract$title) && nchar(abstract$title) > 0) {
+          substr(abstract$title, 1, 60)
+        } else if (!is.null(abstract$first_author) && !is.na(abstract$first_author)) {
+          substr(paste0(abstract$first_author, " et al."), 1, 60)
+        } else {
+          substr(paste0("abstract:", abstract$id), 1, 60)
+        }
 
         # Create single-chunk data frame for abstract
         origin <- encode_origin_metadata(
@@ -716,9 +804,13 @@ rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
 
         insert_chunks_to_ragnar(store, abstract_chunks, abstract$id, "abstract")
 
-        current_count <- current_count + 1
+        count <- count + 1
+
+        if (!is.null(progress_file)) {
+          write_reindex_progress(progress_file, count, total_items, item_name)
+        }
         if (!is.null(progress_callback)) {
-          progress_callback(current_count, total_items)
+          progress_callback(count, total_items, item_name)
         }
       }
     }
@@ -729,14 +821,81 @@ rebuild_notebook_store <- function(notebook_id, con, api_key, embed_model,
     # Disconnect store
     DBI::dbDisconnect(store, shutdown = TRUE)
 
-    list(success = TRUE, count = total_items)
+    list(success = TRUE, count = total_items, partial = FALSE, error = NULL)
 
   }, error = function(e) {
     list(
       success = FALSE,
       error = e$message,
-      count = if (exists("current_count")) current_count else 0
+      count = if (exists("count")) count else 0,
+      partial = FALSE
     )
+  })
+}
+
+#' Delete abstract chunks from ragnar store
+#'
+#' Removes all chunks for a specific abstract from the notebook's ragnar store.
+#' Used when an abstract is removed from a notebook to keep the store consistent.
+#'
+#' @param notebook_id Notebook ID (UUID)
+#' @param abstract_id Abstract ID whose chunks should be deleted
+#' @return Invisibly NULL
+#' @examples
+#' delete_abstract_chunks_from_ragnar("notebook-id", "abstract-id")
+delete_abstract_chunks_from_ragnar <- function(notebook_id, abstract_id) {
+  tryCatch({
+    store_path <- get_notebook_ragnar_path(notebook_id)
+
+    # If store doesn't exist, nothing to delete
+    if (!file.exists(store_path)) {
+      return(invisible(NULL))
+    }
+
+    con <- DBI::dbConnect(duckdb::duckdb(), dbdir = store_path)
+    on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+
+    origin_prefix <- paste0("abstract:", abstract_id)
+    DBI::dbExecute(con, "DELETE FROM chunks WHERE origin LIKE ?", list(paste0(origin_prefix, "%")))
+
+    message("[ragnar] Deleted chunks for abstract: ", abstract_id)
+    invisible(NULL)
+
+  }, error = function(e) {
+    message("[ragnar] Chunk deletion failed for ", abstract_id, ": ", e$message)
+    invisible(NULL)
+  })
+}
+
+#' Mark chunks as indexed in ragnar store
+#'
+#' Updates the embedding sentinel value in the chunks table to indicate that
+#' specified source items have been embedded into ragnar. Used to track which
+#' abstracts/documents have been indexed without querying the ragnar store directly.
+#'
+#' @param con DuckDB connection (main app database)
+#' @param source_ids Character vector of source IDs to mark as indexed
+#' @param source_type Source type ("abstract" or "document")
+#' @return Invisibly NULL
+#' @examples
+#' mark_as_ragnar_indexed(con, c("id1", "id2"), "abstract")
+mark_as_ragnar_indexed <- function(con, source_ids, source_type = "abstract") {
+  if (length(source_ids) == 0) return(invisible(NULL))
+
+  tryCatch({
+    placeholders <- paste(rep("?", length(source_ids)), collapse = ", ")
+    DBI::dbExecute(
+      con,
+      sprintf(
+        "UPDATE chunks SET embedding = 'ragnar_indexed' WHERE source_id IN (%s) AND source_type = ?",
+        placeholders
+      ),
+      c(as.list(source_ids), source_type)
+    )
+    invisible(NULL)
+  }, error = function(e) {
+    message("[ragnar] mark_as_ragnar_indexed failed: ", e$message)
+    invisible(NULL)
   })
 }
 
