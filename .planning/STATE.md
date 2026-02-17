@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 22 - Module Migration (v3.0 Ragnar RAG Overhaul)
+**Current focus:** Phase 23 - Legacy Code Removal (v3.0 Ragnar RAG Overhaul)
 
 ## Current Position
 
-Phase: 22 of 24 (Module Migration)
-Plan: 3 of 3 in current phase (phase complete)
+Phase: 23 of 24 (Legacy Code Removal)
+Plan: 1 of 1 in current phase (phase complete)
 Status: In progress
-Last activity: 2026-02-17 — Completed 22-03: search notebook per-notebook ragnar store wiring
+Last activity: 2026-02-17 — Completed 23-01: single-sweep legacy code removal
 
-Progress: [████████████████████████████████████████] 98% (40/40 estimated plans completed across all milestones)
+Progress: [████████████████████████████████████████] 99% (41/41 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
@@ -50,6 +50,8 @@ Recent decisions affecting current work:
 
 - **rag_ready separate from store_healthy (22-02)**: store_healthy tracks corruption recovery (Phase 21), rag_ready tracks migration need (Phase 22) — different lifecycles, different triggers
 - **rag_available = store_healthy AND rag_ready (22-02)**: both must be TRUE for chat/RAG; JS handler placed in UI not modal to avoid duplicate handler registration
+- **rlang::hash replaces digest::digest (23-01)**: Same chunk hashing semantics, no separate digest dependency required — rlang is already a transitive dependency
+- **NULL guard in search_chunks_hybrid (23-01)**: file.exists(NULL) errors without ragnar_available() guard — added !is.null() check before file.exists()
 - **Embed not blocked by rag_available (22-03)**: Embed is the mechanism to create the per-notebook store for new papers; blocking embed would create chicken-and-egg
 - **Store_healthy NULL on open (22-03)**: Migration check observeEvent sets it accurately; starting NULL avoids false positives before check completes
 - **uiOutput for rag-gated buttons (22-03)**: renderUI renders disabled HTML button tag when rag_available=FALSE — no JS needed
@@ -87,11 +89,12 @@ See PROJECT.md for full decision history.
 
 Phase 20 foundation complete. Phase 21 store lifecycle verified and approved.
 Phase 22 complete — all 3 plans done: backend wiring (22-01), document notebook migration (22-02), search notebook migration (22-03).
+Phase 23 complete — 23-01: single-sweep removal of all legacy RAG code from 6 production files + test cleanup.
 
 ## Session Continuity
 
-Last session: 2026-02-17 (22-02 complete: document notebook per-notebook store migration, rag_ready state, async re-index ExtendedTask, greyed-out send button, ensure_ragnar_store in upload handler)
-Stopped at: Completed 22-02-PLAN.md
+Last session: 2026-02-17 (23-01 complete: removed ragnar_available() guards, cosine_similarity, chunk_text(), digest::digest(), legacy embedding loops; replaced with ragnar-only unconditional paths)
+Stopped at: Completed 23-01-PLAN.md
 Resume file: none
 
-**Next action:** Phase 23 — legacy embedding cleanup and final validation. Note: 22-03 was previously executed in a prior session.
+**Next action:** Phase 24 — integration testing and cleanup.
