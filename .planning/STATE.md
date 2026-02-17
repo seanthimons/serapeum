@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 22 of 24 (Module Migration)
-Plan: 1 of 3 in current phase
+Plan: 3 of 3 in current phase (phase complete)
 Status: In progress
-Last activity: 2026-02-17 — Completed 22-01: backend wiring for per-notebook ragnar stores
+Last activity: 2026-02-17 — Completed 22-03: search notebook per-notebook ragnar store wiring
 
-Progress: [██████████████████████████████████████░░] 93% (38/40 estimated plans completed across all milestones)
+Progress: [████████████████████████████████████████] 98% (40/40 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
@@ -48,6 +48,9 @@ Progress: [███████████████████████
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- **Embed not blocked by rag_available (22-03)**: Embed is the mechanism to create the per-notebook store for new papers; blocking embed would create chicken-and-egg
+- **Store_healthy NULL on open (22-03)**: Migration check observeEvent sets it accurately; starting NULL avoids false positives before check completes
+- **uiOutput for rag-gated buttons (22-03)**: renderUI renders disabled HTML button tag when rag_available=FALSE — no JS needed
 - **NULL default ragnar_store_path (22-01)**: Derive path inside search_chunks_hybrid from notebook_id; callers need not know store path
 - **Structured rebuild return (22-01)**: list(success, count, partial, error) distinguishes user cancellation (partial=TRUE) from errors
 - **Store health tri-state NULL/TRUE/FALSE (21-02)**: NULL=unchecked avoids false positives on startup; proactive check fires on notebook open not app start — avoids penalizing non-RAG users
@@ -81,12 +84,12 @@ See PROJECT.md for full decision history.
 - User data loss if legacy deletion happens before validation (dual-write period recommended) — Phase 23-24
 
 Phase 20 foundation complete. Phase 21 store lifecycle verified and approved.
-Phase 22 Plan 01 complete — backend wiring done. Plans 02 and 03 will migrate the module files.
+Phase 22 complete — all 3 plans done: backend wiring (22-01), document notebook migration (22-02), search notebook migration (22-03).
 
 ## Session Continuity
 
-Last session: 2026-02-17 (22-01 complete: search_chunks_hybrid path fix, rebuild_notebook_store async enhancements, new helpers)
-Stopped at: Completed 22-01-PLAN.md
+Last session: 2026-02-17 (22-03 complete: search notebook per-notebook ragnar store wiring)
+Stopped at: Completed 22-03-PLAN.md
 Resume file: none
 
-**Next action:** Execute 22-02-PLAN.md — migrate mod_document_notebook.R to per-notebook ragnar stores.
+**Next action:** Phase 23 — legacy embedding cleanup and final validation.
