@@ -142,10 +142,10 @@ Plans:
   2. Integration test validates section_hint encoding survives round-trip from upload through retrieval
   3. Shared ragnar store file `data/serapeum.ragnar.duckdb` no longer exists on disk after app startup detects per-notebook stores
   4. App startup checks for legacy shared store, logs deletion, and proceeds normally without errors
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 24-01: TBD
+- [ ] 24-01-PLAN.md — Legacy store toast notification + end-to-end ragnar integration tests
 
 ## Progress
 
