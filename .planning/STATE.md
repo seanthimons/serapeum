@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 22 of 24 (Module Migration)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-02-17 — Phase 21 verified and approved, fixed settings card overflow
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-17 — Completed 22-01: backend wiring for per-notebook ragnar stores
 
-Progress: [██████████████████████████████████████░░] 93% (37/39 estimated plans completed across all milestones)
+Progress: [██████████████████████████████████████░░] 93% (38/40 estimated plans completed across all milestones)
 
 ## Performance Metrics
 
@@ -48,6 +48,8 @@ Progress: [███████████████████████
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- **NULL default ragnar_store_path (22-01)**: Derive path inside search_chunks_hybrid from notebook_id; callers need not know store path
+- **Structured rebuild return (22-01)**: list(success, count, partial, error) distinguishes user cancellation (partial=TRUE) from errors
 - **Store health tri-state NULL/TRUE/FALSE (21-02)**: NULL=unchecked avoids false positives on startup; proactive check fires on notebook open not app start — avoids penalizing non-RAG users
 - **Rebuild modal easyClose=FALSE (21-02)**: Forces explicit user choice (Rebuild or Later) for corruption recovery
 - **Orphan cleanup as simple settings button (21-02)**: Under Maintenance header, not a dedicated maintenance screen — keeps settings clean
@@ -79,12 +81,12 @@ See PROJECT.md for full decision history.
 - User data loss if legacy deletion happens before validation (dual-write period recommended) — Phase 23-24
 
 Phase 20 foundation complete. Phase 21 store lifecycle verified and approved.
-Ready for Phase 22 — switch modules to per-notebook ragnar stores.
+Phase 22 Plan 01 complete — backend wiring done. Plans 02 and 03 will migrate the module files.
 
 ## Session Continuity
 
-Last session: 2026-02-17 (Phase 21 approved, two bugfixes: settings card overflow + cleanup timestamps)
-Stopped at: Phase 22 ready to plan
+Last session: 2026-02-17 (22-01 complete: search_chunks_hybrid path fix, rebuild_notebook_store async enhancements, new helpers)
+Stopped at: Completed 22-01-PLAN.md
 Resume file: none
 
-**Next action:** Plan Phase 22 (Module Migration) — switch document and search notebook modules to per-notebook ragnar stores.
+**Next action:** Execute 22-02-PLAN.md — migrate mod_document_notebook.R to per-notebook ragnar stores.
