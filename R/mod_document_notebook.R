@@ -1,5 +1,3 @@
-# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
-
 #' Document Notebook Module UI
 #' @param id Module ID
 mod_document_notebook_ui <- function(id) {
@@ -516,12 +514,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         api_key <- get_setting(cfg, "openrouter", "api_key")
         embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
-        # Track if ragnar indexing succeeds (to avoid double embedding)
-        ragnar_indexed <- FALSE
-
-        # Insert into per-notebook ragnar store if available (Phase 22: per-notebook store)
+        # Insert into per-notebook ragnar store (Phase 22: per-notebook store)
         # Uses same OpenRouter API key for embeddings
-        if (ragnar_available() && nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
+        if (nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
           incProgress(0.55, detail = "Building search index")
           tryCatch({
             # Phase 22: Use per-notebook ragnar store
@@ -540,57 +535,13 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               # Build/update the search index
               build_ragnar_index(store)
 
-              ragnar_indexed <- TRUE
+              rag_ready(TRUE)
+              store_healthy(TRUE)
               message("Ragnar store updated for document: ", file$name)
             }
           }, error = function(e) {
             message("Ragnar indexing skipped: ", e$message)
           })
-        }
-
-        # After successful ragnar indexing, mark RAG as ready
-        if (ragnar_indexed) {
-          rag_ready(TRUE)
-          store_healthy(TRUE)
-        }
-
-        # Only generate legacy embeddings if ragnar indexing failed
-        # This avoids double API calls for the same content
-        if (!ragnar_indexed && !is.null(api_key) && nchar(api_key) > 0 && nrow(result$chunks) > 0) {
-          chunks_db <- list_chunks(con(), doc_id)
-
-          # Batch embed
-          batch_size <- 10
-          for (i in seq(1, nrow(chunks_db), by = batch_size)) {
-            batch_end <- min(i + batch_size - 1, nrow(chunks_db))
-            batch <- chunks_db[i:batch_end, ]
-
-            embeddings_result <- tryCatch({
-              get_embeddings(api_key, embed_model, batch$content)
-            }, error = function(e) {
-              showNotification(paste("Embedding error:", e$message),
-                               type = "warning", duration = 5)
-              return(NULL)
-            })
-
-            if (!is.null(embeddings_result)) {
-              # Log cost
-              if (!is.null(embeddings_result$usage)) {
-                cost <- estimate_cost(embed_model, embeddings_result$usage$prompt_tokens %||% 0, 0)
-                log_cost(con(), "embedding", embed_model,
-                         embeddings_result$usage$prompt_tokens %||% 0, 0,
-                         embeddings_result$usage$total_tokens %||% 0,
-                         cost, session$token)
-              }
-
-              # Extract embeddings and update chunks
-              for (j in seq_along(embeddings_result$embeddings)) {
-                update_chunk_embedding(con(), batch$id[j], embeddings_result$embeddings[[j]])
-              }
-            }
-
-            incProgress(0.5 * (batch_end / nrow(chunks_db)), detail = "Generating embeddings")
-          }
         }
 
         incProgress(1, detail = "Done!")
@@ -735,7 +686,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, user_msg, nb_id, use_ragnar = TRUE, session_id = session$token)
+        rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })

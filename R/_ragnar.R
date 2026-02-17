@@ -134,13 +134,6 @@ decode_origin_metadata <- function(origin) {
 
 # ---- Ragnar Store Management ----
 
-#' Check if ragnar is available
-#' @return TRUE if ragnar is installed and loadable
-ragnar_available <- function() {
- requireNamespace("ragnar", quietly = TRUE) &&
-   requireNamespace("digest", quietly = TRUE)
-}
-
 #' Get or create RagnarStore for chunk embeddings
 #'
 #' Uses OpenRouter for embeddings (same API key as chat), so no separate
@@ -153,10 +146,6 @@ ragnar_available <- function() {
 get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
                               openrouter_api_key = NULL,
                               embed_model = "openai/text-embedding-3-small") {
-  if (!ragnar_available()) {
-    stop("ragnar package is required. Install with: install.packages('ragnar')")
-  }
-
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
   if (file.exists(path)) {
@@ -191,10 +180,6 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
 #' @param path Path to the ragnar store database
 #' @return RagnarStore object or NULL if store doesn't exist
 connect_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb") {
-  if (!ragnar_available()) {
-    return(NULL)
-  }
-
   if (!file.exists(path)) {
     return(NULL)
   }
@@ -218,10 +203,6 @@ connect_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb") {
 #' @param target_overlap Overlap fraction between chunks (default: 0.5)
 #' @return Data frame with columns: content, page_number, chunk_index, context, origin
 chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5) {
-  if (!ragnar_available()) {
-    stop("ragnar package is required for semantic chunking")
-  }
-
   all_chunks <- data.frame(
     content = character(),
     page_number = integer(),
@@ -295,77 +276,7 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
   all_chunks
 }
 
-# ---- Version Check and Connection Lifecycle ----
-
-#' Check ragnar version compatibility (lazy, session-cached)
-#'
-#' Verifies ragnar is installed and meets minimum version requirement.
-#' Caches result in session to avoid repeated checks. Per user decision,
-#' warns but allows use on version mismatch (renv will handle strict pinning).
-#'
-#' @param session Shiny session object for caching (optional)
-#' @return TRUE if ragnar is compatible/allowed, FALSE if not installed
-#' @examples
-#' if (check_ragnar_version(session)) {
-#'   # Proceed with RAG operations
-#' }
-check_ragnar_version <- function(session = NULL) {
-  # Check session cache first
-  if (!is.null(session)) {
-    cached <- session$userData$ragnar_version_checked
-    if (!is.null(cached)) {
-      return(cached)
-    }
-  }
-
-  # Check if ragnar is installed
-  if (!requireNamespace("ragnar", quietly = TRUE)) {
-    message("[ragnar] Package not installed - RAG features disabled")
-    result <- FALSE
-  } else {
-    # Get installed version
-    installed <- as.character(packageVersion("ragnar"))
-    minimum <- "0.3.0"
-
-    # Compare versions (-1 = installed < minimum, 0 = equal, 1 = installed > minimum)
-    comparison <- compareVersion(installed, minimum)
-
-    if (comparison < 0) {
-      # Installed version too old
-      warning(
-        "[ragnar] Version ", installed, " is older than required ", minimum, ". ",
-        "RAG features may not work correctly. Please update ragnar."
-      )
-      result <- FALSE
-    } else if (comparison > 0) {
-      # Installed version newer - allow but warn about potential breaking changes
-      # Per user decision: allow patch updates (0.3.1, 0.3.2), warn on major/minor
-      installed_parts <- strsplit(installed, "\\.")[[1]]
-      minimum_parts <- strsplit(minimum, "\\.")[[1]]
-
-      if (installed_parts[1] != minimum_parts[1] || installed_parts[2] != minimum_parts[2]) {
-        # Major or minor version difference
-        warning(
-          "[ragnar] Version ", installed, " differs from tested ", minimum, ". ",
-          "RAG features may behave unexpectedly. ",
-          # TODO: This could be replaced by renv version pinning
-          "Consider pinning to ", minimum, " via renv."
-        )
-      }
-      result <- TRUE
-    } else {
-      # Exact match
-      result <- TRUE
-    }
-  }
-
-  # Cache result in session
-  if (!is.null(session)) {
-    session$userData$ragnar_version_checked <- result
-  }
-
-  result
-}
+# ---- Connection Lifecycle ----
 
 #' Execute function with ragnar store, guaranteeing cleanup
 #'
@@ -909,7 +820,7 @@ mark_as_ragnar_indexed <- function(con, source_ids, source_type = "abstract") {
 #' @param source_type "document" or "abstract"
 #' @return Invisibly returns the store
 insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
-  if (!ragnar_available() || nrow(chunks) == 0) {
+  if (nrow(chunks) == 0) {
     return(invisible(store))
   }
 
@@ -917,7 +828,7 @@ insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
   ragnar_chunks <- data.frame(
     origin = chunks$origin,
     hash = vapply(seq_len(nrow(chunks)), function(i) {
-      digest::digest(paste(chunks$content[i], chunks$page_number[i], sep = "|"))
+      rlang::hash(paste(chunks$content[i], chunks$page_number[i], sep = "|"))
     }, character(1)),
     text = chunks$content,
     stringsAsFactors = FALSE
@@ -945,10 +856,6 @@ insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
 #' @param top_k Number of results to return
 #' @return Data frame of matching chunks with metadata
 retrieve_with_ragnar <- function(store, query, top_k = 5) {
-  if (!ragnar_available()) {
-    stop("ragnar package is required for retrieval")
-  }
-
   results <- ragnar::ragnar_retrieve(store, query, top_k = top_k)
 
   # Results come back with: text, origin, score (potentially)
@@ -994,10 +901,6 @@ retrieve_with_ragnar <- function(store, query, top_k = 5) {
 #' @param store RagnarStore object
 #' @return Invisibly returns the store
 build_ragnar_index <- function(store) {
-  if (!ragnar_available()) {
-    return(invisible(store))
-  }
-
   ragnar::ragnar_store_build_index(store)
   invisible(store)
 }

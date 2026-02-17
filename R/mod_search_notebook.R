@@ -1,5 +1,3 @@
-# Note: ragnar_available() is defined in R/_ragnar.R (sourced first alphabetically)
-
 #' Validate URL is safe for use in href (HTTP/HTTPS only)
 #' @param url URL to validate
 #' @return TRUE if URL is safe, FALSE otherwise
@@ -1978,100 +1976,66 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         incProgress(0.1, detail = "Preparing...")
 
-        ragnar_indexed <- FALSE
-
-        # Index with ragnar if available
-        if (ragnar_available()) {
-          tryCatch({
-            # Query only filtered papers (not all papers in notebook)
-            placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
-            abstracts_to_index <- dbGetQuery(con(), sprintf("
-              SELECT a.id, a.title, a.abstract
-              FROM abstracts a
-              WHERE a.id IN (%s) AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
-            ", placeholders), as.list(paper_ids))
-
-            if (nrow(abstracts_to_index) > 0) {
-              incProgress(0.2, detail = "Building search index...")
-
-              # Phase 22: Use per-notebook ragnar store
-              store <- tryCatch(
-                ensure_ragnar_store(nb_id, session, api_key_or, embed_model),
-                error = function(e) {
-                  message("[ragnar] Failed to open per-notebook store: ", e$message)
-                  store_healthy(FALSE)
-                  NULL
-                }
-              )
-
-              if (!is.null(store)) {
-                for (i in seq_len(nrow(abstracts_to_index))) {
-                  abs_row <- abstracts_to_index[i, ]
-                  abs_chunks <- data.frame(
-                    content = abs_row$abstract,
-                    page_number = 1L,
-                    chunk_index = 0L,
-                    context = abs_row$title,
-                    origin = encode_origin_metadata(
-                      paste0("abstract:", abs_row$id),
-                      section_hint = "general",
-                      doi = NULL,
-                      source_type = "abstract"
-                    ),
-                    stringsAsFactors = FALSE
-                  )
-                  insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
-                  incProgress(0.6 * i / nrow(abstracts_to_index),
-                             detail = paste0("Indexing ", i, "/", nrow(abstracts_to_index)))
-                }
-
-                build_ragnar_index(store)
-                ragnar_indexed <- TRUE
-                incProgress(0.9, detail = "Finalizing index...")
-
-                # Mark embedded abstracts with sentinel value
-                tryCatch({
-                  mark_as_ragnar_indexed(con(), paper_ids, source_type = "abstract")
-                }, error = function(e) message("[ragnar] Sentinel marking failed: ", e$message))
-
-                # Update rag state
-                rag_ready(TRUE)
-                store_healthy(TRUE)
-              }
-            }
-          }, error = function(e) {
-            message("Ragnar indexing error: ", e$message)
-          })
-        }
-
-        # Fallback to legacy embedding if ragnar not available or failed
-        if (!ragnar_indexed) {
-          incProgress(0.3, detail = "Generating embeddings...")
-
+        # Index with ragnar unconditionally
+        tryCatch({
           # Query only filtered papers (not all papers in notebook)
           placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
-          chunks <- dbGetQuery(con(), sprintf("
-            SELECT c.* FROM chunks c
-            WHERE c.source_id IN (%s) AND c.embedding IS NULL
+          abstracts_to_index <- dbGetQuery(con(), sprintf("
+            SELECT a.id, a.title, a.abstract
+            FROM abstracts a
+            WHERE a.id IN (%s) AND a.abstract IS NOT NULL AND LENGTH(a.abstract) > 0
           ", placeholders), as.list(paper_ids))
 
-          if (nrow(chunks) > 0) {
-            for (i in seq_len(nrow(chunks))) {
+          if (nrow(abstracts_to_index) > 0) {
+            incProgress(0.2, detail = "Building search index...")
+
+            # Phase 22: Use per-notebook ragnar store
+            store <- tryCatch(
+              ensure_ragnar_store(nb_id, session, api_key_or, embed_model),
+              error = function(e) {
+                message("[ragnar] Failed to open per-notebook store: ", e$message)
+                store_healthy(FALSE)
+                NULL
+              }
+            )
+
+            if (!is.null(store)) {
+              for (i in seq_len(nrow(abstracts_to_index))) {
+                abs_row <- abstracts_to_index[i, ]
+                abs_chunks <- data.frame(
+                  content = abs_row$abstract,
+                  page_number = 1L,
+                  chunk_index = 0L,
+                  context = abs_row$title,
+                  origin = encode_origin_metadata(
+                    paste0("abstract:", abs_row$id),
+                    section_hint = "general",
+                    doi = NULL,
+                    source_type = "abstract"
+                  ),
+                  stringsAsFactors = FALSE
+                )
+                insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
+                incProgress(0.6 * i / nrow(abstracts_to_index),
+                           detail = paste0("Indexing ", i, "/", nrow(abstracts_to_index)))
+              }
+
+              build_ragnar_index(store)
+              incProgress(0.9, detail = "Finalizing index...")
+
+              # Mark embedded abstracts with sentinel value
               tryCatch({
-                result <- get_embeddings(api_key_or, embed_model, chunks$content[i])
-                if (!is.null(result$embeddings) && length(result$embeddings) > 0) {
-                  embedding_str <- paste(result$embeddings[[1]], collapse = ",")
-                  dbExecute(con(), "UPDATE chunks SET embedding = ? WHERE id = ?",
-                           list(embedding_str, chunks$id[i]))
-                }
-              }, error = function(e) {
-                message("Embedding error for chunk ", chunks$id[i], ": ", e$message)
-              })
-              incProgress(0.6 * i / nrow(chunks),
-                         detail = paste0("Embedding ", i, "/", nrow(chunks)))
+                mark_as_ragnar_indexed(con(), paper_ids, source_type = "abstract")
+              }, error = function(e) message("[ragnar] Sentinel marking failed: ", e$message))
+
+              # Update rag state
+              rag_ready(TRUE)
+              store_healthy(TRUE)
             }
           }
-        }
+        }, error = function(e) {
+          message("Ragnar indexing error: ", e$message)
+        })
 
         incProgress(1.0, detail = "Done!")
       })
@@ -2261,7 +2225,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, user_msg, nb_id, use_ragnar = TRUE, session_id = session$token)
+        rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
       }, error = function(e) {
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)

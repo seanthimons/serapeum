@@ -383,143 +383,6 @@ list_chunks <- function(con, source_id) {
   ", list(source_id))
 }
 
-#' Update chunk embedding
-#' @param con DuckDB connection
-#' @param chunk_id Chunk ID
-#' @param embedding Numeric vector
-update_chunk_embedding <- function(con, chunk_id, embedding) {
-  # Store as comma-separated string for portability
-  embedding_str <- paste(embedding, collapse = ",")
-  dbExecute(con, "UPDATE chunks SET embedding = ? WHERE id = ?", list(embedding_str, chunk_id))
-}
-
-#' Calculate cosine similarity between two vectors
-#' @param a First vector
-#' @param b Second vector
-#' @return Cosine similarity score
-cosine_similarity <- function(a, b) {
-  # Validate inputs are numeric vectors
-  if (!is.numeric(a) || !is.numeric(b)) return(0)
-  if (length(a) != length(b)) return(0)
-  if (length(a) == 0) return(0)
-
-  dot_product <- sum(a * b)
-  norm_a <- sqrt(sum(a^2))
-  norm_b <- sqrt(sum(b^2))
-
-  # Use single value comparison safely
-  if (isTRUE(norm_a == 0) || isTRUE(norm_b == 0)) return(0)
-
-  dot_product / (norm_a * norm_b)
-}
-
-#' Parse embedding string from database
-#' @param embedding_str Comma-separated string like "0.1,0.2,0.3"
-#' @return Numeric vector
-parse_embedding <- function(embedding_str) {
-  # Handle NULL
-  if (is.null(embedding_str)) {
-    return(NULL)
-  }
-  # If already a numeric vector, return as-is
-  if (is.numeric(embedding_str)) {
-    return(embedding_str)
-  }
-  # Ensure we have a single string value
-  if (length(embedding_str) != 1) {
-    return(NULL)
-  }
-  # Handle NA and empty string (use isTRUE to safely check single value)
-  if (isTRUE(is.na(embedding_str)) || isTRUE(embedding_str == "")) {
-    return(NULL)
-  }
-  # Handle both formats: with or without brackets
-  cleaned <- gsub("^\\[|\\]$", "", embedding_str)
-  # Split and trim whitespace from each element
-  parts <- trimws(strsplit(cleaned, ",")[[1]])
-  # Remove any empty strings
-  parts <- parts[nchar(parts) > 0]
-  if (length(parts) == 0) {
-    return(NULL)
-  }
-  # Convert to numeric, suppressing warnings for malformed data
-  result <- suppressWarnings(as.numeric(parts))
-  # If too many NAs, the data is likely corrupt - return NULL
-  if (sum(is.na(result)) > length(result) * 0.1) {
-    return(NULL)
-  }
-  # Replace any remaining NAs with 0
-  result[is.na(result)] <- 0
-  result
-}
-
-#' Search chunks by embedding similarity
-#' @param con DuckDB connection
-#' @param query_embedding Query vector
-#' @param notebook_id Limit to specific notebook
-#' @param limit Number of results
-#' @return Data frame of matching chunks with source info
-search_chunks <- function(con, query_embedding, notebook_id = NULL, limit = 5) {
-  # Build query to get chunks with their source info
-  if (!is.null(notebook_id)) {
-    query <- "
-      SELECT
-        c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
-        c.embedding,
-        d.filename as doc_name,
-        a.title as abstract_title
-      FROM chunks c
-      LEFT JOIN documents d ON c.source_id = d.id AND c.source_type = 'document'
-      LEFT JOIN abstracts a ON c.source_id = a.id AND c.source_type = 'abstract'
-      WHERE c.embedding IS NOT NULL
-        AND (d.notebook_id = ? OR a.notebook_id = ?)
-    "
-    chunks <- dbGetQuery(con, query, list(notebook_id, notebook_id))
-  } else {
-    query <- "
-      SELECT
-        c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
-        c.embedding,
-        d.filename as doc_name,
-        a.title as abstract_title
-      FROM chunks c
-      LEFT JOIN documents d ON c.source_id = d.id AND c.source_type = 'document'
-      LEFT JOIN abstracts a ON c.source_id = a.id AND c.source_type = 'abstract'
-      WHERE c.embedding IS NOT NULL
-    "
-    chunks <- dbGetQuery(con, query)
-  }
-
-  if (nrow(chunks) == 0) {
-    return(chunks)
-  }
-
-  # Calculate similarity for each chunk in R
-  # Access embedding column as vector, then iterate
-  embedding_col <- as.character(chunks$embedding)
-  similarities <- numeric(nrow(chunks))
-
-  for (i in seq_len(nrow(chunks))) {
-    emb_str <- embedding_col[i]
-    emb <- parse_embedding(emb_str)
-    if (is.null(emb)) {
-      similarities[i] <- 0
-    } else {
-      similarities[i] <- cosine_similarity(query_embedding, emb)
-    }
-  }
-  chunks$similarity <- similarities
-
-  # Sort by similarity and return top results
-  chunks <- chunks[order(chunks$similarity, decreasing = TRUE), ]
-  chunks <- head(chunks, limit)
-
-  # Remove the raw embedding column to reduce memory
-  chunks$embedding <- NULL
-
-  chunks
-}
-
 #' Create an abstract record
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID
@@ -822,14 +685,13 @@ get_chunks_for_documents <- function(con, document_ids) {
 #' Search chunks using ragnar's hybrid VSS + BM25 retrieval
 #'
 #' Uses ragnar's vector similarity search combined with BM25 text matching
-#' for improved retrieval quality. Falls back to legacy cosine similarity
-#' if ragnar is not available.
+#' for improved retrieval quality.
 #'
 #' @param con DuckDB connection (for metadata lookup)
 #' @param query Text query to search for
 #' @param notebook_id Limit to specific notebook
 #' @param limit Number of results
-#' @param ragnar_store Optional RagnarStore object (created if NULL and ragnar available)
+#' @param ragnar_store Optional RagnarStore object (created if NULL)
 #' @param ragnar_store_path Path to ragnar store database (NULL to derive from notebook_id)
 #' @param section_filter Optional character vector of section hints to filter by (e.g., c("conclusion", "future_work"))
 #' @return Data frame of matching chunks with source info
@@ -843,8 +705,8 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     ragnar_store_path <- get_notebook_ragnar_path(notebook_id)
   }
 
-  # Try ragnar search if available (connect only, don't create new store)
-  if (ragnar_available() && file.exists(ragnar_store_path)) {
+  # Try ragnar search (connect only, don't create new store)
+  if (file.exists(ragnar_store_path)) {
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     if (!is.null(store)) {
@@ -971,11 +833,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     }
   }
 
-  # Fallback to legacy search (requires pre-computed embeddings)
-  message("Ragnar search not available, using legacy embedding search")
-  message("Note: Legacy search requires query to be pre-embedded")
-
-  # Return empty frame with expected structure
+  # No store exists or search returned no results — return empty frame with ragnar column schema
   data.frame(
     id = character(),
     source_id = character(),
@@ -985,7 +843,6 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     page_number = integer(),
     doc_name = character(),
     abstract_title = character(),
-    similarity = numeric(),
     stringsAsFactors = FALSE
   )
 }
