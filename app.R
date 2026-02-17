@@ -27,6 +27,8 @@ if (!dir.create(ragnar_dir, showWarnings = FALSE, recursive = TRUE)) {
 }
 
 # Phase 22: Delete legacy shared store (replaced by per-notebook stores)
+# Phase 24: Track deletion for deferred toast notification in server
+legacy_store_deleted <- FALSE
 legacy_store <- file.path("data", "serapeum.ragnar.duckdb")
 if (file.exists(legacy_store)) {
   message("[ragnar] Removing legacy shared store: ", legacy_store)
@@ -36,6 +38,7 @@ if (file.exists(legacy_store)) {
     f <- paste0(legacy_store, ext)
     if (file.exists(f)) file.remove(f)
   }
+  legacy_store_deleted <- TRUE
 }
 
 # UI
@@ -202,6 +205,17 @@ server <- function(input, output, session) {
         if (has_openalex) msg <- paste(msg, "OpenAlex email")
         showNotification(msg, type = "message", duration = 5)
       }
+    }
+  }) |> bindEvent(TRUE, once = TRUE)
+
+  # Deferred toast notification for legacy shared store deletion (Phase 24)
+  observe({
+    if (legacy_store_deleted) {
+      showNotification(
+        "Legacy search index removed",
+        type = "message",
+        duration = 5
+      )
     }
   }) |> bindEvent(TRUE, once = TRUE)
 
