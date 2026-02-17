@@ -706,7 +706,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
   }
 
   # Try ragnar search (connect only, don't create new store)
-  if (file.exists(ragnar_store_path)) {
+  if (!is.null(ragnar_store_path) && file.exists(ragnar_store_path)) {
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     if (!is.null(store)) {

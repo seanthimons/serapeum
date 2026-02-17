@@ -68,7 +68,7 @@
 - [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
 - [x] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery (completed 2026-02-17)
 - [x] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores (completed 2026-02-17)
-- [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, replace digest with rlang::hash
+- [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, replace digest::digest() with rlang::hash()
 - [ ] **Phase 24: Integration Testing & Cleanup** - End-to-end tests, shared store deletion
 
 ## Phase Details
@@ -126,8 +126,8 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. No ragnar_available() conditional branches remain in codebase - all RAG paths use ragnar directly
   2. No manual get_embeddings() calls or cosine similarity functions exist in pdf.R or rag.R
-  3. digest::digest() replaced by rlang::hash() for chunk hashing; no legacy digest usage remains
-  4. Codebase search for "ragnar_available", "cosine_similarity", "use_ragnar" returns zero results in R files; get_embeddings has exactly 2 results (definition + ragnar embed closure)
+  3. digest::digest() replaced by rlang::hash() for chunk hashing; no legacy digest::digest() usage remains
+  4. Codebase search for "ragnar_available", "cosine_similarity", "use_ragnar" returns zero results in R files; get_embeddings has exactly 2 results (definition in api_openrouter.R + usage in _ragnar.R embed closure)
 **Plans**: 1 plan
 
 Plans:
