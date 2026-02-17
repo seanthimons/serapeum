@@ -5,85 +5,100 @@
 mod_document_notebook_ui <- function(id) {
   ns <- NS(id)
 
-  layout_columns(
-    col_widths = c(4, 8),
-    # Left: Document list
-    card(
-      card_header("Documents"),
-      card_body(
-        fileInput(ns("upload_pdf"), "Upload PDF",
-                  accept = ".pdf",
-                  buttonLabel = "Browse...",
-                  placeholder = "No file selected"),
-        hr(),
-        div(
-          id = ns("doc_list_container"),
-          style = "max-height: 400px; overflow-y: auto;",
-          uiOutput(ns("document_list"))
-        )
-      )
-    ),
-    # Right: Chat
-    card(
-      card_header(
-        class = "d-flex justify-content-between align-items-center flex-wrap gap-2",
-        span("Chat"),
-        div(
-          class = "d-flex gap-2",
+  tagList(
+    # JavaScript handler for re-index progress updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('updateReindexProgress', function(data) {
+        var bar = document.getElementById(data.bar_id);
+        var msg = document.getElementById(data.msg_id);
+        if (bar) {
+          bar.style.width = data.pct + '%';
+          bar.setAttribute('aria-valuenow', data.pct);
+        }
+        if (msg) msg.textContent = data.message;
+      });
+    ")),
+
+    layout_columns(
+      col_widths = c(4, 8),
+      # Left: Document list
+      card(
+        card_header("Documents"),
+        card_body(
+          fileInput(ns("upload_pdf"), "Upload PDF",
+                    accept = ".pdf",
+                    buttonLabel = "Browse...",
+                    placeholder = "No file selected"),
+          hr(),
           div(
-            class = "btn-group",
-            actionButton(ns("btn_summarize"), "Summarize",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("file-lines")),
-            actionButton(ns("btn_keypoints"), "Key Points",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("list-check")),
-            actionButton(ns("btn_studyguide"), "Study Guide",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("lightbulb")),
-            actionButton(ns("btn_outline"), "Outline",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("list-ol")),
-            actionButton(ns("btn_conclusions"), "Conclusions",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("microscope")),
-            actionButton(ns("btn_slides"), "Slides",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("file-powerpoint"))
-          ),
-          div(
-            class = "btn-group btn-group-sm",
-            tags$button(
-              class = "btn btn-outline-secondary dropdown-toggle",
-              `data-bs-toggle` = "dropdown",
-              icon("download"), " Export"
-            ),
-            tags$ul(
-              class = "dropdown-menu",
-              tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
-              tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
-            )
+            id = ns("doc_list_container"),
+            style = "max-height: 400px; overflow-y: auto;",
+            uiOutput(ns("document_list"))
           )
         )
       ),
-      card_body(
-        class = "d-flex flex-column",
-        style = "height: 500px;",
-        div(
-          id = ns("chat_messages"),
-          class = "flex-grow-1 overflow-auto mb-3 p-2",
-          style = "background-color: var(--bs-light); border-radius: 0.5rem;",
-          uiOutput(ns("messages"))
-        ),
-        div(
-          class = "d-flex gap-2",
+      # Right: Chat
+      card(
+        card_header(
+          class = "d-flex justify-content-between align-items-center flex-wrap gap-2",
+          span("Chat"),
           div(
-            class = "flex-grow-1",
-            textInput(ns("user_input"), NULL,
-                      placeholder = "Ask a question about your documents...",
-                      width = "100%")
+            class = "d-flex gap-2",
+            div(
+              class = "btn-group",
+              actionButton(ns("btn_summarize"), "Summarize",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("file-lines")),
+              actionButton(ns("btn_keypoints"), "Key Points",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("list-check")),
+              actionButton(ns("btn_studyguide"), "Study Guide",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("lightbulb")),
+              actionButton(ns("btn_outline"), "Outline",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("list-ol")),
+              actionButton(ns("btn_conclusions"), "Conclusions",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("microscope")),
+              actionButton(ns("btn_slides"), "Slides",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("file-powerpoint"))
+            ),
+            div(
+              class = "btn-group btn-group-sm",
+              tags$button(
+                class = "btn btn-outline-secondary dropdown-toggle",
+                `data-bs-toggle` = "dropdown",
+                icon("download"), " Export"
+              ),
+              tags$ul(
+                class = "dropdown-menu",
+                tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
+                tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
+              )
+            )
+          )
+        ),
+        card_body(
+          class = "d-flex flex-column",
+          style = "height: 500px;",
+          div(
+            id = ns("chat_messages"),
+            class = "flex-grow-1 overflow-auto mb-3 p-2",
+            style = "background-color: var(--bs-light); border-radius: 0.5rem;",
+            uiOutput(ns("messages"))
           ),
-          actionButton(ns("send"), "Send", class = "btn-primary")
+          div(
+            class = "d-flex gap-2",
+            div(
+              class = "flex-grow-1",
+              textInput(ns("user_input"), NULL,
+                        placeholder = "Ask a question about your documents...",
+                        width = "100%")
+            ),
+            uiOutput(ns("send_button_ui"))
+          )
         )
       )
     )
@@ -121,22 +136,98 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # Reactive: store health (Phase 21)
     store_healthy <- reactiveVal(NULL)  # NULL = unchecked, TRUE = ok, FALSE = corrupted/missing
 
-    # Proactive integrity check when notebook is opened (Phase 21)
+    # Reactive: rag_ready (Phase 22)
+    rag_ready <- reactiveVal(TRUE)  # FALSE = needs migration, greyed-out controls
+
+    # Async re-index state (Phase 22)
+    current_interrupt_flag <- reactiveVal(NULL)
+    current_progress_file <- reactiveVal(NULL)
+    reindex_poller <- reactiveVal(NULL)
+
+    # Async re-index task (Phase 22) — follows mod_citation_network.R ExtendedTask pattern
+    reindex_task <- ExtendedTask$new(function(notebook_id, db_path, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+      mirai::mirai({
+        source(file.path(app_dir, "R", "interrupt.R"), local = TRUE)
+        source(file.path(app_dir, "R", "_ragnar.R"), local = TRUE)
+        source(file.path(app_dir, "R", "db.R"), local = TRUE)
+
+        result <- rebuild_notebook_store(
+          notebook_id = notebook_id,
+          con = NULL,
+          db_path = db_path,
+          api_key = api_key,
+          embed_model = embed_model,
+          interrupt_flag = interrupt_flag,
+          progress_file = progress_file,
+          progress_callback = NULL
+        )
+        result
+      }, notebook_id = notebook_id, db_path = db_path, api_key = api_key,
+         embed_model = embed_model, interrupt_flag = interrupt_flag,
+         progress_file = progress_file, app_dir = app_dir)
+    })
+
+    # Phase 22: RAG operations check both store_healthy and rag_ready
+    rag_available <- reactive({
+      isTRUE(store_healthy()) && isTRUE(rag_ready())
+    })
+
+    # Render send button — greyed out when RAG is unavailable
+    output$send_button_ui <- renderUI({
+      if (isTRUE(rag_available())) {
+        actionButton(ns("send"), "Send", class = "btn-primary")
+      } else {
+        tags$button(
+          class = "btn btn-primary disabled",
+          disabled = "disabled",
+          title = "Chat unavailable \u2014 re-index this notebook first",
+          "Send"
+        )
+      }
+    })
+
+    # Proactive integrity check + migration detection when notebook is opened (Phase 21/22)
     observeEvent(notebook_id(), {
       nb_id <- notebook_id()
       req(nb_id)
 
+      # Reset state
+      store_healthy(NULL)
+      rag_ready(TRUE)
+
       store_path <- get_notebook_ragnar_path(nb_id)
 
-      # Only check if store file exists (no store = not yet created = ok, lazy creation handles this)
+      # Check if notebook has content
+      docs <- list_documents(con(), nb_id)
+      has_content <- nrow(docs) > 0
+
       if (!file.exists(store_path)) {
-        store_healthy(TRUE)  # No store yet is fine - lazy creation will handle it
+        if (has_content) {
+          # Phase 22: Documents exist but no store — show migration prompt
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showModal(modalDialog(
+            title = "Search Index Setup Required",
+            tags$p("This notebook has documents but no search index. Chat and synthesis will be unavailable until you re-index."),
+            tags$p(class = "text-muted small", paste(nrow(docs), "document(s) to index.")),
+            footer = tagList(
+              actionButton(ns("reindex_notebook"), "Re-index Now", class = "btn-primary"),
+              modalButton("Later")
+            ),
+            easyClose = FALSE
+          ))
+        } else {
+          # Empty notebook — no store yet, lazy creation will handle it
+          store_healthy(TRUE)
+          rag_ready(TRUE)
+        }
         return()
       }
 
-      # Check integrity of existing store
+      # Store file exists — check integrity
       result <- check_store_integrity(store_path)
       store_healthy(result$ok)
+      rag_ready(result$ok)
 
       if (!result$ok) {
         # Persistent error: show modal with rebuild option (per user decision)
@@ -156,7 +247,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       }
     })
 
-    # Rebuild index handler (Phase 21)
+    # Rebuild index handler (Phase 21) — for corruption recovery, NOT migration
     observeEvent(input$rebuild_index, {
       removeModal()
 
@@ -185,12 +276,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       if (result$success) {
         store_healthy(TRUE)
+        rag_ready(TRUE)
         showNotification(
           paste("Search index rebuilt successfully.", result$count, "items re-embedded."),
           type = "message"
         )
       } else {
         store_healthy(FALSE)
+        rag_ready(FALSE)
         showNotification(
           paste("Rebuild failed:", result$error),
           type = "error",
@@ -199,8 +292,114 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       }
     })
 
-    # Phase 22: When RAG retrieval is wired in, check store_healthy() before operations
-    # and set store_healthy(FALSE) + show rebuild modal on connection errors
+    # Re-index handler (Phase 22) — async migration for notebooks with content but no store
+    observeEvent(input$reindex_notebook, {
+      removeModal()
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      db_path <- get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"
+
+      # Create interrupt and progress files
+      flag_file <- create_interrupt_flag(session$token)
+      progress_file <- create_progress_file(session$token)
+      current_interrupt_flag(flag_file)
+      current_progress_file(progress_file)
+
+      # Show progress modal with Stop button
+      showModal(modalDialog(
+        title = "Re-indexing Notebook",
+        div(
+          div(id = ns("reindex_message"), "Initializing..."),
+          div(class = "progress mt-2",
+            div(class = "progress-bar progress-bar-striped progress-bar-animated",
+                id = ns("reindex_bar"), role = "progressbar",
+                style = "width: 0%", `aria-valuenow` = "0",
+                `aria-valuemin` = "0", `aria-valuemax` = "100")
+          )
+        ),
+        footer = actionButton(ns("cancel_reindex"), "Stop", class = "btn-warning"),
+        easyClose = FALSE
+      ))
+
+      # Start progress poller
+      poller <- observe({
+        invalidateLater(1000)
+        prog <- read_reindex_progress(current_progress_file())
+        session$sendCustomMessage("updateReindexProgress", list(
+          bar_id = ns("reindex_bar"),
+          msg_id = ns("reindex_message"),
+          pct = prog$pct,
+          message = prog$message
+        ))
+      })
+      reindex_poller(poller)
+
+      # Launch async task
+      reindex_task$invoke(nb_id, db_path, api_key, embed_model, flag_file, progress_file, getwd())
+    })
+
+    # Cancel re-index handler (Phase 22)
+    observeEvent(input$cancel_reindex, {
+      flag <- current_interrupt_flag()
+      if (!is.null(flag)) signal_interrupt(flag)
+
+      # Stop polling
+      poller <- reindex_poller()
+      if (!is.null(poller)) poller$destroy()
+      reindex_poller(NULL)
+
+      # Update modal to show stopping state
+      showModal(modalDialog(
+        title = "Stopping Re-index",
+        tags$p("Cancelling... please wait for current item to finish."),
+        footer = NULL,
+        easyClose = FALSE
+      ))
+    })
+
+    # Task result handler (Phase 22)
+    observe({
+      result <- reindex_task$result()
+
+      # Clean up poller
+      poller <- reindex_poller()
+      if (!is.null(poller)) poller$destroy()
+      reindex_poller(NULL)
+
+      # Clean up flag/progress files
+      clear_interrupt_flag(current_interrupt_flag())
+      clear_progress_file(current_progress_file())
+      current_interrupt_flag(NULL)
+      current_progress_file(NULL)
+
+      removeModal()
+
+      if (isTRUE(result$partial)) {
+        # Cancelled mid-way — delete partial store, set rag_ready FALSE
+        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+        rag_ready(FALSE)
+        store_healthy(FALSE)
+        showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
+      } else if (isTRUE(result$success)) {
+        rag_ready(TRUE)
+        store_healthy(TRUE)
+        # Mark chunks as ragnar-indexed
+        tryCatch({
+          mark_as_ragnar_indexed(con(),
+            DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(notebook_id()))$id,
+            source_type = "document")
+        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+        showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
+      } else {
+        rag_ready(FALSE)
+        store_healthy(FALSE)
+        showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
+      }
+    })
 
     # Document list
     output$document_list <- renderUI({
@@ -320,28 +519,39 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         # Track if ragnar indexing succeeds (to avoid double embedding)
         ragnar_indexed <- FALSE
 
-        # Insert into ragnar store if available (for hybrid VSS+BM25 search)
+        # Insert into per-notebook ragnar store if available (Phase 22: per-notebook store)
         # Uses same OpenRouter API key for embeddings
         if (ragnar_available() && nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
           incProgress(0.55, detail = "Building search index")
           tryCatch({
-            ragnar_store_path <- file.path(dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
-                                           "serapeum.ragnar.duckdb")
-            store <- get_ragnar_store(ragnar_store_path,
-                                       openrouter_api_key = api_key,
-                                       embed_model = embed_model)
+            # Phase 22: Use per-notebook ragnar store
+            store <- tryCatch(
+              ensure_ragnar_store(nb_id, session, api_key, embed_model),
+              error = function(e) {
+                message("[ragnar] Failed to open per-notebook store: ", e$message)
+                NULL
+              }
+            )
 
-            # Insert chunks (ragnar handles embedding via OpenRouter)
-            insert_chunks_to_ragnar(store, result$chunks, doc_id, "document")
+            if (!is.null(store)) {
+              # Insert chunks (ragnar handles embedding via OpenRouter)
+              insert_chunks_to_ragnar(store, result$chunks, doc_id, "document")
 
-            # Build/update the search index
-            build_ragnar_index(store)
+              # Build/update the search index
+              build_ragnar_index(store)
 
-            ragnar_indexed <- TRUE
-            message("Ragnar store updated for document: ", file$name)
+              ragnar_indexed <- TRUE
+              message("Ragnar store updated for document: ", file$name)
+            }
           }, error = function(e) {
             message("Ragnar indexing skipped: ", e$message)
           })
+        }
+
+        # After successful ragnar indexing, mark RAG as ready
+        if (ragnar_indexed) {
+          rag_ready(TRUE)
+          store_healthy(TRUE)
         }
 
         # Only generate legacy embeddings if ragnar indexing failed
@@ -502,6 +712,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(input$user_input)
       req(!is_processing())
       req(has_api_key())
+
+      # Defense in depth: button should be disabled, but guard anyway
+      if (!isTRUE(rag_available())) {
+        showNotification("Chat unavailable \u2014 re-index this notebook first.", type = "warning")
+        return()
+      }
 
       user_msg <- trimws(input$user_input)
       if (nchar(user_msg) == 0) return()
