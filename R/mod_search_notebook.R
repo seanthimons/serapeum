@@ -986,6 +986,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           # Delete from database
           delete_abstract(con(), paper$id)
 
+          # Phase 22: Delete chunks from per-notebook ragnar store
+          tryCatch({
+            delete_abstract_chunks_from_ragnar(notebook_id(), paper$id)
+          }, error = function(e) {
+            message("[ragnar] Failed to delete chunks for removed paper: ", e$message)
+          })
+
           # Trigger refresh
           paper_refresh(paper_refresh() + 1)
 
@@ -1987,31 +1994,50 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             if (nrow(abstracts_to_index) > 0) {
               incProgress(0.2, detail = "Building search index...")
 
-              ragnar_store_path <- file.path(
-                dirname(get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"),
-                "serapeum.ragnar.duckdb")
-              store <- get_ragnar_store(ragnar_store_path,
-                                        openrouter_api_key = api_key_or,
-                                        embed_model = embed_model)
+              # Phase 22: Use per-notebook ragnar store
+              store <- tryCatch(
+                ensure_ragnar_store(nb_id, session, api_key_or, embed_model),
+                error = function(e) {
+                  message("[ragnar] Failed to open per-notebook store: ", e$message)
+                  store_healthy(FALSE)
+                  NULL
+                }
+              )
 
-              for (i in seq_len(nrow(abstracts_to_index))) {
-                abs_row <- abstracts_to_index[i, ]
-                abs_chunks <- data.frame(
-                  content = abs_row$abstract,
-                  page_number = 1L,
-                  chunk_index = 0L,
-                  context = abs_row$title,
-                  origin = paste0("abstract:", abs_row$id),
-                  stringsAsFactors = FALSE
-                )
-                insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
-                incProgress(0.6 * i / nrow(abstracts_to_index),
-                           detail = paste0("Indexing ", i, "/", nrow(abstracts_to_index)))
+              if (!is.null(store)) {
+                for (i in seq_len(nrow(abstracts_to_index))) {
+                  abs_row <- abstracts_to_index[i, ]
+                  abs_chunks <- data.frame(
+                    content = abs_row$abstract,
+                    page_number = 1L,
+                    chunk_index = 0L,
+                    context = abs_row$title,
+                    origin = encode_origin_metadata(
+                      paste0("abstract:", abs_row$id),
+                      section_hint = "general",
+                      doi = NULL,
+                      source_type = "abstract"
+                    ),
+                    stringsAsFactors = FALSE
+                  )
+                  insert_chunks_to_ragnar(store, abs_chunks, abs_row$id, "abstract")
+                  incProgress(0.6 * i / nrow(abstracts_to_index),
+                             detail = paste0("Indexing ", i, "/", nrow(abstracts_to_index)))
+                }
+
+                build_ragnar_index(store)
+                ragnar_indexed <- TRUE
+                incProgress(0.9, detail = "Finalizing index...")
+
+                # Mark embedded abstracts with sentinel value
+                tryCatch({
+                  mark_as_ragnar_indexed(con(), paper_ids, source_type = "abstract")
+                }, error = function(e) message("[ragnar] Sentinel marking failed: ", e$message))
+
+                # Update rag state
+                rag_ready(TRUE)
+                store_healthy(TRUE)
               }
-
-              build_ragnar_index(store)
-              ragnar_indexed <- TRUE
-              incProgress(0.9, detail = "Finalizing index...")
             }
           }, error = function(e) {
             message("Ragnar indexing error: ", e$message)
