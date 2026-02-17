@@ -289,6 +289,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
     seed_request <- reactiveVal(NULL)
+    # Track which paper IDs already have delete observers to prevent duplicates
+    delete_observers <- reactiveValues()
 
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
@@ -692,30 +694,38 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       lapply(seq_len(nrow(papers)), function(i) {
         paper <- papers[i, ]
-        delete_id <- paste0("delete_paper_", paper$id)
+        paper_id <- as.character(paper$id)
+        
+        # Only create observer if one doesn't exist for this paper ID
+        if (is.null(delete_observers[[paper_id]])) {
+          delete_id <- paste0("delete_paper_", paper$id)
+          
+          delete_observers[[paper_id]] <- observeEvent(input[[delete_id]], {
+            # Add to exclusion list
+            nb <- get_notebook(con(), notebook_id())
+            existing_excluded <- tryCatch({
+              if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+                jsonlite::fromJSON(nb$excluded_paper_ids)
+              } else {
+                character()
+              }
+            }, error = function(e) character())
 
-        observeEvent(input[[delete_id]], {
-          # Add to exclusion list
-          nb <- get_notebook(con(), notebook_id())
-          existing_excluded <- tryCatch({
-            if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
-              jsonlite::fromJSON(nb$excluded_paper_ids)
-            } else {
-              character()
-            }
-          }, error = function(e) character())
+            new_excluded <- unique(c(existing_excluded, paper$paper_id))
+            update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
 
-          new_excluded <- unique(c(existing_excluded, paper$paper_id))
-          update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
+            # Delete from database
+            delete_abstract(con(), paper$id)
 
-          # Delete from database
-          delete_abstract(con(), paper$id)
+            # Trigger refresh
+            paper_refresh(paper_refresh() + 1)
 
-          # Trigger refresh
-          paper_refresh(paper_refresh() + 1)
-
-          showNotification("Paper removed", type = "message", duration = 2)
-        }, ignoreInit = TRUE, once = TRUE)
+            showNotification("Paper removed", type = "message", duration = 2)
+            
+            # Clean up this observer after it fires
+            delete_observers[[paper_id]] <- NULL
+          }, ignoreInit = TRUE, once = TRUE)
+        }
       })
     })
 
