@@ -586,7 +586,9 @@ mod_settings_server <- function(id, con, config_rv) {
       orphans <- find_orphaned_stores(con())
 
       if (length(orphans) == 0) {
-        output$cleanup_status <- renderText("No orphaned indexes found.")
+        output$cleanup_status <- renderText(
+          paste("No orphaned indexes found.", format(Sys.time(), "(%H:%M:%S)"))
+        )
         return()
       }
 
@@ -604,7 +606,8 @@ mod_settings_server <- function(id, con, config_rv) {
       }, logical(1))
 
       output$cleanup_status <- renderText(
-        paste("Cleaned up", sum(removed), "of", length(orphans), "orphaned indexes.")
+        paste("Cleaned up", sum(removed), "of", length(orphans), "orphaned indexes.",
+              format(Sys.time(), "(%H:%M:%S)"))
       )
 
       showNotification(
