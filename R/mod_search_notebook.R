@@ -291,6 +291,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     seed_request <- reactiveVal(NULL)
     # Track which paper IDs already have delete observers to prevent duplicates
     delete_observers <- reactiveValues()
+    # Track block/unblock journal observers to prevent duplicates
+    block_journal_observers <- reactiveValues()
+    unblock_journal_observers <- reactiveValues()
 
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
@@ -1113,16 +1116,23 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers <- filtered_papers()
       if (nrow(papers) == 0) return()
       lapply(papers$id, function(paper_id) {
-        observeEvent(input[[paste0("block_journal_", paper_id)]], {
-          paper <- papers[papers$id == paper_id, ]
-          if (nrow(paper) > 0 && !is.na(paper$venue) && nchar(paper$venue) > 0) {
-            journal_filter_result$block_journal(paper$venue)
-            showNotification(
-              paste("Blocked:", paper$venue),
-              type = "message", duration = 3
-            )
-          }
-        }, ignoreInit = TRUE)
+        paper_id_str <- as.character(paper_id)
+        
+        # Only create observer if one doesn't exist for this paper ID
+        if (is.null(block_journal_observers[[paper_id_str]])) {
+          block_journal_observers[[paper_id_str]] <- observeEvent(input[[paste0("block_journal_", paper_id)]], {
+            paper <- papers[papers$id == paper_id, ]
+            if (nrow(paper) > 0 && !is.na(paper$venue) && nchar(paper$venue) > 0) {
+              journal_filter_result$block_journal(paper$venue)
+              showNotification(
+                paste("Blocked:", paper$venue),
+                type = "message", duration = 3
+              )
+            }
+            # Clean up this observer after it fires
+            block_journal_observers[[paper_id_str]] <- NULL
+          }, ignoreInit = TRUE)
+        }
       })
     })
 
@@ -1174,13 +1184,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (nrow(blocked) == 0) return()
 
       lapply(blocked$id, function(block_id) {
-        observeEvent(input[[paste0("unblock_", block_id)]], {
-          remove_blocked_journal(con(), block_id)
-          showNotification("Journal unblocked", type = "message", duration = 3)
-          removeModal()
-          # Trigger blocklist refresh in the journal filter module
-          journal_filter_result$block_journal("")  # Empty string signals refresh without adding
-        }, ignoreInit = TRUE)
+        block_id_str <- as.character(block_id)
+        
+        # Only create observer if one doesn't exist for this block ID
+        if (is.null(unblock_journal_observers[[block_id_str]])) {
+          unblock_journal_observers[[block_id_str]] <- observeEvent(input[[paste0("unblock_", block_id)]], {
+            remove_blocked_journal(con(), block_id)
+            showNotification("Journal unblocked", type = "message", duration = 3)
+            removeModal()
+            # Trigger blocklist refresh in the journal filter module
+            journal_filter_result$block_journal("")  # Empty string signals refresh without adding
+            # Clean up this observer after it fires
+            unblock_journal_observers[[block_id_str]] <- NULL
+          }, ignoreInit = TRUE)
+        }
       })
     })
 
