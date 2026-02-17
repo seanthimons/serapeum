@@ -29,7 +29,7 @@ Switch document notebook and search notebook modules from legacy/shared RAG to p
 - Blocking modal with progress bar during re-indexing — user cannot use notebook until complete
 - Per-document detail in progress: "Embedding paper 3 of 12: Smith et al. 2023"
 - Allow cancellation mid-way — if cancelled, delete the partial store; user is prompted again next time
-- On successful completion: progress modal transitions to success state showing document count, then auto-closes
+- On successful completion: toast notification showing document count (user approved simplification over modal success state transition)
 
 ### Search notebook handling
 - Search notebooks use the same per-notebook ragnar store as document notebooks — unified approach with section_hint metadata to distinguish content types
