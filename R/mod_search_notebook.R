@@ -242,9 +242,7 @@ mod_search_notebook_ui <- function(id) {
           class = "border-bottom px-3 py-2",
           div(
             class = "btn-group btn-group-sm w-100",
-            actionButton(ns("btn_conclusions"), "Conclusions",
-                         class = "btn-sm btn-outline-primary",
-                         icon = icon("microscope"))
+            uiOutput(ns("conclusions_btn_ui"))
           )
         ),
         # Messages area
@@ -265,12 +263,23 @@ mod_search_notebook_ui <- function(id) {
                         placeholder = "Ask about these papers...",
                         width = "100%")
             ),
-            actionButton(ns("send"), NULL, class = "btn-primary",
-                         icon = icon("paper-plane"))
+            uiOutput(ns("send_btn_ui"))
           )
         )
       )
-    )
+    ),
+    # Phase 22: JS handler for async re-index progress bar updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('updateSearchReindexProgress', function(data) {
+        var bar = document.getElementById(data.bar_id);
+        var msg = document.getElementById(data.msg_id);
+        if (bar) {
+          bar.style.width = data.pct + '%';
+          bar.setAttribute('aria-valuenow', data.pct);
+        }
+        if (msg) msg.textContent = data.message;
+      });
+    "))
   )
 }
 
@@ -289,6 +298,272 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
     seed_request <- reactiveVal(NULL)
+
+    # Phase 22: Per-notebook store migration state
+    rag_ready <- reactiveVal(TRUE)
+    store_healthy <- reactiveVal(NULL)
+    current_interrupt_flag <- reactiveVal(NULL)
+    current_progress_file <- reactiveVal(NULL)
+    reindex_poller <- reactiveVal(NULL)
+
+    # Phase 22: rag_available = store exists and is healthy
+    rag_available <- reactive({
+      isTRUE(store_healthy()) && isTRUE(rag_ready())
+    })
+
+    # Phase 22: Async re-index task (mirai worker)
+    reindex_task <- ExtendedTask$new(function(notebook_id, db_path, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+      mirai::mirai({
+        source(file.path(app_dir, "R", "interrupt.R"), local = TRUE)
+        source(file.path(app_dir, "R", "_ragnar.R"), local = TRUE)
+        source(file.path(app_dir, "R", "db.R"), local = TRUE)
+
+        result <- rebuild_notebook_store(
+          notebook_id = notebook_id,
+          con = NULL,
+          db_path = db_path,
+          api_key = api_key,
+          embed_model = embed_model,
+          interrupt_flag = interrupt_flag,
+          progress_file = progress_file,
+          progress_callback = NULL
+        )
+        result
+      }, notebook_id = notebook_id, db_path = db_path, api_key = api_key,
+         embed_model = embed_model, interrupt_flag = interrupt_flag,
+         progress_file = progress_file, app_dir = app_dir)
+    })
+
+    # Phase 22: Check for per-notebook store migration on notebook open
+    observeEvent(notebook_id(), {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      # Reset state
+      rag_ready(TRUE)
+      store_healthy(NULL)
+
+      store_path <- get_notebook_ragnar_path(nb_id)
+
+      # Check if notebook has embedded content but no per-notebook store
+      has_content <- tryCatch({
+        abstracts <- DBI::dbGetQuery(con(), "
+          SELECT COUNT(*) as cnt FROM abstracts WHERE notebook_id = ?
+        ", list(nb_id))
+        abstracts$cnt[1] > 0
+      }, error = function(e) FALSE)
+
+      if (has_content && !file.exists(store_path)) {
+        # Has abstracts but no per-notebook store — needs migration
+        rag_ready(FALSE)
+        showModal(modalDialog(
+          title = "Search Index Setup Required",
+          tags$p("This notebook has papers but no search index. Synthesis and chat features will be unavailable until you re-index."),
+          footer = tagList(
+            actionButton(ns("reindex_search_nb"), "Re-index Now", class = "btn-primary"),
+            modalButton("Later")
+          ),
+          easyClose = FALSE
+        ))
+      } else if (file.exists(store_path)) {
+        # Store exists — check integrity
+        result <- check_store_integrity(store_path)
+        store_healthy(result$ok)
+        rag_ready(result$ok)
+        if (!result$ok) {
+          showModal(modalDialog(
+            title = "Search Index Needs Rebuild",
+            tags$p("The search index for this notebook appears to be corrupted."),
+            tags$p(class = "text-muted small", paste("Error:", result$error)),
+            footer = tagList(
+              actionButton(ns("rebuild_search_index"), "Rebuild Index", class = "btn-primary"),
+              modalButton("Later")
+            ),
+            easyClose = FALSE
+          ))
+        }
+      } else {
+        # No content, no store — fine, lazy creation later
+        store_healthy(TRUE)
+        rag_ready(TRUE)
+      }
+    })
+
+    # Phase 22: Re-index handler (launched from migration prompt)
+    observeEvent(input$reindex_search_nb, {
+      removeModal()
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      db_path <- get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"
+
+      # Create interrupt and progress files
+      flag_file <- create_interrupt_flag(session$token)
+      progress_file <- create_progress_file(session$token)
+      current_interrupt_flag(flag_file)
+      current_progress_file(progress_file)
+
+      # Show progress modal with Stop button
+      showModal(modalDialog(
+        title = "Re-indexing Search Notebook",
+        div(
+          div(id = ns("reindex_message"), "Initializing..."),
+          div(class = "progress mt-2",
+            div(class = "progress-bar progress-bar-striped progress-bar-animated",
+                id = ns("reindex_bar"), role = "progressbar",
+                style = "width: 0%", `aria-valuenow` = "0",
+                `aria-valuemin` = "0", `aria-valuemax` = "100")
+          )
+        ),
+        footer = actionButton(ns("cancel_reindex"), "Stop", class = "btn-warning"),
+        easyClose = FALSE
+      ))
+
+      # Start progress poller
+      poller <- observe({
+        invalidateLater(1000)
+        prog <- read_reindex_progress(current_progress_file())
+        session$sendCustomMessage("updateSearchReindexProgress", list(
+          bar_id = ns("reindex_bar"),
+          msg_id = ns("reindex_message"),
+          pct = prog$pct,
+          message = prog$message
+        ))
+      })
+      reindex_poller(poller)
+
+      # Launch async task
+      reindex_task$invoke(nb_id, db_path, api_key, embed_model, flag_file, progress_file, getwd())
+    })
+
+    # Phase 22: Rebuild handler (corruption recovery — same async pattern)
+    observeEvent(input$rebuild_search_index, {
+      removeModal()
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      db_path <- get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"
+
+      flag_file <- create_interrupt_flag(session$token)
+      progress_file <- create_progress_file(session$token)
+      current_interrupt_flag(flag_file)
+      current_progress_file(progress_file)
+
+      showModal(modalDialog(
+        title = "Rebuilding Search Index",
+        div(
+          div(id = ns("reindex_message"), "Initializing rebuild..."),
+          div(class = "progress mt-2",
+            div(class = "progress-bar progress-bar-striped progress-bar-animated",
+                id = ns("reindex_bar"), role = "progressbar",
+                style = "width: 0%")
+          )
+        ),
+        footer = actionButton(ns("cancel_reindex"), "Stop", class = "btn-warning"),
+        easyClose = FALSE
+      ))
+
+      poller <- observe({
+        invalidateLater(1000)
+        prog <- read_reindex_progress(current_progress_file())
+        session$sendCustomMessage("updateSearchReindexProgress", list(
+          bar_id = ns("reindex_bar"), msg_id = ns("reindex_message"),
+          pct = prog$pct, message = prog$message
+        ))
+      })
+      reindex_poller(poller)
+
+      reindex_task$invoke(nb_id, db_path, api_key, embed_model, flag_file, progress_file, getwd())
+    })
+
+    # Phase 22: Cancel re-index handler
+    observeEvent(input$cancel_reindex, {
+      flag <- current_interrupt_flag()
+      if (!is.null(flag)) signal_interrupt(flag)
+
+      poller <- reindex_poller()
+      if (!is.null(poller)) poller$destroy()
+      reindex_poller(NULL)
+
+      showModal(modalDialog(
+        title = "Stopping Re-index",
+        tags$p("Cancelling... please wait for current item to finish."),
+        footer = NULL,
+        easyClose = FALSE
+      ))
+    })
+
+    # Phase 22: Handle re-index task result
+    observe({
+      result <- reindex_task$result()
+
+      poller <- reindex_poller()
+      if (!is.null(poller)) poller$destroy()
+      reindex_poller(NULL)
+
+      clear_interrupt_flag(current_interrupt_flag())
+      clear_progress_file(current_progress_file())
+      current_interrupt_flag(NULL)
+      current_progress_file(NULL)
+
+      removeModal()
+
+      if (isTRUE(result$partial)) {
+        # Cancelled — delete partial store
+        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+        rag_ready(FALSE)
+        store_healthy(FALSE)
+        showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
+      } else if (isTRUE(result$success)) {
+        rag_ready(TRUE)
+        store_healthy(TRUE)
+        tryCatch({
+          abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
+          mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
+        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+        showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
+      } else {
+        rag_ready(FALSE)
+        store_healthy(FALSE)
+        showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
+      }
+    })
+
+    # Phase 22: Render send button (disabled when rag_available is FALSE)
+    output$send_btn_ui <- renderUI({
+      if (isTRUE(rag_available())) {
+        actionButton(ns("send"), NULL, class = "btn-primary", icon = icon("paper-plane"))
+      } else {
+        tags$button(
+          class = "btn btn-primary disabled",
+          disabled = "disabled",
+          title = "Chat unavailable \u2014 re-index this notebook first",
+          icon("paper-plane")
+        )
+      }
+    })
+
+    # Phase 22: Render conclusions button (disabled when rag_available is FALSE)
+    output$conclusions_btn_ui <- renderUI({
+      if (isTRUE(rag_available())) {
+        actionButton(ns("btn_conclusions"), "Conclusions",
+                     class = "btn-sm btn-outline-primary",
+                     icon = icon("microscope"))
+      } else {
+        tags$button(
+          class = "btn btn-sm btn-outline-primary disabled",
+          disabled = "disabled",
+          title = "Synthesis unavailable \u2014 re-index this notebook first",
+          icon("microscope"), " Conclusions"
+        )
+      }
+    })
 
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
@@ -1937,6 +2212,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Send message
     observeEvent(input$send, {
+      # Phase 22: Block chat when per-notebook store is unavailable
+      if (!isTRUE(rag_available())) {
+        showNotification("Chat unavailable \u2014 re-index this notebook first.", type = "warning")
+        return()
+      }
       req(input$user_input)
       req(!is_processing())
       req(has_api_key())
@@ -1973,6 +2253,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Conclusions preset handler
     observeEvent(input$btn_conclusions, {
+      # Phase 22: Block synthesis when per-notebook store is unavailable
+      if (!isTRUE(rag_available())) {
+        showNotification("Synthesis unavailable \u2014 re-index this notebook first.", type = "warning")
+        return()
+      }
       req(!is_processing())
       req(has_api_key())
       is_processing(TRUE)
