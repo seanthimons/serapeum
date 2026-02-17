@@ -68,7 +68,7 @@
 - [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
 - [x] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery (completed 2026-02-17)
 - [x] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores (completed 2026-02-17)
-- [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, digest dependency
+- [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, replace digest with rlang::hash
 - [ ] **Phase 24: Integration Testing & Cleanup** - End-to-end tests, shared store deletion
 
 ## Phase Details
@@ -126,12 +126,12 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. No ragnar_available() conditional branches remain in codebase - all RAG paths use ragnar directly
   2. No manual get_embeddings() calls or cosine similarity functions exist in pdf.R or rag.R
-  3. Digest package is removed from dependencies and no code references digest::digest()
-  4. Codebase search for "ragnar_available", "cosine", "get_embeddings" returns zero results in R files
-**Plans**: TBD
+  3. digest::digest() replaced by rlang::hash() for chunk hashing; no legacy digest usage remains
+  4. Codebase search for "ragnar_available", "cosine_similarity", "use_ragnar" returns zero results in R files; get_embeddings has exactly 2 results (definition + ragnar embed closure)
+**Plans**: 1 plan
 
 Plans:
-- [ ] 23-01: TBD
+- [ ] 23-01-PLAN.md — Single-sweep legacy code removal across 6 production files + 2 test files, digest-to-rlang migration
 
 ### Phase 24: Integration Testing & Cleanup
 **Goal**: End-to-end integration tests validate per-notebook workflow, shared store is deleted after migration
