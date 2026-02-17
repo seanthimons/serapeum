@@ -48,6 +48,8 @@ Progress: [███████████████████████
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- **rag_ready separate from store_healthy (22-02)**: store_healthy tracks corruption recovery (Phase 21), rag_ready tracks migration need (Phase 22) — different lifecycles, different triggers
+- **rag_available = store_healthy AND rag_ready (22-02)**: both must be TRUE for chat/RAG; JS handler placed in UI not modal to avoid duplicate handler registration
 - **Embed not blocked by rag_available (22-03)**: Embed is the mechanism to create the per-notebook store for new papers; blocking embed would create chicken-and-egg
 - **Store_healthy NULL on open (22-03)**: Migration check observeEvent sets it accurately; starting NULL avoids false positives before check completes
 - **uiOutput for rag-gated buttons (22-03)**: renderUI renders disabled HTML button tag when rag_available=FALSE — no JS needed
@@ -88,8 +90,8 @@ Phase 22 complete — all 3 plans done: backend wiring (22-01), document noteboo
 
 ## Session Continuity
 
-Last session: 2026-02-17 (22-03 complete: search notebook per-notebook ragnar store wiring)
-Stopped at: Completed 22-03-PLAN.md
+Last session: 2026-02-17 (22-02 complete: document notebook per-notebook store migration, rag_ready state, async re-index ExtendedTask, greyed-out send button, ensure_ragnar_store in upload handler)
+Stopped at: Completed 22-02-PLAN.md
 Resume file: none
 
-**Next action:** Phase 23 — legacy embedding cleanup and final validation.
+**Next action:** Phase 23 — legacy embedding cleanup and final validation. Note: 22-03 was previously executed in a prior session.
