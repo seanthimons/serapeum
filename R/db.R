@@ -830,13 +830,18 @@ get_chunks_for_documents <- function(con, document_ids) {
 #' @param notebook_id Limit to specific notebook
 #' @param limit Number of results
 #' @param ragnar_store Optional RagnarStore object (created if NULL and ragnar available)
-#' @param ragnar_store_path Path to ragnar store database
+#' @param ragnar_store_path Path to ragnar store database (NULL to derive from notebook_id)
 #' @param section_filter Optional character vector of section hints to filter by (e.g., c("conclusion", "future_work"))
 #' @return Data frame of matching chunks with source info
 search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
-                                  ragnar_store_path = "data/serapeum.ragnar.duckdb",
+                                  ragnar_store_path = NULL,
                                   section_filter = NULL) {
+
+  # Derive store path from notebook_id if not provided (Phase 22: per-notebook stores)
+  if (is.null(ragnar_store_path) && !is.null(notebook_id)) {
+    ragnar_store_path <- get_notebook_ragnar_path(notebook_id)
+  }
 
   # Try ragnar search if available (connect only, don't create new store)
   if (ragnar_available() && file.exists(ragnar_store_path)) {
