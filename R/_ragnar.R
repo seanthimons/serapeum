@@ -167,7 +167,8 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
 
     ragnar::ragnar_store_create(
       path,
-      embed = embed_via_openrouter
+      embed = embed_via_openrouter,
+      version = 1
     )
   }
 }
@@ -305,7 +306,7 @@ with_ragnar_store <- function(path, expr_fn, session = NULL) {
       if (!is.null(store)) {
         tryCatch({
           # Ragnar stores are DuckDB connections, close via disconnect
-          DBI::dbDisconnect(store, shutdown = TRUE)
+          DBI::dbDisconnect(store@con, shutdown = TRUE)
         }, error = function(e) {
           # Already closed or invalid, ignore
         })
@@ -351,7 +352,7 @@ register_ragnar_cleanup <- function(session, store_rv) {
     if (!is.null(store)) {
       tryCatch({
         # Close ragnar store (DuckDB connection)
-        DBI::dbDisconnect(store, shutdown = TRUE)
+        DBI::dbDisconnect(store@con, shutdown = TRUE)
       }, error = function(e) {
         # Already closed or invalid, ignore
       })
@@ -444,7 +445,7 @@ check_store_integrity <- function(store_path) {
   # Try to connect and immediately disconnect
   tryCatch({
     store <- ragnar::ragnar_store_connect(store_path)
-    DBI::dbDisconnect(store, shutdown = TRUE)
+    DBI::dbDisconnect(store@con, shutdown = TRUE)
 
     list(ok = TRUE)
 
@@ -650,7 +651,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         # Check for cancellation before each item
         if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
           message("[ragnar] Rebuild interrupted after ", count, " of ", total_items, " items")
-          DBI::dbDisconnect(store, shutdown = TRUE)
+          DBI::dbDisconnect(store@con, shutdown = TRUE)
           return(list(success = FALSE, count = count, partial = TRUE, error = "Cancelled by user"))
         }
 
@@ -681,7 +682,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         # Check for cancellation before each item
         if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
           message("[ragnar] Rebuild interrupted after ", count, " of ", total_items, " items")
-          DBI::dbDisconnect(store, shutdown = TRUE)
+          DBI::dbDisconnect(store@con, shutdown = TRUE)
           return(list(success = FALSE, count = count, partial = TRUE, error = "Cancelled by user"))
         }
 
@@ -730,7 +731,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
     build_ragnar_index(store)
 
     # Disconnect store
-    DBI::dbDisconnect(store, shutdown = TRUE)
+    DBI::dbDisconnect(store@con, shutdown = TRUE)
 
     list(success = TRUE, count = total_items, partial = FALSE, error = NULL)
 
