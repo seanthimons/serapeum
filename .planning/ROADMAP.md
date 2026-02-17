@@ -66,7 +66,7 @@
 **Milestone Goal:** Replace the legacy embedding/retrieval system with ragnar as the sole RAG backend, using per-notebook vector stores for clean isolation and optimal retrieval.
 
 - [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
-- [ ] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery
+- [x] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery (completed 2026-02-17)
 - [ ] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores
 - [ ] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, digest dependency
 - [ ] **Phase 24: Integration Testing & Cleanup** - End-to-end tests, shared store deletion
@@ -93,10 +93,10 @@ Plans:
 **Depends on**: Phase 20
 **Requirements**: LIFE-01, LIFE-02, LIFE-03, LIFE-04
 **Success Criteria** (what must be TRUE):
-  1. User uploads PDF to new notebook and ragnar store is created automatically in background without manual setup
-  2. User embeds abstract in search notebook and ragnar store is created automatically on first embed
-  3. User deletes notebook and its ragnar store file is removed from disk within same transaction
-  4. User sees "Re-build Index" button when ragnar store is missing or corrupted, can rebuild with progress feedback
+  1. ensure_ragnar_store() creates a new store on first call and connects to existing store on subsequent calls (LIFE-01 mechanism; wiring into modules in Phase 22)
+  2. User deletes notebook and its ragnar store file is removed from disk after DB records are deleted
+  3. User sees "Rebuild Index" modal when ragnar store is corrupted, can rebuild with progress feedback
+  4. Orphan cleanup button in settings identifies and removes store files with no matching notebook
 **Plans**: 2 plans
 
 Plans:
@@ -112,10 +112,12 @@ Plans:
   2. User switches to notebook B and retrieval automatically uses notebook B's store without filtering
   3. User embeds abstracts in search notebook and section-targeted synthesis retrieves correct chunks using encoded section_hint
   4. User can work with multiple notebooks simultaneously without cross-contamination of retrieval results
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 22-01: TBD
+- [ ] 22-01-PLAN.md — Backend wiring: search_chunks_hybrid per-notebook path, chunk deletion + sentinel helpers, shared store cleanup
+- [ ] 22-02-PLAN.md — Document notebook migration: re-index prompt, rag_ready state, per-notebook upload wiring
+- [ ] 22-03-PLAN.md — Search notebook migration: re-index prompt, embed handler rewire, chunk deletion on paper removal
 
 ### Phase 23: Legacy Code Removal
 **Goal**: Remove all legacy embedding and retrieval code paths, making ragnar the sole RAG backend
@@ -155,12 +157,12 @@ Plans:
 | 11-15 | v2.0 | 8/8 | Complete | 2026-02-13 |
 | 16-19 | v2.1 | 7/7 | Complete | 2026-02-13 |
 | 20. Foundation & Connection Safety | v3.0 | Complete    | 2026-02-16 | - |
-| 21. Store Lifecycle | v3.0 | 0/2 | Not started | - |
-| 22. Module Migration | v3.0 | 0/? | Not started | - |
+| 21. Store Lifecycle | v3.0 | 2/2 | Complete | 2026-02-17 |
+| 22. Module Migration | v3.0 | 0/3 | Planned | - |
 | 23. Legacy Code Removal | v3.0 | 0/? | Not started | - |
 | 24. Integration Testing & Cleanup | v3.0 | 0/? | Not started | - |
 
 **Total: 34 plans across 21 phases (5 milestones shipped), 5 phases planned for v3.0**
 
 ---
-*Updated: 2026-02-16 — Phase 21 planned (2 plans)*
+*Updated: 2026-02-17 — Phase 22 planned (3 plans, 2 waves)*
