@@ -246,6 +246,9 @@ server <- function(input, output, session) {
   # Reactive: trigger network list refresh
   network_refresh <- reactiveVal(0)
 
+  # Track which network IDs already have delete observers to prevent duplicates
+  delete_network_observers <- reactiveValues()
+
   # Settings module - returns effective config
   effective_config <- mod_settings_server("settings", con_r, config_file_r)
 
@@ -378,19 +381,27 @@ server <- function(input, output, session) {
     network_refresh()
     networks <- list_networks(con)
     lapply(networks$id, function(net_id) {
-      observeEvent(input[[paste0("delete_network_", net_id)]], {
-        # Delete immediately without confirmation (per plan requirement)
-        delete_network(con, net_id)
-        network_refresh(network_refresh() + 1)
+      net_id_str <- as.character(net_id)
 
-        # If deleted network is currently viewed, go back to welcome
-        if (!is.null(current_network()) && current_network() == net_id) {
-          current_network(NULL)
-          current_view("welcome")
-        }
+      # Only create observer if one doesn't exist for this network ID
+      if (is.null(delete_network_observers[[net_id_str]])) {
+        delete_network_observers[[net_id_str]] <- observeEvent(input[[paste0("delete_network_", net_id)]], {
+          # Delete immediately without confirmation (per plan requirement)
+          delete_network(con, net_id)
+          network_refresh(network_refresh() + 1)
 
-        showNotification("Network deleted", type = "message")
-      }, ignoreInit = TRUE)
+          # If deleted network is currently viewed, go back to welcome
+          if (!is.null(current_network()) && current_network() == net_id) {
+            current_network(NULL)
+            current_view("welcome")
+          }
+
+          showNotification("Network deleted", type = "message")
+
+          # Clean up this observer after it fires
+          delete_network_observers[[net_id_str]] <- NULL
+        }, ignoreInit = TRUE)
+      }
     })
   })
 

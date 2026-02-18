@@ -305,6 +305,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
     seed_request <- reactiveVal(NULL)
+    # Track which paper IDs already have delete observers to prevent duplicates
+    delete_observers <- reactiveValues()
+    # Track block/unblock journal observers to prevent duplicates
+    block_journal_observers <- reactiveValues()
+    unblock_journal_observers <- reactiveValues()
 
     # Phase 22: Per-notebook store migration state
     rag_ready <- reactiveVal(TRUE)
@@ -974,37 +979,45 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       lapply(seq_len(nrow(papers)), function(i) {
         paper <- papers[i, ]
-        delete_id <- paste0("delete_paper_", paper$id)
+        paper_id <- as.character(paper$id)
 
-        observeEvent(input[[delete_id]], {
-          # Add to exclusion list
-          nb <- get_notebook(con(), notebook_id())
-          existing_excluded <- tryCatch({
-            if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
-              jsonlite::fromJSON(nb$excluded_paper_ids)
-            } else {
-              character()
-            }
-          }, error = function(e) character())
+        # Only create observer if one doesn't exist for this paper ID
+        if (is.null(delete_observers[[paper_id]])) {
+          delete_id <- paste0("delete_paper_", paper$id)
 
-          new_excluded <- unique(c(existing_excluded, paper$paper_id))
-          update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
+          delete_observers[[paper_id]] <- observeEvent(input[[delete_id]], {
+            # Add to exclusion list
+            nb <- get_notebook(con(), notebook_id())
+            existing_excluded <- tryCatch({
+              if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+                jsonlite::fromJSON(nb$excluded_paper_ids)
+              } else {
+                character()
+              }
+            }, error = function(e) character())
 
-          # Delete from database
-          delete_abstract(con(), paper$id)
+            new_excluded <- unique(c(existing_excluded, paper$paper_id))
+            update_notebook(con(), notebook_id(), excluded_paper_ids = new_excluded)
 
-          # Phase 22: Delete chunks from per-notebook ragnar store
-          tryCatch({
-            delete_abstract_chunks_from_ragnar(notebook_id(), paper$id)
-          }, error = function(e) {
-            message("[ragnar] Failed to delete chunks for removed paper: ", e$message)
-          })
+            # Delete from database
+            delete_abstract(con(), paper$id)
 
-          # Trigger refresh
-          paper_refresh(paper_refresh() + 1)
+            # Phase 22: Delete chunks from per-notebook ragnar store
+            tryCatch({
+              delete_abstract_chunks_from_ragnar(notebook_id(), paper$id)
+            }, error = function(e) {
+              message("[ragnar] Failed to delete chunks for removed paper: ", e$message)
+            })
 
-          showNotification("Paper removed", type = "message", duration = 2)
-        }, ignoreInit = TRUE, once = TRUE)
+            # Trigger refresh
+            paper_refresh(paper_refresh() + 1)
+
+            showNotification("Paper removed", type = "message", duration = 2)
+
+            # Clean up this observer after it fires
+            delete_observers[[paper_id]] <- NULL
+          }, ignoreInit = TRUE, once = TRUE)
+        }
       })
     })
 
@@ -1392,16 +1405,23 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers <- filtered_papers()
       if (nrow(papers) == 0) return()
       lapply(papers$id, function(paper_id) {
-        observeEvent(input[[paste0("block_journal_", paper_id)]], {
-          paper <- papers[papers$id == paper_id, ]
-          if (nrow(paper) > 0 && !is.na(paper$venue) && nchar(paper$venue) > 0) {
-            journal_filter_result$block_journal(paper$venue)
-            showNotification(
-              paste("Blocked:", paper$venue),
-              type = "message", duration = 3
-            )
-          }
-        }, ignoreInit = TRUE)
+        paper_id_str <- as.character(paper_id)
+
+        # Only create observer if one doesn't exist for this paper ID
+        if (is.null(block_journal_observers[[paper_id_str]])) {
+          block_journal_observers[[paper_id_str]] <- observeEvent(input[[paste0("block_journal_", paper_id)]], {
+            paper <- papers[papers$id == paper_id, ]
+            if (nrow(paper) > 0 && !is.na(paper$venue) && nchar(paper$venue) > 0) {
+              journal_filter_result$block_journal(paper$venue)
+              showNotification(
+                paste("Blocked:", paper$venue),
+                type = "message", duration = 3
+              )
+            }
+            # Clean up this observer after it fires
+            block_journal_observers[[paper_id_str]] <- NULL
+          }, ignoreInit = TRUE)
+        }
       })
     })
 
@@ -1453,13 +1473,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (nrow(blocked) == 0) return()
 
       lapply(blocked$id, function(block_id) {
-        observeEvent(input[[paste0("unblock_", block_id)]], {
-          remove_blocked_journal(con(), block_id)
-          showNotification("Journal unblocked", type = "message", duration = 3)
-          removeModal()
-          # Trigger blocklist refresh in the journal filter module
-          journal_filter_result$block_journal("")  # Empty string signals refresh without adding
-        }, ignoreInit = TRUE)
+        block_id_str <- as.character(block_id)
+
+        # Only create observer if one doesn't exist for this block ID
+        if (is.null(unblock_journal_observers[[block_id_str]])) {
+          unblock_journal_observers[[block_id_str]] <- observeEvent(input[[paste0("unblock_", block_id)]], {
+            remove_blocked_journal(con(), block_id)
+            showNotification("Journal unblocked", type = "message", duration = 3)
+            removeModal()
+            # Trigger blocklist refresh in the journal filter module
+            journal_filter_result$block_journal("")  # Empty string signals refresh without adding
+            # Clean up this observer after it fires
+            unblock_journal_observers[[block_id_str]] <- NULL
+          }, ignoreInit = TRUE)
+        }
       })
     })
 
