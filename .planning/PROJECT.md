@@ -72,7 +72,25 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active requirements — next milestone not yet planned)
+<!-- v4.0 Stability + Synthesis -->
+
+**Phase 1 — Stabilize:**
+- [ ] Fix seed paper not showing in abstract search (#110)
+- [ ] Fix modal repeats multiple times on remove (#111)
+- [ ] Fix cost tracking table not being updated (#116)
+- [ ] Fix refresh button adding papers after removing (#86)
+- [ ] Fix connection leak in search_chunks_hybrid (#117)
+- [ ] Encode section_hint in PDF ragnar origins (#118)
+- [ ] Remove dead code: with_ragnar_store, register_ragnar_cleanup (#119)
+- [ ] Land PR #112: Fix duplicate toast notifications
+- [ ] Land PR #115: Make keywords panel collapsible
+- [ ] Fix tooltip overflow + citation network background color (#79, #89)
+- [ ] Rebalance settings page two-column layout
+
+**Phase 2 — Synthesis:**
+- [ ] Merge Summarize + Key Points into unified Overview (#98)
+- [ ] Literature Review Table — structured comparison matrix (#99)
+- [ ] Research Question Generator preset (#102)
 
 ### Out of Scope
 
@@ -150,4 +168,15 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 | DBI::dbDisconnect(store@con) for S7 objects (v3.0) | S7 DuckDBRagnarStore has no DBI method registered | ✓ Good — caught by integration tests |
 
 ---
-*Last updated: 2026-02-17 after v3.0 milestone shipped*
+## Current Milestone: v4.0 Stability + Synthesis
+
+**Goal:** Stabilize the codebase after rapid v1.0–v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
+
+**Target features:**
+- All known bugs fixed and tech debt resolved (clean foundation)
+- Unified Overview preset replacing separate Summarize + Key Points
+- Literature Review Table for structured paper comparison
+- Research Question Generator for discovery-to-analysis workflow
+
+---
+*Last updated: 2026-02-18 after v4.0 milestone started*

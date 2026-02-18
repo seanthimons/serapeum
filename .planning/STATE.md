@@ -2,19 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-17)
+See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** v3.0 shipped — planning next milestone
+**Current focus:** v4.0 Stability + Synthesis
 
 ## Current Position
 
-Phase: 24 of 24 (all phases complete)
-Plan: All plans complete across all milestones
-Status: v3.0 Ragnar RAG Overhaul shipped 2026-02-17
-Last activity: 2026-02-17 — Milestone v3.0 archived
-
-Progress: [████████████████████████████████████████] 100% (41 plans completed across 6 milestones)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-18 — Milestone v4.0 started
 
 ## Performance Metrics
 
@@ -32,6 +30,7 @@ Progress: [███████████████████████
 | v2.0 | 11-15 | 8 | Complete | 2026-02-13 |
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
+| v4.0 | 25-?? | — | In Progress | — |
 
 ## Accumulated Context
 
@@ -41,21 +40,16 @@ All decisions logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-- [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflow
-- Fix citation network background color blending — bundle with #79
 - Explore partial BFS graph as intentional visualization mode
-- Fix connection leak in search_chunks_hybrid (tech debt from v3.0)
-- Encode section_hint in PDF ragnar origins (tech debt from v3.0)
-- Remove dead code: with_ragnar_store, register_ragnar_cleanup (tech debt from v3.0)
 
 ### Blockers/Concerns
 
-None active. All v3.0 concerns resolved.
+None active.
 
 ## Session Continuity
 
-Last session: 2026-02-17 (v3.0 milestone archived)
-Stopped at: Milestone completion
+Last session: 2026-02-18 (v4.0 milestone started)
+Stopped at: Defining requirements
 Resume file: none
 
-**Next action:** `/gsd:new-milestone` to start next milestone
+**Next action:** Define requirements and create roadmap
