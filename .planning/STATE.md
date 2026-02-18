@@ -42,7 +42,6 @@ All decisions logged in PROJECT.md Key Decisions table.
 ### Pending Todos
 
 - [#79](https://github.com/seanthimons/serapeum/issues/79): Tooltip overflow
-- Move to renv for package namespace management
 - Fix citation network background color blending — bundle with #79
 - Explore partial BFS graph as intentional visualization mode
 - Fix connection leak in search_chunks_hybrid (tech debt from v3.0)
