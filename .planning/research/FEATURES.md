@@ -1,8 +1,31 @@
 # Feature Research
 
-**Domain:** Per-Notebook Ragnar Store Management (RAG Backend Overhaul)
-**Researched:** 2026-02-16
-**Confidence:** MEDIUM
+**Domain:** Academic Research Assistant — Synthesis Presets (v4.0 Stability + Synthesis)
+**Researched:** 2026-02-18
+**Confidence:** MEDIUM-HIGH
+
+---
+
+## Scope
+
+This research covers three new features planned for the v4.0 milestone, evaluated against
+what comparable tools (Elicit, SciSpace, Consensus, ResearchRabbit, AnswerThis) actually
+do in production:
+
+1. **Unified Overview preset** (#98) — merge Summarize + Key Points into one output
+2. **Literature Review Table** (#99) — structured per-paper comparison matrix
+3. **Research Question Generator** (#102) — suggest new research directions from corpus
+
+Existing features that these depend on are already shipped:
+- Summarize preset (generate_preset "summarize")
+- Key Points preset (generate_preset "keypoints")
+- Conclusion synthesis (generate_conclusions_preset)
+- Research gap synthesis
+- RAG retrieval (search_chunks_hybrid via ragnar)
+- Markdown rendering in chat window
+- Chat export (Markdown/HTML)
+
+---
 
 ## Feature Landscape
 
@@ -12,11 +35,12 @@ Features users assume exist. Missing these = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Automatic store creation on first content** | Users expect PDFs/abstracts to "just work" without manual setup | LOW | Create ragnar store on first PDF upload or abstract embedding; users shouldn't know/care that a store exists |
-| **Automatic cleanup on notebook deletion** | Deleting a notebook should clean up all associated data, including vector stores | MEDIUM | Must cascade delete: ragnar store file + DuckDB notebook record + all chunks/documents; file deletion timing is critical (before or after DB commit?) |
-| **Seamless switching between notebooks** | RAG retrieval should automatically use the correct per-notebook store | LOW | Pass notebook-specific ragnar store path to `search_chunks_hybrid()`; current shared store approach needs refactoring |
-| **Transparent re-embedding on corruption** | If store is corrupted/missing, user should be able to rebuild it without losing content | MEDIUM | Detect corruption on connect failure; provide "Re-build Index" button; re-chunk and re-embed all documents/abstracts for that notebook |
-| **Graceful degradation without ragnar** | App should still function (even if degraded) if ragnar is unavailable | LOW | Already handled via `ragnar_available()` checks; ensure per-notebook path logic doesn't break fallback |
+| **Unified Overview output (Summary + Key Points in one call)** | Running two separate presets to get a complete picture is awkward; every major tool (Elicit, SciSpace) defaults to a combined overview | LOW | Merge Summarize + Key Points prompts into one system prompt; single LLM call; output two named sections in markdown; replaces two buttons with one |
+| **Literature Review Table with standard academic columns** | Researchers doing lit reviews expect a paper-by-paper comparison table as the primary structured output; Elicit built its entire product around this feature | MEDIUM | Columns: Paper/Author/Year, Methodology, Sample Size, Key Findings, Limitations; markdown table output rendered in chat; must handle 5–30 papers without exceeding context window |
+| **Per-paper citation attribution in table** | Each row in a comparison table must map to a specific source paper; researchers need to verify claims | LOW | Already have source attribution pattern from build_context(); extend to include source metadata per row |
+| **Research questions grounded in corpus gaps** | Researchers expect gap-to-question flow: "what gaps exist?" naturally leads to "what should I study next?"; AnswerThis and Elicit both do this | MEDIUM | Build on existing gap analysis output (generate_conclusions_preset already has "Research Gaps" section); research question generator reads the gap output as input context |
+| **Consistent markdown output formatting** | All synthesis outputs already render markdown in chat window; new presets must match this contract | LOW | Use same system prompt structure as existing presets; headings + bullet points + citation format |
+| **AI-generated content disclaimer on new outputs** | Already required by existing presets; omitting it on new features would be inconsistent | LOW | Copy existing disclaimer injection pattern from mod_document_notebook.R / mod_search_notebook.R |
 
 ### Differentiators (Competitive Advantage)
 
@@ -24,288 +48,245 @@ Features that set the product apart. Not required, but valuable.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Health check with self-repair** | Proactively detect and fix store corruption before user notices | HIGH | Background health check on app startup; auto-rebuild if corruption detected; show non-blocking toast notification; differentiates from "re-index button only" pattern |
-| **Incremental re-embedding** | Re-embed only changed/new content instead of full rebuild | HIGH | Track embedding state per document/abstract (e.g., `embedded_at` timestamp, content hash); only re-process items with changed content or missing embeddings; significantly reduces API cost for large notebooks |
-| **Store migration assistant** | One-click migration from shared store to per-notebook stores | MEDIUM | Existing users have one shared `serapeum.ragnar.duckdb`; migration wizard reads all notebooks, creates per-notebook stores, moves chunks based on notebook_id; deletes old shared store after confirmation |
-| **Storage usage visibility** | Show per-notebook ragnar store size in UI | LOW | Display file size of `.ragnar.duckdb` per notebook in settings/info panel; helps users understand storage impact; useful for cleanup decisions |
-| **Export/import notebook with store** | Package notebook data + ragnar store for sharing/backup | MEDIUM | ZIP export includes: DuckDB notebook data + ragnar store file + PDFs; import unpacks and reconnects store; enables notebook portability |
+| **Custom dimension columns in Literature Review Table** | Elicit allows user-defined extraction columns ("Relevance to biotic interactions", "Model organisms"); SciSpace lets users define column prompts; local-first version would let user specify 1-2 custom columns before running | HIGH | Requires UI input (text field for custom column prompt) + dynamic prompt construction; deferred — ship fixed standard columns first, validate demand before adding custom |
+| **PICO-structured research questions for health/bio fields** | PICO (Population, Intervention, Comparison, Outcome) is the gold standard framework in biomedical research; tools like INRA.AI and PICOT generators show demand; optional PICO framing of suggested questions differentiates for medical/nursing researchers | MEDIUM | Add "PICO format" toggle in Research Question Generator; restructure output template when enabled; only valuable for health/biomedical subfields — gate behind option |
+| **Methodology Extractor preset** (#100) | Isolated methodology focus (study design, instruments, statistical methods) is a distinct need from general overview; useful for researchers designing their own study | MEDIUM | Separate preset from Overview; uses section-targeted RAG (methods section); complements Literature Review Table |
+| **Gap Analysis Report preset** (#101) | Explicit gap analysis as a named preset (vs buried in Conclusions) validates research directions more formally; AnswerThis built their product around this feature | MEDIUM | Upgrade current "Research Gaps" section in generate_conclusions_preset into its own standalone preset; use same section-targeted RAG pattern |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **Manual store path configuration** | Power users want control over file locations | Creates support burden (broken paths, permission issues, relative vs absolute); DuckDB already has a configured data directory | Store all ragnar DBs in `data/ragnar/{notebook_id}.ragnar.duckdb` using notebook ID as namespace; predictable, safe, auto-cleanup-friendly |
-| **Shared store with namespace filtering** | "Why not just use namespaces in one DB like Pinecone?" | DuckDB concurrency model discourages single-file writes from multiple contexts; file corruption in shared store breaks ALL notebooks; per-file isolation is more robust for local-first apps | Per-notebook stores provide file-level isolation; DuckDB's single-user design favors separate files |
-| **Real-time background re-indexing** | "Automatically re-embed when I edit a PDF" | PDFs are immutable after upload (no in-app editing); background re-embedding adds API cost without clear trigger; users don't expect real-time indexing for uploaded documents | Manual "Re-build Index" button when user explicitly needs it (e.g., after ragnar upgrade, corruption detected); show last-indexed timestamp |
-| **Cross-notebook search** | "Search all my notebooks at once" | Per-notebook isolation is the entire point; mixing results from different projects creates confusion; performance degrades with multiple stores | Keep notebook-scoped search; add global search as separate feature later if validated by user feedback; search notebooks list first, then search within |
-| **Ragnar version pinning per notebook** | "Lock ragnar version per notebook for reproducibility" | Ragnar embedding model/chunking changes rarely; managing multiple ragnar versions is complex; local-first apps should stay current for security/performance | Use single ragnar version app-wide; provide migration path if ragnar makes breaking changes; document ragnar version in notebook metadata for auditing |
+| **Interactive table with editable cells** | Researchers want to annotate and correct AI extraction errors inline | Requires full table state management in Shiny (reactiveValues per cell); significant UI complexity for v4.0; export workflow already handles this | Export table to CSV; user edits in Excel/Sheets; re-import not needed since table is synthesis output |
+| **Auto-refresh table on new papers added** | "I added a paper, now update the table" | Table generation is an expensive LLM call; auto-triggering on reactive changes would cause accidental API spend; ragnar store updates are already async | Keep table generation manual (button-triggered); show "papers changed since last run" badge as a hint to re-run |
+| **CSV export specifically for Literature Review Table** | Researchers want to move the comparison matrix to other tools | Adds export infrastructure complexity when chat export (Markdown) already handles this adequately for v4.0; markdown tables are copy-pasteable | Markdown table export via existing chat download handles this; add CSV-specific export only if user demand validated post-v4.0 |
+| **Fully autonomous table column selection** | "Let the AI decide what columns to extract" | Without user-specified columns, the LLM picks inconsistent dimensions across runs; re-runs produce different structures making longitudinal comparison impossible | Fixed standard column set for v4.0; optional user-defined columns as v4.x feature after column stability is validated |
+| **Research question scoring/ranking** | "Which question is most promising?" | Requires LLM to judge LLM outputs; adds another API call; ranking is subjective and domain-specific; researchers are better judges of their own field priorities | Present 5-7 unranked research questions; researcher selects; keeps LLM in supportive role |
+| **Real-time streaming for table generation** | Show cells populating as the LLM generates | Parsing structured markdown tables from a streaming response is fragile; partial tables render as broken markdown | Generate full response then render; show spinner with status message during generation |
+
+---
 
 ## Feature Dependencies
 
 ```
-[Automatic store creation]
-    └──requires──> [Per-notebook store path resolution]
-                       └──requires──> [Notebook ID available at embedding time]
+[Unified Overview preset]
+    └──depends on──> [generate_preset() infrastructure] (already exists)
+    └──replaces──> [Summarize preset] + [Key Points preset] (merge, don't delete)
+    └──enhances──> [Chat export] (output available for download immediately)
 
-[Automatic cleanup on deletion]
-    └──requires──> [Per-notebook store path resolution]
-    └──requires──> [Cascade delete in delete_notebook()]
+[Literature Review Table]
+    └──depends on──> [Per-paper metadata in DB] (title, author, year — already exists in abstracts table)
+    └──depends on──> [build_context() pattern] (already exists in rag.R)
+    └──requires──> [Structured prompt producing markdown table] (new)
+    └──optionally enhances──> [Chat export to Markdown/CSV] (table in markdown is already exportable)
 
-[Transparent re-embedding]
-    └──requires──> [Chunk source tracking in DuckDB]
-                       └──requires──> [Re-chunk all documents/abstracts API]
-    └──requires──> [Corruption detection on connect]
+[Research Question Generator]
+    └──depends on──> [Gap analysis capability] (partially exists in generate_conclusions_preset)
+    └──enhances──> [Gap Analysis Report preset] (#101, separate feature)
+    └──works best with──> [Conclusion synthesis output as input context] (can chain)
 
-[Health check with self-repair]
-    └──requires──> [Transparent re-embedding]
-    └──requires──> [Background job on app startup]
+[Gap Analysis Report preset] (#101)
+    └──depends on──> [generate_conclusions_preset infrastructure] (refactor, not rebuild)
+    └──enhances──> [Research Question Generator] (gap list feeds question generation)
 
-[Incremental re-embedding]
-    └──requires──> [Content hash tracking per document/abstract]
-    └──enhances──> [Transparent re-embedding]
-    └──conflicts──> [Simple full rebuild button] (adds complexity)
-
-[Store migration assistant]
-    └──requires──> [Per-notebook store creation]
-    └──requires──> [Chunk origin parsing] (to map chunks to notebooks)
+[Methodology Extractor preset] (#100)
+    └──depends on──> [section_filter in search_chunks_hybrid] (already exists — "methods" section hint)
+    └──depends on──> [generate_preset() infrastructure] (already exists)
 ```
 
 ### Dependency Notes
 
-- **Per-notebook store creation requires notebook ID:** Ragnar store path must be deterministic from notebook ID (e.g., `data/ragnar/{notebook_id}.ragnar.duckdb`)
-- **Re-embedding requires chunk source tracking:** Need to query DuckDB for all documents/abstracts in notebook, re-chunk, re-insert to ragnar
-- **Incremental re-embedding enhances but conflicts:** Makes re-embedding faster/cheaper but adds complexity; defer to v2 unless API costs become prohibitive
-- **Migration assistant is one-time:** Only needed for existing users; new users start with per-notebook stores; can be a separate script vs in-app feature
+- **Overview replaces but does not delete Summarize/Key Points:** The existing buttons may remain as secondary options; Overview becomes the primary recommended preset
+- **Literature Review Table depends on paper metadata:** The abstracts table already has title/author/year; document notebook needs doc name — both are available via build_context()
+- **Research Question Generator chains well after Gap Analysis:** A two-step flow (run Gaps first, then Questions) produces better output than running Questions cold; consider a "Generate Questions from this analysis" follow-up button
+- **Methodology Extractor depends on section hints:** The ragnar section_filter feature (already built in Phase 18/19) enables methods-section-targeted retrieval; without it, methodology extraction from full-text PDFs is noisier
+
+---
 
 ## MVP Definition
 
-### Launch With (v1)
+### v4.0 Launch With
 
-Minimum viable product — what's needed to validate the concept.
+Minimum feature set for the milestone.
 
-- [x] **Per-notebook store path resolution** — `data/ragnar/{notebook_id}.ragnar.duckdb` pattern
-- [x] **Automatic store creation on first PDF/abstract** — Create store in `process_pdf()` and abstract embedding flow
-- [x] **Automatic cleanup on notebook deletion** — Delete ragnar file in `delete_notebook()` after DB cleanup
-- [x] **Manual re-build index button** — UI button in notebook settings to trigger full re-embedding
-- [x] **Corruption detection** — Check if ragnar store is readable on connect; show re-build button if corrupted
-- [x] **Remove legacy embedding code paths** — Delete old cosine similarity search, embedding storage in chunks table
+- [ ] **Unified Overview preset** (#98) — single LLM call, two-section output (Summary + Key Points); replaces the two-button pattern; LOW complexity
+- [ ] **Literature Review Table** (#99) — fixed standard columns (Title, Year, Methodology, Sample Size, Key Findings, Limitations); markdown table in chat; works for search notebooks (abstracts) and document notebooks (PDFs); MEDIUM complexity
+- [ ] **Research Question Generator** (#102) — 5-7 suggested questions grounded in identified gaps; output as numbered markdown list with rationale; MEDIUM complexity
 
-### Add After Validation (v1.x)
+### Add After Validation (v4.x)
 
-Features to add once core is working.
+- [ ] **Gap Analysis Report preset** (#101) — extract gap analysis out of Conclusions into its own named preset; value depends on user demand signal
+- [ ] **Methodology Extractor preset** (#100) — methods-section-targeted extraction; valuable but dependent on having PDFs with clear section hints
+- [ ] **PICO-structured output option for Research Questions** — add toggle for health/biomedical field researchers; defer until field usage validated
 
-- [ ] **Storage usage visibility** — Show ragnar store file size per notebook (simple `file.size()` call)
-- [ ] **Store migration assistant** — Script or UI wizard to migrate existing shared store to per-notebook stores (one-time for existing users)
-- [ ] **Health check on startup** — Background check for store corruption; show non-blocking notification if rebuild needed
-- [ ] **Last-indexed timestamp** — Display when notebook was last indexed; helps users understand freshness
+### Future Consideration (v5+)
 
-### Future Consideration (v2+)
+- [ ] **Custom column prompts in Literature Review Table** — user-defined extraction dimensions; requires UI design investment
+- [ ] **CSV export for Literature Review Table** — dedicated CSV export (vs markdown); defer until post-v4.0 demand confirmed
+- [ ] **Argument Map / Claims Network** (#104) — high complexity, niche use case
 
-Features to defer until product-market fit is established.
-
-- [ ] **Incremental re-embedding** — Only re-embed changed content (requires content hash tracking)
-- [ ] **Export/import notebook with store** — Package notebook + ragnar DB for sharing/backup
-- [ ] **Parallel re-embedding** — Process multiple documents concurrently during re-build (API rate limits may constrain)
-- [ ] **Automatic re-embedding on ragnar upgrade** — Detect ragnar version change, offer one-click re-embed (only if ragnar makes breaking changes)
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Per-notebook store creation | HIGH | LOW | P1 |
-| Automatic cleanup on deletion | HIGH | MEDIUM | P1 |
-| Manual re-build index button | HIGH | MEDIUM | P1 |
-| Corruption detection | HIGH | LOW | P1 |
-| Remove legacy embedding | MEDIUM | LOW | P1 |
-| Storage usage visibility | MEDIUM | LOW | P2 |
-| Store migration assistant | MEDIUM | MEDIUM | P2 |
-| Health check on startup | MEDIUM | MEDIUM | P2 |
-| Last-indexed timestamp | LOW | LOW | P2 |
-| Incremental re-embedding | HIGH | HIGH | P3 |
-| Export/import notebook | MEDIUM | MEDIUM | P3 |
-| Parallel re-embedding | MEDIUM | MEDIUM | P3 |
+| Unified Overview preset (#98) | HIGH | LOW | P1 |
+| Literature Review Table (#99) | VERY HIGH | MEDIUM | P1 |
+| Research Question Generator (#102) | HIGH | MEDIUM | P1 |
+| Gap Analysis Report preset (#101) | HIGH | MEDIUM | P2 |
+| Methodology Extractor preset (#100) | HIGH | MEDIUM | P2 |
+| PICO output option | MEDIUM | MEDIUM | P3 |
+| Custom table columns | MEDIUM | HIGH | P3 |
+| CSV export for table | LOW | LOW | P3 |
 
 **Priority key:**
-- P1: Must have for launch (core functionality)
-- P2: Should have, add when possible (polish/DX improvements)
-- P3: Nice to have, future consideration (optimization/advanced features)
+- P1: Must have for v4.0 launch
+- P2: Should have, add in v4.x if capacity allows
+- P3: Nice to have, future consideration
 
-## User Flows
+---
 
-### Flow 1: First PDF Upload to New Notebook (Happy Path)
+## Competitor Feature Analysis
 
-1. User creates new document notebook
-2. User uploads first PDF
-3. App detects no ragnar store exists for this notebook
-4. App creates `data/ragnar/{notebook_id}.ragnar.duckdb` with OpenRouter embed function
-5. App chunks PDF with `chunk_with_ragnar()` (page-aware semantic chunking)
-6. App inserts chunks to ragnar store with `insert_chunks_to_ragnar()`
-7. App builds ragnar index with `build_ragnar_index()`
-8. User can immediately query via RAG chat (no additional setup)
+| Feature | Elicit | SciSpace | AnswerThis | Serapeum v4.0 Approach |
+|---------|--------|----------|------------|------------------------|
+| **Overview/Summary** | Multi-paper summary with citations | Paper-level summaries; combine manually | Combined summaries with citations | Single-call Overview preset merging Summary + Key Points |
+| **Literature Review Table** | Core product feature; 35 pre-defined columns + custom; 99.4% accuracy claim | Custom column prompts on uploaded PDFs; methodology/findings/limitations default | Not primary feature | Fixed 5-column table (Title, Year, Methodology, Sample Size, Findings, Limitations); markdown output |
+| **Research Question Generator** | Not a named feature; gap identification available | Not explicitly offered | "Instant Gap Analysis" → implies next questions | 5-7 numbered questions with gap rationale; optionally chains from gap analysis output |
+| **Gap Analysis** | Implicit in research report | Available as column | Primary differentiator | Standalone preset (#101) built from existing Conclusions synthesis |
+| **Export** | CSV, BibTeX, Zotero | CSV, BibTeX, Zotero, Mendeley | PDF report | Markdown/HTML (existing); table markdown is copy-pasteable |
+| **Local/private** | Cloud-only | Cloud-only | Cloud-only | **Key differentiator** — all data stays local; no API calls to extract data (only to LLM) |
 
-**Key UX:** Transparent. User doesn't know a "store" was created. It just works.
+---
 
-### Flow 2: Embedding Abstracts in Search Notebook (Happy Path)
+## Implementation Notes for Each Feature
 
-1. User creates search notebook, runs OpenAlex query
-2. User clicks "Embed Abstracts" (or auto-embed on import)
-3. App detects no ragnar store exists for this notebook
-4. App creates `data/ragnar/{notebook_id}.ragnar.duckdb`
-5. App chunks each abstract (title + abstract text) with `chunk_with_ragnar()`
-6. App inserts chunks with origin `abstract:{abstract_id}`
-7. App builds index
-8. User can query abstracts via RAG
+### Feature 1: Unified Overview Preset (#98)
 
-**Key UX:** Same transparent pattern. Search notebooks and document notebooks behave identically.
+**What it is:** Replace separate Summarize and Key Points presets with one "Overview" button that produces both in a single LLM call.
 
-### Flow 3: Deleting a Notebook (Cleanup)
+**Prompt structure:**
+```
+System: You are a research synthesis assistant. Generate an Overview of the provided sources.
 
-1. User selects "Delete Notebook" from UI
-2. App shows confirmation modal: "This will permanently delete [notebook name] and all associated data."
-3. User confirms
-4. App calls `delete_notebook(con, notebook_id)`
-   - Deletes chunks from DuckDB (`chunks` table entries)
-   - Deletes documents/abstracts from DuckDB
-   - Deletes notebook record from DuckDB
-   - Deletes ragnar store file: `data/ragnar/{notebook_id}.ragnar.duckdb`
-5. UI updates to remove notebook from list
+OUTPUT FORMAT:
+## Summary
+[3-5 paragraph narrative synthesis of main themes, arguments, and findings]
 
-**Key UX:** Clean. No orphaned files. Storage reclaimed immediately.
+## Key Points
+- [Bullet 1 — most important finding or concept]
+- [Bullet 2]
+...
+[7-10 bullets total]
 
-**Complexity Note:** File deletion should happen AFTER DB commit succeeds (avoid orphaned DB records if file deletion fails).
+Cite sources using [Document Name] or [Paper Title] format throughout.
+```
 
-### Flow 4: Re-embedding After Corruption (Recovery)
+**Complexity:** LOW. Modify `generate_preset()` to add `overview` type. Replace two buttons in `mod_document_notebook_ui()` and `mod_search_notebook_ui()` with one.
 
-1. User opens notebook, tries to use RAG chat
-2. App attempts to connect to ragnar store: `connect_ragnar_store(path)`
-3. Connection fails (file corrupted, version mismatch, etc.)
-4. App detects failure, sets flag: `store_corrupted = TRUE`
-5. UI shows warning banner: "Search index is unavailable. [Re-build Index]"
-6. User clicks "Re-build Index"
-7. App shows modal: "Re-building index will re-process all documents and abstracts. This may take several minutes and consume API credits. Continue?"
-8. User confirms
-9. App shows progress modal: "Re-building index... (1/5 documents processed)"
-10. For each document in notebook:
-    - Re-chunk PDF with `chunk_with_ragnar()`
-    - Insert to NEW ragnar store (overwrite old corrupted file)
-11. For each abstract in notebook:
-    - Re-chunk abstract text
-    - Insert to ragnar store
-12. Build index
-13. Modal closes, banner disappears
-14. RAG chat works normally
+**Existing buttons:** Keep Summarize + Key Points as secondary options (don't delete); make Overview the primary/recommended button.
 
-**Key UX:** Transparent recovery. User understands what went wrong ("index unavailable") and how to fix it ("re-build"). Progress feedback during rebuild.
+---
 
-**Complexity Note:** Deleting old corrupted ragnar file and creating fresh one is simpler than trying to repair in-place.
+### Feature 2: Literature Review Table (#99)
 
-### Flow 5: Migrating Existing Shared Store (One-Time)
+**What it is:** A structured per-paper comparison matrix. For each paper in the notebook, extract: Title/Author/Year, Methodology, Sample Size, Key Findings, Limitations.
 
-**Context:** Existing Serapeum users have one shared `data/serapeum.ragnar.duckdb` with all notebooks' chunks mixed together.
+**Standard column set (v4.0):**
+1. Paper (Title, First Author, Year)
+2. Study Design / Methodology
+3. Sample / Dataset
+4. Key Findings
+5. Limitations
 
-1. App detects shared store exists but no per-notebook stores
-2. UI shows migration banner: "Your search index needs a one-time upgrade. [Migrate Now]"
-3. User clicks "Migrate Now"
-4. Modal explains: "This will create separate search indexes for each notebook. Your existing data will be preserved. Continue?"
-5. User confirms
-6. App shows progress: "Migrating notebooks... (1/3 complete)"
-7. For each notebook:
-   - Create `data/ragnar/{notebook_id}.ragnar.duckdb`
-   - Query DuckDB for all documents/abstracts in that notebook
-   - Re-chunk and insert to new per-notebook store
-8. After all notebooks migrated:
-   - Delete old shared `data/serapeum.ragnar.duckdb`
-   - Mark migration as complete in settings
-9. Modal closes, banner disappears
+**Prompt structure:**
+```
+System: You are a research extraction assistant. For each source provided, extract structured data.
 
-**Key UX:** One-time, guided migration. User understands why it's happening ("upgrade") and what to expect ("preserve data").
+OUTPUT FORMAT:
+Produce a markdown table with these exact columns:
+| Paper | Study Design | Sample | Key Findings | Limitations |
+|-------|-------------|--------|--------------|-------------|
+| [Title (Author, Year)] | [methodology] | [N=X or dataset description] | [main findings, 1-2 sentences] | [stated limitations] |
 
-**Complexity Note:** This can be a background script (`scripts/migrate_ragnar_stores.R`) run via startup check rather than in-app UI (reduces app complexity).
+Rules:
+- One row per source paper
+- Use "Not reported" when the source does not mention a field
+- Do not invent data; only extract what is explicitly stated
+- Keep each cell concise (max 40 words per cell)
+```
 
-## Complexity Analysis
+**Complexity:** MEDIUM. New function `generate_literature_table()` in `rag.R`. Needs context-building that passes per-paper metadata (not just chunks). May need to restructure context so LLM can attribute each row to the correct source.
 
-| Feature | Implementation Complexity | Why |
-|---------|--------------------------|-----|
-| Per-notebook store creation | LOW | Add `notebook_id` parameter to `get_ragnar_store()`, use `sprintf("data/ragnar/%s.ragnar.duckdb", notebook_id)` for path |
-| Automatic cleanup | MEDIUM | Must coordinate file deletion with DB transaction; ensure file deletion doesn't fail silently; handle case where file already deleted |
-| Manual re-build button | MEDIUM | Need UI button → server handler → loop through all docs/abstracts → re-chunk → re-insert → build index; progress feedback adds complexity |
-| Corruption detection | LOW | Wrap `connect_ragnar_store()` in `tryCatch()`, return NULL on failure; check NULL before retrieval |
-| Migration assistant | MEDIUM-HIGH | Parse existing shared store to map chunks to notebooks (requires origin field parsing); bulk re-insert; handle errors gracefully |
-| Incremental re-embedding | HIGH | Track content hash per document/abstract; compare on re-embed; only process changed items; manage partial index state |
-| Health check on startup | MEDIUM | Run background check when app starts; non-blocking (don't delay app load); store check results in reactive; show toast notification |
+**Context challenge:** The current `build_context()` pools all chunks. For a per-row table, the LLM needs to see one paper's content per row. For search notebooks (abstracts), this is straightforward — one abstract per paper. For document notebooks (PDFs), context needs to be grouped by document. Consider a `build_context_per_paper()` variant.
 
-## Expected Behavior Summary
+**Hallucination risk:** HIGH for numerical data (sample sizes, effect sizes). Mitigate with:
+- Explicit "Not reported" instruction (prevents LLM from inventing numbers)
+- Disclaimer in output reminding user to verify numerical claims
 
-### Store Lifecycle
+---
 
-- **Creation:** Automatic on first content (PDF upload or abstract embed)
-- **Location:** `data/ragnar/{notebook_id}.ragnar.duckdb` (deterministic from notebook ID)
-- **Deletion:** Automatic when notebook deleted (cascade cleanup)
-- **Corruption:** Detected on connect failure; user prompted to re-build
+### Feature 3: Research Question Generator (#102)
 
-### Re-Embedding Workflow
+**What it is:** Analyze the corpus to suggest 5-7 specific, researchable questions that address identified gaps or unexplored dimensions.
 
-- **Trigger:** Manual button click (notebook settings or error banner)
-- **Scope:** All documents + abstracts in that notebook
-- **Process:** Delete old store file → create new → re-chunk all content → insert → build index
-- **Feedback:** Progress modal with count (e.g., "Processing 3/10 documents...")
-- **Cost Warning:** User sees API cost estimate before confirming (based on total tokens to re-embed)
+**Input strategy:** Two modes:
+1. **Cold start:** Retrieves gap-relevant chunks directly (uses same query as Conclusions preset)
+2. **Chained:** User first runs Conclusions/Gap Analysis, then clicks "Generate Research Questions from this analysis" — passes previous output as additional context (higher quality)
 
-### User Experience Principles
+**Prompt structure:**
+```
+System: You are a research design consultant. Based on the provided sources and their identified gaps, suggest specific, feasible research questions that could advance the field.
 
-1. **Transparent creation:** Users don't manage stores; stores are implementation detail
-2. **Graceful recovery:** Corruption shows clear error + actionable fix ("Re-build Index")
-3. **No orphans:** Deleting notebook cleans up all associated data (DB + files)
-4. **Isolated by default:** Each notebook's search is independent (no cross-contamination)
-5. **Observable state:** Show when index was last built, file size, health status (after v1)
+OUTPUT FORMAT:
+## Suggested Research Questions
 
-## Comparison: Shared Store vs Per-Notebook Stores
+For each question, provide:
+**RQ[N]: [Question text]**
+*Rationale:* [1-2 sentences explaining what gap this addresses and why it is answerable]
 
-| Aspect | Shared Store (Current) | Per-Notebook Stores (Target) |
-|--------|------------------------|------------------------------|
-| **Isolation** | Logical (filter by notebook_id at query time) | Physical (separate files) |
-| **Corruption Impact** | Breaks ALL notebooks | Breaks only affected notebook |
-| **Cleanup** | Manual (orphaned chunks if not filtered correctly) | Automatic (delete file) |
-| **Concurrency** | Single write bottleneck | Parallel writes possible (different notebooks) |
-| **Storage** | Single file grows indefinitely | Multiple smaller files, easier to manage/backup |
-| **Migration** | N/A | Required for existing users (one-time) |
-| **Complexity** | Simpler (one store to manage) | Slightly more complex (per-notebook paths) |
+Rules:
+- Generate 5-7 questions
+- Questions must be specific enough to be researchable (not "more research is needed on X")
+- Ground each question in an explicit gap or limitation from the sources
+- Include methodological hints where appropriate ("using longitudinal design", "in population X")
+```
 
-**Recommendation:** Per-notebook stores align with DuckDB's design philosophy (separate files for isolation), provide better failure isolation, and enable cleaner lifecycle management. Migration cost is one-time and automatable.
+**Complexity:** MEDIUM. New function `generate_research_questions()` in `rag.R`. The cold-start path reuses `search_chunks_hybrid()` with gap-focused query. The chained path requires passing prior synthesis output as context.
+
+---
+
+## Complexity vs. Value Summary
+
+| Feature | Complexity | v4.0 Value | Key Risk |
+|---------|------------|------------|----------|
+| Unified Overview (#98) | LOW | HIGH — immediate UX improvement for all users | None significant |
+| Literature Review Table (#99) | MEDIUM | VERY HIGH — core research workflow, highly requested | Per-paper context grouping; hallucination in numerical fields |
+| Research Question Generator (#102) | MEDIUM | HIGH — completes gap→question workflow | Quality depends on corpus size; weak corpus = generic questions |
+
+---
 
 ## Sources
 
-**Database Isolation Patterns:**
-- [Neon: One Database per User, Zero Complexity](https://neon.com/use-cases/database-per-tenant)
-- [Data Isolation and Sharding Architectures for Multi-Tenant Systems](https://medium.com/@justhamade/data-isolation-and-sharding-architectures-for-multi-tenant-systems-20584ae2bc31)
-- [SQLite for Modern Apps: A Practical First Look (2026)](https://thelinuxcode.com/sqlite-for-modern-apps-a-practical-first-look-2026/)
+**Competitor Features:**
+- [Elicit: AI for Scientific Research](https://elicit.com/) — table extraction, systematic review mode
+- [Elicit Systematic Review announcement](https://elicit.com/blog/systematic-review/) — Feb 2025 feature additions
+- [SciSpace Literature Review: 2025 Review](https://effortlessacademic.com/scispace-an-all-in-one-ai-tool-for-literature-reviews/) — MEDIUM confidence (WebSearch + WebFetch)
+- [AnswerThis: Research Gap Finder](https://answerthis.io/ai/research-gap-finder) — gap-to-question workflow
 
-**DuckDB Best Practices:**
-- [DuckDB Multi-Database Support](https://duckdb.org/2024/01/26/multi-database-support-in-duckdb)
-- [DuckDB Multi-Process Concurrency Discussion](https://github.com/duckdb/duckdb/discussions/5946)
-- [Separating Storage and Compute in DuckDB](https://motherduck.com/blog/separating-storage-compute-duckdb/)
+**Extraction Accuracy Research:**
+- [Data Extractions Using Elicit and Human Reviewers (Bianchi, 2025)](https://pmc.ncbi.nlm.nih.gov/articles/PMC12462964/) — systematic comparison, PMC
+- [Evaluating Elicit as Semi-Automated Second Reviewer (Hilkenmeier et al., 2025)](https://journals.sagepub.com/doi/10.1177/08944393251404052) — extraction accuracy nuances
 
-**RAG Vector Store Management:**
-- [ZenML: 10 Best Vector Databases for RAG Pipelines](https://www.zenml.io/blog/vector-databases-for-rag)
-- [Meilisearch: 10 Best RAG Tools and Platforms (2026)](https://www.meilisearch.com/blog/rag-tools)
-- [OpenAI Vector Stores for RAG: A Practical Guide (2025)](https://www.eesel.ai/blog/openai-vector-stores)
+**Research Question Frameworks:**
+- [PICO Question Builder — INRA.AI](https://www.inra.ai/question-builder) — PICO framework for systematic review questions
+- [How to Conduct Research Gap Analysis — Anara](https://anara.com/blog/ai-for-finding-research-gaps) — gap analysis to question generation workflow
 
-**Corruption Recovery and Data Integrity:**
-- [Zilliz: Safeguard Data Integrity - Backup and Recovery in VectorDBs](https://zilliz.com/learn/vector-database-backup-and-recovery-safeguard-data-integrity)
-- [Data Quality for Vector Databases](https://www.telm.ai/blog/data-quality-for-vector-databases/)
-- [Safeguarding Data Integrity: Best Practices for Backup and Recovery in Vector Databases](https://medium.com/@alexchen3292/safeguarding-data-integrity-best-practices-for-backup-and-recovery-in-vector-databases-cdebff41ad09)
-
-**UX Best Practices:**
-- [User Friendly Document Management Experience | Docupile](https://docupile.com/user-experience-of-a-document-management/)
-- [10 UX Best Practices to Follow in 2026](https://uxpilot.ai/blogs/ux-best-practices)
-- [Manual vs. Automated Indexing: Pros and Cons](https://indexplease.com/blog/manual-vs-automated-indexing-pros-cons/)
-
-**Tenant Lifecycle Management:**
-- [SAP: Tenant Lifecycle Management](https://architecture.learning.sap.com/docs/ref-arch/d31bedf420/3)
-- [Particular: Multi-tenant Support - SQL Persistence](https://docs.particular.net/persistence/sql/multi-tenant)
+**Literature Review AI Tool Landscape:**
+- [8 Best AI Tools for Literature Review (Dupple, 2026)](https://dupple.com/learn/best-ai-for-literature-review)
+- [AI Tools for Literature Review — Anara blog](https://anara.com/blog/ai-for-literature-review)
 
 ---
-*Feature research for: Per-Notebook Ragnar Store Management*
-*Researched: 2026-02-16*
+*Feature research for: Serapeum v4.0 Stability + Synthesis — Overview Preset, Literature Review Table, Research Question Generator*
+*Researched: 2026-02-18*

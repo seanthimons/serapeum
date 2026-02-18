@@ -1,285 +1,219 @@
 # Project Research Summary
 
-**Project:** Ragnar RAG Overhaul (Per-Notebook Vector Stores)
-**Domain:** RAG (Retrieval-Augmented Generation) backend migration in R/Shiny
-**Researched:** 2026-02-16
+**Project:** Serapeum v4.0 — Stability + Synthesis
+**Domain:** Local-first academic research assistant (R/Shiny RAG application)
+**Researched:** 2026-02-18
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Serapeum currently uses a single shared ragnar store for all notebooks, leading to orphaned data, no isolation between notebooks, and brittle metadata handling. The research validates migrating to per-notebook ragnar stores as the correct approach: one DuckDB file per notebook in `data/ragnar/{notebook_id}.duckdb`. This aligns with DuckDB's single-writer design philosophy and enables clean notebook deletion without cross-contamination.
+Serapeum v4.0 is a milestone on an existing, well-architected 14,000+ LOC R/Shiny codebase. The three new synthesis features (Unified Overview preset, Literature Review Table, Research Question Generator) follow a clear pattern: all new user-facing outputs should route through the existing `generate_preset()` / `chat_completion()` pipeline in `R/rag.R`, render as GFM markdown (using table syntax for structured output), and surface in the existing chat panel via `commonmark::markdown_html()`. Only two new R packages are needed — `DT` (interactive table widget with export) and `writexl` (Excel export) — with all other functionality delivered by extending existing infrastructure. The recommended implementation approach is incremental: tackle tech debt and bugs first to stabilize the foundation, then add features in ascending complexity order (Overview -> Research Questions -> Literature Review Table).
 
-The recommended approach uses ragnar 0.3.0 with version 2 store format, encoding `section_hint` metadata directly in ragnar's `origin` field to avoid post-retrieval database lookups. The migration path is clear: create per-notebook stores for new content, migrate existing shared store data via one-time script, then remove legacy embedding code paths entirely. This eliminates 220+ lines of fallback code while improving retrieval performance.
+The primary risk in this milestone is structured LLM output reliability for the Literature Review Table. LLMs produce syntactically valid markdown or JSON that fails schema adherence: missing rows, wrong column names, or hallucinated numerical values. OpenRouter's Response Healing fixes syntax only and explicitly does not fix schema violations. The correct mitigation is defensive R-side validation after parsing, a "Not reported" instruction in the prompt, a row count cap (30 papers per call), and a fallback to a user-facing error message rather than a crash. A secondary risk is the existing DuckDB connection leak in `search_chunks_hybrid()` (issue #117), which on Windows causes file locking that blocks `rebuild_notebook_store()` and amplifies as each new synthesis feature adds more callers. This must be fixed before new features are implemented.
 
-Key risk is DuckDB connection management: multiple open ragnar stores can cause file locking errors. Mitigation requires explicit connection lifecycle management with `on.exit()` cleanup in all reactive contexts and a single-active-store pattern during notebook switching. Secondary risk is data loss if legacy embeddings are deleted before validating migration completeness. Mitigation: dual-write period with validation before any destructive operations.
+The competitive landscape (Elicit, SciSpace, AnswerThis) confirms the v4.0 feature set is well-calibrated: unified overview and literature review table are table stakes, research question generation from gap analysis is a differentiator, and custom column prompts / PICO framing / CSV export are correctly deferred. The local-first, privacy-preserving architecture remains a strong competitive differentiator that no major competitor offers.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Ragnar 0.3.0 is Posit's purpose-built RAG package for R, using DuckDB 1.3.2 with automatic VSS extension loading. Version 2 stores support document-level storage with overlapping chunks and de-overlapping at retrieval. The package handles embedding and indexing transparently, with hybrid VSS + BM25 search out of the box.
+The base stack (R, Shiny, bslib, DuckDB, OpenRouter, ragnar, igraph, visNetwork, commonmark, mirai, ExtendedTask) is already validated and not re-researched. Two new packages are needed: `DT` (v0.34.0) for interactive HTML table rendering with built-in CSV export via the Buttons extension, and `writexl` (v1.5.4) for zero-dependency Excel export. All other features extend existing dependencies — notably `jsonlite::fromJSON()` for parsing structured LLM output, `httr2` for the `response_format` parameter addition to `chat_completion()`, and `commonmark` for rendering GFM markdown tables (already supported via `extensions = TRUE`).
 
-**Core technologies:**
-- **ragnar 0.3.0**: Vector store management with hybrid retrieval — Posit's official RAG solution, DuckDB-native, automatic VSS extension handling
-- **DuckDB 1.3.2**: Embedded database for vector storage — lightweight, no-server, native VSS support, single-writer concurrency model
-- **uuid**: Per-notebook store identifiers — filesystem-safe IDs for deterministic path construction (`data/ragnar/{notebook_id}.duckdb`)
+**Core technology additions:**
+- `DT` 0.34.0: Interactive table widget with Buttons extension for CSV export — Shiny-native, no Java required; use `DTOutput()`/`renderDT()` (NOT `dataTableOutput()`/`renderDataTable()`) to avoid Shiny namespace conflicts
+- `writexl` 1.5.4: Excel export via `write_xlsx()` — zero dependencies, benchmark fastest for flat data frame output
+- `jsonlite::fromJSON()` (existing): Parse structured JSON from LLM with `simplifyDataFrame = TRUE`
+- `httr2` `response_format` parameter (existing): Add optional `json_object` mode to `chat_completion()` — use `json_object` not `json_schema` because `json_schema` fails on budget models users may select
+- `commonmark` GFM table extension (existing): Already renders markdown tables via `extensions = TRUE`; CSS styling in `app.R` needed for Bootstrap 5 table appearance
 
-**Version strategy:**
-- Use version 2 stores for all new notebooks (MarkdownDocumentChunks input, ragnar handles hashing)
-- Keep version 1 for existing shared store during migration (manual digest::digest() hashing)
-- Remove digest dependency once migration completes
+**Libraries evaluated and rejected:** `reactable` (no built-in export), `gt`/`flextable` (static report tools, not interactive Shiny), `openxlsx2` (overkill for flat export), `json_schema` mode (fails on budget models), `ellmer` (unnecessary migration of working client).
 
 ### Expected Features
 
-The research identifies clear table stakes vs differentiators. Users expect transparent store creation (no manual setup), automatic cleanup on notebook deletion, and seamless switching between notebooks. These are non-negotiable.
+Research against production tools (Elicit, SciSpace, AnswerThis) confirms the feature prioritization.
 
 **Must have (table stakes):**
-- **Automatic store creation on first content** — create ragnar store on first PDF upload or abstract embed, users shouldn't manage stores manually
-- **Automatic cleanup on notebook deletion** — cascade delete ragnar store file when notebook deleted, no orphaned data
-- **Seamless notebook switching** — RAG retrieval automatically uses correct per-notebook store without filtering
-- **Transparent re-embedding on corruption** — if store corrupted, show "Re-build Index" button with progress feedback
+- Unified Overview preset (#98) — running two separate presets for a complete picture is friction; every major tool defaults to a combined overview
+- Literature Review Table (#99) — per-paper comparison matrix is the primary structured output researchers expect; Elicit built its entire product around this feature
+- Per-paper citation attribution in the table — each row must map to a source paper; researchers verify claims against sources
+- Research Question Generator (#102) — gap-to-question flow is a natural research workflow expected by users of AnswerThis and Elicit
+- AI-generated content disclaimer on all new outputs — already required by existing presets; omitting it on new features would be inconsistent
 
-**Should have (competitive):**
-- **Storage usage visibility** — show per-notebook ragnar store file size in UI, helps users understand storage impact
-- **Store migration assistant** — one-click migration from shared store to per-notebook stores for existing users
-- **Health check with self-repair** — background check on app startup, auto-rebuild if corruption detected (non-blocking toast)
+**Should have (competitive differentiators for v4.x):**
+- Gap Analysis Report preset (#101) — extract gap analysis from Conclusions into a standalone named preset; builds on existing infrastructure with no new patterns
+- Methodology Extractor preset (#100) — methods-section-targeted retrieval; depends on section_hint fix (#118) being complete for reliable results
+- PICO-structured output toggle for Research Questions — high value for health/biomedical researchers; defer until field usage confirmed
 
-**Defer (v2+):**
-- **Incremental re-embedding** — only re-embed changed content (requires content hash tracking, adds complexity)
-- **Export/import notebook with store** — package notebook data + ragnar DB for sharing/backup
-- **Cross-notebook search** — search all notebooks at once (contradicts isolation goal, separate feature)
+**Defer (v5+):**
+- Custom dimension columns in Literature Review Table — requires UI design + dynamic prompt construction; ship fixed standard columns first and validate demand
+- CSV export specifically for Literature Review Table — markdown tables are already copy-pasteable; defer dedicated CSV export until post-v4.0 demand confirmed
+- Editable table cells — significant Shiny state management complexity; export-to-Excel workflow covers the use case adequately
 
-**Anti-features (avoid):**
-- Manual store path configuration (support burden, broken paths)
-- Shared store with namespace filtering (defeats isolation, corruption breaks all notebooks)
-- Real-time background re-indexing (PDFs are immutable, no clear trigger)
+**Anti-features confirmed by research (do not build):**
+- Auto-refresh table on paper additions — expensive LLM call; keep generation manual/button-triggered
+- Real-time streaming for table generation — parsing partial markdown tables is fragile; generate full response then render
+- Research question scoring/ranking — LLM judging LLM outputs adds a second API call for marginal value; researchers are better judges of field priorities
 
 ### Architecture Approach
 
-The architecture shifts from centralized filtering to distributed isolation. Current state has all chunks in one shared ragnar store with post-retrieval filtering by notebook_id. Target state has one ragnar store per notebook, eliminating filtering entirely. Metadata (section_hint) moves from separate chunks table to encoded in ragnar's origin field.
+All new synthesis features integrate into the existing four-layer architecture (Shiny UI -> Module layer -> Business logic in `R/rag.R` -> Data in DuckDB/ragnar stores) without structural changes. The existing preset pipeline — button click -> `is_processing(TRUE)` -> append message -> call `R/rag.R` function -> `chat_completion()` -> markdown string -> `commonmark::markdown_html()` — handles all three new features. The Literature Review Table uses GFM markdown tables (not JSON-parsed HTML tables) to stay within this pipeline without requiring message object changes. The critical architectural constraint is that Literature Review Table retrieval must use direct SQL (`dbGetQuery` for all abstracts) rather than RAG top-k retrieval, because a comparison matrix requires complete coverage, not semantic relevance ranking.
 
-**Major components:**
-1. **Per-notebook store path construction** — deterministic `data/ragnar/{notebook_id}.duckdb` from notebook ID, no DB state needed
-2. **Store lifecycle binding** — create ragnar store during notebook creation, delete during notebook deletion via `delete_ragnar_store()`
-3. **Metadata encoding in origin field** — encode `section_hint` as `"{filename}#page={N}|section={hint}"` to survive ragnar persistence
-4. **Ragnar-only retrieval path** — remove legacy cosine similarity fallback, require ragnar, fail fast if unavailable
+**Major components to add or modify:**
 
-**Data flow changes:**
-- Remove: chunks table CRUD, search_chunks_hybrid filtering (db.R:848-875), dual embedding paths (pdf.R:263-299, rag.R:94-121)
-- Add: get_notebook_ragnar_path(), delete_ragnar_store(), section_hint encoding/decoding
+1. `R/rag.R` — Add `generate_lit_review_table()` (~60 lines) and `generate_research_questions()` (~50 lines); add `"overview"` case to `generate_preset()` presets list; owns all prompt text and retrieval strategy
+2. `mod_document_notebook.R` — Replace `btn_summarize` + `btn_keypoints` with `btn_overview`; no new files needed
+3. `mod_search_notebook.R` — Add `btn_lit_review` and `btn_rq_generator` to offcanvas preset row; both are additive changes
+4. `R/db.R` — Add `on.exit()` connection cleanup in `search_chunks_hybrid()` (5-line fix for issue #117)
+5. `R/_ragnar.R` — Encode `section_hint` in `insert_chunks_to_ragnar()` (issue #118 fix); verify then delete dead code `with_ragnar_store()` / `register_ragnar_cleanup()` (issue #119)
+6. `app.R` — Add `.chat-markdown table` CSS via `tags$style()` for Bootstrap 5 table styling, scoped to existing `.chat-markdown` div class so it cannot leak to other UI sections
 
-**Build order:**
-1. Foundation: Add path helpers and metadata encoding (no breaking changes)
-2. Module updates: Switch to notebook-scoped paths (parallel-safe)
-3. Simplification: Remove legacy code paths (breaking changes)
-4. Cleanup: Drop chunks table, delete shared store (after migration validated)
+**Patterns to follow (critical for consistency):**
+- Keep prompt text in `R/rag.R`, not in module observers — existing pattern that keeps prompts testable and discoverable in one file
+- Keep message objects as `{role, content, timestamp, preset_type}` — do not add new fields; all differentiation belongs in the content string
+- Use GFM markdown tables for structured output — do NOT add `content_type` branching to the message pipeline
+
+**Anti-patterns confirmed by architecture research:**
+- Using RAG top-k retrieval for Literature Review Table (would miss papers — comparison matrix needs complete coverage)
+- Returning structured data through the message pipeline via `content_type = "table"` (complicates export, breaks string assumptions)
+- Putting prompt text directly in module `observeEvent` handlers (belongs in `R/rag.R`)
 
 ### Critical Pitfalls
 
-1. **DuckDB connection locking** — Multiple ragnar stores open simultaneously cause "database locked" errors due to DuckDB's single-writer model. Mitigation: single-active-store pattern, explicit `on.exit()` cleanup, read-only connections for retrieval where possible.
+1. **LLM schema adherence vs. syntax correctness are different problems** — OpenRouter Response Healing (launched 2025) fixes syntax errors only; it explicitly does NOT fix wrong field names, missing rows, or inconsistent column counts. Avoid by: using `json_object` mode with explicit prompt-guided structure (not `json_schema` which fails on budget models), validating with `tryCatch(jsonlite::fromJSON(...))` plus R-side field presence checks, returning a user-facing error on failure, capping at 30 papers per call, and including "Not reported" instruction to prevent hallucinated numbers.
 
-2. **Data loss from premature legacy deletion** — Deleting chunks.embedding column before validating ragnar migration completeness causes permanent data loss. Mitigation: dual-write period, migration_status table tracking per-notebook completion, validation before any destructive operations.
+2. **Merging presets breaks existing code in multiple locations** — `btn_summarize` and `btn_keypoints` IDs appear in at least four places: `presets` list, `observeEvent` bindings, button `inputId` values, and tests. Avoid by: grepping all occurrences across `R/`, `tests/`, and `app.R` before touching code; updating tests first; keeping `"summarize"` as an alias in `generate_preset()` for one phase before removing.
 
-3. **Ragnar API breaking changes** — Ragnar 0.x.x signals pre-1.0 instability, API may change between versions. Mitigation: pin ragnar version in install script, add version detection guard, wrap all ragnar calls in abstraction layer (R/_ragnar.R).
+3. **DuckDB connection leak in `search_chunks_hybrid()` blocks Windows file operations** — every RAG call opens a DuckDB connection that is not closed, holding Windows file locks that block `delete_notebook_store()` and `rebuild_notebook_store()`. Avoid by: adding `on.exit({ DBI::dbDisconnect(store@con, shutdown = TRUE) })` for internally-created connections; fixing this BEFORE adding new synthesis features that multiply the callers; using `on.exit(..., add = TRUE)` to ensure the cleanup fires on error paths too.
 
-4. **Section_hint metadata loss** — Ragnar doesn't natively support custom metadata like section_hint, conclusion synthesis breaks if lost. Mitigation: encode section_hint in origin field as `|section={hint}`, parse on retrieval.
+4. **`section_hint` not encoded in PDF ragnar origins causes silent retrieval degradation** — structured synthesis features using `section_filter` silently fall back to "general" for pre-fix notebooks, giving broader-than-expected results with no error. Avoid by: fixing `insert_chunks_to_ragnar()` to call `encode_origin_metadata()`; adding fallback in new synthesis functions (if filtered results < 3, retry without filter); documenting degraded behavior for pre-fix notebooks.
 
-5. **Shiny reactive context leaks** — Ragnar store connections opened in reactive contexts don't clean up, memory leaks accumulate. Mitigation: explicit `on.exit()` cleanup, session-level resource tracking with `session$onSessionEnded()`, test with automated notebook switching.
+5. **Dead code removal risks hidden callers in a 14,000+ LOC codebase** — `with_ragnar_store()` and `register_ragnar_cleanup()` look unused but may exist in tests or `.planning/` files; `with_ragnar_store()` implements the same `on.exit()` pattern needed for the connection leak fix. Avoid by: resolving the connection leak first (Pitfall 3), then deciding whether to delete or repurpose `with_ragnar_store()`; running full test suite before and after deletion.
 
 ## Implications for Roadmap
 
-Based on research, suggested 6-phase structure addressing dependencies and pitfalls:
+Based on combined research, the optimal phase structure is 4 phases matching the natural dependency graph: stabilize first, then add features in ascending complexity order.
 
-### Phase 1: Foundation (Path Helpers & Metadata Encoding)
+### Phase 25: Bug Fixes and Tech Debt
 
-**Rationale:** Non-breaking foundation enables all subsequent work. Path construction and metadata encoding can be tested independently without touching existing store logic.
+**Rationale:** Tech debt items (#117 connection leak, #118 section_hint encoding, #119 dead code, #111 modal repeat, #110 seed paper, #116 cost pricing, #86 refresh behavior) are self-contained, reduce noise during feature work, and — critically — the connection leak fix (#117) is a prerequisite for adding more synthesis callers. The preset merge analysis also requires a grep audit before any code changes in Phase 26.
 
-**Delivers:**
-- `get_notebook_ragnar_path(notebook_id)` function for deterministic paths
-- `delete_ragnar_store(notebook_id)` function for cleanup
-- Section_hint encoding in `insert_chunks_to_ragnar()` via origin field
-- Section_hint decoding in `retrieve_with_ragnar()` via regex parsing
+**Delivers:** Stable foundation with no file-locking risk on Windows; correct section filtering for newly uploaded PDFs; clean codebase (dead code removed after connection leak fix decision); bug-free paper deletion modal and seed paper flow; current model pricing in static table.
 
-**Addresses:** Anti-pattern of storing paths in DB (FEATURES.md), metadata loss pitfall (PITFALLS.md #4)
+**Addresses:** Overview preset merge safety (grep audit in this phase enables safe execution in Phase 26); structured synthesis foundation (section_hint fix enables section-targeted retrieval for subsequent features)
 
-**Avoids:** Premature breaking changes, enables testing path construction before switching modules
+**Avoids:** Pitfalls 2 (preset merge breaks observers), 3 (connection leak amplification), 4 (silent section filtering failure), 5 (dead code removal with hidden callers)
 
-### Phase 2: Per-Notebook Store Creation
+**Research flag:** No additional research needed. All root causes are identified from direct code analysis with specific file and line references. All fixes are 5-20 line changes.
 
-**Rationale:** Core feature enabling isolation. Must work before migration or module updates. Documents table already has notebook_id foreign key, so store path construction is straightforward.
+### Phase 26: Unified Overview Preset (#98)
 
-**Delivers:**
-- Notebook creation triggers ragnar store creation
-- Version 2 stores for new notebooks (MarkdownDocumentChunks input)
-- Automatic store directory creation (`data/ragnar/`)
-- Error handling for missing API keys (graceful degradation)
+**Rationale:** Lowest complexity new feature. No new files, no new libraries, single prompt addition in `generate_preset()`. Validates the "merge buttons without breaking things" approach before tackling heavier features. Delivers immediate UX improvement for all users on every notebook.
 
-**Uses:** ragnar 0.3.0 version 2 stores (STACK.md), get_notebook_ragnar_path() from Phase 1
+**Delivers:** Single "Overview" button combining Summary + Key Points in one LLM call; both modules updated (document notebook + search notebook); existing Summarize/Key Points buttons kept as secondary options initially.
 
-**Implements:** Store lifecycle binding pattern (ARCHITECTURE.md Pattern 2)
+**Uses:** `generate_preset()` (existing); `commonmark::markdown_html()` (existing); no new libraries
 
-**Addresses:** Automatic store creation table stake (FEATURES.md)
+**Implements:** `"overview"` case added to `presets` list in `R/rag.R`; button replacement in both module UI files; single `handle_preset("overview", "Overview")` handler replacing two handlers
 
-**Avoids:** DuckDB connection locking by creating stores lazily, only when first content added
+**Avoids:** Pitfall 2 (preset merge) — Phase 25 grep audit is completed first; `"summarize"` kept as alias in `generate_preset()` during transition
 
-### Phase 3: Per-Notebook Store Deletion
+**Research flag:** No additional research needed. Identical to existing preset pattern with documented files and change locations.
 
-**Rationale:** Complete lifecycle management before modules start using per-notebook stores. Prevents orphan accumulation. Must cascade properly with DuckDB transaction.
+### Phase 27: Research Question Generator (#102)
 
-**Delivers:**
-- Notebook deletion triggers ragnar store file deletion
-- Cleanup timing: after DB commit succeeds (avoid orphaned DB records)
-- File existence check before deletion (idempotent)
-- Logging for debugging orphaned stores
+**Rationale:** Medium complexity, follows the exact same pattern as `generate_conclusions_preset()`. Gap-to-question workflow is well-understood from competitor analysis. Introduces the "chained synthesis" concept (run gap analysis first, then generate questions) without requiring structured table output, validating the new function pattern before the more complex Literature Review Table.
 
-**Addresses:** Automatic cleanup table stake (FEATURES.md)
+**Delivers:** New `generate_research_questions()` function in `R/rag.R`; new `btn_rq_generator` button in search notebook offcanvas; 5-7 gap-grounded research questions as numbered markdown list with per-question rationale and gap citation.
 
-**Avoids:** Orphan accumulation problem from current shared store
+**Uses:** `search_chunks_hybrid()` (existing, with #117 fix from Phase 25); gap-focused retrieval query ("research gaps limitations future work unanswered questions"); `chat_completion()` (existing); markdown output mode (not JSON mode)
 
-**Research flag:** Test file deletion timing with transaction rollback scenarios
+**Implements:** `generate_research_questions()` in `R/rag.R`; `btn_rq_generator` and handler in `mod_search_notebook.R`
 
-### Phase 4: Module Updates (Document & Search Notebooks)
+**Avoids:** Over-engineering — use markdown mode not JSON mode for question output (per STACK.md recommendation; numbered markdown list is easier to read and export than parsed JSON list)
 
-**Rationale:** Switch modules to use notebook-scoped paths. Parallel-safe since document and search notebooks are independent modules. Can test each module separately.
+**Research flag:** No additional research needed. Direct copy of `generate_conclusions_preset()` pattern with a new prompt.
 
-**Delivers:**
-- `mod_document_notebook.R` uses `get_notebook_ragnar_path(notebook_id)` for PDF indexing
-- `mod_search_notebook.R` uses `get_notebook_ragnar_path(notebook_id)` for abstract indexing
-- Both modules pass notebook_id to ragnar functions
-- Progress feedback for indexing operations
+### Phase 28: Literature Review Table (#99)
 
-**Addresses:** Seamless notebook switching table stake (FEATURES.md)
+**Rationale:** Most complex feature, done last. Requires CSS addition, a different retrieval strategy (full SQL query rather than RAG), structured output quality risk from LLM compliance, and new packages. Building after Phases 25-27 ensures the connection leak fix is in place (reduces file locking risk during testing), the section_hint fix improves retrieval quality for newly uploaded PDFs, and the team has practice with the preset function pattern from Phase 27.
 
-**Avoids:** Post-retrieval filtering complexity (current db.R:860-874 logic)
+**Delivers:** New `generate_lit_review_table()` function using direct SQL retrieval (all abstracts, not RAG top-k); GFM markdown table output in chat with 5 standard columns (Author/Year, Methodology, Sample, Key Findings, Limitations); Bootstrap 5 table styling in `app.R`; export via existing markdown/HTML export mechanism; optional `DT` widget path if GFM quality proves poor.
 
-**Research flag:** Test concurrent PDF upload in notebook A and abstract embed in notebook B (connection locking risk)
+**Uses:** `DT` 0.34.0 (new) + `writexl` 1.5.4 (new) for enhanced export; direct `dbGetQuery` for all-paper retrieval; `commonmark::markdown_html(extensions = TRUE)` (existing); `response_format = list(type = "json_object")` optional addition to `chat_completion()` for JSON fallback path
 
-### Phase 5: Migration Script (Shared Store → Per-Notebook)
+**Implements:** `.chat-markdown table` CSS in `app.R` via `tags$style()`; `generate_lit_review_table()` in `R/rag.R`; `btn_lit_review` and handler in `mod_search_notebook.R`; optional extension to `mod_document_notebook.R`
 
-**Rationale:** One-time data migration for existing users. Separate script vs in-app feature reduces app complexity. Must run before Phase 6 legacy cleanup.
+**Avoids:** Pitfall 1 (LLM schema adherence) via "Not reported" instruction + 30-paper cap + row count validation + user-facing error on parse failure; Anti-Pattern 1 (using RAG for lit review — direct SQL is required for complete coverage); Anti-Pattern 2 (returning structured data through message pipeline — use GFM markdown string instead)
 
-**Delivers:**
-- `scripts/migrate_ragnar_stores.R` script
-- Reads all notebooks, creates per-notebook stores
-- Copies chunks from shared store based on notebook_id
-- Validation: chunk count matches between legacy and ragnar
-- Migration status tracking table with per-notebook completion flags
-
-**Addresses:** Store migration assistant differentiator (FEATURES.md)
-
-**Avoids:** Data loss pitfall (PITFALLS.md #2) via validation before destructive operations
-
-**Research flag:** HIGH priority — test migration with large shared store (10k+ chunks), measure API cost and time
-
-### Phase 6: Legacy Cleanup (Remove Fallback Code)
-
-**Rationale:** Final simplification after migration validated. Removes 220+ lines of fallback code. Must wait until all notebooks migrated successfully.
-
-**Delivers:**
-- Remove legacy embedding path from `R/pdf.R` (lines 263-299)
-- Remove legacy retrieval fallback from `R/rag.R` (lines 94-121)
-- Remove `search_chunks_hybrid()` filtering logic from `R/db.R` (lines 848-875)
-- Drop `chunks.embedding` column (keep section_hint metadata in chunks table as backup)
-- Delete shared `data/serapeum.ragnar.duckdb`
-- Remove digest dependency (version 2 stores use rlang::hash internally)
-
-**Addresses:** Simplification goal (ARCHITECTURE.md: "Removes dual maintenance burden")
-
-**Avoids:** Keeping anti-pattern of dual persistence indefinitely (PITFALLS.md Tech Debt)
-
-**Research flag:** Retain chunks table (without embedding) as metadata sidecar in case origin field encoding proves insufficient
+**Research flag:** LLM table compliance testing required during implementation. Test with notebooks of 3, 10, and 20 papers. If GFM output quality is poor with the configured default model, the JSON path (`chat_completion()` with `response_format` + `DT` widget) is pre-documented in ARCHITECTURE.md as the fallback — implement during this phase if needed.
 
 ### Phase Ordering Rationale
 
-- **Phase 1 before all others:** Path helpers and metadata encoding are non-breaking, required by all subsequent phases, can be tested independently
-- **Phase 2-3 before 4:** Lifecycle management must be complete before modules start creating per-notebook stores
-- **Phase 4 before 5:** Modules must support per-notebook paths before migration creates those stores
-- **Phase 5 before 6:** Legacy data must migrate before legacy code can be removed
-- **Phase 3 and 4 are partially parallel:** Module updates can start while deletion logic is being implemented, but both must complete before Phase 5
-
-**Dependency chain:**
-```
-Phase 1 (foundation)
-    └──> Phase 2 (creation) + Phase 3 (deletion)
-              └──> Phase 4 (module updates)
-                      └──> Phase 5 (migration)
-                              └──> Phase 6 (cleanup)
-```
-
-**How this avoids pitfalls:**
-- Connection locking (P1): Single-active-store pattern enforced in Phase 4
-- Data loss (P2): Validation gates in Phase 5 before Phase 6 cleanup
-- API breaking changes (P3): Version pinning in Phase 1
-- Metadata loss (P4): Encoding implemented in Phase 1, tested in Phase 2
-- Reactive leaks (P5): Cleanup pattern established in Phase 4
+- Phase 25 first because the connection leak (#117) is a multiplier risk (each new feature adds callers) and the preset merge grep audit is a prerequisite for Phase 26 safety
+- Phase 26 before 27/28 because it validates the button-replacement pattern with zero data flow change before adding new `R/rag.R` functions
+- Phase 27 before 28 because it introduces new functions in `R/rag.R` without the structured output complexity, proving the file modification approach in a lower-risk context
+- Phase 28 last because it has the most moving parts (CSS, retrieval strategy change, LLM compliance risk, new packages) and benefits from all prior fixes being in place
 
 ### Research Flags
 
-**Phases likely needing deeper research during planning:**
+**No additional research needed for any phase** — all implementation details are documented in ARCHITECTURE.md and STACK.md with specific file names, line number references, and code-level patterns confirmed by direct codebase analysis.
 
-- **Phase 3 (Deletion):** Transaction coordination between DuckDB commit and file deletion timing — needs testing with rollback scenarios to prevent orphaned records
-- **Phase 5 (Migration):** Large-scale migration performance and API cost — estimate time and OpenRouter API cost for migrating 10k+ chunks, may need batching/rate limiting
+**Phase requiring implementation validation during execution:**
+- **Phase 28 (Literature Review Table):** LLM compliance with "output ONLY a table" instructions is model-dependent and cannot be validated pre-implementation. Test with real notebook data before considering phase complete. The JSON fallback path is pre-documented if needed.
 
-**Phases with standard patterns (skip research-phase):**
-
-- **Phase 1 (Foundation):** Path construction is straightforward string formatting, metadata encoding is regex-based parsing (well-documented R patterns)
-- **Phase 2 (Creation):** Ragnar store creation API well-documented in package vignette
-- **Phase 4 (Module Updates):** Shiny module patterns are standard, just parameter passing
-- **Phase 6 (Cleanup):** Code deletion and schema changes (low risk, can rollback)
+**Phases with fully documented patterns (standard execution, no additional research):**
+- **Phase 25:** All bug root causes confirmed by direct code analysis with line references
+- **Phase 26:** Single prompt addition, identical to existing pattern
+- **Phase 27:** Direct copy of `generate_conclusions_preset()` pattern with a new prompt
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | ragnar 0.3.0 package documentation verified via help(), DuckDB 1.3.2 in renv.lock, live testing of VSS extension loading |
-| Features | MEDIUM | Table stakes validated via RAG best practices and multi-tenant isolation patterns, but Serapeum-specific UX needs user validation |
-| Architecture | HIGH | Current codebase analyzed (R/_ragnar.R, R/db.R, mod_*.R), per-notebook store pattern verified via DuckDB multi-database docs, metadata encoding tested |
-| Pitfalls | HIGH | DuckDB concurrency model confirmed via official docs, connection locking verified in community discussions, Shiny reactive leaks documented in Posit forum |
+| Stack | HIGH | Official OpenRouter docs verified 2026-02-18; DT/writexl confirmed on CRAN with version numbers; all integration points verified by reading actual codebase files (`R/api_openrouter.R`, `R/rag.R`, etc.) |
+| Features | MEDIUM-HIGH | Competitor analysis based on public docs and third-party reviews; Elicit's "99.4% accuracy" claim is marketing; extraction accuracy studies show nuance; core feature set and anti-feature decisions are well-validated |
+| Architecture | HIGH | Based on direct codebase analysis with specific file paths and line numbers; existing patterns confirmed working; bug root causes identified with code evidence; integration options evaluated with pros/cons |
+| Pitfalls | HIGH | DuckDB connection behavior confirmed via official issue tracker; OpenRouter structured output behavior confirmed via official docs + Response Healing announcement (what it does and does not fix); LLM positional bias confirmed by peer-reviewed research |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-**Gap 1: Migration API cost estimation**
-- **Issue:** Don't know total cost to re-embed all existing chunks via OpenRouter API
-- **Resolution:** In Phase 5 planning, query chunks table for total token count, multiply by OpenRouter pricing, present estimate to user before migration starts
-- **Impact:** May need to add "migrate per notebook" option if bulk migration too expensive
-
-**Gap 2: Section_hint encoding robustness**
-- **Issue:** Encoding in origin field is non-standard, may have edge cases (special chars in section names, parsing failures)
-- **Resolution:** In Phase 1 implementation, add comprehensive tests for section_hint round-trip with special characters, validate regex parsing
-- **Impact:** If encoding proves fragile, fallback to chunks table sidecar (keep chunks table after Phase 6, just drop embedding column)
-
-**Gap 3: Concurrent store access patterns**
-- **Issue:** Don't know if simultaneous PDF upload in notebook A + abstract embed in notebook B will cause issues
-- **Resolution:** In Phase 4 testing, simulate concurrent operations, measure whether separate ragnar stores truly avoid DuckDB locking
-- **Impact:** May need connection pooling library if simultaneous writes to different stores still conflict
-
-**Gap 4: Ragnar version stability**
-- **Issue:** Ragnar 0.3.0 is recent (Feb 2026), unclear if API will remain stable through 0.4.x
-- **Resolution:** Pin version in Phase 1, monitor ragnar GitHub for breaking changes, add version compatibility tests
-- **Impact:** If breaking changes occur, may need API adapter layer in R/_ragnar.R (already recommended in STACK.md)
+- **LLM table compliance testing:** Cannot be resolved pre-implementation. The GFM markdown vs JSON path decision for Literature Review Table should be made after testing with the actual configured default model against real notebooks at 3, 10, and 20 paper scales. Both paths are pre-documented in ARCHITECTURE.md.
+- **Search notebook Overview button scope:** Architecture research notes the search notebook currently only has a `conclusions_btn_ui` — confirm during Phase 26 whether search notebook needs `btn_overview` added or whether Overview is document-notebook-only for this milestone. Small scope question but needs an explicit decision.
+- **Literature Review Table in document notebooks:** ARCHITECTURE.md recommends implementing in `mod_search_notebook.R` first (abstracts available) and optionally extending to `mod_document_notebook.R` (PDFs). Scope the document notebook extension explicitly in Phase 28 planning based on time available.
+- **v4.x candidates (#101 Gap Analysis Report, #100 Methodology Extractor):** Correctly deferred to post-v4.0. Both have complete dependency analysis in FEATURES.md and can be implemented without additional research when prioritized.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- ragnar 0.3.0 package documentation (`help(ragnar_store_create)`, package vignette) — verified all function signatures and store version differences
-- DuckDB 1.3.2 renv.lock entry — confirmed installed version
-- Serapeum codebase: R/_ragnar.R, R/db.R, R/rag.R, R/pdf.R, mod_document_notebook.R, mod_search_notebook.R — analyzed current implementation and integration points
-- Live testing: ragnar store creation, VSS extension auto-loading, metadata attribute behavior
+
+- [OpenRouter Structured Outputs docs](https://openrouter.ai/docs/guides/features/structured-outputs) — json_object vs json_schema mode, model support matrix — verified 2026-02-18
+- [OpenRouter API Parameters docs](https://openrouter.ai/docs/api/reference/parameters) — response_format parameter syntax
+- [OpenRouter Response Healing Announcement](https://openrouter.ai/announcements/response-healing-reduce-json-defects-by-80percent) — confirmed: fixes syntax only, not schema adherence
+- [OpenRouter Provider Routing docs](https://openrouter.ai/docs/guides/routing/provider-selection) — require_parameters to prevent silent schema downgrade
+- DT package v0.34.0 — rdrr.io/cran/DT — Buttons extension and DTOutput/renderDT confirmed
+- writexl v1.5.4 — rdrr.io/cran/writexl — zero-dependency confirmed
+- [DuckDB R Package GC Warning](https://github.com/duckdb/duckdb-r/issues/34) — confirmed connection leak mechanism
+- [DuckDB File Locking Discussion](https://github.com/duckdb/duckdb/discussions/8126) — Windows file lock behavior confirmed
+- Serapeum codebase — direct analysis of `R/rag.R`, `R/db.R`, `R/_ragnar.R`, `mod_document_notebook.R`, `mod_search_notebook.R`, `R/api_openrouter.R`, `R/utils_export.R`; issues #98, #99, #102, #110, #111, #116, #117, #118, #119
 
 ### Secondary (MEDIUM confidence)
-- [DuckDB Concurrency Documentation](https://duckdb.org/docs/stable/connect/concurrency) — single-writer model confirmed
-- [DuckDB VSS Extension Docs](https://duckdb.org/docs/stable/core_extensions/vss) — HNSW index, experimental status
-- [Neon: One Database per User, Zero Complexity](https://neon.com/use-cases/database-per-tenant) — per-tenant isolation patterns
-- [Shiny Database Connection Best Practices (Posit forum)](https://forum.posit.co/t/best-practice-for-sql-connection-in-reactive-shiny-app/8110) — connection lifecycle in reactive contexts
-- [Why pool? - Connection Management in Shiny (CRAN)](https://cran.r-project.org/web/packages/pool/vignettes/why-pool.html) — pooling patterns for database connections
 
-### Tertiary (LOW confidence)
-- [ZenML: 10 Best Vector Databases for RAG Pipelines](https://www.zenml.io/blog/vector-databases-for-rag) — general RAG architecture patterns, not DuckDB-specific
-- [Data Quality for Vector Databases](https://www.telm.ai/blog/data-quality-for-vector-databases/) — best practices for vector store management
-- [Data Migration Best Practices 2026 (Medium)](https://medium.com/@kanerika/data-migration-best-practices-your-ultimate-guide-for-2026-7cbd5594d92e) — general migration patterns, adapted to ragnar context
+- [Elicit: AI for Scientific Research](https://elicit.com/) — feature set confirmed; 99.4% accuracy claim is marketing
+- [Data Extractions Using Elicit and Human Reviewers (Bianchi, 2025)](https://pmc.ncbi.nlm.nih.gov/articles/PMC12462964/) — extraction accuracy nuances (PMC, peer-reviewed)
+- [Evaluating Elicit as Semi-Automated Second Reviewer (Hilkenmeier et al., 2025)](https://journals.sagepub.com/doi/10.1177/08944393251404052) — extraction accuracy nuances
+- [SciSpace Literature Review: 2025 Review](https://effortlessacademic.com/scispace-an-all-in-one-ai-tool-for-literature-reviews/) — third-party review
+- [AnswerThis: Research Gap Finder](https://answerthis.io/ai/research-gap-finder) — gap-to-question workflow verified
+- [LLM Positional Bias in Tables](https://arxiv.org/html/2305.13062v4) — U-shaped accuracy in large contexts (peer-reviewed)
+- [LLM Table Format Accuracy Study](https://www.improvingagents.com/blog/best-input-data-format-for-llms) — Markdown-KV outperforms CSV for LLM accuracy
+
+### Tertiary (context/patterns)
+
+- [PICO Question Builder — INRA.AI](https://www.inra.ai/question-builder) — PICO framework (v4.x consideration only, deferred)
+- [8 Best AI Tools for Literature Review (Dupple, 2026)](https://dupple.com/learn/best-ai-for-literature-review) — general landscape context
+- [LLM Engineering Failure Modes 2025](https://medium.com/@gbalagangadhar/llm-engineering-in-2025-the-failure-modes-that-actually-matter-and-how-i-fix-them-ad1f6f1da77e) — structured output failure mode patterns
 
 ---
-*Research completed: 2026-02-16*
+*Research completed: 2026-02-18*
 *Ready for roadmap: yes*

@@ -1,672 +1,597 @@
-# Architecture Research: Per-Notebook Ragnar Stores
+# Architecture Research: v4.0 Stability + Synthesis Features
 
-**Domain:** RAG (Retrieval-Augmented Generation) backend migration
-**Researched:** 2026-02-16
-**Confidence:** HIGH
+**Domain:** R/Shiny local-first research assistant — feature integration analysis
+**Researched:** 2026-02-18
+**Confidence:** HIGH (based on direct codebase analysis)
 
-## Current Architecture (Shared Store)
+---
 
-### System Overview
+## Current Architecture Snapshot
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Shiny Module Layer                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐           ┌──────────────────┐            │
-│  │ mod_document_    │           │ mod_search_      │            │
-│  │ notebook.R       │           │ notebook.R       │            │
-│  │                  │           │                  │            │
-│  │ - PDF upload     │           │ - Abstract embed │            │
-│  │ - Ragnar index   │           │ - Ragnar index   │            │
-│  └────────┬─────────┘           └─────────┬────────┘            │
-├───────────┴───────────────────────────────┴──────────────────────┤
-│                   Business Logic Layer                           │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────┐    │
-│  │ R/pdf.R    │  │ R/rag.R    │  │ R/db.R     │  │ R/     │    │
-│  │            │  │            │  │            │  │_ragnar.│    │
-│  │ - process_ │  │ - rag_     │  │ - search_  │  │   R    │    │
-│  │   pdf()    │  │   query()  │  │   chunks_  │  │        │    │
-│  │ - detect_  │  │ - generate_│  │   hybrid() │  │ - get_ │    │
-│  │   section_ │  │   preset() │  │            │  │   ragnar│    │
-│  │   hint()   │  │            │  │            │  │   _store│    │
-│  └──────┬─────┘  └──────┬─────┘  └──────┬─────┘  └────┬───┘    │
-│         │                │                │             │        │
-├─────────┴────────────────┴────────────────┴─────────────┴────────┤
-│                      Data Storage Layer                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────┐   ┌─────────────────────────────┐  │
-│  │ data/notebooks.duckdb   │   │ data/serapeum.ragnar.duckdb │  │
-│  │                         │   │                             │  │
-│  │ - notebooks table       │   │ SHARED ACROSS ALL           │  │
-│  │ - documents table       │   │ NOTEBOOKS (current state)   │  │
-│  │ - abstracts table       │   │                             │  │
-│  │ - chunks table          │   │ - VSS + BM25 index          │  │
-│  │   (with section_hint)   │   │ - Embedded chunks           │  │
-│  └─────────────────────────┘   └─────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Current Store Lifecycle
-
-**Creation:**
-- `get_ragnar_store()` called in `mod_document_notebook.R` (line 246)
-- `get_ragnar_store()` called in `mod_search_notebook.R` (line 1718)
-- Path: `data/serapeum.ragnar.duckdb` (hardcoded, shared)
-
-**Indexing:**
-- Documents: `insert_chunks_to_ragnar(store, chunks, doc_id, "document")` (mod_document_notebook.R:251)
-- Abstracts: `insert_chunks_to_ragnar(store, chunks, abstract_id, "abstract")` (mod_search_notebook.R:1732)
-- Index built after insert: `build_ragnar_index(store)`
-
-**Retrieval:**
-- `search_chunks_hybrid()` in `R/db.R` (line 832)
-- Calls `retrieve_with_ragnar(store, query, top_k)`
-- Results filtered by notebook_id via metadata lookup (db.R:848-875)
-
-**Deletion:**
-- No ragnar-specific cleanup when notebooks deleted
-- Orphaned chunks remain in shared store
-
-### Current Problems
-
-1. **Orphan accumulation:** Deleted notebooks leave chunks in shared store
-2. **No isolation:** All notebooks share same index (potential cross-contamination)
-3. **Brittle filtering:** Notebook scoping done via post-retrieval filtering (db.R:860-874)
-4. **Metadata loss:** `section_hint` requires DB lookup after ragnar retrieval (db.R:892-914)
-5. **Dual paths:** Legacy fallback complicates codebase (pdf.R:263-299, rag.R:94-121, db.R:964-982)
-
-## Recommended Architecture (Per-Notebook Stores)
-
-### System Overview
+The codebase is post-Phase-22 (per-notebook ragnar stores fully shipped). Key structural facts:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Shiny Module Layer                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐           ┌──────────────────┐            │
-│  │ mod_document_    │           │ mod_search_      │            │
-│  │ notebook.R       │           │ notebook.R       │            │
-│  │                  │           │                  │            │
-│  │ - PDF upload     │           │ - Abstract embed │            │
-│  │ - Ragnar index   │           │ - Ragnar index   │            │
-│  │   (notebook-     │           │   (notebook-     │            │
-│  │    scoped)       │           │    scoped)       │            │
-│  └────────┬─────────┘           └─────────┬────────┘            │
-├───────────┴───────────────────────────────┴──────────────────────┤
-│                   Business Logic Layer                           │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────┐    │
-│  │ R/pdf.R    │  │ R/rag.R    │  │ R/db.R     │  │ R/     │    │
-│  │            │  │            │  │            │  │_ragnar.│    │
-│  │ - process_ │  │ - rag_     │  │ - REMOVED: │  │   R    │    │
-│  │   pdf()    │  │   query()  │  │   search_  │  │        │    │
-│  │ - detect_  │  │ - REMOVED: │  │   chunks   │  │ - get_ │    │
-│  │   section_ │  │   legacy   │  │   (legacy) │  │   ragnar│    │
-│  │   hint()   │  │   fallback │  │            │  │   _store│    │
-│  │            │  │            │  │ - ADDED:   │  │   (per- │    │
-│  │            │  │            │  │   delete_  │  │   notebook)│  │
-│  │            │  │            │  │   ragnar_  │  │        │    │
-│  │            │  │            │  │   store()  │  │        │    │
-│  └──────┬─────┘  └──────┬─────┘  └──────┬─────┘  └────┬───┘    │
-│         │                │                │             │        │
-├─────────┴────────────────┴────────────────┴─────────────┴────────┤
-│                      Data Storage Layer                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────┐   ┌─────────────────────────────┐  │
-│  │ data/notebooks.duckdb   │   │ data/ragnar/                │  │
-│  │                         │   │                             │  │
-│  │ - notebooks table       │   │ {notebook_id}.duckdb        │  │
-│  │ - documents table       │   │ {notebook_id}.duckdb        │  │
-│  │ - abstracts table       │   │ {notebook_id}.duckdb        │  │
-│  │ - REMOVED: chunks table │   │ ...                         │  │
-│  │   (ragnar owns chunks)  │   │                             │  │
-│  │                         │   │ ONE STORE PER NOTEBOOK      │  │
-│  │                         │   │ - Automatic scoping         │  │
-│  │                         │   │ - Clean deletion            │  │
-│  └─────────────────────────┘   └─────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Shiny UI Layer (bslib)                        │
+├──────────────────────────────────────────────────────────────────────┤
+│  mod_document_notebook.R        mod_search_notebook.R                 │
+│  ┌─────────────────────┐        ┌──────────────────────────────────┐  │
+│  │ Preset buttons:     │        │ Preset buttons:                   │  │
+│  │  btn_summarize      │        │  btn_conclusions                  │  │
+│  │  btn_keypoints      │        │                                  │  │
+│  │  btn_studyguide     │        │ Chat: offcanvas panel             │  │
+│  │  btn_outline        │        │ Papers: filter + list             │  │
+│  │  btn_conclusions    │        └──────────────────────────────────┘  │
+│  │  btn_slides         │                                              │
+│  │                     │                                              │
+│  │ Chat: card panel    │                                              │
+│  └─────────────────────┘                                              │
+├──────────────────────────────────────────────────────────────────────┤
+│                      Business Logic Layer                             │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌───────────┐  ┌──────────────────────────┐  ┌──────────────────┐   │
+│  │ R/rag.R   │  │ R/api_openrouter.R       │  │ R/_ragnar.R      │   │
+│  │           │  │                          │  │                  │   │
+│  │ rag_query │  │ chat_completion()        │  │ search_chunks_   │   │
+│  │ generate_ │  │  → list(content,usage,   │  │  hybrid() [has   │   │
+│  │  preset() │  │     model, id)           │  │  conn leak #117] │   │
+│  │ generate_ │  │                          │  │                  │   │
+│  │  conclus_ │  │ format_chat_messages()   │  │ insert_chunks_   │   │
+│  │  ions_    │  │                          │  │  to_ragnar()     │   │
+│  │  preset() │  │ estimate_cost()          │  │                  │   │
+│  └─────┬─────┘  └──────────┬───────────────┘  └──────┬───────────┘   │
+│        │                   │                          │               │
+├────────┴───────────────────┴──────────────────────────┴───────────────┤
+│                         Data Storage Layer                            │
+├──────────────────────────────────────────────────────────────────────┤
+│  data/notebooks.duckdb          data/ragnar/{notebook_id}.duckdb      │
+│  ┌─────────────────────┐        ┌───────────────────────────────────┐ │
+│  │ notebooks           │        │ Per-notebook VSS + BM25 index     │ │
+│  │ documents           │        │                                   │ │
+│  │ abstracts           │        │ origin field encodes:             │ │
+│  │ chunks (legacy)     │        │  "filename#page=N|section=hint"   │ │
+│  │ cost_log            │        │  "abstract:id|section=general"    │ │
+│  └─────────────────────┘        └───────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+### Existing Preset Pattern (Single Source of Truth)
 
-| Component | Current Responsibility | New Responsibility |
-|-----------|------------------------|---------------------|
-| **mod_document_notebook.R** | Upload PDF → chunk → insert to shared ragnar | Upload PDF → chunk → insert to **notebook-scoped** ragnar |
-| **mod_search_notebook.R** | Embed abstract → insert to shared ragnar | Embed abstract → insert to **notebook-scoped** ragnar |
-| **R/_ragnar.R** | Manage shared store lifecycle | Manage **per-notebook** store lifecycle, add `delete_ragnar_store()` |
-| **R/db.R** | Filter ragnar results by notebook, manage legacy chunks table | **Remove filtering logic**, **remove legacy chunks CRUD** |
-| **R/rag.R** | Dual retrieval path (ragnar-first, legacy fallback) | **Ragnar-only retrieval**, no fallback |
-| **R/pdf.R** | Dual embedding path (ragnar-first, legacy fallback) | **Ragnar-only embedding**, no fallback |
-| **app.R** | Notebook CRUD (create, delete), no ragnar cleanup | Notebook CRUD + **ragnar store cleanup on delete** |
-
-## Recommended Project Structure
-
-### File Layout
+All presets follow this fixed pipeline — understanding it is required before adding new ones:
 
 ```
-data/
-├── notebooks.duckdb              # Metadata only (notebooks, documents, abstracts)
-└── ragnar/                       # NEW: Per-notebook stores directory
-    ├── {notebook_id_1}.duckdb    # Store for notebook 1
-    ├── {notebook_id_2}.duckdb    # Store for notebook 2
-    └── {notebook_id_n}.duckdb    # Store for notebook n
+Button click (observeEvent)
+    ↓
+is_processing(TRUE)
+    ↓
+Append user message to messages() reactiveVal
+    ↓
+Call function in R/rag.R:
+  - rag_query()              — for free-text questions
+  - generate_preset()        — for summarize/keypoints/studyguide/outline
+  - generate_conclusions_preset() — for cross-source synthesis
+    ↓
+Each rag.R function:
+  1. get_setting() for api_key, chat_model
+  2. search_chunks_hybrid() or direct DB query for context
+  3. build_context(chunks) → formatted string
+  4. format_chat_messages(system, user) → message list
+  5. chat_completion(api_key, model, messages)
+     → result$content (markdown string)
+  6. log_cost(con, ...) using result$usage
+    ↓
+Append assistant message to messages() reactiveVal
+    ↓
+is_processing(FALSE)
+    ↓
+output$messages renderUI re-fires:
+  - HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
 ```
 
-### Structure Rationale
+**Critical:** All current presets return plain markdown strings. The render path uses `commonmark::markdown_html()` directly — no structured data, no tables beyond what markdown syntax produces.
 
-- **`data/ragnar/`:** Isolates ragnar stores from metadata DB, enables clean batch operations (e.g., delete all orphans)
-- **`{notebook_id}.duckdb`:** 1:1 mapping between notebook and store, automatic scoping, no filtering needed
-- **No chunks table in `notebooks.duckdb`:** Ragnar owns chunk storage, eliminating dual persistence
+---
 
-## Architectural Patterns
+## Integration Analysis: Three New Features
 
-### Pattern 1: Store Path Construction
+### Feature 1: Unified Overview Preset (Issue #98)
 
-**What:** Deterministic path generation from notebook ID
+**What it is:** Merge `btn_summarize` + `btn_keypoints` into a single "Overview" button that produces a structured synthesis: summary paragraph + bulleted key points in one response.
 
-**When to use:** Whenever accessing a notebook's ragnar store
+**Integration point:** Both `mod_document_notebook.R` and `mod_search_notebook.R` have preset buttons. This is a modification to the existing preset system, not a new component.
 
-**Implementation:**
+**Data flow — MODIFIED (not new):**
+
+```
+btn_overview click
+    ↓
+handle_preset("overview", "Overview")   [replaces 2 button handlers]
+    ↓
+generate_preset(con, cfg, nb_id, "overview", session_id)
+    ↓
+R/rag.R: generate_preset() — add "overview" case to presets list:
+  "Provide a structured overview of these documents. Begin with a 2-3
+   paragraph summary of the main themes and findings, then provide a
+   bulleted list of the 8-10 most important key points."
+    ↓
+chat_completion() → markdown string with ## Summary + ## Key Points sections
+    ↓
+commonmark::markdown_html() renders correctly (## headers, bullets)
+```
+
+**Files to modify:**
+- `R/rag.R` — add "overview" entry to `presets` list inside `generate_preset()`
+- `mod_document_notebook.R` — replace two buttons with one `btn_overview`; remove `btn_summarize` and `btn_keypoints` handlers; add single `handle_preset("overview", "Overview")` handler
+- `mod_search_notebook.R` — same button replacement (if Summarize/Key Points buttons are added to search notebooks in this milestone; currently only "Conclusions" exists there)
+
+**No new files needed.** No new RAG functions needed.
+
+**Risk:** Low. One-line prompt addition in rag.R. UI change only removes/replaces buttons. Zero data flow changes.
+
+---
+
+### Feature 2: Literature Review Table (Issue #99)
+
+**What it is:** A structured comparison matrix where rows = papers, columns = user-defined dimensions (e.g., methodology, sample size, findings, limitations). Requires structured output from the LLM, not prose markdown.
+
+**This is architecturally different from all existing presets.** Existing presets: LLM returns markdown prose → rendered via `commonmark::markdown_html()`. Literature Review Table: LLM must return structured data → rendered as an HTML `<table>`.
+
+**Integration options — evaluated:**
+
+**Option A: LLM returns markdown table**
+Ask the LLM to output a GitHub-Flavored Markdown (GFM) table. `commonmark::markdown_html(extensions = TRUE)` renders GFM tables natively.
+
+```
+| Paper | Methodology | Finding | Limitation |
+|-------|-------------|---------|------------|
+| Smith 2020 | RCT | ... | ... |
+```
+
+Pros: Zero new rendering code. Works within existing message pipeline.
+Cons: LLM reliability for wide tables is poor. Column alignment degrades with long cell content. No user-defined columns without a UI element.
+
+**Option B: LLM returns JSON → R parses → renders as HTML table**
+Ask the LLM to return structured JSON. Parse in R. Build an HTML table using `htmltools::tags$table()`. Return the rendered HTML as a message with a special `content_type = "table"` flag.
+
+Pros: Reliable structure, full control over column widths, sortable, exportable.
+Cons: Requires changes to the message rendering pipeline (currently assumes plain markdown strings).
+
+**Recommendation: Option A for MVP, Option B as enhancement.**
+
+For v4.0, use Option A with a well-structured prompt. The LLM prompt must instruct: output ONLY a markdown table with defined columns. `commonmark` with `extensions = TRUE` renders this correctly. If table quality is unsatisfactory after testing, upgrade to Option B in a follow-on phase.
+
+**Data flow for Option A:**
+
+```
+btn_lit_review click (new button in mod_search_notebook.R offcanvas)
+    ↓
+is_processing(TRUE)
+    ↓
+Append "Generate: Literature Review Table" to messages()
+    ↓
+generate_lit_review_table(con, cfg, nb_id, session_id)   [NEW function in R/rag.R]
+    ↓
+  1. Retrieve abstracts: dbGetQuery for all abstracts in notebook
+     (not RAG — need ALL papers for comparison, not semantic top-k)
+  2. Format paper list as JSON-like structured context:
+     [Paper: Smith et al. 2020 | Title: X | Abstract: Y]
+     [Paper: Jones 2019 | Title: A | Abstract: B]
+  3. System prompt: "Output ONLY a GFM markdown table. Columns:
+     Author/Year | Research Question | Methodology | Key Finding | Limitations.
+     One row per paper. Do not output any prose."
+  4. chat_completion()
+    ↓
+Return markdown table string
+    ↓
+commonmark::markdown_html(msg$content, extensions = TRUE)
+  → <table><thead>...</thead><tbody>...</tbody></table>
+```
+
+**Critical implementation note:** The retrieve-all-papers approach (direct DB query) is intentional. RAG retrieval (top-k semantic search) would miss papers — for a comparison matrix you need coverage, not relevance ranking. This matches the pattern already used in `generate_preset()` where a `LIMIT 50` query is used.
+
+**Files to add/modify:**
+- `R/rag.R` — add `generate_lit_review_table()` function (new, ~60 lines)
+- `mod_search_notebook.R` — add `btn_lit_review` button in offcanvas preset row; add `observeEvent(input$btn_lit_review, ...)` handler
+- `mod_document_notebook.R` — optionally add to document notebooks as well (cross-document comparison)
+
+**Table export:** The existing chat export (Markdown .md / HTML .html via `downloadHandler`) handles GFM tables correctly because `format_chat_as_markdown()` passes through the content verbatim, and `format_chat_as_html()` runs `commonmark::markdown_html()` on it. No new export logic needed.
+
+**Risk:** Medium. LLM compliance with "output ONLY a table" instructions varies by model. Test with the configured default model. A fallback message ("Could not generate table — try with fewer papers") should be included.
+
+---
+
+### Feature 3: Research Question Generator (Issue #102)
+
+**What it is:** Given the papers in a search notebook, generate a list of research questions derived from identified gaps, contradictions, and under-explored areas.
+
+**Integration point:** Same pattern as `generate_conclusions_preset()`. New function in `R/rag.R`, new button in the preset row, same rendering pipeline.
+
+**Data flow:**
+
+```
+btn_rq_generator click (new button in mod_search_notebook.R offcanvas)
+    ↓
+is_processing(TRUE)
+    ↓
+generate_research_questions(con, cfg, nb_id, session_id)   [NEW function in R/rag.R]
+    ↓
+  1. search_chunks_hybrid() with query:
+     "research gaps limitations future work unanswered questions"
+     (reuses RAG retrieval — gap-related sections are best via semantic search)
+  2. Fallback: direct DB query (same pattern as generate_conclusions_preset)
+  3. System prompt instructs: "Based on these sources, generate 8-12 specific,
+     actionable research questions. Format as numbered list. Organize under:
+     ## Methodological Gaps, ## Empirical Gaps, ## Theoretical Gaps"
+  4. chat_completion()
+    ↓
+Markdown string with ## headers and numbered lists
+    ↓
+commonmark::markdown_html() — renders correctly
+```
+
+**Files to add/modify:**
+- `R/rag.R` — add `generate_research_questions()` function (new, ~50 lines)
+- `mod_search_notebook.R` — add `btn_rq_generator` in offcanvas preset row
+
+**Risk:** Low. Identical pattern to existing `generate_conclusions_preset()`. Retrieval approach proven. Markdown output renders without changes.
+
+---
+
+## Bug Fix Integration Analysis
+
+### Bug #110: Seed paper not appearing in abstract search
+
+**Root cause (from code analysis):** `mod_search_notebook.R` returns `seed_request` reactive with a DOI. The receiver in `app.R` uses this DOI to trigger a seed discovery search. The paper fetched as the seed paper is likely being added to `abstracts` table but not appearing in `filtered_papers()` because the `paper_refresh()` trigger is not being fired after seed import, or the seed paper passes the abstract-exists check but the UI doesn't re-render.
+
+**Fix location:** `mod_search_notebook.R` — wherever the seed paper is saved after DOI lookup, ensure `paper_refresh(paper_refresh() + 1)` is called. Check that `seed_request` handler in `app.R` correctly triggers a refresh in the search notebook module.
+
+**No architecture changes needed.** Bug fix only.
+
+### Bug #111: Abstract removal modal repeating multiple times
+
+**Root cause (from code analysis):** The delete handler pattern in `mod_search_notebook.R` (lines 966-999) registers `observeEvent(input[[delete_id]], ...)` inside an `observe({})` block that re-fires whenever `filtered_papers()` changes. Each re-fire creates a NEW observer for the same input ID. With `once = TRUE` this should self-limit, but Shiny's observer accumulation means multiple observers fire before each destroys itself.
+
+**Fix:** Use `observeEvent` with `ignoreInit = TRUE` and track registered paper IDs in a `reactiveVal` set to avoid re-registering observers for already-registered IDs. Alternatively, use a single delegated event pattern: one `observeEvent` for a generic `input$delete_paper_id` input that reads which paper to delete from a separate input.
+
+**No architecture changes needed.** Bug fix in observer registration pattern.
+
+### Bug #116: Cost tracking not updating with new model prices
+
+**Root cause:** `estimate_cost()` in `R/cost_tracking.R` (or `api_openrouter.R`) uses a hardcoded price table. When new models are added or prices change, the static table is stale.
+
+**Fix direction:** Two options:
+1. Pull pricing from OpenRouter's `/models` endpoint at cost-log time (live lookup)
+2. Update the static table periodically
+
+For a local-first app, option 1 adds latency and network dependency to every LLM call. Option 2 is safer: update the hardcoded table in `api_openrouter.R`'s `get_default_chat_models()` and add a comment with the last-verified date.
+
+**No architecture changes needed.** Data update in existing static table.
+
+### Tech Debt #117: Connection leak in search_chunks_hybrid
+
+**Root cause (confirmed in code):** `db.R:search_chunks_hybrid()` line 710:
 ```r
-# R/_ragnar.R
-get_notebook_ragnar_path <- function(notebook_id, base_dir = "data/ragnar") {
-  file.path(base_dir, paste0(notebook_id, ".duckdb"))
-}
+store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 ```
+When `ragnar_store` is NULL (the common case — callers never pass a pre-opened store), `connect_ragnar_store()` opens a new DuckDB connection. This connection is never closed. After the function returns, the `store` variable goes out of scope, and DuckDB connections are not garbage-collected reliably in R.
 
-**Trade-offs:**
-- ✅ Predictable, no need to store path in DB
-- ✅ Easy to discover/clean orphans
-- ⚠️ Notebook ID must be filesystem-safe (UUID format is safe)
-
-### Pattern 2: Store Lifecycle Binding
-
-**What:** Tie ragnar store CRUD to notebook CRUD
-
-**When to use:** Notebook create/delete operations
-
-**Implementation:**
-```r
-# app.R (notebook creation)
-create_notebook <- function(con, name, type, ...) {
-  id <- uuid::UUIDgenerate()
-
-  # Create DB record
-  dbExecute(con, "INSERT INTO notebooks (...) VALUES (?)", list(id, ...))
-
-  # Create ragnar store (if ragnar available)
-  if (ragnar_available()) {
-    store_path <- get_notebook_ragnar_path(id)
-    tryCatch({
-      store <- get_ragnar_store(store_path, api_key, embed_model)
-    }, error = function(e) {
-      message("Warning: Ragnar store creation failed: ", e$message)
-    })
-  }
-
-  id
-}
-
-# app.R (notebook deletion)
-delete_notebook <- function(con, id) {
-  # Delete DB records (documents, abstracts)
-  dbExecute(con, "DELETE FROM documents WHERE notebook_id = ?", list(id))
-  dbExecute(con, "DELETE FROM abstracts WHERE notebook_id = ?", list(id))
-  dbExecute(con, "DELETE FROM notebooks WHERE id = ?", list(id))
-
-  # Delete ragnar store
-  delete_ragnar_store(id)
-}
-
-# R/_ragnar.R (NEW function)
-delete_ragnar_store <- function(notebook_id, base_dir = "data/ragnar") {
-  store_path <- get_notebook_ragnar_path(notebook_id, base_dir)
-  if (file.exists(store_path)) {
-    unlink(store_path)
-    message("Deleted ragnar store: ", store_path)
-  }
-}
-```
-
-**Trade-offs:**
-- ✅ No orphans, automatic cleanup
-- ✅ Clear ownership model
-- ⚠️ Store creation requires API key (need to handle missing key gracefully)
-
-### Pattern 3: Section Hint Metadata Encoding
-
-**What:** Encode `section_hint` in ragnar's `origin` field instead of separate DB lookup
-
-**When to use:** When inserting chunks to ragnar
-
-**Current (lossy):**
-```r
-# R/_ragnar.R (insert_chunks_to_ragnar)
-ragnar_chunks <- data.frame(
-  origin = chunks$origin,  # "filename#page=N"
-  hash = ...,
-  text = chunks$content
-)
-
-# Metadata stored as R attribute (doesn't persist!)
-attr(ragnar_chunks, "serapeum_metadata") <- list(
-  section_hint = chunks$section_hint  # LOST after insert
-)
-```
-
-**New (preserved):**
-```r
-# R/_ragnar.R (insert_chunks_to_ragnar)
-ragnar_chunks <- data.frame(
-  origin = paste0(chunks$origin, "|section=", chunks$section_hint),  # Encode in origin
-  hash = ...,
-  text = chunks$content
-)
-
-# R/_ragnar.R (retrieve_with_ragnar - parsing)
-results$section_hint <- vapply(results$origin, function(o) {
-  match <- regmatches(o, regexec("\\|section=([^|]+)", o))[[1]]
-  if (length(match) >= 2) match[2] else "general"
-}, character(1))
-```
-
-**Trade-offs:**
-- ✅ No DB lookup required, metadata co-located with chunk
-- ✅ Survives ragnar persistence
-- ⚠️ Origin field grows slightly (acceptable: `|section=conclusion` is ~20 chars)
-
-### Pattern 4: Ragnar-Only Retrieval (Remove Fallback)
-
-**What:** Simplify retrieval by removing legacy cosine similarity path
-
-**When to use:** After migration completes
-
-**Current (dual path):**
-```r
-# R/rag.R (rag_query)
-chunks <- NULL
-
-# Try ragnar first
-if (use_ragnar && ragnar_available()) {
-  chunks <- search_chunks_hybrid(con, query, notebook_id)
-}
-
-# Fallback to legacy
-if (is.null(chunks) || nrow(chunks) == 0) {
-  question_embedding <- get_embeddings(...)  # Extra API call
-  chunks <- search_chunks(con, question_embedding, notebook_id)  # Legacy
-}
-```
-
-**New (ragnar-only):**
-```r
-# R/rag.R (rag_query)
-if (!ragnar_available()) {
-  stop("Ragnar is required. Install with: install.packages('ragnar')")
-}
-
-store_path <- get_notebook_ragnar_path(notebook_id)
-if (!file.exists(store_path)) {
-  return("No indexed content found in this notebook.")
-}
-
-store <- connect_ragnar_store(store_path)
-chunks <- retrieve_with_ragnar(store, query, top_k = limit)
-```
-
-**Trade-offs:**
-- ✅ Simpler code, no branching
-- ✅ No redundant API calls
-- ✅ No dual persistence maintenance
-- ⚠️ Hard dependency on ragnar (acceptable: it's a design goal)
-
-## Data Flow Changes
-
-### Current Flow: Document Upload → Retrieval
-
-```
-User uploads PDF (mod_document_notebook.R)
-    ↓
-process_pdf() → chunks with section_hint (R/pdf.R)
-    ↓
-create_chunk() → INSERT INTO chunks table (R/db.R) [DUAL PERSISTENCE]
-    ↓
-insert_chunks_to_ragnar() → INSERT INTO shared store (R/_ragnar.R)
-    ↓
-User asks question (mod_document_notebook.R)
-    ↓
-search_chunks_hybrid() → retrieve from shared store (R/db.R)
-    ↓
-Filter by notebook_id (db.R:860-874) [POST-RETRIEVAL FILTERING]
-    ↓
-Lookup section_hint from chunks table (db.R:892-914) [METADATA LOOKUP]
-    ↓
-Return results
-```
-
-### New Flow: Document Upload → Retrieval
-
-```
-User uploads PDF (mod_document_notebook.R)
-    ↓
-process_pdf() → chunks with section_hint (R/pdf.R)
-    ↓
-get_notebook_ragnar_path(notebook_id) → "data/ragnar/{notebook_id}.duckdb"
-    ↓
-insert_chunks_to_ragnar() → INSERT INTO notebook-scoped store (R/_ragnar.R)
-    (with section_hint encoded in origin field)
-    ↓
-User asks question (mod_document_notebook.R)
-    ↓
-connect_ragnar_store(notebook_ragnar_path) → notebook-scoped store
-    ↓
-retrieve_with_ragnar() → retrieve (already scoped, no filtering needed)
-    ↓
-Parse section_hint from origin field (R/_ragnar.R:retrieve_with_ragnar)
-    ↓
-Return results
-```
-
-### State Management Changes
-
-**Removed:**
-- Legacy chunks table state (embedding column, chunk content duplication)
-- search_chunks() and search_chunks_hybrid() filtering logic
-- Dual embedding path in pdf.R and mod_document_notebook.R
-
-**Added:**
-- Per-notebook ragnar store paths (deterministic, no state to manage)
-- delete_ragnar_store() cleanup in notebook deletion path
-- Section hint encoding/decoding in ragnar origin field
-
-## Integration Points
-
-### New Components
-
-| Component | Purpose | Integration Pattern |
-|-----------|---------|---------------------|
-| **get_notebook_ragnar_path()** | Path construction | Called before every ragnar operation (insert, retrieve, delete) |
-| **delete_ragnar_store()** | Cleanup | Called in `delete_notebook()` (app.R) |
-| **Section hint encoding** | Metadata preservation | Encode in `insert_chunks_to_ragnar()`, decode in `retrieve_with_ragnar()` |
-
-### Modified Components
-
-| Component | Changes | Integration Impact |
-|-----------|---------|---------------------|
-| **R/_ragnar.R** | Add path helpers, metadata encoding, delete function | All modules now pass `notebook_id` to get store path |
-| **R/db.R** | Remove `chunks` table CRUD, remove `search_chunks_hybrid()` filtering | Modules call ragnar directly instead of db.R wrapper |
-| **R/rag.R** | Remove legacy fallback, require ragnar | Fails fast if ragnar not available |
-| **R/pdf.R** | Remove legacy embedding path | Only ragnar indexing path remains |
-| **mod_document_notebook.R** | Use notebook-scoped store path | Pass `notebook_id` to ragnar functions |
-| **mod_search_notebook.R** | Use notebook-scoped store path | Pass `notebook_id` to ragnar functions |
-| **app.R** | Add ragnar cleanup to `delete_notebook()` | Lifecycle binding |
-
-### Build Order (Dependency-Aware)
-
-**Phase 1: Foundation (No Breaking Changes)**
-1. Add `get_notebook_ragnar_path()` to R/_ragnar.R
-2. Add `delete_ragnar_store()` to R/_ragnar.R
-3. Update `insert_chunks_to_ragnar()` to encode section_hint in origin
-4. Update `retrieve_with_ragnar()` to decode section_hint from origin
-
-**Phase 2: Module Updates (Parallel-Safe)**
-5. Update `mod_document_notebook.R` to use notebook-scoped paths
-6. Update `mod_search_notebook.R` to use notebook-scoped paths
-7. Update `app.R` to call `delete_ragnar_store()` in notebook deletion
-
-**Phase 3: Simplification (Breaking Changes)**
-8. Remove legacy embedding path from `R/pdf.R` (lines 263-299)
-9. Remove legacy retrieval fallback from `R/rag.R` (lines 94-121)
-10. Remove `search_chunks_hybrid()` filtering logic from `R/db.R` (lines 848-875)
-11. Mark `chunks` table as deprecated (migration: copy existing chunks to per-notebook stores)
-
-**Phase 4: Cleanup**
-12. Drop `chunks` table from schema (after migration)
-13. Delete shared `data/serapeum.ragnar.duckdb`
-
-## Migration Strategy
-
-### Data Migration (Existing Chunks → Per-Notebook Stores)
+**Fix:** Wrap the body of `search_chunks_hybrid()` in an `on.exit()` that closes the connection if it was created internally:
 
 ```r
-# Migration script
-migrate_to_per_notebook_stores <- function(con, api_key, embed_model) {
-  # Get all notebooks
-  notebooks <- dbGetQuery(con, "SELECT id FROM notebooks")
-
-  for (nb_id in notebooks$id) {
-    message("Migrating notebook: ", nb_id)
-
-    # Create notebook-scoped store
-    store_path <- get_notebook_ragnar_path(nb_id)
-    store <- get_ragnar_store(store_path, api_key, embed_model)
-
-    # Get chunks for this notebook (documents)
-    doc_chunks <- dbGetQuery(con, "
-      SELECT c.*, d.filename
-      FROM chunks c
-      JOIN documents d ON c.source_id = d.id
-      WHERE d.notebook_id = ? AND c.source_type = 'document'
-    ", list(nb_id))
-
-    if (nrow(doc_chunks) > 0) {
-      # Convert to ragnar format
-      ragnar_chunks <- data.frame(
-        origin = paste0(doc_chunks$filename, "#page=", doc_chunks$page_number,
-                       "|section=", doc_chunks$section_hint %||% "general"),
-        hash = vapply(seq_len(nrow(doc_chunks)), function(i) {
-          digest::digest(paste(doc_chunks$content[i], doc_chunks$page_number[i], sep = "|"))
-        }, character(1)),
-        text = doc_chunks$content,
-        stringsAsFactors = FALSE
-      )
-
-      ragnar::ragnar_store_insert(store, ragnar_chunks)
+store_was_created_here <- FALSE
+if (is.null(ragnar_store) && !is.null(ragnar_store_path) && file.exists(ragnar_store_path)) {
+  store <- connect_ragnar_store(ragnar_store_path)
+  store_was_created_here <- TRUE
+  on.exit({
+    if (store_was_created_here && !is.null(store)) {
+      tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
     }
-
-    # Get chunks for this notebook (abstracts)
-    abs_chunks <- dbGetQuery(con, "
-      SELECT c.*, a.title
-      FROM chunks c
-      JOIN abstracts a ON c.source_id = a.id
-      WHERE a.notebook_id = ? AND c.source_type = 'abstract'
-    ", list(nb_id))
-
-    if (nrow(abs_chunks) > 0) {
-      ragnar_chunks <- data.frame(
-        origin = paste0("abstract:", abs_chunks$source_id, "|section=general"),
-        hash = vapply(seq_len(nrow(abs_chunks)), function(i) {
-          digest::digest(abs_chunks$content[i])
-        }, character(1)),
-        text = abs_chunks$content,
-        stringsAsFactors = FALSE
-      )
-
-      ragnar::ragnar_store_insert(store, ragnar_chunks)
-    }
-
-    # Build index
-    ragnar::ragnar_store_build_index(store)
-    message("Migrated ", nrow(doc_chunks) + nrow(abs_chunks), " chunks")
-  }
+  }, add = TRUE)
+} else {
+  store <- ragnar_store
 }
 ```
 
-### Rollback Strategy
+**File:** `R/db.R` — `search_chunks_hybrid()` function.
 
-- Keep `chunks` table until migration verified
-- Store migration timestamp in settings table
-- Provide rollback script that restores from chunks table
+**No architecture changes.** Local fix inside one function.
+
+### Tech Debt #118: section_hint not encoded in PDF ragnar origins
+
+**Root cause:** `insert_chunks_to_ragnar()` in `R/_ragnar.R` creates `ragnar_chunks` with `origin = chunks$origin`, but the `section_hint` detected by `detect_section_hint()` in `pdf.R` is stored in the chunks data frame as `chunks$section_hint` — it's never encoded into the origin string. The `encode_origin_metadata()` function exists and works, but is only called for abstract indexing (in `mod_search_notebook.R` line ~2013), not for document chunks.
+
+**Fix:** In `insert_chunks_to_ragnar()`, if `chunks` has a `section_hint` column, use `encode_origin_metadata()` to build the origin string:
+
+```r
+# R/_ragnar.R: insert_chunks_to_ragnar()
+ragnar_chunks <- data.frame(
+  origin = vapply(seq_len(nrow(chunks)), function(i) {
+    section_hint <- if ("section_hint" %in% names(chunks)) chunks$section_hint[i] else "general"
+    encode_origin_metadata(chunks$origin[i], section_hint = section_hint, source_type = "document")
+  }, character(1)),
+  ...
+)
+```
+
+**File:** `R/_ragnar.R` — `insert_chunks_to_ragnar()`.
+
+**Impact:** After this fix, `search_chunks_hybrid()` can rely on the decoded section_hint from origin (already implemented in `retrieve_with_ragnar()`), removing the need for the content-prefix lookup in the chunks table (db.R lines 754-786). That lookup can then be removed as a follow-on cleanup.
+
+### Tech Debt #119: Remove dead code with_ragnar_store() and register_ragnar_cleanup()
+
+**Root cause:** These functions exist in `R/_ragnar.R` (lines 296-361) but are never called anywhere in the codebase. They were written during Phase 21 planning as candidate patterns but the actual implementation used a different approach.
+
+**Fix:** Delete both functions from `R/_ragnar.R`. Verify with `grep -r "with_ragnar_store\|register_ragnar_cleanup"` before deletion.
+
+---
+
+## New Components Required
+
+| Component | Type | File | Why New |
+|-----------|------|------|---------|
+| `generate_lit_review_table()` | Function | `R/rag.R` | No existing preset does retrieve-all + tabular output |
+| `generate_research_questions()` | Function | `R/rag.R` | New prompt pattern + section-targeted retrieval |
+| `btn_overview` button | UI | `mod_document_notebook.R`, `mod_search_notebook.R` | Replaces two buttons |
+| `btn_lit_review` button | UI | `mod_search_notebook.R` (offcanvas) | New feature |
+| `btn_rq_generator` button | UI | `mod_search_notebook.R` (offcanvas) | New feature |
+
+## Modified Components
+
+| Component | Modification | Impact |
+|-----------|-------------|--------|
+| `generate_preset()` in `R/rag.R` | Add "overview" to presets named list | Zero impact on other presets |
+| `mod_document_notebook.R` | Remove `btn_summarize`, `btn_keypoints`; add `btn_overview`; update handlers | UI change only |
+| `mod_search_notebook.R` | Add `btn_lit_review`, `btn_rq_generator` to offcanvas preset row | Additive |
+| `search_chunks_hybrid()` in `R/db.R` | Add `on.exit()` for connection cleanup | Purely internal, no API change |
+| `insert_chunks_to_ragnar()` in `R/_ragnar.R` | Encode section_hint into origin field | Affects future-uploaded chunks only; existing stores unaffected |
+| `R/_ragnar.R` | Delete `with_ragnar_store()` and `register_ragnar_cleanup()` | Dead code removal, zero runtime impact |
+
+---
+
+## How Structured Table Output Integrates with Shiny/bslib
+
+**Verdict: Use GFM markdown tables for v4.0. The render path already supports them.**
+
+Evidence: `commonmark::markdown_html(msg$content, extensions = TRUE)` is the current render call (both `mod_document_notebook.R:613` and `mod_search_notebook.R:2179`). The `extensions = TRUE` parameter enables GitHub-Flavored Markdown table parsing. A well-formed GFM table in the LLM response will render as a styled HTML table.
+
+**Styling concern:** Bootstrap 5 (bslib default) does not automatically style `<table>` elements. The rendered table will appear unstyled. Fix with CSS targeting `.chat-markdown table`:
+
+```css
+/* Add to app.R or a www/custom.css file */
+.chat-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+.chat-markdown table th,
+.chat-markdown table td {
+  border: 1px solid #dee2e6;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.chat-markdown table thead th {
+  background-color: var(--bs-light);
+  font-weight: 600;
+}
+.chat-markdown table tbody tr:nth-child(odd) {
+  background-color: rgba(0,0,0,0.02);
+}
+```
+
+This CSS is scoped to `.chat-markdown` (the div class already on all assistant messages in both modules), so it cannot leak to other UI sections.
+
+**Alternative if LLM table quality is poor:** Build the table in R from per-paper API calls (one call per paper asking for structured fields). This is more expensive but reliable. Defer to v4.1 if needed.
+
+---
+
+## Suggested Build Order
+
+### Phase 1: Bug Fixes and Tech Debt (No Feature Risk)
+
+Fix bugs and tech debt first. These are self-contained, reduce noise, and unblock clean implementation of new features.
+
+1. **#119 Dead code removal** — Delete `with_ragnar_store()` and `register_ragnar_cleanup()` from `R/_ragnar.R`. Pure deletion, zero risk.
+
+2. **#117 Connection leak** — Add `on.exit()` in `search_chunks_hybrid()`. Single-function change. Write a test that calls `search_chunks_hybrid()` multiple times and verify no accumulating handles.
+
+3. **#118 section_hint encoding** — Fix `insert_chunks_to_ragnar()` to call `encode_origin_metadata()`. Affects new uploads only; existing stores continue working. The downstream content-prefix lookup (db.R:754-786) can stay or be removed as a follow-on; don't remove it in this phase (regression risk).
+
+4. **#111 Modal repeating** — Fix observer registration in `mod_search_notebook.R` delete handler.
+
+5. **#110 Seed paper missing** — Trace `seed_request` reactive flow from `mod_search_notebook.R` through `app.R` and verify `paper_refresh()` fires after seed import.
+
+6. **#116 Cost tracking** — Update static price table in `api_openrouter.R`. Add `# Last updated: 2026-02-18` comment.
+
+7. **#86 Refresh button behavior** — Decide and document: should Refresh add papers up to the configured count after removals? If yes, modify `do_search_refresh()` to subtract existing papers from the requested count before querying OpenAlex.
+
+### Phase 2: Unified Overview Preset
+
+Simplest new feature. No new files, minimal code change.
+
+8. Add `"overview"` entry to `presets` list in `generate_preset()` (`R/rag.R`)
+9. Replace `btn_summarize` + `btn_keypoints` with `btn_overview` in `mod_document_notebook.R`
+10. Update the button group in `mod_search_notebook.R` if applicable
+
+**Dependency:** None. Can be done in isolation.
+
+### Phase 3: Research Question Generator
+
+Follows exactly the same pattern as `generate_conclusions_preset()`.
+
+11. Add `generate_research_questions()` to `R/rag.R` — copy structure of `generate_conclusions_preset()`, change the prompt
+12. Add `btn_rq_generator` to `mod_search_notebook.R` offcanvas preset row
+13. Add `observeEvent(input$btn_rq_generator, ...)` handler in server
+
+**Dependency:** Phase 2 complete (ensures button layout patterns are settled).
+
+### Phase 4: Literature Review Table
+
+Most complex feature. Do last because it has a CSS component and an LLM reliability risk.
+
+14. Add `.chat-markdown table` CSS styling (in `app.R` with `tags$style()` or `www/custom.css`)
+15. Add `generate_lit_review_table()` to `R/rag.R` — direct DB retrieval, tabular prompt
+16. Add `btn_lit_review` to `mod_search_notebook.R` offcanvas preset row
+17. Add `observeEvent(input$btn_lit_review, ...)` handler in server
+18. Test with real notebook data; adjust prompt if output quality is poor
+
+**Dependency:** CSS styling (step 14) must be in place before testing, otherwise table renders but is unreadable.
+
+---
+
+## Data Flow: Literature Review Table (Full)
+
+```
+btn_lit_review click
+    ↓
+is_processing(TRUE)
+messages() += {role: "user", content: "Generate: Literature Review Table"}
+    ↓
+generate_lit_review_table(con, cfg, nb_id, session_id)
+    ↓
+  # Retrieve all papers (not RAG — need ALL for comparison)
+  papers <- dbGetQuery(con,
+    "SELECT title, authors, year, abstract FROM abstracts
+     WHERE notebook_id = ? AND abstract IS NOT NULL
+     ORDER BY year DESC LIMIT 30",  # Cap at 30 for context window
+    list(nb_id))
+    ↓
+  if (nrow(papers) == 0) return("No papers with abstracts found.")
+    ↓
+  # Build structured context (not build_context() which formats for prose RAG)
+  paper_blocks <- paste(lapply(seq_len(nrow(papers)), function(i) {
+    p <- papers[i,]
+    sprintf("[%d] %s (%s). %s. Abstract: %s",
+            i, p$title, p$year, p$authors, substr(p$abstract, 1, 500))
+  }), collapse = "\n\n")
+    ↓
+  system_prompt <- "You are a research synthesis tool.
+Output ONLY a GitHub-Flavored Markdown table.
+Columns: | # | Author(s) & Year | Research Question | Methodology | Key Finding | Limitation |
+One row per paper. No prose before or after the table."
+  user_prompt <- sprintf("Papers:\n%s\n\nGenerate the comparison table.", paper_blocks)
+    ↓
+  result <- chat_completion(api_key, model, messages)
+  log_cost(con, "lit_review_table", model, ...)
+  return(result$content)
+    ↓
+messages() += {role: "assistant", content: <GFM table string>, preset_type: "lit_review"}
+    ↓
+output$messages renderUI:
+  HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
+  → <table class applied via .chat-markdown CSS>
+```
+
+---
+
+## Component Boundaries
+
+| Component | Owns | Does NOT Own |
+|-----------|------|-------------|
+| `mod_document_notebook.R` | Button UI, message state, send/preset handlers | RAG logic, prompt text, API calls |
+| `mod_search_notebook.R` | Same as above + paper list state | Same as above |
+| `R/rag.R` | Prompt templates, retrieval strategy, cost logging | API transport, DB schema, UI rendering |
+| `R/api_openrouter.R` | HTTP transport, request/response format | Prompt construction, business logic |
+| `R/_ragnar.R` | Vector store lifecycle, chunk insert/retrieve | Prompt logic, Shiny UI |
+| `R/db.R` | DB queries, schema migrations | RAG logic, API calls |
+
+---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Global Store Fallback
+### Anti-Pattern 1: Adding RAG Retrieval to Literature Review Table
 
-**What people might do:** Keep shared store as fallback when per-notebook store fails
+**What people might do:** Use `search_chunks_hybrid()` to retrieve "relevant" chunks for the table.
 
-**Why it's wrong:**
-- Defeats isolation purpose
-- Complicates retrieval (which store to query?)
-- Perpetuates orphan accumulation problem
+**Why it's wrong:** RAG retrieval returns semantically similar chunks (top-k), meaning papers that aren't similar to the query are omitted. A comparison matrix needs all papers to be meaningful. Selective retrieval produces a biased or incomplete table.
 
-**Do this instead:**
-- Fail fast with clear error message
-- Require ragnar store creation during notebook creation
-- Log failures to help debug API key issues
+**Do this instead:** Direct SQL query for all abstracts in the notebook, with a cap (e.g., 30) for context window safety.
 
-### Anti-Pattern 2: Store Path in Database
+### Anti-Pattern 2: Returning Structured Data Through the Message Pipeline
 
-**What people might do:** Add `ragnar_store_path` column to notebooks table
+**What people might do:** Add `content_type = "table"` to message objects and branch the render logic.
 
-**Why it's wrong:**
-- Redundant (path is deterministic from notebook_id)
-- Risk of path drift (DB says one path, filesystem has another)
-- Adds unnecessary state
+**Why it's wrong:** It complicates the message pipeline, breaks export (which assumes string content), and adds a new code path to test. The existing pipeline handles GFM markdown tables natively.
 
-**Do this instead:**
-- Use deterministic path construction
-- Treat store path as derived value, not stored state
+**Do this instead:** Keep the message content as a string. Use GFM tables. Style with CSS. If richer table interaction is needed later, it can be added as a standalone UI element, not through the chat pipeline.
 
-### Anti-Pattern 3: Partial Migration
+### Anti-Pattern 3: Modifying messages() List Structure for New Presets
 
-**What people might do:** Support both old chunks table AND new ragnar stores
+**What people might do:** Add new fields to message objects beyond `{role, content, timestamp, preset_type}`.
 
-**Why it's wrong:**
-- Dual maintenance burden
-- Ambiguous source of truth
-- Query path branching complexity
+**Why it's wrong:** The message list structure is used by both `output$messages` rendering and by `format_chat_as_markdown()` / `format_chat_as_html()` export. Adding undocumented fields creates a silent contract that must be maintained in all consumers.
 
-**Do this instead:**
-- Complete migration in one milestone
-- Deprecate chunks table immediately after migration
-- Remove legacy code once migration verified
+**Do this instead:** Only add `preset_type` to distinguish rendering behavior. All other differentiation should be in the content string itself.
 
-## Scaling Considerations
+### Anti-Pattern 4: One-Off Presets in Module Files
 
-| Scale | Approach |
-|-------|----------|
-| **1-10 notebooks** | Current approach works (negligible overhead per store) |
-| **10-100 notebooks** | Per-notebook stores remain performant (DuckDB handles 100 files easily) |
-| **100+ notebooks** | Consider store pooling (multiple notebooks per store) or periodic compaction |
+**What people might do:** Put the prompt text directly in `mod_search_notebook.R` `observeEvent` handlers.
 
-### Scaling Priorities
+**Why it's wrong:** Prompt text belongs in `R/rag.R`. This is the existing pattern and makes prompts testable and discoverable in one file.
 
-1. **Disk space:** Per-notebook stores use more inodes, but DuckDB compression keeps size reasonable
-2. **Index build time:** Building index per-notebook is slower than shared, but parallelizable during migration
-3. **Open file handles:** DuckDB uses memory-mapped files, may hit OS limits with many concurrent stores (mitigate with connection pooling)
+**Do this instead:** Add prompt functions to `R/rag.R`, call them from the module observers. Keep observers thin (is_processing, messages update, function call, cost logging call).
 
-## Section Hint Handling
+---
 
-### Current State (Lossy)
+## CSS Integration for Table Styling
 
-**Problem:** `section_hint` column exists in chunks table, but ragnar doesn't preserve it
+**Location decision:** Add to `app.R` using a `tags$style()` call in the UI definition rather than a separate `www/custom.css` file. The project has no `www/` directory currently, and adding one for a small CSS block is unnecessary overhead.
 
-**Evidence:**
-- `detect_section_hint()` in R/pdf.R (lines 70-112) generates hints
-- `create_chunk()` stores hint in chunks.section_hint (db.R:357-369)
-- `insert_chunks_to_ragnar()` tries to preserve via R attributes (DOESN'T PERSIST)
-- `search_chunks_hybrid()` has to look up section_hint from chunks table after retrieval (db.R:892-914)
-
-### New State (Preserved)
-
-**Solution:** Encode in ragnar's `origin` field
-
-**Format:**
-```
-Documents:   "{filename}#page={N}|section={hint}"
-Abstracts:   "abstract:{id}|section={hint}"
-```
-
-**Example:**
-```
-"paper.pdf#page=23|section=conclusion"
-"abstract:abc-123|section=general"
-```
-
-**Parsing:**
 ```r
-# R/_ragnar.R (retrieve_with_ragnar)
-results$section_hint <- vapply(results$origin, function(o) {
-  match <- regmatches(o, regexec("\\|section=([^|]+)", o))[[1]]
-  if (length(match) >= 2) match[2] else "general"
-}, character(1))
+# In app.R UI definition, after bslib theme setup:
+tags$style(HTML("
+  .chat-markdown table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    font-size: 0.875rem;
+    overflow-x: auto;
+    display: block;
+  }
+  .chat-markdown table th,
+  .chat-markdown table td {
+    border: 1px solid #dee2e6;
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  .chat-markdown table thead th {
+    background-color: var(--bs-light);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chat-markdown table tbody tr:nth-child(odd) {
+    background-color: rgba(0,0,0,0.02);
+  }
+"))
 ```
 
-**Filtering by section:**
-```r
-# R/rag.R (generate_conclusions_preset)
-chunks <- retrieve_with_ragnar(store, query, top_k = 20)
+The `display: block; overflow-x: auto` on the table allows horizontal scrolling for wide tables without breaking the card layout.
 
-# Filter to conclusion-related sections
-target_sections <- c("conclusion", "limitations", "future_work", "discussion", "late_section")
-chunks <- chunks[chunks$section_hint %in% target_sections, ]
-```
-
-## Summary of Changes
-
-### Files to Modify
-
-| File | Changes | Lines Affected |
-|------|---------|----------------|
-| **R/_ragnar.R** | Add path helpers, delete function, metadata encoding | +60 lines, modify insert/retrieve |
-| **R/db.R** | Remove search_chunks_hybrid filtering, mark chunks table deprecated | -150 lines (filtering logic) |
-| **R/rag.R** | Remove legacy fallback | -30 lines |
-| **R/pdf.R** | Remove legacy embedding | -40 lines |
-| **mod_document_notebook.R** | Use notebook-scoped paths | ~10 lines modified |
-| **mod_search_notebook.R** | Use notebook-scoped paths | ~10 lines modified |
-| **app.R** | Add ragnar cleanup to delete_notebook | +5 lines |
-
-### New Functions
-
-- `get_notebook_ragnar_path(notebook_id, base_dir = "data/ragnar")`
-- `delete_ragnar_store(notebook_id, base_dir = "data/ragnar")`
-
-### Removed Functions
-
-- None (existing functions simplified, not removed)
-
-### Database Schema Changes
-
-- `chunks` table: Mark as deprecated (eventual removal after migration)
-- No new tables (ragnar owns chunk storage)
-
-## Build Order Rationale
-
-**Why Phase 1 first:**
-- Path helpers have no dependencies, can be tested independently
-- Metadata encoding is backward-compatible (old code ignores extra origin data)
-
-**Why Phase 2 parallelizable:**
-- Module updates are independent (document vs search notebooks)
-- Each module only touches its own ragnar interaction points
-
-**Why Phase 3 requires Phase 2 complete:**
-- Removing fallback code breaks modules that haven't migrated to scoped paths
-- Filtering removal requires all retrieval to use scoped stores
-
-**Why Phase 4 last:**
-- Need to verify migration before dropping chunks table
-- Shared store deletion is final, irreversible
+---
 
 ## Confidence Assessment
 
-| Area | Confidence | Rationale |
-|------|------------|-----------|
-| **Path construction** | HIGH | Deterministic, filesystem-safe (UUID format) |
-| **Lifecycle binding** | HIGH | Clear ownership model, matches Shiny patterns |
-| **Section hint encoding** | HIGH | Ragnar's origin field is designed for metadata |
-| **Simplification benefits** | HIGH | Removes 220+ lines of fallback code |
-| **Migration risk** | MEDIUM | Depends on API key availability during migration |
-| **Performance impact** | HIGH | Per-notebook isolation improves retrieval (no filtering overhead) |
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Bug fix root causes | HIGH | Confirmed by reading specific code lines |
+| Overview preset integration | HIGH | Identical to existing pattern, minimal change |
+| Research Question Generator integration | HIGH | Direct copy of conclusions_preset pattern |
+| Literature Review Table (GFM path) | MEDIUM | LLM compliance with "only table" instructions is model-dependent; needs testing |
+| Literature Review Table (CSS) | HIGH | Bootstrap 5 + `.chat-markdown` scoping is safe |
+| Build order | HIGH | Dependencies are clear and low-coupling |
+| Connection leak fix | HIGH | Root cause confirmed; on.exit() is the correct R pattern |
+| section_hint encoding fix | HIGH | Root cause confirmed; encode_origin_metadata() already exists |
+
+---
 
 ## Sources
 
-- Ragnar package documentation (package vignette, function signatures)
-- Serapeum codebase analysis (R/_ragnar.R, R/db.R, R/rag.R, R/pdf.R, mod_*.R)
-- DuckDB file handling patterns (connection pooling, memory-mapped files)
-- Existing architecture documentation (.planning/codebase/ARCHITECTURE.md)
+- Direct codebase analysis: `R/rag.R`, `R/db.R`, `R/_ragnar.R`, `mod_document_notebook.R`, `mod_search_notebook.R`, `R/api_openrouter.R`, `R/utils_export.R`
+- GitHub issue analysis: #98, #99, #102, #110, #111, #116, #117, #118, #119
+- commonmark R package documentation (GFM table extension support)
+- Bootstrap 5 table styling documentation
 
 ---
-*Architecture research for: Ragnar RAG Overhaul*
-*Researched: 2026-02-16*
+*Architecture research for: Serapeum v4.0 Stability + Synthesis features*
+*Researched: 2026-02-18*
