@@ -93,3 +93,23 @@
 
 ---
 
+
+## v3.0 Ragnar RAG Overhaul (Shipped: 2026-02-17)
+
+**Phases completed:** 5 phases (20-24), 9 plans
+
+**Key accomplishments:**
+- Per-notebook ragnar stores with deterministic path construction and pipe-delimited metadata encoding for clean notebook isolation
+- Full store lifecycle management — auto-creation on first content, deletion cascade, corruption detection with rebuild modal, and orphan cleanup in settings
+- Both document and search notebook modules migrated to per-notebook stores with async cancellable re-indexing (ExtendedTask + mirai) and migration prompts
+- Legacy code removal — eliminated 554 lines of dual-codepath RAG code; ragnar is now the sole unconditional backend with rlang::hash replacing digest::digest
+- End-to-end integration tests with mock embeddings validating full per-notebook ragnar pipeline
+- Production bugs auto-fixed during integration testing: ragnar store version compatibility (v1 format) and S7 object dbDisconnect
+
+**Stats:** 13 production files changed, +2,009 / -692 lines; 48 commits total
+**Timeline:** 2 days (2026-02-16 → 2026-02-17)
+**Git range:** gsd/v1.0-ragnar-rag-overhaul branch
+**Tech debt accepted:** Connection leak in search_chunks_hybrid, section_hint not encoded in PDF ragnar origins, dead code (with_ragnar_store, register_ragnar_cleanup)
+
+---
+

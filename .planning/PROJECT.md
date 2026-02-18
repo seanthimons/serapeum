@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Serapeum is a local-first research assistant built with R/Shiny that helps researchers find, filter, analyze, and synthesize academic papers. It combines document notebooks (upload PDFs, chat with RAG) and search notebooks (OpenAlex paper search, quality filtering) with LLM-powered chat, slide generation, and conclusion synthesis. Three discovery modes — seed paper lookup, LLM-assisted query building, and topic hierarchy browsing — provide multiple entry points for finding relevant research. Discovery workflows are fluid: view a paper's abstract, explore its citation network, use it as a seed for a new search, filter by year range, or export results as BibTeX/CSV. Quality-of-life features include per-request cost tracking, dynamic model selection, interactive keyword filtering, journal quality controls, chat export to Markdown/HTML, async citation network builds with progress/cancellation, and AI-generated conclusion synthesis with disclaimers.
+Serapeum is a local-first research assistant built with R/Shiny that helps researchers find, filter, analyze, and synthesize academic papers. It combines document notebooks (upload PDFs, chat with per-notebook RAG) and search notebooks (OpenAlex paper search, quality filtering) with LLM-powered chat, slide generation, and conclusion synthesis. Three discovery modes — seed paper lookup, LLM-assisted query building, and topic hierarchy browsing — provide multiple entry points for finding relevant research. Discovery workflows are fluid: view a paper's abstract, explore its citation network, use it as a seed for a new search, filter by year range, or export results as BibTeX/CSV. RAG uses ragnar with per-notebook DuckDB vector stores for clean isolation and hybrid VSS+BM25 retrieval. Quality-of-life features include per-request cost tracking, dynamic model selection, interactive keyword filtering, journal quality controls, chat export to Markdown/HTML, async citation network builds with progress/cancellation, and AI-generated conclusion synthesis with disclaimers.
 
 ## Core Value
 
@@ -62,20 +62,17 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Section-targeted RAG retrieval (SYNTH-03) — v2.1
 - ✓ Research gap synthesis (SYNTH-04) — v2.1
 - ✓ AI-generated content disclaimers (SYNTH-05) — v2.1
+- ✓ Per-notebook ragnar stores with deterministic paths (FNDTN-01) — v3.0
+- ✓ Section_hint metadata encoding in ragnar origin (FNDTN-02) — v3.0
+- ✓ Ragnar as hard dependency (FNDTN-03, LEGC-01) — v3.0
+- ✓ Store lifecycle: auto-create, delete cascade, rebuild, orphan cleanup (LIFE-01..04) — v3.0
+- ✓ Legacy RAG code removed: cosine similarity, dual codepaths, digest (LEGC-01..04) — v3.0
+- ✓ Integration tests with mock embeddings (TEST-01) — v3.0
+- ✓ Connection lifecycle with on.exit cleanup (TEST-02) — v3.0
 
 ### Active
 
-## Current Milestone: v3.0 Ragnar RAG Overhaul
-
-**Goal:** Replace the legacy embedding/retrieval system with ragnar as the sole RAG backend, using per-notebook vector stores for clean isolation and optimal retrieval.
-
-**Target features:**
-- Make ragnar a hard dependency (remove all fallback paths)
-- Per-notebook ragnar stores (replace shared single store)
-- Delete legacy embedding code (cosine similarity, manual embedding calls)
-- Delete existing chunk/embedding data (fresh re-embed on next use)
-- Integration tests and retrieval benchmarks
-- Resolve rough edges in current ragnar integration
+(No active requirements — next milestone not yet planned)
 
 ### Out of Scope
 
@@ -85,19 +82,19 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ~~Conclusion synthesis (#27)~~ — shipped in v2.1
 - Audio overview (#22) — experimental, low priority
 - Bulk DOI/.bib import (#24) — deferred, needs UX design
-- Rich output preview (#50) — deferred, now that export exists consider for next milestone
-- Additional synthesis outputs (#63) — deferred, now that export exists consider for next milestone
+- Rich output preview (#50) — deferred, consider for next milestone
+- Additional synthesis outputs (#63) — deferred, consider for next milestone
+- Cross-notebook search — contradicts per-notebook isolation goal
 
 ## Context
 
-Shipped v2.1 with ~12,569 LOC R across 10+ modified files (+1,244 / -142 from v2.0).
+Shipped v3.0 with ~14,000 LOC R across 13 modified production files (+2,009 / -692 from v2.1).
 Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 7 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint).
-Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds with file-based interrupt flags.
-Section-targeted RAG: keyword heuristics classify PDF chunks by section type for focused synthesis.
-Ragnar integration (v2.1): Phases 1-4 of migration done — semantic chunking, hybrid VSS+BM25 retrieval, OpenRouter embedding. Currently uses shared store with legacy fallback paths.
-Known tech debt: #79 tooltip overflow, synthesis response time (split presets TODO), chat UX spinners, dual RAG codepaths.
+Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds and ragnar re-indexing with file-based interrupt flags.
+RAG: ragnar is the sole backend — per-notebook DuckDB vector stores (`data/ragnar/{notebook_id}.duckdb`), hybrid VSS+BM25 retrieval, OpenRouter embedding. Section-targeted retrieval via keyword heuristics.
+Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, section_hint not encoded in PDF ragnar origins, dead code (with_ragnar_store, register_ragnar_cleanup).
 
 ## Constraints
 
@@ -105,7 +102,7 @@ Known tech debt: #79 tooltip overflow, synthesis response time (split presets TO
 - **API**: OpenRouter for LLM, OpenAlex for academic data — no new external services
 - **Architecture**: Shiny module pattern (`mod_*.R`) — new features follow existing conventions
 - **Local-first**: No server infrastructure; everything runs on user's machine
-- **Dependencies**: igraph, visNetwork, commonmark added in v2.0, ragnar added in v3.0 — ragnar is now a hard requirement
+- **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0) — ragnar is a hard requirement
 - **RAG**: ragnar is the sole retrieval backend — no legacy cosine similarity fallback
 
 ## Key Decisions
@@ -142,10 +139,15 @@ Known tech debt: #79 tooltip overflow, synthesis response time (split presets TO
 | Content-based section heuristics (v2.1) | Match chunk text not headings for robustness | ✓ Good — works across paper styles |
 | OWASP instruction-data separation (v2.1) | Prevents prompt injection via RAG content | ✓ Good — security baseline |
 | Three-level retrieval fallback (v2.1) | Section-filtered → unfiltered → direct DB | ✓ Good — works on all notebooks |
-
-| Per-notebook ragnar stores (v3.0) | Eliminates cross-notebook pollution, faster retrieval | — Pending |
-| Ragnar as hard dependency (v3.0) | Simpler code, no dual codepaths | — Pending |
-| Delete legacy embeddings, don't migrate (v3.0) | Fresh re-embed is cleaner than migration | — Pending |
+| Per-notebook ragnar stores (v3.0) | Eliminates cross-notebook pollution, faster retrieval | ✓ Good — clean isolation |
+| Ragnar as hard dependency (v3.0) | Simpler code, no dual codepaths | ✓ Good — 554 lines of legacy code removed |
+| Delete legacy embeddings, don't migrate (v3.0) | Fresh re-embed is cleaner than migration | ✓ Good — clean start with toast notification |
+| Pipe-delimited metadata encoding (v3.0) | Human-readable format for section/doi/type in ragnar origin | ✓ Good — easier debugging than JSON |
+| Lazy version check with session cache (v3.0) | Check ragnar on first use, not startup | ✓ Good — no penalty for non-RAG users (later removed when ragnar became hard dep) |
+| Store health tri-state NULL/TRUE/FALSE (v3.0) | Avoids false positives on startup | ✓ Good — accurate state tracking |
+| rag_ready separate from store_healthy (v3.0) | Migration vs corruption are different concerns | ✓ Good — independent lifecycles |
+| ragnar store version=1 required (v3.0) | insert_chunks_to_ragnar creates v1-format chunks | ✓ Good — caught by integration tests |
+| DBI::dbDisconnect(store@con) for S7 objects (v3.0) | S7 DuckDBRagnarStore has no DBI method registered | ✓ Good — caught by integration tests |
 
 ---
-*Last updated: 2026-02-16 after v3.0 milestone start*
+*Last updated: 2026-02-17 after v3.0 milestone shipped*

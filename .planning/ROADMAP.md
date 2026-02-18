@@ -7,7 +7,7 @@
 - ✅ **v1.2 Stabilization** - Phases 9-10 (shipped 2026-02-12)
 - ✅ **v2.0 Discovery Workflow & Output** - Phases 11-15 (shipped 2026-02-13)
 - ✅ **v2.1 Polish & Analysis** - Phases 16-19 (shipped 2026-02-13)
-- 🚧 **v3.0 Ragnar RAG Overhaul** - Phases 20-24 (in progress)
+- ✅ **v3.0 Ragnar RAG Overhaul** - Phases 20-24 (shipped 2026-02-17)
 
 ## Phases
 
@@ -61,91 +61,16 @@
 
 </details>
 
-### 🚧 v3.0 Ragnar RAG Overhaul (In Progress)
+<details>
+<summary>✅ v3.0 Ragnar RAG Overhaul (Phases 20-24) - SHIPPED 2026-02-17</summary>
 
-**Milestone Goal:** Replace the legacy embedding/retrieval system with ragnar as the sole RAG backend, using per-notebook vector stores for clean isolation and optimal retrieval.
+- [x] Phase 20: Foundation & Connection Safety (2/2 plans) - completed 2026-02-16
+- [x] Phase 21: Store Lifecycle (2/2 plans) - completed 2026-02-17
+- [x] Phase 22: Module Migration (3/3 plans) - completed 2026-02-17
+- [x] Phase 23: Legacy Code Removal (1/1 plan) - completed 2026-02-17
+- [x] Phase 24: Integration Testing & Cleanup (1/1 plan) - completed 2026-02-17
 
-- [x] **Phase 20: Foundation & Connection Safety** - Per-notebook path helpers, metadata encoding, version checks, connection lifecycle (completed 2026-02-16)
-- [x] **Phase 21: Store Lifecycle** - Automatic creation on first content, deletion cascade, rebuild capability, corruption recovery (completed 2026-02-17)
-- [x] **Phase 22: Module Migration** - Switch document and search notebook modules to per-notebook ragnar stores (completed 2026-02-17)
-- [x] **Phase 23: Legacy Code Removal** - Remove ragnar_available conditionals, cosine similarity fallback, replace digest::digest() with rlang::hash() (completed 2026-02-17)
-- [x] **Phase 24: Integration Testing & Cleanup** - End-to-end tests, shared store deletion (completed 2026-02-17)
-
-## Phase Details
-
-### Phase 20: Foundation & Connection Safety
-**Goal**: Establish deterministic path construction, metadata encoding, and connection lifecycle patterns for per-notebook ragnar stores
-**Depends on**: Nothing (first phase of v3.0)
-**Requirements**: FNDTN-01, FNDTN-02, FNDTN-03, TEST-02
-**Success Criteria** (what must be TRUE):
-  1. Every notebook ID produces a deterministic path `data/ragnar/{notebook_id}.duckdb` without database lookups
-  2. Section_hint metadata survives round-trip through ragnar's origin field encoding/decoding
-  3. App detects incompatible ragnar versions on startup and warns user before attempting store operations
-  4. Ragnar store connections automatically close on error, session end, and context exit via explicit cleanup hooks
-**Plans**: 2 plans
-
-Plans:
-- [ ] 20-01-PLAN.md — Path helper + metadata encode/decode (TDD)
-- [ ] 20-02-PLAN.md — Version check, connection lifecycle, directory creation
-
-### Phase 21: Store Lifecycle
-**Goal**: Per-notebook ragnar stores are created automatically on first content, deleted when notebook is deleted, and can be rebuilt on corruption
-**Depends on**: Phase 20
-**Requirements**: LIFE-01, LIFE-02, LIFE-03, LIFE-04
-**Success Criteria** (what must be TRUE):
-  1. ensure_ragnar_store() creates a new store on first call and connects to existing store on subsequent calls (LIFE-01 mechanism; wiring into modules in Phase 22)
-  2. User deletes notebook and its ragnar store file is removed from disk after DB records are deleted
-  3. User sees "Rebuild Index" modal when ragnar store is corrupted, can rebuild with progress feedback
-  4. Orphan cleanup button in settings identifies and removes store files with no matching notebook
-**Plans**: 2 plans
-
-Plans:
-- [ ] 21-01-PLAN.md — Core lifecycle functions, deletion cascade, orphan cleanup
-- [ ] 21-02-PLAN.md — Corruption detection, integrity check on open, rebuild with progress
-
-### Phase 22: Module Migration
-**Goal**: Document and search notebook modules use per-notebook ragnar stores for all RAG operations, eliminating cross-notebook pollution
-**Depends on**: Phase 21
-**Requirements**: (Implicit - enables per-notebook isolation)
-**Success Criteria** (what must be TRUE):
-  1. User uploads PDF to notebook A and chats with it, sees only chunks from notebook A in retrieval results
-  2. User switches to notebook B and retrieval automatically uses notebook B's store without filtering
-  3. User embeds abstracts in search notebook and section-targeted synthesis retrieves correct chunks using encoded section_hint
-  4. User can work with multiple notebooks simultaneously without cross-contamination of retrieval results
-**Plans**: 3 plans
-
-Plans:
-- [ ] 22-01-PLAN.md — Backend wiring: search_chunks_hybrid per-notebook path, chunk deletion + sentinel helpers, shared store cleanup
-- [ ] 22-02-PLAN.md — Document notebook migration: re-index prompt, rag_ready state, per-notebook upload wiring
-- [ ] 22-03-PLAN.md — Search notebook migration: re-index prompt, embed handler rewire, chunk deletion on paper removal
-
-### Phase 23: Legacy Code Removal
-**Goal**: Remove all legacy embedding and retrieval code paths, making ragnar the sole RAG backend
-**Depends on**: Phase 22
-**Requirements**: LEGC-01, LEGC-02, LEGC-04
-**Success Criteria** (what must be TRUE):
-  1. No ragnar_available() conditional branches remain in codebase - all RAG paths use ragnar directly
-  2. No manual get_embeddings() calls or cosine similarity functions exist in pdf.R or rag.R
-  3. digest::digest() replaced by rlang::hash() for chunk hashing; no legacy digest::digest() usage remains
-  4. Codebase search for "ragnar_available", "cosine_similarity", "use_ragnar" returns zero results in R files; get_embeddings has exactly 2 results (definition in api_openrouter.R + usage in _ragnar.R embed closure)
-**Plans**: 1 plan
-
-Plans:
-- [ ] 23-01-PLAN.md — Single-sweep legacy code removal across 6 production files + 2 test files, digest-to-rlang migration
-
-### Phase 24: Integration Testing & Cleanup
-**Goal**: End-to-end integration tests validate per-notebook workflow, shared store is deleted after migration
-**Depends on**: Phase 23
-**Requirements**: TEST-01, LEGC-03
-**Success Criteria** (what must be TRUE):
-  1. Integration test creates notebook, uploads PDF, embeds chunks, queries ragnar store, and verifies correct retrieval - all passing
-  2. Integration test validates section_hint encoding survives round-trip from upload through retrieval
-  3. Shared ragnar store file `data/serapeum.ragnar.duckdb` no longer exists on disk after app startup detects per-notebook stores
-  4. App startup checks for legacy shared store, logs deletion, and proceeds normally without errors
-**Plans**: 1 plan
-
-Plans:
-- [ ] 24-01-PLAN.md — Legacy store toast notification + end-to-end ragnar integration tests
+</details>
 
 ## Progress
 
@@ -156,13 +81,9 @@ Plans:
 | 9-10 | v1.2 | 2/2 | Complete | 2026-02-12 |
 | 11-15 | v2.0 | 8/8 | Complete | 2026-02-13 |
 | 16-19 | v2.1 | 7/7 | Complete | 2026-02-13 |
-| 20. Foundation & Connection Safety | v3.0 | Complete    | 2026-02-16 | - |
-| 21. Store Lifecycle | v3.0 | 2/2 | Complete | 2026-02-17 |
-| 22. Module Migration | v3.0 | Complete    | 2026-02-17 | - |
-| 23. Legacy Code Removal | v3.0 | Complete    | 2026-02-17 | - |
-| 24. Integration Testing & Cleanup | v3.0 | Complete    | 2026-02-17 | - |
+| 20-24 | v3.0 | 9/9 | Complete | 2026-02-17 |
 
-**Total: 34 plans across 21 phases (5 milestones shipped), 5 phases planned for v3.0**
+**Total: 41 plans across 25 phases (6 milestones shipped)**
 
 ---
-*Updated: 2026-02-17 — Phase 22 planned (3 plans, 2 waves)*
+*Updated: 2026-02-17 — v3.0 Ragnar RAG Overhaul shipped*
