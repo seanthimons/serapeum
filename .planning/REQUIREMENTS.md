@@ -75,27 +75,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUGF-01 | — | Pending |
-| BUGF-02 | — | Pending |
-| BUGF-03 | — | Pending |
-| BUGF-04 | — | Pending |
-| DEBT-01 | — | Pending |
-| DEBT-02 | — | Pending |
-| DEBT-03 | — | Pending |
-| UIPX-01 | — | Pending |
-| UIPX-02 | — | Pending |
-| UIPX-03 | — | Pending |
-| UIPX-04 | — | Pending |
-| UIPX-05 | — | Pending |
-| SYNTH-01 | — | Pending |
-| SYNTH-02 | — | Pending |
-| SYNTH-03 | — | Pending |
+| BUGF-01 | Phase 25 | Pending |
+| BUGF-02 | Phase 25 | Pending |
+| BUGF-03 | Phase 25 | Pending |
+| BUGF-04 | Phase 25 | Pending |
+| DEBT-01 | Phase 25 | Pending |
+| DEBT-02 | Phase 25 | Pending |
+| DEBT-03 | Phase 25 | Pending |
+| UIPX-01 | Phase 25 | Pending |
+| UIPX-02 | Phase 25 | Pending |
+| UIPX-03 | Phase 25 | Pending |
+| UIPX-04 | Phase 25 | Pending |
+| UIPX-05 | Phase 25 | Pending |
+| SYNTH-01 | Phase 26 | Pending |
+| SYNTH-03 | Phase 27 | Pending |
+| SYNTH-02 | Phase 28 | Pending |
 
 **Coverage:**
 - v4.0 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-18*
-*Last updated: 2026-02-18 after initial definition*
+*Last updated: 2026-02-18 after v4.0 roadmap creation — all 15 requirements mapped*
