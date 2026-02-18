@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 25 of 28 (Stabilize)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-02-18 — v4.0 roadmap created (4 phases, 15 requirements mapped)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-18 — 25-01 complete: PRs 112/115 landed, BUGF-01/03/04 fixed
 
-Progress: [░░░░░░░░░░] 0% (v4.0)
+Progress: [█░░░░░░░░░] 20% (v4.0)
 
 ## Performance Metrics
 
@@ -32,7 +32,7 @@ Progress: [░░░░░░░░░░] 0% (v4.0)
 | v2.0 | 11-15 | 8 | Complete | 2026-02-13 |
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
-| v4.0 | 25-28 | 0/5 | In Progress | — |
+| v4.0 | 25-28 | 1/5 | In Progress | — |
 
 ## Accumulated Context
 
@@ -44,6 +44,7 @@ Recent decisions affecting v4.0:
 - DEBT-03: with_ragnar_store() may become the DEBT-01 connection leak fix rather than dead code — evaluate during Phase 25 implementation before deleting
 - SYNTH-02: Use GFM markdown tables (not JSON-parsed HTML) for Literature Review Table to stay within existing message pipeline; DT widget is an optional fallback path if GFM quality is poor
 - Phase 28: Literature Review Table uses direct SQL (all abstracts) not RAG top-k — comparison matrix requires complete coverage
+- 25-01: Observer dedup pattern applied to all lapply+observeEvent sites; seed paper inserted at notebook creation using paper_id (not DOI) as duplicate check key; pricing fetch once=TRUE so API failure non-blocking
 
 ### Pending Todos
 
@@ -57,7 +58,7 @@ Recent decisions affecting v4.0:
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Roadmap created — Phase 25 ready to plan
+Stopped at: Completed 25-01-PLAN.md (PRs landed, BUGF-01/03/04 fixed on feature/25-stabilize)
 Resume file: none
 
-**Next action:** `/gsd:plan-phase 25`
+**Next action:** Execute 25-02 plan (DEBT-01..03 + UI polish)
