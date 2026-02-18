@@ -255,6 +255,36 @@ server <- function(input, output, session) {
   # Cost tracker module
   mod_cost_tracker_server("cost_tracker", con_r, reactive(session_id), effective_config)
 
+  # BUGF-03: Fetch live model pricing at startup so non-default models show accurate costs
+  observeEvent(effective_config(), {
+    cfg <- effective_config()
+    api_key <- get_setting(cfg, "openrouter", "api_key")
+    if (is.null(api_key) || nchar(api_key) < 10) return()
+
+    tryCatch({
+      # Fetch chat model pricing
+      chat_models_df <- list_chat_models(api_key)
+      if (!is.null(chat_models_df) && nrow(chat_models_df) > 0) {
+        update_model_pricing(chat_models_df[, c("id", "prompt_price", "completion_price")])
+      }
+
+      # Fetch embedding model pricing (convert column names to match update_model_pricing)
+      embed_models_df <- list_embedding_models(api_key)
+      if (!is.null(embed_models_df) && nrow(embed_models_df) > 0 &&
+          "price_per_million" %in% names(embed_models_df)) {
+        embed_pricing <- data.frame(
+          id = embed_models_df$id,
+          prompt_price = embed_models_df$price_per_million,
+          completion_price = 0,
+          stringsAsFactors = FALSE
+        )
+        update_model_pricing(embed_pricing)
+      }
+    }, error = function(e) {
+      message("[cost] Pricing fetch failed (non-fatal): ", e$message)
+    })
+  }, once = TRUE)
+
   # Render inline session cost
   output$session_cost_inline <- renderText({
     invalidateLater(10000)  # Poll every 10 seconds
@@ -994,6 +1024,30 @@ server <- function(input, output, session) {
         }
         list()
       })
+
+      # BUGF-01 Part A: Insert seed paper first so it always appears in the notebook
+      seed <- req$seed_paper
+      seed_existing <- dbGetQuery(con, "SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?",
+                                  list(nb_id, seed$paper_id))
+      if (nrow(seed_existing) == 0) {
+        seed_abstract_id <- create_abstract(
+          con, nb_id, seed$paper_id, seed$title,
+          seed$authors, seed$abstract,
+          seed$year, seed$venue, seed$pdf_url,
+          keywords = seed$keywords,
+          work_type = seed$work_type,
+          work_type_crossref = seed$work_type_crossref,
+          oa_status = seed$oa_status,
+          is_oa = seed$is_oa,
+          cited_by_count = seed$cited_by_count,
+          referenced_works_count = seed$referenced_works_count,
+          fwci = seed$fwci,
+          doi = seed$doi
+        )
+        if (!is.null(seed$abstract) && !is.na(seed$abstract) && nchar(seed$abstract) > 0) {
+          create_chunk(con, seed_abstract_id, "abstract", 0, seed$abstract)
+        }
+      }
 
       if (length(papers) > 0) {
         for (paper in papers) {

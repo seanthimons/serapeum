@@ -720,7 +720,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       req(nb_id)
       sort_by <- input$sort_by %||% "year"
-      list_abstracts(con(), nb_id, sort_by = sort_by)
+      papers <- list_abstracts(con(), nb_id, sort_by = sort_by)
+
+      # BUGF-01 Part B: Pin seed paper to row 1 for seed-discovery notebooks
+      if (nrow(papers) > 1) {
+        nb <- tryCatch(get_notebook(con(), nb_id), error = function(e) NULL)
+        if (!is.null(nb) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+          filters <- tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+          seed_id <- filters$seed_paper_id
+          if (!is.null(seed_id) && !is.na(seed_id) && nchar(seed_id) > 0) {
+            seed_idx <- which(papers$paper_id == seed_id)
+            if (length(seed_idx) == 1 && seed_idx != 1) {
+              papers <- rbind(papers[seed_idx, ], papers[-seed_idx, ])
+            }
+          }
+        }
+      }
+
+      papers
     })
 
     # Dynamic slider bounds - updates when papers change
@@ -1934,7 +1951,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           }
         }
 
-        # Save papers
+        # Save papers — track how many are newly added vs skipped as duplicates
+        newly_added <- 0L
         for (paper in papers) {
           # Check if already exists
           existing <- dbGetQuery(con(), "
@@ -1962,6 +1980,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
             create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
           }
+
+          newly_added <- newly_added + 1L
         }
 
         # NOTE: Embedding is now deferred - user must click "Embed Papers" button
@@ -1971,7 +1991,18 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
 
       paper_refresh(paper_refresh() + 1)
-      showNotification(paste("Loaded", length(papers), "papers"), type = "message")
+
+      # BUGF-04: Show count of newly-added papers, not raw API response count
+      total_in_nb <- nrow(list_abstracts(con(), nb_id))
+      if (newly_added == 0L) {
+        showNotification("No new papers found", type = "message")
+      } else {
+        showNotification(
+          paste0("Added ", newly_added, " new paper", if (newly_added != 1L) "s" else "",
+                 " (", total_in_nb, " total in notebook)"),
+          type = "message"
+        )
+      }
     }
 
     # Explicit refresh button - use ignoreInit = TRUE and also ignoreNULL = TRUE
