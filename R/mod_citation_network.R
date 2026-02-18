@@ -622,7 +622,71 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         ) |>
         visNetwork::visOptions(
           highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
-        )
+        ) |>
+        # UIPX-03: Tooltip smart repositioning — keep within graph container bounds
+        htmlwidgets::onRender("
+          function(el, x) {
+            var container = el.closest('.citation-network-container');
+            if (!container) return;
+
+            var observer = new MutationObserver(function(mutations) {
+              mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                  if (node.classList && node.classList.contains('vis-tooltip')) {
+                    repositionTooltip(node, container);
+                  }
+                });
+                // Also handle attribute changes (tooltip moves with mouse)
+                if (mutation.type === 'attributes' && mutation.target.classList &&
+                    mutation.target.classList.contains('vis-tooltip')) {
+                  repositionTooltip(mutation.target, container);
+                }
+              });
+            });
+
+            observer.observe(el, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style']
+            });
+
+            function repositionTooltip(tooltip, container) {
+              requestAnimationFrame(function() {
+                var tipRect = tooltip.getBoundingClientRect();
+                var cRect = container.getBoundingClientRect();
+
+                var left = parseInt(tooltip.style.left, 10) || 0;
+                var top = parseInt(tooltip.style.top, 10) || 0;
+
+                // Clamp right edge within container
+                var rightOverflow = (cRect.left + left + tipRect.width) - cRect.right;
+                if (rightOverflow > 0) {
+                  left = left - rightOverflow - 8;
+                }
+
+                // Clamp left edge within container
+                if (cRect.left + left < cRect.left) {
+                  left = 0;
+                }
+
+                // Clamp bottom edge within container
+                var bottomOverflow = (cRect.top + top + tipRect.height) - cRect.bottom;
+                if (bottomOverflow > 0) {
+                  top = top - tipRect.height - 20;
+                }
+
+                // Clamp top edge within container
+                if (top < 0) {
+                  top = 0;
+                }
+
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+              });
+            }
+          }
+        ")
 
       vn
     })

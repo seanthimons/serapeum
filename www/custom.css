@@ -2,9 +2,13 @@
 
 .citation-network-container {
   position: relative;
-  background-color: #1a1a2e;
+  background-color: #e8e8ee;
   border-radius: 0.5rem;
   overflow: hidden;
+}
+
+[data-bs-theme="dark"] .citation-network-container {
+  background-color: #1e1e2e;
 }
 
 /* Clip tooltips at graph boundary so they don't overlap side panel */
