@@ -75,7 +75,7 @@
 
 ### 🚧 v4.0 Stability + Synthesis (In Progress)
 
-**Milestone Goal:** Stabilize the codebase after rapid v1.0–v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
+**Milestone Goal:** Stabilize the codebase after rapid v1.0-v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
 
 - [ ] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI
 - [ ] **Phase 26: Unified Overview Preset** - Merge Summarize + Key Points into a single Overview output (#98)
@@ -94,11 +94,11 @@
   3. User sees the cost tracking table update immediately after each LLM request
   4. User sees correct paper count after refreshing following one or more removals
   5. Ragnar store connections in search_chunks_hybrid are closed after use — no Windows file-lock errors block store rebuild; section_hint is encoded in newly-indexed PDF origins; dead code is removed or purposefully repurposed; duplicate toast notifications are dismissed; keywords panel is collapsible; citation network tooltip stays within graph bounds; citation network renders with correct background color; settings page two-column layout is balanced
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 25-01: Bug fixes (BUGF-01..04) and pending PRs (UIPX-01, UIPX-02)
-- [ ] 25-02: Tech debt (DEBT-01..03) and UI polish (UIPX-03..05)
+- [ ] 25-01-PLAN.md — Land PRs 112/115 and fix bugs (BUGF-01..04)
+- [ ] 25-02-PLAN.md — Tech debt (DEBT-01..03) and UI polish (UIPX-03, UIPX-04)
 
 ### Phase 26: Unified Overview Preset
 **Goal**: Users can generate a single unified Overview output that replaces the separate Summarize and Key Points presets, reducing friction for the most common synthesis workflow
@@ -159,4 +159,4 @@ Plans:
 **Total: 41 plans complete across phases 0-24 (6 milestones shipped) + 5 plans planned for v4.0**
 
 ---
-*Updated: 2026-02-18 — v4.0 roadmap created*
+*Updated: 2026-02-18 — Phase 25 plans created*
