@@ -277,89 +277,6 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
   all_chunks
 }
 
-# ---- Connection Lifecycle ----
-
-#' Execute function with ragnar store, guaranteeing cleanup
-#'
-#' Opens a ragnar store, executes the provided function, and ensures the store
-#' is closed even on error or early return. Per user decision, uses aggressive
-#' cleanup (closes on any exit) with TODO marker for future optimization.
-#'
-#' @param path Path to ragnar store database
-#' @param expr_fn Function to execute, receives store as first argument
-#' @param session Shiny session for global error notifications (optional)
-#' @return Result of expr_fn on success, NULL on error
-#' @examples
-#' with_ragnar_store("data/ragnar/notebook-id.duckdb", function(store) {
-#'   ragnar::ragnar_retrieve(store, "my query")
-#' })
-with_ragnar_store <- function(path, expr_fn, session = NULL) {
-  store <- NULL
-
-  result <- tryCatch({
-    # Open connection
-    store <- ragnar::ragnar_store_connect(path)
-
-    # Guarantee cleanup on ANY exit (error, early return, or normal completion)
-    # TODO: This aggressive cleanup could be relaxed to selective cleanup later
-    on.exit({
-      if (!is.null(store)) {
-        tryCatch({
-          # Ragnar stores are DuckDB connections, close via disconnect
-          DBI::dbDisconnect(store@con, shutdown = TRUE)
-        }, error = function(e) {
-          # Already closed or invalid, ignore
-        })
-      }
-    }, add = TRUE)
-
-    # Execute user function with store
-    expr_fn(store)
-
-  }, error = function(e) {
-    # Global notification on connection error (per user decision: toast, not inline)
-    msg <- paste("Failed to access notebook search index:", e$message)
-    message("[ragnar] ", msg)
-
-    if (!is.null(session)) {
-      shiny::showNotification(
-        msg,
-        type = "error",
-        duration = 10
-      )
-    }
-
-    NULL
-  })
-
-  result
-}
-
-#' Register session cleanup hook for ragnar store
-#'
-#' Registers a callback to close the active ragnar store when the browser tab
-#' closes or the session ends. Per user decision, closes connections on browser
-#' tab close to prevent resource leaks.
-#'
-#' @param session Shiny session object
-#' @param store_rv reactiveVal holding the active RagnarStore object
-#' @examples
-#' active_store <- reactiveVal(NULL)
-#' register_ragnar_cleanup(session, active_store)
-register_ragnar_cleanup <- function(session, store_rv) {
-  session$onSessionEnded(function() {
-    store <- store_rv()
-    if (!is.null(store)) {
-      tryCatch({
-        # Close ragnar store (DuckDB connection)
-        DBI::dbDisconnect(store@con, shutdown = TRUE)
-      }, error = function(e) {
-        # Already closed or invalid, ignore
-      })
-    }
-  })
-}
-
 # ---- Store Lifecycle ----
 
 #' Ensure ragnar store exists for a notebook (lazy creation)
@@ -823,6 +740,19 @@ mark_as_ragnar_indexed <- function(con, source_ids, source_type = "abstract") {
 insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
   if (nrow(chunks) == 0) {
     return(invisible(store))
+  }
+
+  # DEBT-02: Encode section_hint into origin metadata for new PDFs
+  # Guard: only encode when section_hint column is present (abstract paths don't have it)
+  if ("section_hint" %in% names(chunks)) {
+    chunks$origin <- vapply(seq_len(nrow(chunks)), function(i) {
+      encode_origin_metadata(
+        chunks$origin[i],
+        section_hint = chunks$section_hint[i],
+        doi = NULL,
+        source_type = "pdf"
+      )
+    }, character(1))
   }
 
   # Prepare chunks for ragnar (version 1 format: origin, hash, text)

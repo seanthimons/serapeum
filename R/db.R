@@ -707,7 +707,15 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
 
   # Try ragnar search (connect only, don't create new store)
   if (!is.null(ragnar_store_path) && file.exists(ragnar_store_path)) {
+    own_store <- is.null(ragnar_store)
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
+
+    if (!is.null(store) && own_store) {
+      on.exit(
+        tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL),
+        add = TRUE
+      )
+    }
 
     if (!is.null(store)) {
       results <- tryCatch({
