@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 25 — Stabilize (v4.0) — COMPLETE
+**Current focus:** Phase 26 — Unified Overview Preset (v4.0)
 
 ## Current Position
 
@@ -60,7 +60,7 @@ Recent decisions affecting v4.0:
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 25-02-PLAN.md (DEBT-01/02/03 fixed, UIPX-03/04 polished on feature/25-stabilize)
+Stopped at: Phase 25 complete, ready to plan Phase 26
 Resume file: none
 
-**Next action:** Phase 25 complete — merge feature/25-stabilize to main, then begin Phase 26
+**Next action:** `/gsd:discuss-phase 26`
