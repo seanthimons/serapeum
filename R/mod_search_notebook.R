@@ -140,8 +140,17 @@ mod_search_notebook_ui <- function(id) {
       div(
         # Keyword filter panel
         card(
-          card_header("Keywords"),
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            style = "cursor: pointer;",
+            `data-bs-toggle` = "collapse",
+            `data-bs-target` = paste0("#", ns("keyword_filter_body")),
+            span(icon("key"), " Keywords"),
+            icon("chevron-down", class = "text-muted")
+          ),
           card_body(
+            id = ns("keyword_filter_body"),
+            class = "collapse show",
             style = "max-height: 200px; overflow-y: auto;",
             mod_keyword_filter_ui(ns("keyword_filter"))
           ),
