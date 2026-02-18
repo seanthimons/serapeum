@@ -77,7 +77,7 @@
 
 **Milestone Goal:** Stabilize the codebase after rapid v1.0-v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
 
-- [ ] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI
+- [x] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI (completed 2026-02-18)
 - [ ] **Phase 26: Unified Overview Preset** - Merge Summarize + Key Points into a single Overview output (#98)
 - [ ] **Phase 27: Research Question Generator** - Add PICO-framed research question synthesis preset (#102)
 - [ ] **Phase 28: Literature Review Table** - Add structured per-paper comparison matrix synthesis preset (#99)
@@ -94,7 +94,7 @@
   3. User sees the cost tracking table update immediately after each LLM request
   4. User sees correct paper count after refreshing following one or more removals
   5. Ragnar store connections in search_chunks_hybrid are closed after use — no Windows file-lock errors block store rebuild; section_hint is encoded in newly-indexed PDF origins; dead code is removed or purposefully repurposed; duplicate toast notifications are dismissed; keywords panel is collapsible; citation network tooltip stays within graph bounds; citation network renders with correct background color; settings page two-column layout is balanced
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 25-01-PLAN.md — Land PRs 112/115 and fix bugs (BUGF-01..04)
@@ -151,7 +151,7 @@ Plans:
 | 11-15 | v2.0 | 8/8 | Complete | 2026-02-13 |
 | 16-19 | v2.1 | 7/7 | Complete | 2026-02-13 |
 | 20-24 | v3.0 | 9/9 | Complete | 2026-02-17 |
-| 25. Stabilize | v4.0 | 0/2 | Not started | - |
+| 25. Stabilize | v4.0 | Complete    | 2026-02-18 | - |
 | 26. Unified Overview | v4.0 | 0/1 | Not started | - |
 | 27. Research Question Generator | v4.0 | 0/1 | Not started | - |
 | 28. Literature Review Table | v4.0 | 0/1 | Not started | - |
