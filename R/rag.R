@@ -391,3 +391,180 @@ Synthesize the conclusions and future research directions from the sources above
 
   response
 }
+
+#' Generate research questions from notebook papers
+#'
+#' Identifies research gaps across collected papers and generates focused,
+#' gap-grounded research questions with author/year citations.
+#' Uses hybrid RAG retrieval targeted at gap-revealing content.
+#'
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param notebook_type Type of notebook ("search" or "document")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @return Generated research questions as markdown string
+generate_research_questions <- function(con, config, notebook_id, notebook_type = "search", session_id = NULL) {
+  # Extract settings
+  api_key <- get_setting(config, "openrouter", "api_key")
+  if (length(api_key) > 1) api_key <- api_key[1]
+
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(chat_model) > 1) chat_model <- chat_model[1]
+
+  # Check api_key
+  api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
+                   (is.character(api_key) && nchar(api_key) == 0)
+  if (api_key_empty) {
+    return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
+  }
+
+  # Early return for small notebooks (need at least 2 papers to identify gaps)
+  paper_count <- tryCatch({
+    dbGetQuery(con, "SELECT COUNT(*) as cnt FROM abstracts WHERE notebook_id = ?", list(notebook_id))$cnt[1]
+  }, error = function(e) {
+    message("[generate_research_questions] Paper count query failed: ", e$message)
+    0L
+  })
+
+  if (is.na(paper_count) || paper_count < 2) {
+    return("At least 2 papers are needed to identify research gaps and generate research questions.")
+  }
+
+  # Get paper metadata for citation info
+  papers <- tryCatch({
+    dbGetQuery(con, "SELECT id, title, authors, year FROM abstracts WHERE notebook_id = ?", list(notebook_id))
+  }, error = function(e) {
+    message("[generate_research_questions] Paper metadata query failed: ", e$message)
+    NULL
+  })
+
+  # Format citation-ready paper list for the prompt
+  paper_list_text <- if (!is.null(papers) && nrow(papers) > 0) {
+    paper_refs <- vapply(seq_len(nrow(papers)), function(i) {
+      authors <- tryCatch(
+        jsonlite::fromJSON(papers$authors[i]),
+        error = function(e) character()
+      )
+      author_str <- if (length(authors) == 0) "Unknown"
+        else if (length(authors) > 2) paste0(authors[1], " et al.")
+        else paste(authors, collapse = " & ")
+      year_str <- if (is.na(papers$year[i])) "n.d." else as.character(papers$year[i])
+      sprintf("- %s (%s): \"%s\"", author_str, year_str, papers$title[i])
+    }, character(1))
+    paste(paper_refs, collapse = "\n")
+  } else {
+    "(Paper metadata unavailable)"
+  }
+
+  # Retrieve chunks via hybrid search (gap-focused query)
+  chunks <- NULL
+
+  # For search notebooks: no section filter (abstracts lack section structure)
+  chunks <- tryCatch({
+    search_chunks_hybrid(
+      con,
+      query = "research gaps limitations future work methodology population understudied contradictions",
+      notebook_id = notebook_id,
+      limit = 15
+    )
+  }, error = function(e) {
+    message("[generate_research_questions] Hybrid search failed: ", e$message)
+    NULL
+  })
+
+  # Fallback: direct DB query if hybrid search returned nothing
+  if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
+    message("[generate_research_questions] Hybrid search empty, falling back to direct DB query")
+    chunks <- tryCatch({
+      if (notebook_type == "document") {
+        dbGetQuery(con, "
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+                 d.filename as doc_name, NULL as abstract_title
+          FROM chunks c
+          JOIN documents d ON c.source_id = d.id
+          WHERE d.notebook_id = ?
+          ORDER BY c.chunk_index DESC
+          LIMIT 15
+        ", list(notebook_id))
+      } else {
+        dbGetQuery(con, "
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+                 NULL as doc_name, a.title as abstract_title
+          FROM chunks c
+          JOIN abstracts a ON c.source_id = a.id
+          WHERE a.notebook_id = ?
+          ORDER BY a.year DESC, c.chunk_index
+          LIMIT 15
+        ", list(notebook_id))
+      }
+    }, error = function(e) {
+      message("[generate_research_questions] Direct DB fallback failed: ", e$message)
+      NULL
+    })
+  }
+
+  if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
+    return("No content found in this notebook. Please add documents or search for papers first.")
+  }
+
+  # Build context
+  context <- build_context(chunks)
+
+  # System prompt: gap analyst role with PICO-invisible adaptive framing
+  system_prompt <- "You are a research gap analyst. Your task is to identify gaps in the existing research and generate focused research questions.
+
+INSTRUCTIONS:
+1. Analyze the provided research sources to identify gaps, contradictions, and unexplored areas
+2. Generate research questions that address the most significant gaps
+3. For each question, provide a 2-3 sentence rationale citing specific papers by author name and year
+4. Use an appropriate research framework internally (PICO for clinical/health topics, PEO for qualitative, SPIDER for mixed methods, or freeform for other domains) but do NOT label or mention the framework in your output
+5. Group questions by gap type (methodological, population/sample, temporal, theoretical, etc.)
+6. Prioritize the strongest/most significant gaps; vary gap types when possible
+
+OUTPUT FORMAT:
+- Numbered list of questions, each followed by an indented rationale
+- No introductory paragraph or scope note
+- Each rationale MUST name specific papers by 'Author et al. (Year)' format
+- When a gap spans multiple papers, name ALL relevant papers
+
+SCALING:
+- For collections of 2-3 papers: generate 3-4 questions
+- For collections of 5+ papers: generate 5-7 questions
+
+IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. Every claim in a rationale must trace to a specific source."
+
+  # User prompt with paper metadata + retrieved content
+  user_prompt <- sprintf(
+    "===== PAPER METADATA =====\n%s\n\n===== RETRIEVED CONTENT =====\n%s\n===== END SOURCES =====\n\nThis collection contains %d paper%s. Analyze the research above and generate research questions that address identified gaps.",
+    paper_list_text,
+    context,
+    paper_count,
+    if (paper_count == 1L) "" else "s"
+  )
+
+  messages <- format_chat_messages(system_prompt, user_prompt)
+
+  # Generate response
+  response <- tryCatch({
+    result <- chat_completion(api_key, chat_model, messages)
+
+    # Log cost if session_id provided
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+      log_cost(con, "research_questions", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
+  }, error = function(e) {
+    return(sprintf("Error generating research questions: %s", e$message))
+  })
+
+  response
+}
