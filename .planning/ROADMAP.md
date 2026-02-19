@@ -77,7 +77,7 @@
 
 **Milestone Goal:** Stabilize the codebase after rapid v1.0-v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
 
-- [x] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI (completed 2026-02-18)
+- [x] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI (completed 2026-02-18)
 - [ ] **Phase 26: Unified Overview Preset** - Merge Summarize + Key Points into a single Overview output (#98)
 - [ ] **Phase 27: Research Question Generator** - Add PICO-framed research question synthesis preset (#102)
 - [ ] **Phase 28: Literature Review Table** - Add structured per-paper comparison matrix synthesis preset (#99)
@@ -121,10 +121,10 @@ Plans:
   1. User sees a "Research Questions" button in the search notebook preset panel
   2. User clicks Research Questions and receives 5-7 numbered questions each with a rationale tied to a paper gap
   3. Research question output renders as a numbered markdown list in the chat panel with the AI-generated content disclaimer
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 27-01: Research Question Generator — add generate_research_questions() to rag.R, wire button in mod_search_notebook.R
+- [ ] 27-01-PLAN.md — Backend function + UI wiring for Research Questions preset
 
 ### Phase 28: Literature Review Table
 **Goal**: Users can generate a structured comparison matrix of their papers showing methodology, sample, findings, and limitations side-by-side — the primary structured output researchers need for literature reviews
@@ -159,4 +159,4 @@ Plans:
 **Total: 41 plans complete across phases 0-24 (6 milestones shipped) + 5 plans planned for v4.0**
 
 ---
-*Updated: 2026-02-18 — Phase 25 plans created*
+*Updated: 2026-02-19 — Phase 27 plan created*
