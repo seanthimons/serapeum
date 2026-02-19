@@ -391,3 +391,244 @@ Synthesize the conclusions and future research directions from the sources above
 
   response
 }
+
+#' Generate unified Overview preset (Summary + Key Points)
+#'
+#' Covers ALL content in the notebook (not RAG top-k).
+#' Supports Concise/Detailed depth and Quick/Thorough mode.
+#' Large notebooks are automatically batched to stay within LLM context limits.
+#'
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param notebook_type Type of notebook ("document" or "search")
+#' @param depth Summary depth: "concise" (1-2 paragraphs) or "detailed" (3-4 paragraphs)
+#' @param mode LLM call strategy: "quick" (single call) or "thorough" (two calls)
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @return Generated markdown with ## Summary and ## Key Points sections
+generate_overview_preset <- function(con, config, notebook_id,
+                                     notebook_type = "document",
+                                     depth = "concise",
+                                     mode = "quick",
+                                     session_id = NULL) {
+  # Extract settings with defensive scalar checks
+  api_key <- get_setting(config, "openrouter", "api_key")
+  if (length(api_key) > 1) api_key <- api_key[1]
+
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(chat_model) > 1) chat_model <- chat_model[1]
+
+  # Check api_key
+  api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
+                   (is.character(api_key) && nchar(api_key) == 0)
+  if (api_key_empty) {
+    return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
+  }
+
+  # Retrieve ALL content (not RAG top-k) — no LIMIT
+  content_df <- tryCatch({
+    if (notebook_type == "document") {
+      dbGetQuery(con, "
+        SELECT c.content, d.filename AS source_name, c.page_number
+        FROM chunks c
+        JOIN documents d ON c.source_id = d.id
+        WHERE d.notebook_id = ?
+        ORDER BY d.created_at, c.chunk_index
+      ", list(notebook_id))
+    } else {
+      dbGetQuery(con, "
+        SELECT abstract AS content, title AS source_name, year
+        FROM abstracts
+        WHERE notebook_id = ?
+          AND abstract IS NOT NULL
+          AND LENGTH(abstract) > 0
+        ORDER BY year DESC
+      ", list(notebook_id))
+    }
+  }, error = function(e) {
+    message("[generate_overview_preset] DB query failed: ", e$message)
+    NULL
+  })
+
+  if (is.null(content_df) || nrow(content_df) == 0) {
+    return("No content found in this notebook. Please add documents or search for papers first.")
+  }
+
+  # Batching thresholds
+  BATCH_SIZE   <- if (notebook_type == "document") 10L else 20L
+  CHAR_LIMIT   <- 300000L
+  total_chars  <- sum(nchar(content_df$content), na.rm = TRUE)
+  use_batching <- total_chars > CHAR_LIMIT || nrow(content_df) > BATCH_SIZE * 2L
+
+  # Depth instruction string
+  depth_instruction <- if (depth == "detailed") {
+    "Write a detailed summary of 3-4 paragraphs."
+  } else {
+    "Write a summary of 1-2 paragraphs."
+  }
+
+  # Helper: format rows as delimited source block
+  format_sources <- function(df) {
+    rows <- vapply(seq_len(nrow(df)), function(i) {
+      row <- df[i, , drop = FALSE]
+      content <- as.character(row$content[1])
+      if (notebook_type == "document") {
+        name <- as.character(row$source_name[1])
+        page <- if ("page_number" %in% names(row)) as.integer(row$page_number[1]) else NA_integer_
+        header <- if (!is.na(page)) {
+          sprintf("[Source: %s, Page %d]", name, page)
+        } else {
+          sprintf("[Source: %s]", name)
+        }
+        sprintf("%s\nContent: %s", header, content)
+      } else {
+        name <- as.character(row$source_name[1])
+        year <- if ("year" %in% names(row)) as.integer(row$year[1]) else NA_integer_
+        header <- if (!is.na(year)) {
+          sprintf("[%d] %s (%d)", i, name, year)
+        } else {
+          sprintf("[%d] %s", i, name)
+        }
+        sprintf("%s\nAbstract: %s", header, content)
+      }
+    }, FUN.VALUE = character(1))
+    paste(rows, collapse = "\n\n")
+  }
+
+  wrap_sources <- function(df) {
+    sprintf("===== BEGIN SOURCES =====\n%s\n===== END SOURCES =====",
+            format_sources(df))
+  }
+
+  # Helper: single "Quick" LLM call returning full overview text
+  call_overview_quick <- function(df) {
+    system_prompt <- sprintf(
+      "You are a research synthesis assistant. Generate an Overview of the provided research sources.
+The Overview must have exactly two sections:
+
+## Summary
+%s
+Cover main themes, key findings, and important conclusions.
+Base your summary ONLY on the provided sources.
+
+## Key Points
+Organize key points under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps.
+Each subheading should contain 3-5 bullet points.
+Do not use a flat bullet list - group all related points under their subheading.
+
+IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings.",
+      depth_instruction
+    )
+    user_prompt <- sprintf("%s\n\nGenerate an Overview with a Summary and thematically organized Key Points.",
+                           wrap_sources(df))
+    messages <- format_chat_messages(system_prompt, user_prompt)
+
+    tryCatch({
+      result <- chat_completion(api_key, chat_model, messages)
+      if (!is.null(session_id) && !is.null(result$usage)) {
+        cost <- estimate_cost(chat_model,
+                              result$usage$prompt_tokens %||% 0,
+                              result$usage$completion_tokens %||% 0)
+        log_cost(con, "overview", chat_model,
+                 result$usage$prompt_tokens %||% 0,
+                 result$usage$completion_tokens %||% 0,
+                 result$usage$total_tokens %||% 0,
+                 cost, session_id)
+      }
+      result$content
+    }, error = function(e) {
+      sprintf("Error generating overview: %s", e$message)
+    })
+  }
+
+  # Helper: "Thorough" Call 1 — Summary only
+  call_overview_summary <- function(df) {
+    system_prompt <- sprintf(
+      "You are a research summarizer. %s Cover main themes, key findings, and conclusions. Base the summary ONLY on the provided sources.",
+      depth_instruction
+    )
+    user_prompt <- sprintf("%s\n\n%s",
+                           wrap_sources(df),
+                           depth_instruction)
+    messages <- format_chat_messages(system_prompt, user_prompt)
+
+    tryCatch({
+      result <- chat_completion(api_key, chat_model, messages)
+      if (!is.null(session_id) && !is.null(result$usage)) {
+        cost <- estimate_cost(chat_model,
+                              result$usage$prompt_tokens %||% 0,
+                              result$usage$completion_tokens %||% 0)
+        log_cost(con, "overview_summary", chat_model,
+                 result$usage$prompt_tokens %||% 0,
+                 result$usage$completion_tokens %||% 0,
+                 result$usage$total_tokens %||% 0,
+                 cost, session_id)
+      }
+      result$content
+    }, error = function(e) {
+      sprintf("Error generating summary: %s", e$message)
+    })
+  }
+
+  # Helper: "Thorough" Call 2 — Key Points only
+  call_overview_keypoints <- function(df) {
+    system_prompt <- "You are a research analyst. Extract key points organized by theme from the provided research. Base all content ONLY on the provided sources. Do not invent findings."
+    user_prompt <- sprintf(
+      "%s\n\nExtract key points organized under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps. Each subheading: 3-5 bullet points.",
+      wrap_sources(df)
+    )
+    messages <- format_chat_messages(system_prompt, user_prompt)
+
+    tryCatch({
+      result <- chat_completion(api_key, chat_model, messages)
+      if (!is.null(session_id) && !is.null(result$usage)) {
+        cost <- estimate_cost(chat_model,
+                              result$usage$prompt_tokens %||% 0,
+                              result$usage$completion_tokens %||% 0)
+        log_cost(con, "overview_keypoints", chat_model,
+                 result$usage$prompt_tokens %||% 0,
+                 result$usage$completion_tokens %||% 0,
+                 result$usage$total_tokens %||% 0,
+                 cost, session_id)
+      }
+      result$content
+    }, error = function(e) {
+      sprintf("Error generating key points: %s", e$message)
+    })
+  }
+
+  # Execute calls with optional batching
+  if (mode == "thorough") {
+    # --- Thorough mode: two separate LLM calls ---
+    if (use_batching) {
+      batches <- split(seq_len(nrow(content_df)),
+                       ceiling(seq_len(nrow(content_df)) / BATCH_SIZE))
+      summary_parts <- lapply(batches, function(idx) {
+        call_overview_summary(content_df[idx, , drop = FALSE])
+      })
+      keypoints_parts <- lapply(batches, function(idx) {
+        call_overview_keypoints(content_df[idx, , drop = FALSE])
+      })
+      summary_text   <- paste(summary_parts, collapse = "\n\n---\n\n")
+      keypoints_text <- paste(keypoints_parts, collapse = "\n\n---\n\n")
+      # TODO (future): if batch divergence causes inconsistency, add merge-pass LLM call
+    } else {
+      summary_text   <- call_overview_summary(content_df)
+      keypoints_text <- call_overview_keypoints(content_df)
+    }
+    paste0("## Summary\n\n", summary_text, "\n\n## Key Points\n\n", keypoints_text)
+  } else {
+    # --- Quick mode: single LLM call ---
+    if (use_batching) {
+      batches <- split(seq_len(nrow(content_df)),
+                       ceiling(seq_len(nrow(content_df)) / BATCH_SIZE))
+      batch_results <- lapply(batches, function(idx) {
+        call_overview_quick(content_df[idx, , drop = FALSE])
+      })
+      paste(batch_results, collapse = "\n\n---\n\n")
+      # TODO (future): if batch divergence causes inconsistency, add merge-pass LLM call
+    } else {
+      call_overview_quick(content_df)
+    }
+  }
+}
