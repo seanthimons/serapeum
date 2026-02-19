@@ -73,7 +73,7 @@
 
 </details>
 
-### 🚧 v4.0 Stability + Synthesis (In Progress)
+### v4.0 Stability + Synthesis (In Progress)
 
 **Milestone Goal:** Stabilize the codebase after rapid v1.0-v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
 
@@ -127,19 +127,21 @@ Plans:
 - [ ] 27-01-PLAN.md — Backend function + UI wiring for Research Questions preset
 
 ### Phase 28: Literature Review Table
-**Goal**: Users can generate a structured comparison matrix of their papers showing methodology, sample, findings, and limitations side-by-side in the document notebook
+**Goal**: Users can generate a structured comparison matrix of their papers showing methodology, sample, findings, and limitations side-by-side in the document notebook, with DOI-linked author citations for papers imported from search notebooks
 **Depends on**: Phase 27
 **Requirements**: SYNTH-02
 **Success Criteria** (what must be TRUE):
   1. User sees a "Lit Review" button in the document notebook preset panel
   2. User clicks the button and receives a formatted GFM table with one row per paper and five standard columns (Author/Year, Methodology, Sample, Key Findings, Limitations)
-  3. Table renders with Bootstrap styling, horizontal scroll, sticky headers, and frozen first column in the chat panel
-  4. User can export the table via the existing chat export mechanism (Markdown or HTML)
-  5. When the LLM produces malformed output, the user sees a clear error message rather than a crash or garbled table
+  3. Table renders with Bootstrap styling, horizontal scroll, and frozen first column in the chat panel
+  4. Author/Year column includes clickable DOI links for documents imported from search notebooks
+  5. User can export the table via the existing chat export mechanism (Markdown or HTML)
+  6. When the LLM produces malformed output, the user sees a clear error message rather than a crash or garbled table
+  7. Papers imported from search notebook carry OpenAlex metadata into the documents table
 **Plans:** 1 plan
 
 Plans:
-- [ ] 28-01-PLAN.md — Backend functions (build_context_by_paper, validate_gfm_table, generate_lit_review_table) + UI wiring in document notebook + CSS for scrollable table
+- [ ] 28-01-PLAN.md — Schema migration + metadata import + backend functions (build_context_by_paper, validate_gfm_table, generate_lit_review_table with DOI injection) + UI wiring + CSS
 
 ## Progress
 
@@ -159,4 +161,4 @@ Plans:
 **Total: 41 plans complete across phases 0-24 (6 milestones shipped) + 5 plans planned for v4.0**
 
 ---
-*Updated: 2026-02-19 — Phase 28 plan created*
+*Updated: 2026-02-19 — Phase 28 plan revised with document metadata infrastructure*
