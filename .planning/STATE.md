@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-18)
+See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 27 — Research Question Generator (v4.0)
+**Current focus:** Phase 28 — Literature Review Table (v4.0)
 
 ## Current Position
 
-Phase: 27 of 28 (Research Question Generator) — IN PROGRESS
-Plan: 1 of 1 — COMPLETE
-Status: Phase 27 plan 01 complete; phase complete
-Last activity: 2026-02-19 — 27-01 complete: generate_research_questions() + UI wiring
+Phase: 28 of 28 (Literature Review Table) — NOT STARTED
+Plan: 0 of 1 — Not started
+Status: Ready to plan Phase 28
+Last activity: 2026-02-19 — Phase 27 complete
 
-Progress: [███░░░░░░░] 50% (v4.0)
+Progress: [██████░░░░] 60% (v4.0)
 
 ## Performance Metrics
 
@@ -61,7 +61,7 @@ Recent decisions affecting v4.0:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 27-01-PLAN.md
+Stopped at: Phase 27 complete, ready to plan Phase 28
 Resume file: none
 
-**Next action:** Phase 27 complete — ready for Phase 28
+**Next action:** `/gsd:discuss-phase 28`
