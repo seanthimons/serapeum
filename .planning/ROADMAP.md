@@ -108,10 +108,11 @@ Plans:
   1. User sees an "Overview" button in both the document notebook and search notebook preset panels
   2. User clicks Overview and receives a single response combining a summary and key points in one LLM call
   3. Overview output renders correctly in the chat panel with the AI-generated content disclaimer
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 26-01: Overview preset — add to generate_preset(), replace buttons in both modules, update tests
+- [ ] 26-01-PLAN.md — Add generate_overview_preset() backend function to R/rag.R
+- [ ] 26-02-PLAN.md — Wire Overview popover button into both notebook modules, remove Summarize/Key Points
 
 ### Phase 27: Research Question Generator
 **Goal**: Users can generate a structured list of research questions derived from their notebook's papers, grounded in identified gaps and framed with PICO structure
