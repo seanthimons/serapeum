@@ -79,7 +79,7 @@
 
 - [x] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI (completed 2026-02-18)
 - [ ] **Phase 26: Unified Overview Preset** - Merge Summarize + Key Points into a single Overview output (#98)
-- [ ] **Phase 27: Research Question Generator** - Add PICO-framed research question synthesis preset (#102)
+- [x] **Phase 27: Research Question Generator** - Add PICO-framed research question synthesis preset (#102) (completed 2026-02-19)
 - [ ] **Phase 28: Literature Review Table** - Add structured per-paper comparison matrix synthesis preset (#99)
 
 ## Phase Details
@@ -121,7 +121,7 @@ Plans:
   1. User sees a "Research Questions" button in the search notebook preset panel
   2. User clicks Research Questions and receives 5-7 numbered questions each with a rationale tied to a paper gap
   3. Research question output renders as a numbered markdown list in the chat panel with the AI-generated content disclaimer
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 27-01-PLAN.md — Backend function + UI wiring for Research Questions preset
@@ -153,7 +153,7 @@ Plans:
 | 20-24 | v3.0 | 9/9 | Complete | 2026-02-17 |
 | 25. Stabilize | v4.0 | Complete    | 2026-02-18 | - |
 | 26. Unified Overview | v4.0 | 0/1 | Not started | - |
-| 27. Research Question Generator | v4.0 | 0/1 | Not started | - |
+| 27. Research Question Generator | v4.0 | Complete    | 2026-02-19 | - |
 | 28. Literature Review Table | v4.0 | 0/1 | Not started | - |
 
 **Total: 41 plans complete across phases 0-24 (6 milestones shipped) + 5 plans planned for v4.0**
