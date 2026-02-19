@@ -94,6 +94,54 @@ ui <- page_sidebar(
     .chat-markdown code { font-size: 0.9em; }
     .chat-markdown p { margin: 0.4em 0; }
     .chat-markdown ul, .chat-markdown ol { margin: 0.3em 0; padding-left: 1.5em; }
+
+    /* Literature review table: horizontal scroll + frozen first column */
+    .lit-review-scroll {
+      overflow-x: auto;
+      max-width: 100%;
+      border: 1px solid #dee2e6;
+      border-radius: 0.25rem;
+      margin: 0.5em 0;
+    }
+    .lit-review-scroll table {
+      min-width: 900px;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 0;
+    }
+    .lit-review-scroll th:first-child,
+    .lit-review-scroll td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background-color: #f1f3f5;
+      border-right: 2px solid #adb5bd;
+      min-width: 140px;
+      max-width: 200px;
+    }
+    .lit-review-scroll th:first-child {
+      z-index: 2;
+      background-color: #e9ecef;
+    }
+    .lit-review-scroll th {
+      white-space: nowrap;
+    }
+    .lit-review-scroll td {
+      min-width: 120px;
+      max-width: 250px;
+    }
+    /* Dark theme support for frozen column */
+    [data-bs-theme='dark'] .lit-review-scroll {
+      border-color: #495057;
+    }
+    [data-bs-theme='dark'] .lit-review-scroll th:first-child,
+    [data-bs-theme='dark'] .lit-review-scroll td:first-child {
+      background-color: #343a40;
+      border-right-color: #6c757d;
+    }
+    [data-bs-theme='dark'] .lit-review-scroll th:first-child {
+      background-color: #2b3035;
+    }
     ")),
     tags$script(HTML("
     // Startup wizard localStorage support
