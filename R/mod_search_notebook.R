@@ -2190,12 +2190,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # For now, just create a document record with the abstract as content
         # Full PDF download would require additional logic
         if (!is.na(abs$abstract) && nchar(abs$abstract) > 0) {
+          # Extract DOI (may be NA)
+          doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
+
+          # Extract authors (already JSON string in abstracts table)
+          doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
+
+          # Extract year (may be NA)
+          doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
+
           doc_id <- create_document(
             con(), target,
             paste0(abs$title, ".txt"),
             "",
             abs$abstract,
-            1
+            1,
+            title = abs$title,
+            authors = doc_authors,
+            year = doc_year,
+            doi = doc_doi,
+            abstract_id = abs$id
           )
 
           create_chunk(con(), doc_id, "document", 0, abs$abstract, page_number = 1)
