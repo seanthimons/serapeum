@@ -249,6 +249,7 @@ mod_search_notebook_ui <- function(id) {
           class = "border-bottom px-3 py-2",
           div(
             class = "btn-group btn-group-sm w-100",
+            uiOutput(ns("overview_btn_ui")),
             uiOutput(ns("conclusions_btn_ui"))
           )
         ),
@@ -557,6 +558,43 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           disabled = "disabled",
           title = "Chat unavailable \u2014 re-index this notebook first",
           icon("paper-plane")
+        )
+      }
+    })
+
+    # Phase 26: Render overview button (disabled when rag_available is FALSE)
+    output$overview_btn_ui <- renderUI({
+      if (isTRUE(rag_available())) {
+        popover(
+          trigger = actionButton(
+            ns("btn_overview"), "Overview",
+            class = "btn-sm btn-outline-primary",
+            icon = icon("layer-group")
+          ),
+          title = "Overview Options",
+          id = ns("overview_popover"),
+          placement = "bottom",
+          radioButtons(
+            ns("overview_depth"), "Summary Depth",
+            choices = c("Concise (1-2 paragraphs)" = "concise",
+                        "Detailed (3-4 paragraphs)" = "detailed"),
+            selected = "concise"
+          ),
+          radioButtons(
+            ns("overview_mode"), "Quality Mode",
+            choices = c("Quick (single call)" = "quick",
+                        "Thorough (two calls)" = "thorough"),
+            selected = "quick"
+          ),
+          actionButton(ns("btn_overview_generate"), "Generate",
+                       class = "btn-primary btn-sm w-100")
+        )
+      } else {
+        tags$button(
+          class = "btn btn-sm btn-outline-primary disabled",
+          disabled = "disabled",
+          title = "Synthesis unavailable \u2014 re-index this notebook first",
+          icon("layer-group"), " Overview"
         )
       }
     })
@@ -2230,7 +2268,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 style = "max-width: 85%;", msg$content)
           )
         } else {
-          is_synthesis <- !is.null(msg$preset_type) && identical(msg$preset_type, "conclusions")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("conclusions", "overview")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
@@ -2304,6 +2342,55 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Overview preset handler
+    observeEvent(input$btn_overview_generate, {
+      req(!is_processing())
+      req(has_api_key())
+      is_processing(TRUE)
+
+      depth <- input$overview_depth %||% "concise"
+      mode <- input$overview_mode %||% "quick"
+
+      depth_label <- if (identical(depth, "detailed")) "Detailed" else "Concise"
+      mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
+
+      toggle_popover(id = ns("overview_popover"))
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(
+        role = "user",
+        content = paste0("Generate: Overview (", depth_label, ", ", mode_label, ")"),
+        timestamp = Sys.time(),
+        preset_type = "overview"
+      )))
+      messages(msgs)
+
+      nb_id <- notebook_id()
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_overview_preset(con(), cfg, nb_id, notebook_type = "search",
+                                 depth = depth, mode = mode, session_id = session$token)
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        "Sorry, I encountered an error generating the overview."
+      })
+
+      msgs <- c(msgs, list(list(
+        role = "assistant",
+        content = response,
+        timestamp = Sys.time(),
+        preset_type = "overview"
+      )))
       messages(msgs)
       is_processing(FALSE)
     })
