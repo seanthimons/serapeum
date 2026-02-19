@@ -307,14 +307,24 @@ delete_notebook <- function(con, id) {
 #' @param filepath Storage path
 #' @param full_text Extracted text
 #' @param page_count Number of pages
+#' @param title Optional paper title (from OpenAlex)
+#' @param authors Optional authors JSON string (from OpenAlex)
+#' @param year Optional publication year (from OpenAlex)
+#' @param doi Optional DOI bare format e.g. 10.1234/example (from OpenAlex)
+#' @param abstract_id Optional source abstract ID (for papers imported from search notebook)
 #' @return Document ID
-create_document <- function(con, notebook_id, filename, filepath, full_text, page_count) {
+create_document <- function(con, notebook_id, filename, filepath, full_text, page_count,
+                            title = NA_character_, authors = NA_character_,
+                            year = NA_integer_, doi = NA_character_,
+                            abstract_id = NA_character_) {
   id <- uuid::UUIDgenerate()
 
   dbExecute(con, "
-    INSERT INTO documents (id, notebook_id, filename, filepath, full_text, page_count)
-    VALUES (?, ?, ?, ?, ?, ?)
-  ", list(id, notebook_id, filename, filepath, full_text, page_count))
+    INSERT INTO documents (id, notebook_id, filename, filepath, full_text, page_count,
+                           title, authors, year, doi, abstract_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, notebook_id, filename, filepath, full_text, page_count,
+          title, authors, year, doi, abstract_id))
 
   id
 }
