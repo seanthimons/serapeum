@@ -249,7 +249,8 @@ mod_search_notebook_ui <- function(id) {
           class = "border-bottom px-3 py-2",
           div(
             class = "btn-group btn-group-sm w-100",
-            uiOutput(ns("conclusions_btn_ui"))
+            uiOutput(ns("conclusions_btn_ui")),
+            uiOutput(ns("research_questions_btn_ui"))
           )
         ),
         # Messages area
@@ -573,6 +574,22 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           disabled = "disabled",
           title = "Synthesis unavailable \u2014 re-index this notebook first",
           icon("microscope"), " Conclusions"
+        )
+      }
+    })
+
+    # Phase 27: Render research questions button (disabled when rag_available is FALSE)
+    output$research_questions_btn_ui <- renderUI({
+      if (isTRUE(rag_available())) {
+        actionButton(ns("btn_research_questions"), "Research Questions",
+                     class = "btn-sm btn-outline-primary",
+                     icon = icon("lightbulb"))
+      } else {
+        tags$button(
+          class = "btn btn-sm btn-outline-primary disabled",
+          disabled = "disabled",
+          title = "Synthesis unavailable \u2014 re-index this notebook first",
+          icon("lightbulb"), " Research Questions"
         )
       }
     })
@@ -2230,7 +2247,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 style = "max-width: 85%;", msg$content)
           )
         } else {
-          is_synthesis <- !is.null(msg$preset_type) && identical(msg$preset_type, "conclusions")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("conclusions", "research_questions")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
@@ -2339,6 +2356,50 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Phase 27: Research Questions preset handler
+    observeEvent(input$btn_research_questions, {
+      if (!isTRUE(rag_available())) {
+        showNotification("Synthesis unavailable \u2014 re-index this notebook first.", type = "warning")
+        return()
+      }
+      req(!is_processing())
+      req(has_api_key())
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(
+        role = "user",
+        content = "Generate: Research Questions",
+        timestamp = Sys.time(),
+        preset_type = "research_questions"
+      )))
+      messages(msgs)
+
+      nb_id <- notebook_id()
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_research_questions(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        "Sorry, I encountered an error generating research questions."
+      })
+
+      msgs <- c(msgs, list(list(
+        role = "assistant",
+        content = response,
+        timestamp = Sys.time(),
+        preset_type = "research_questions"
+      )))
       messages(msgs)
       is_processing(FALSE)
     })

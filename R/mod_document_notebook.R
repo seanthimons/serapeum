@@ -597,7 +597,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           )
         } else {
           # Check if this is a synthesis response
-          is_synthesis <- !is.null(msg$preset_type) && identical(msg$preset_type, "conclusions")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("conclusions", "research_questions")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
