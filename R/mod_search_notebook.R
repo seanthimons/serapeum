@@ -2346,6 +2346,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       is_processing(FALSE)
     })
 
+    # Reset Overview popover to defaults each time it opens
+    observeEvent(input$btn_overview, {
+      updateRadioButtons(session, "overview_depth", selected = "concise")
+      updateRadioButtons(session, "overview_mode", selected = "quick")
+    })
+
     # Overview preset handler
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
