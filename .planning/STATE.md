@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-19)
 
 ## Current Position
 
-Phase: 28 of 28 (Literature Review Table) — NOT STARTED
-Plan: 0 of 1 — Not started
-Status: Ready to plan Phase 28
-Last activity: 2026-02-19 — Phase 27 complete
+Phase: 28 of 28 (Literature Review Table) — COMPLETE
+Plan: 1 of 1 — Complete
+Status: Phase 28 complete
+Last activity: 2026-02-19 — Phase 28 plan 01 complete
 
-Progress: [██████░░░░] 60% (v4.0)
+Progress: [██████████] 100% (v4.0)
 
 ## Performance Metrics
 
@@ -32,7 +32,7 @@ Progress: [██████░░░░] 60% (v4.0)
 | v2.0 | 11-15 | 8 | Complete | 2026-02-13 |
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
-| v4.0 | 25-28 | 3/5 | In Progress | — |
+| v4.0 | 25-28 | 5/5 | Complete | 2026-02-19 |
 
 ## Accumulated Context
 
@@ -48,6 +48,7 @@ Recent decisions affecting v4.0:
 - Phase 28: Literature Review Table uses direct SQL (all abstracts) not RAG top-k — comparison matrix requires complete coverage
 - 25-01: Observer dedup pattern applied to all lapply+observeEvent sites; seed paper inserted at notebook creation using paper_id (not DOI) as duplicate check key; pricing fetch once=TRUE so API failure non-blocking
 - 27-01: generate_research_questions() as standalone function (not added to generate_preset()); disclaimer check widened using %in% set membership for extensibility; RAG query uses gap-focused terms with limit=15; paper metadata queried separately from abstracts table
+- 28-01: GFM pipe table over DT widget (stays in message pipeline); server-side DOI injection after LLM call (not by LLM); no sticky column headers (chat panel is scroll ancestor); lapply inside repeat loop critical for dynamic token budget re-querying; plain text error message for malformed table output
 
 ### Pending Todos
 
@@ -61,7 +62,7 @@ Recent decisions affecting v4.0:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Phase 27 complete, ready to plan Phase 28
+Stopped at: Phase 28 plan 01 complete — Literature Review Table implemented
 Resume file: none
 
-**Next action:** `/gsd:discuss-phase 28`
+**Next action:** All v4.0 phases complete. Project at 100%.
