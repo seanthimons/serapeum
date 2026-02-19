@@ -80,7 +80,7 @@
 - [x] **Phase 25: Stabilize** - Fix all known bugs, resolve tech debt, land pending PRs, and polish the UI (completed 2026-02-18)
 - [ ] **Phase 26: Unified Overview Preset** - Merge Summarize + Key Points into a single Overview output (#98)
 - [x] **Phase 27: Research Question Generator** - Add PICO-framed research question synthesis preset (#102) (completed 2026-02-19)
-- [ ] **Phase 28: Literature Review Table** - Add structured per-paper comparison matrix synthesis preset (#99)
+- [x] **Phase 28: Literature Review Table** - Add structured per-paper comparison matrix synthesis preset (#99) (completed 2026-02-19)
 
 ## Phase Details
 
@@ -138,7 +138,7 @@ Plans:
   5. User can export the table via the existing chat export mechanism (Markdown or HTML)
   6. When the LLM produces malformed output, the user sees a clear error message rather than a crash or garbled table
   7. Papers imported from search notebook carry OpenAlex metadata into the documents table
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 28-01-PLAN.md — Schema migration + metadata import + backend functions (build_context_by_paper, validate_gfm_table, generate_lit_review_table with DOI injection) + UI wiring + CSS
@@ -156,7 +156,7 @@ Plans:
 | 25. Stabilize | v4.0 | Complete    | 2026-02-18 | - |
 | 26. Unified Overview | v4.0 | 0/1 | Not started | - |
 | 27. Research Question Generator | v4.0 | Complete    | 2026-02-19 | - |
-| 28. Literature Review Table | v4.0 | 0/1 | Not started | - |
+| 28. Literature Review Table | v4.0 | Complete    | 2026-02-19 | - |
 
 **Total: 41 plans complete across phases 0-24 (6 milestones shipped) + 5 plans planned for v4.0**
 
