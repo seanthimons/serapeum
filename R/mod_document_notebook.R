@@ -77,6 +77,9 @@ mod_document_notebook_ui <- function(id) {
               actionButton(ns("btn_conclusions"), "Conclusions",
                            class = "btn-sm btn-outline-primary",
                            icon = icon("microscope")),
+              actionButton(ns("btn_lit_review"), "Lit Review",
+                           class = "btn-sm btn-outline-primary",
+                           icon = icon("table-cells")),
               actionButton(ns("btn_slides"), "Slides",
                            class = "btn-sm btn-outline-primary",
                            icon = icon("file-powerpoint"))
@@ -615,7 +618,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           )
         } else {
           # Check if this is a synthesis response
-          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("conclusions", "overview")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("overview", "conclusions", "research_questions", "lit_review")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
@@ -628,7 +631,18 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                 " - Verify all claims against original sources before use."
               )
             },
-            HTML(commonmark::markdown_html(msg$content, extensions = TRUE))
+            {
+              rendered_html <- commonmark::markdown_html(msg$content, extensions = TRUE)
+              if (!is.null(msg$preset_type) && identical(msg$preset_type, "lit_review")) {
+                # Wrap table in scrollable container with frozen first column support
+                rendered_html <- gsub(
+                  "<table>",
+                  '<div class="lit-review-scroll"><table class="table table-striped table-bordered">',
+                  rendered_html)
+                rendered_html <- gsub("</table>", "</table></div>", rendered_html)
+              }
+              HTML(rendered_html)
+            }
           )
 
           div(class = "d-flex justify-content-start mb-2", content_html)
@@ -815,6 +829,56 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Literature Review Table preset handler
+    observeEvent(input$btn_lit_review, {
+      req(!is_processing())
+      req(has_api_key())
+
+      # Guard: RAG must be available
+      if (!isTRUE(rag_available())) {
+        showNotification("Synthesis unavailable - re-index this notebook first.", type = "warning")
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count >= 20L) {
+        showNotification(
+          sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
+          type = "warning", duration = 8
+        )
+      }
+
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(
+        role = "user",
+        content = "Generate: Literature Review Table",
+        timestamp = Sys.time(),
+        preset_type = "lit_review"
+      )))
+      messages(msgs)
+
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_lit_review_table(con(), cfg, nb_id, session_id = session$token)
+      }, error = function(e) {
+        sprintf("Error: %s", e$message)
+      })
+
+      msgs <- c(msgs, list(list(
+        role = "assistant",
+        content = response,
+        timestamp = Sys.time(),
+        preset_type = "lit_review"
+      )))
       messages(msgs)
       is_processing(FALSE)
     })

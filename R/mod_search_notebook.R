@@ -250,7 +250,8 @@ mod_search_notebook_ui <- function(id) {
           div(
             class = "btn-group btn-group-sm w-100",
             uiOutput(ns("overview_btn_ui")),
-            uiOutput(ns("conclusions_btn_ui"))
+            uiOutput(ns("conclusions_btn_ui")),
+            uiOutput(ns("research_questions_btn_ui"))
           )
         ),
         # Messages area
@@ -611,6 +612,22 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           disabled = "disabled",
           title = "Synthesis unavailable \u2014 re-index this notebook first",
           icon("microscope"), " Conclusions"
+        )
+      }
+    })
+
+    # Phase 27: Render research questions button (disabled when rag_available is FALSE)
+    output$research_questions_btn_ui <- renderUI({
+      if (isTRUE(rag_available())) {
+        actionButton(ns("btn_research_questions"), "Research Questions",
+                     class = "btn-sm btn-outline-primary",
+                     icon = icon("lightbulb"))
+      } else {
+        tags$button(
+          class = "btn btn-sm btn-outline-primary disabled",
+          disabled = "disabled",
+          title = "Synthesis unavailable \u2014 re-index this notebook first",
+          icon("lightbulb"), " Research Questions"
         )
       }
     })
@@ -2211,12 +2228,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # For now, just create a document record with the abstract as content
         # Full PDF download would require additional logic
         if (!is.na(abs$abstract) && nchar(abs$abstract) > 0) {
+          # Extract DOI (may be NA)
+          doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
+
+          # Extract authors (already JSON string in abstracts table)
+          doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
+
+          # Extract year (may be NA)
+          doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
+
           doc_id <- create_document(
             con(), target,
             paste0(abs$title, ".txt"),
             "",
             abs$abstract,
-            1
+            1,
+            title = abs$title,
+            authors = doc_authors,
+            year = doc_year,
+            doi = doc_doi,
+            abstract_id = abs$id
           )
 
           create_chunk(con(), doc_id, "document", 0, abs$abstract, page_number = 1)
@@ -2268,7 +2299,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 style = "max-width: 85%;", msg$content)
           )
         } else {
-          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("conclusions", "overview")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("overview", "conclusions", "research_questions")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
@@ -2432,6 +2463,50 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
 
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Phase 27: Research Questions preset handler
+    observeEvent(input$btn_research_questions, {
+      if (!isTRUE(rag_available())) {
+        showNotification("Synthesis unavailable \u2014 re-index this notebook first.", type = "warning")
+        return()
+      }
+      req(!is_processing())
+      req(has_api_key())
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(
+        role = "user",
+        content = "Generate: Research Questions",
+        timestamp = Sys.time(),
+        preset_type = "research_questions"
+      )))
+      messages(msgs)
+
+      nb_id <- notebook_id()
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_research_questions(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
+      }, error = function(e) {
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        "Sorry, I encountered an error generating research questions."
+      })
+
+      msgs <- c(msgs, list(list(
+        role = "assistant",
+        content = response,
+        timestamp = Sys.time(),
+        preset_type = "research_questions"
+      )))
       messages(msgs)
       is_processing(FALSE)
     })

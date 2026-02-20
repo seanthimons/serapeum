@@ -632,3 +632,419 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     }
   }
 }
+
+#' Generate research questions from notebook papers
+#'
+#' Identifies research gaps across collected papers and generates focused,
+#' gap-grounded research questions with author/year citations.
+#' Uses hybrid RAG retrieval targeted at gap-revealing content.
+#'
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param notebook_type Type of notebook ("search" or "document")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @return Generated research questions as markdown string
+generate_research_questions <- function(con, config, notebook_id, notebook_type = "search", session_id = NULL) {
+  # Extract settings
+  api_key <- get_setting(config, "openrouter", "api_key")
+  if (length(api_key) > 1) api_key <- api_key[1]
+
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  if (length(chat_model) > 1) chat_model <- chat_model[1]
+
+  # Check api_key
+  api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
+                   (is.character(api_key) && nchar(api_key) == 0)
+  if (api_key_empty) {
+    return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
+  }
+
+  # Early return for small notebooks (need at least 2 papers to identify gaps)
+  paper_count <- tryCatch({
+    dbGetQuery(con, "SELECT COUNT(*) as cnt FROM abstracts WHERE notebook_id = ?", list(notebook_id))$cnt[1]
+  }, error = function(e) {
+    message("[generate_research_questions] Paper count query failed: ", e$message)
+    0L
+  })
+
+  if (is.na(paper_count) || paper_count < 2) {
+    return("At least 2 papers are needed to identify research gaps and generate research questions.")
+  }
+
+  # Get paper metadata for citation info
+  papers <- tryCatch({
+    dbGetQuery(con, "SELECT id, title, authors, year FROM abstracts WHERE notebook_id = ?", list(notebook_id))
+  }, error = function(e) {
+    message("[generate_research_questions] Paper metadata query failed: ", e$message)
+    NULL
+  })
+
+  # Format citation-ready paper list for the prompt
+  paper_list_text <- if (!is.null(papers) && nrow(papers) > 0) {
+    paper_refs <- vapply(seq_len(nrow(papers)), function(i) {
+      authors <- tryCatch(
+        jsonlite::fromJSON(papers$authors[i]),
+        error = function(e) character()
+      )
+      author_str <- if (length(authors) == 0) "Unknown"
+        else if (length(authors) > 2) paste0(authors[1], " et al.")
+        else paste(authors, collapse = " & ")
+      year_str <- if (is.na(papers$year[i])) "n.d." else as.character(papers$year[i])
+      sprintf("- %s (%s): \"%s\"", author_str, year_str, papers$title[i])
+    }, character(1))
+    paste(paper_refs, collapse = "\n")
+  } else {
+    "(Paper metadata unavailable)"
+  }
+
+  # Retrieve chunks via hybrid search (gap-focused query)
+  chunks <- NULL
+
+  # For search notebooks: no section filter (abstracts lack section structure)
+  chunks <- tryCatch({
+    search_chunks_hybrid(
+      con,
+      query = "research gaps limitations future work methodology population understudied contradictions",
+      notebook_id = notebook_id,
+      limit = 15
+    )
+  }, error = function(e) {
+    message("[generate_research_questions] Hybrid search failed: ", e$message)
+    NULL
+  })
+
+  # Fallback: direct DB query if hybrid search returned nothing
+  if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
+    message("[generate_research_questions] Hybrid search empty, falling back to direct DB query")
+    chunks <- tryCatch({
+      if (notebook_type == "document") {
+        dbGetQuery(con, "
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+                 d.filename as doc_name, NULL as abstract_title
+          FROM chunks c
+          JOIN documents d ON c.source_id = d.id
+          WHERE d.notebook_id = ?
+          ORDER BY c.chunk_index DESC
+          LIMIT 15
+        ", list(notebook_id))
+      } else {
+        dbGetQuery(con, "
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+                 NULL as doc_name, a.title as abstract_title
+          FROM chunks c
+          JOIN abstracts a ON c.source_id = a.id
+          WHERE a.notebook_id = ?
+          ORDER BY a.year DESC, c.chunk_index
+          LIMIT 15
+        ", list(notebook_id))
+      }
+    }, error = function(e) {
+      message("[generate_research_questions] Direct DB fallback failed: ", e$message)
+      NULL
+    })
+  }
+
+  if (is.null(chunks) || !is.data.frame(chunks) || nrow(chunks) == 0) {
+    return("No content found in this notebook. Please add documents or search for papers first.")
+  }
+
+  # Build context
+  context <- build_context(chunks)
+
+  # System prompt: gap analyst role with PICO-invisible adaptive framing
+  system_prompt <- "You are a research gap analyst. Your task is to identify gaps in the existing research and generate focused research questions.
+
+INSTRUCTIONS:
+1. Analyze the provided research sources to identify gaps, contradictions, and unexplored areas
+2. Generate research questions that address the most significant gaps
+3. For each question, provide a 2-3 sentence rationale citing specific papers by author name and year
+4. Use an appropriate research framework internally (PICO for clinical/health topics, PEO for qualitative, SPIDER for mixed methods, or freeform for other domains) but do NOT label or mention the framework in your output
+5. Group questions by gap type (methodological, population/sample, temporal, theoretical, etc.)
+6. Prioritize the strongest/most significant gaps; vary gap types when possible
+
+OUTPUT FORMAT:
+- Numbered list of questions, each followed by an indented rationale
+- No introductory paragraph or scope note
+- Each rationale MUST name specific papers by 'Author et al. (Year)' format
+- When a gap spans multiple papers, name ALL relevant papers
+
+SCALING:
+- For collections of 2-3 papers: generate 3-4 questions
+- For collections of 5+ papers: generate 5-7 questions
+
+IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. Every claim in a rationale must trace to a specific source."
+
+  # User prompt with paper metadata + retrieved content
+  user_prompt <- sprintf(
+    "===== PAPER METADATA =====\n%s\n\n===== RETRIEVED CONTENT =====\n%s\n===== END SOURCES =====\n\nThis collection contains %d paper%s. Analyze the research above and generate research questions that address identified gaps.",
+    paper_list_text,
+    context,
+    paper_count,
+    if (paper_count == 1L) "" else "s"
+  )
+
+  messages <- format_chat_messages(system_prompt, user_prompt)
+
+  # Generate response
+  response <- tryCatch({
+    result <- chat_completion(api_key, chat_model, messages)
+
+    # Log cost if session_id provided
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+      log_cost(con, "research_questions", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
+  }, error = function(e) {
+    return(sprintf("Error generating research questions: %s", e$message))
+  })
+
+  response
+}
+
+#' Build context string grouped by paper with delimiters
+#' @param papers_with_chunks List of lists, each with $label, $doc_id, $chunks data frame
+#' @return Single string with === PAPER: {label} === delimiters
+build_context_by_paper <- function(papers_with_chunks) {
+  sections <- vapply(papers_with_chunks, function(paper) {
+    if (is.null(paper$chunks) || nrow(paper$chunks) == 0) {
+      return(sprintf("=== PAPER: %s ===\n[No content available]", paper$label))
+    }
+
+    chunk_texts <- vapply(seq_len(nrow(paper$chunks)), function(i) {
+      hint <- if (!is.na(paper$chunks$section_hint[i])) paper$chunks$section_hint[i] else "general"
+      sprintf("[p.%d, %s] %s",
+              paper$chunks$page_number[i],
+              hint,
+              paper$chunks$content[i])
+    }, character(1))
+
+    sprintf("=== PAPER: %s ===\n%s", paper$label, paste(chunk_texts, collapse = "\n\n"))
+  }, character(1))
+
+  paste(sections, collapse = "\n\n")
+}
+
+#' Validate that LLM output is a well-formed GFM pipe table
+#' @param text Character string of LLM output
+#' @return TRUE if valid GFM table (consistent pipe counts), FALSE otherwise
+validate_gfm_table <- function(text) {
+  lines <- strsplit(text, "\n")[[1]]
+  table_lines <- trimws(lines[grepl("\\|", lines)])
+  table_lines <- table_lines[nchar(table_lines) > 0]
+
+  if (length(table_lines) < 3) return(FALSE)  # header + separator + at least 1 row
+
+  pipe_counts <- vapply(table_lines, function(l) {
+    nchar(gsub("[^|]", "", l))
+  }, integer(1), USE.NAMES = FALSE)
+
+  length(unique(pipe_counts)) == 1
+}
+
+#' Generate a literature review comparison table for all documents in a notebook
+#' @param con DuckDB connection
+#' @param config Config list with api_key, chat_model
+#' @param notebook_id Notebook ID
+#' @param session_id Optional session token for cost logging
+#' @return GFM pipe table string with DOI injection, or error message string
+generate_lit_review_table <- function(con, config, notebook_id, session_id = NULL) {
+  tryCatch({
+    # API setup
+    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    if (nchar(trimws(api_key)) == 0) {
+      return("API key not configured. Please add your OpenRouter API key in Settings.")
+    }
+    chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+
+    # Get documents with metadata
+    docs <- dbGetQuery(con, "
+      SELECT id, filename, title, authors, year, doi
+      FROM documents WHERE notebook_id = ?
+      ORDER BY year DESC NULLS LAST, filename
+    ", list(notebook_id))
+
+    if (nrow(docs) == 0) {
+      return("No documents found in this notebook.")
+    }
+
+    paper_count <- nrow(docs)
+
+    # Build paper labels with metadata fallback
+    paper_labels <- lapply(seq_len(nrow(docs)), function(i) {
+      doc <- docs[i, ]
+      if (!is.na(doc$title) && !is.na(doc$authors) && !is.na(doc$year)) {
+        authors_parsed <- tryCatch(jsonlite::fromJSON(doc$authors), error = function(e) NULL)
+        if (!is.null(authors_parsed) && length(authors_parsed) > 0) {
+          # Extract last names - authors stored as JSON array of objects with display_name
+          if (is.data.frame(authors_parsed) && "display_name" %in% names(authors_parsed)) {
+            last_names <- vapply(authors_parsed$display_name, function(a) {
+              parts <- strsplit(trimws(a), "\\s+")[[1]]
+              parts[length(parts)]
+            }, character(1))
+          } else if (is.character(authors_parsed)) {
+            last_names <- vapply(authors_parsed, function(a) {
+              parts <- strsplit(trimws(a), "\\s+")[[1]]
+              parts[length(parts)]
+            }, character(1))
+          } else {
+            last_names <- "Unknown"
+          }
+
+          author_str <- if (length(last_names) > 2) {
+            paste0(last_names[1], " et al.")
+          } else if (length(last_names) == 2) {
+            paste0(last_names[1], " & ", last_names[2])
+          } else {
+            last_names[1]
+          }
+          label <- sprintf("%s (%d)", author_str, doc$year)
+        } else {
+          label <- sprintf("Unknown (%s)", if (!is.na(doc$year)) as.character(doc$year) else "n.d.")
+        }
+      } else {
+        label <- tools::file_path_sans_ext(doc$filename)
+      }
+      list(label = label, doi = doc$doi, doc_id = doc$id)
+    })
+
+    # Section-aware chunk retrieval with dynamic token budget
+    # CRITICAL: lapply is INSIDE the repeat loop so re-querying occurs when chunks_per_paper is reduced
+    max_context_tokens <- 80000L
+    chunks_per_paper <- 7L
+
+    repeat {
+      # Re-query chunks with current chunks_per_paper limit
+      papers_data <- lapply(seq_len(nrow(docs)), function(i) {
+        doc <- docs[i, ]
+
+        # Try section-filtered first
+        section_chunks <- dbGetQuery(con, "
+          SELECT chunk_index, content, page_number, section_hint
+          FROM chunks
+          WHERE source_id = ? AND section_hint IN ('methods', 'methodology', 'results', 'limitations', 'discussion', 'conclusion')
+          ORDER BY chunk_index
+          LIMIT ?
+        ", list(doc$id, chunks_per_paper))
+
+        if (nrow(section_chunks) < 2) {
+          # Fallback: distributed sampling
+          all_chunks <- dbGetQuery(con, "
+            SELECT chunk_index, content, page_number,
+                   COALESCE(section_hint, 'general') as section_hint
+            FROM chunks WHERE source_id = ?
+            ORDER BY chunk_index
+          ", list(doc$id))
+
+          if (nrow(all_chunks) > chunks_per_paper) {
+            n <- nrow(all_chunks)
+            indices <- unique(c(1, 2, ceiling(n/2), n-1, n))
+            indices <- indices[indices >= 1 & indices <= n]
+            indices <- sort(head(indices, chunks_per_paper))
+            all_chunks <- all_chunks[indices, ]
+          }
+          section_chunks <- all_chunks
+        }
+
+        list(label = paper_labels[[i]]$label, doc_id = doc$id, chunks = section_chunks)
+      })
+
+      # Estimate tokens
+      total_est <- sum(vapply(papers_data, function(p) {
+        if (is.null(p$chunks) || nrow(p$chunks) == 0) return(0)
+        ceiling(nchar(paste(p$chunks$content, collapse = " ")) / 4)
+      }, numeric(1)))
+
+      if (total_est <= max_context_tokens || chunks_per_paper <= 2L) break
+      chunks_per_paper <- chunks_per_paper - 1L
+    }
+
+    # Token budget hard check after loop
+    context <- build_context_by_paper(papers_data)
+    est_tokens <- ceiling(nchar(context) / 4)
+    if (est_tokens > max_context_tokens) {
+      return(sprintf(
+        "The combined document content (~%dk tokens) exceeds the analysis limit (%dk). Consider splitting documents across multiple notebooks or reducing the number of papers.",
+        round(est_tokens / 1000), round(max_context_tokens / 1000)
+      ))
+    }
+
+    # System prompt
+    system_prompt <- paste0(
+      "You are a systematic review assistant. Generate a literature review comparison table in GFM (GitHub Flavored Markdown) pipe table format.\n\n",
+      "COLUMNS (exactly these, in this order):\n",
+      "| Author/Year | Methodology | Sample | Key Findings | Limitations |\n\n",
+      "RULES:\n",
+      "- One row per paper, ordered by most recent first\n",
+      "- Author/Year: Use the exact label from the paper delimiter (e.g., 'Smith et al. (2023)')\n",
+      "- Each cell: brief phrases (2-5 words), NOT full sentences\n",
+      "- Key Findings: single consolidated statement per paper, no bullet points\n",
+      "- For N/A columns: use contextual notes (e.g., 'Theoretical framework', 'Systematic review') instead of literal 'N/A'\n",
+      "- Output ONLY the markdown table. No introduction, no summary, no notes before or after the table.\n",
+      "- Every line of the table must have exactly 6 pipe characters (| col1 | col2 | col3 | col4 | col5 |)"
+    )
+
+    # User prompt
+    user_prompt <- sprintf(
+      "===== DOCUMENTS (%d papers) =====\n%s\n===== END =====\n\nGenerate the literature review comparison table.",
+      paper_count, context
+    )
+
+    messages <- format_chat_messages(system_prompt, user_prompt)
+    result <- chat_completion(api_key, chat_model, messages)
+
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                            result$usage$prompt_tokens %||% 0,
+                            result$usage$completion_tokens %||% 0)
+      log_cost(con, "lit_review_table", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    response <- result$content
+
+    # Strip any markdown code fences the LLM might wrap the table in
+    response <- gsub("^```[a-z]*\\s*\n", "", response)
+    response <- gsub("\n```\\s*$", "", response)
+    response <- trimws(response)
+
+    if (!validate_gfm_table(response)) {
+      return("Table appears malformed. Please try again by clicking the Lit Review button.")
+    }
+
+    # DOI injection: replace Author/Year text with markdown links where DOI is available
+    for (pl in paper_labels) {
+      if (!is.na(pl$doi) && nchar(pl$doi) > 0) {
+        # Use fixed string matching (labels don't need regex)
+        doi_link <- sprintf("[%s](https://doi.org/%s)", pl$label, pl$doi)
+        response <- gsub(pl$label, doi_link, response, fixed = TRUE)
+      }
+    }
+
+    # Check for missing papers and add note
+    lines <- strsplit(response, "\n")[[1]]
+    data_rows <- lines[!grepl("^\\s*\\|[-:| ]+\\|\\s*$", lines)]  # exclude separator row
+    data_rows <- data_rows[grepl("\\|", data_rows)]
+    # Subtract 1 for header row
+    actual_rows <- length(data_rows) - 1
+    if (actual_rows < paper_count && actual_rows > 0) {
+      missing <- paper_count - actual_rows
+      response <- paste0(response, sprintf("\n\n*Note: %d paper(s) could not be analyzed and are not shown.*", missing))
+    }
+
+    response
+  }, error = function(e) {
+    sprintf("Error generating literature review table: %s", e$message)
+  })
+}

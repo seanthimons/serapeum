@@ -2,24 +2,24 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-18)
+See: .planning/PROJECT.md (updated 2026-02-19)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 27 — next phase (v4.0)
+**Current focus:** All v4.0 phases complete
 
 ## Current Position
 
-Phase: 26 of 28 (Unified Overview Preset) — COMPLETE
-Plan: 2 of 2 — COMPLETE
-Status: Phase 26 complete; Overview feature fully operational in both notebook modules
-Last activity: 2026-02-19 — 26-02 complete: Overview popover button wired into mod_document_notebook.R and mod_search_notebook.R
+Phase: 28 of 28 (Literature Review Table) -- COMPLETE
+Plan: 1 of 1 -- Complete
+Status: All v4.0 phases complete (25-28); Overview, Research Questions, and Lit Review features operational
+Last activity: 2026-02-19 -- Merge conflict resolution: combined Phase 26 (Overview) with Phases 27-28 (Research Questions + Lit Review)
 
-Progress: [████░░░░░░] 50% (v4.0)
+Progress: [##########] 100% (v4.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45 (across v1.0-v4.0 stabilize)
+- Total plans completed: 46 (across v1.0-v4.0)
 - Total execution time: ~8 days across 6+ milestones
 
 **By Milestone:**
@@ -32,7 +32,7 @@ Progress: [████░░░░░░] 50% (v4.0)
 | v2.0 | 11-15 | 8 | Complete | 2026-02-13 |
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
-| v4.0 | 25-28 | 5/5 | In Progress | — |
+| v4.0 | 25-28 | 5/5 | Complete | 2026-02-19 |
 
 ## Accumulated Context
 
@@ -48,7 +48,9 @@ Recent decisions affecting v4.0:
 - Phase 28: Literature Review Table uses direct SQL (all abstracts) not RAG top-k — comparison matrix requires complete coverage
 - 25-01: Observer dedup pattern applied to all lapply+observeEvent sites; seed paper inserted at notebook creation using paper_id (not DOI) as duplicate check key; pricing fetch once=TRUE so API failure non-blocking
 - 26-01: generate_overview_preset() uses full-corpus SQL (no LIMIT); Quick mode logs "overview", Thorough mode logs "overview_summary"/"overview_keypoints" for granular cost tracking; BATCH_SIZE 10 (doc) / 20 (search) with 300k char threshold
-- 26-02: Overview replaces Summarize + Key Points in document notebook; added alongside Conclusions in search notebook; is_synthesis check expanded to c("conclusions", "overview") in both modules
+- 26-02: Overview replaces Summarize + Key Points in document notebook; added alongside Conclusions in search notebook; is_synthesis check expanded to c("overview", "conclusions", "research_questions", "lit_review") in both modules
+- 27-01: generate_research_questions() as standalone function (not added to generate_preset()); disclaimer check widened using %in% set membership for extensibility; RAG query uses gap-focused terms with limit=15; paper metadata queried separately from abstracts table
+- 28-01: GFM pipe table over DT widget (stays in message pipeline); server-side DOI injection after LLM call (not by LLM); no sticky column headers (chat panel is scroll ancestor); lapply inside repeat loop critical for dynamic token budget re-querying; plain text error message for malformed table output
 
 ### Pending Todos
 
@@ -62,7 +64,7 @@ Recent decisions affecting v4.0:
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 26-02-PLAN.md — Overview popover wired into both notebook modules
-Resume file: .planning/phases/26-unified-overview-preset/26-02-SUMMARY.md
+Stopped at: Merge conflict resolution -- all v4.0 phases integrated
+Resume file: none
 
-**Next action:** Execute Phase 27 (next phase in roadmap)
+**Next action:** All v4.0 phases complete. Project at 100%.

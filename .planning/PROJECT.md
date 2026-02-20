@@ -90,7 +90,7 @@ Researchers can efficiently discover relevant academic papers through seed paper
 **Phase 2 — Synthesis:**
 - [ ] Merge Summarize + Key Points into unified Overview (#98)
 - [ ] Literature Review Table — structured comparison matrix (#99)
-- [ ] Research Question Generator preset (#102)
+- [x] Research Question Generator preset (#102) — Phase 27
 
 ### Out of Scope
 
@@ -166,6 +166,8 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 | rag_ready separate from store_healthy (v3.0) | Migration vs corruption are different concerns | ✓ Good — independent lifecycles |
 | ragnar store version=1 required (v3.0) | insert_chunks_to_ragnar creates v1-format chunks | ✓ Good — caught by integration tests |
 | DBI::dbDisconnect(store@con) for S7 objects (v3.0) | S7 DuckDBRagnarStore has no DBI method registered | ✓ Good — caught by integration tests |
+| Standalone generate_research_questions() (v4.0) | Separate function, not added to generate_preset() — different prompt structure, paper metadata enrichment | ✓ Good — clean separation |
+| %in% set membership for disclaimer check (v4.0) | Extensible for future preset types vs chained identical() | ✓ Good — Literature Review Table will benefit |
 
 ---
 ## Current Milestone: v4.0 Stability + Synthesis
@@ -179,4 +181,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 - Research Question Generator for discovery-to-analysis workflow
 
 ---
-*Last updated: 2026-02-18 after v4.0 milestone started*
+*Last updated: 2026-02-19 after Phase 27*
