@@ -507,6 +507,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         if (is.null(delete_doc_observers[[doc$id]])) {
           delete_doc_observers[[doc$id]] <- observeEvent(input[[delete_id]], {
             delete_document(con(), doc$id)
+            # Clean ragnar store chunks for this document
+            delete_document_chunks_from_ragnar(nb_id, doc$filename)
             # Also remove the PDF file
             pdf_path <- file.path(".temp", "pdfs", nb_id, doc$filename)
             if (file.exists(pdf_path)) file.remove(pdf_path)

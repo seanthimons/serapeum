@@ -697,6 +697,37 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
   })
 }
 
+#' Delete document chunks from ragnar store
+#'
+#' Removes all chunks for a specific document from the notebook's ragnar store.
+#' Matches by filename prefix in the origin field (format: filename#page=N|...).
+#'
+#' @param notebook_id Notebook ID (UUID)
+#' @param filename Document filename whose chunks should be deleted
+#' @return Invisibly NULL
+delete_document_chunks_from_ragnar <- function(notebook_id, filename) {
+  tryCatch({
+    store_path <- get_notebook_ragnar_path(notebook_id)
+
+    if (!file.exists(store_path)) {
+      return(invisible(NULL))
+    }
+
+    con <- DBI::dbConnect(duckdb::duckdb(), dbdir = store_path)
+    on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+
+    # Match origin starting with filename (covers filename#page=N|... format)
+    deleted <- DBI::dbExecute(con, "DELETE FROM chunks WHERE origin LIKE ?",
+                               list(paste0(filename, "#%")))
+    message("[ragnar] Deleted ", deleted, " chunks for document: ", filename)
+    invisible(NULL)
+
+  }, error = function(e) {
+    message("[ragnar] Document chunk deletion failed for ", filename, ": ", e$message)
+    invisible(NULL)
+  })
+}
+
 #' Delete abstract chunks from ragnar store
 #'
 #' Removes all chunks for a specific abstract from the notebook's ragnar store.
