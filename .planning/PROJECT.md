@@ -173,21 +173,18 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 ## Current State
 
 **Latest shipped:** v4.0 Stability + Synthesis (2026-02-22)
-**Total milestones:** 7 shipped (v1.0–v4.0)
-**Total phases:** 28 across 47 plans
+**Active milestone:** v5.0 Fix Document Embeddings
+**Total milestones:** 7 shipped (v1.0–v4.0), 1 active (v5.0)
+**Total phases:** 29 across 48 plans
 
-**v4.0 delivered:**
-- Stabilized codebase (12 bugs/debt/UI items resolved)
-- Unified Overview preset (Quick/Thorough modes with batching)
-- Research Question Generator (PICO-framed, gap-grounded)
-- Literature Review Table (GFM comparison matrix with DOI injection)
-- Cross-process DuckDB lock fix (pre-fetch pattern for mirai workers)
+**v5.0 goal:** Fix the critical ragnar embed closure serialization bug — the embed function is serialized to disk by ragnar but loses its closure environment on deserialization, breaking all document and abstract embedding. Fix: set embed function via S7 `@embed` property at runtime after every store create/connect.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
 - 13 pre-existing test fixture failures (missing schema columns)
-
-**Next milestone:** Not yet defined — run `/gsd:new-milestone` to start v5.0
+- Connection leak in search_chunks_hybrid (#117)
+- Section_hint not encoded in PDF ragnar origins (#118)
+- Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 
 ---
-*Last updated: 2026-02-22 after v4.0 archive*
+*Last updated: 2026-02-22 — v5.0 milestone created*

@@ -40,6 +40,22 @@ mod_search_notebook_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
+    # JavaScript: show spinner on send button while chat is processing
+    tags$script(HTML(sprintf("
+      $(document).on('click', '#%s', function() {
+        var btn = $(this);
+        btn.data('original-html', btn.html());
+        btn.html('<span class=\"spinner-border spinner-border-sm\" role=\"status\"></span>');
+        btn.prop('disabled', true);
+      });
+      Shiny.addCustomMessageHandler('searchChatReady', function(ns) {
+        var btn = $('#' + ns + 'send');
+        var orig = btn.data('original-html');
+        if (orig) btn.html(orig);
+        btn.prop('disabled', false);
+      });
+    ", ns("send")))),
+
     layout_columns(
       col_widths = c(4, 8),
       # Left: Paper list
@@ -933,9 +949,25 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
     )
 
+    # Set of paper IDs that have been embedded (for per-paper brain icon)
+    embedded_paper_ids <- reactive({
+      paper_refresh()  # Dependency to update when papers change
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      result <- dbGetQuery(con(), "
+        SELECT DISTINCT c.source_id
+        FROM chunks c
+        WHERE c.source_type = 'abstract'
+          AND c.embedding IS NOT NULL
+          AND c.source_id IN (SELECT id FROM abstracts WHERE notebook_id = ?)
+      ", list(nb_id))
+
+      result$source_id
+    })
+
     # Check if papers need embedding (based on filtered view)
     papers_need_embedding <- reactive({
-      paper_refresh()  # Dependency to update when papers change
       papers <- filtered_papers()  # Use filtered set, not all papers
       if (nrow(papers) == 0) return(0)
 
@@ -943,19 +975,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers_with_abstract <- papers[!is.na(papers$abstract) & nchar(papers$abstract) > 0, ]
       if (nrow(papers_with_abstract) == 0) return(0)
 
-      paper_ids <- papers_with_abstract$id
-
-      # Count how many of the filtered papers have embeddings
-      placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
-      embedded_count <- dbGetQuery(con(), sprintf("
-        SELECT COUNT(DISTINCT c.source_id) as count
-        FROM chunks c
-        WHERE c.source_id IN (%s)
-          AND c.embedding IS NOT NULL
-      ", placeholders), as.list(paper_ids))$count[1]
-
-      # Return count of filtered papers needing embedding
-      length(paper_ids) - embedded_count
+      embedded <- embedded_paper_ids()
+      sum(!papers_with_abstract$id %in% embedded)
     })
 
 
@@ -1857,6 +1878,22 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Trigger for programmatic refresh
     search_refresh_trigger <- reactiveVal(0)
 
+    # Auto-search on first load: if notebook has a query but no papers yet, trigger search
+    observe({
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      nb <- get_notebook(con(), nb_id)
+      req(nb$type == "search")
+      req(!is.null(nb$search_query) && nchar(nb$search_query) > 0)
+
+      # Only auto-search if notebook has zero papers (i.e., freshly created)
+      paper_count <- nrow(list_abstracts(con(), nb_id))
+      if (paper_count == 0) {
+        search_refresh_trigger(search_refresh_trigger() + 1)
+      }
+    }) |> bindEvent(notebook_id(), once = TRUE)
+
     # Save edited search
     observeEvent(input$save_search, {
       nb_id <- notebook_id()
@@ -1930,6 +1967,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       cfg <- config()
 
+      newly_added <- 0L
+
       withProgress(message = "Searching OpenAlex...", value = 0, {
         email <- get_setting(cfg, "openalex", "email") %||% ""
         api_key <- get_setting(cfg, "openalex", "api_key")
@@ -2002,7 +2041,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
 
         # Save papers — track how many are newly added vs skipped as duplicates
-        newly_added <- 0L
         for (paper in papers) {
           # Check if already exists
           existing <- dbGetQuery(con(), "
@@ -2031,7 +2069,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
           }
 
-          newly_added <- newly_added + 1L
+          newly_added <<- newly_added + 1L
         }
 
         # NOTE: Embedding is now deferred - user must click "Embed Papers" button
@@ -2370,6 +2408,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
+      session$sendCustomMessage("searchChatReady", ns(""))
     })
 
     # Reset Overview popover to defaults each time it opens

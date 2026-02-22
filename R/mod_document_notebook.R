@@ -4,6 +4,22 @@ mod_document_notebook_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
+    # JavaScript: show spinner on send button while chat is processing
+    tags$script(HTML(sprintf("
+      $(document).on('click', '#%s', function() {
+        var btn = $(this);
+        btn.data('original-html', btn.html());
+        btn.html('<span class=\"spinner-border spinner-border-sm\" role=\"status\"></span> Thinking\u2026');
+        btn.prop('disabled', true);
+      });
+      Shiny.addCustomMessageHandler('docChatReady', function(ns) {
+        var btn = $('#' + ns + 'send');
+        var orig = btn.data('original-html');
+        if (orig) btn.html(orig);
+        btn.prop('disabled', false);
+      });
+    ", ns("send")))),
+
     # JavaScript handler for re-index progress updates
     tags$script(HTML("
       Shiny.addCustomMessageHandler('updateReindexProgress', function(data) {
@@ -138,6 +154,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
     # Reactive: refresh trigger
     doc_refresh <- reactiveVal(0)
+    # Track which document IDs already have delete observers to prevent duplicates
+    delete_doc_observers <- reactiveValues()
 
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
@@ -429,6 +447,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     # Document list
+    # Set of document IDs that have been embedded (for brain icon)
+    embedded_doc_ids <- reactive({
+      doc_refresh()
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      result <- dbGetQuery(con(), "
+        SELECT DISTINCT c.source_id
+        FROM chunks c
+        WHERE c.source_type = 'document'
+          AND c.embedding IS NOT NULL
+          AND c.source_id IN (SELECT id FROM documents WHERE notebook_id = ?)
+      ", list(nb_id))
+
+      result$source_id
+    })
+
     output$document_list <- renderUI({
       doc_refresh()
       nb_id <- notebook_id()
@@ -454,18 +489,42 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         addResourcePath(resource_name, normalizePath(pdf_dir))
       }
 
+      embedded <- embedded_doc_ids()
+
       lapply(seq_len(nrow(docs)), function(i) {
         doc <- docs[i, ]
+        is_embedded <- doc$id %in% embedded
+        delete_id <- paste0("delete_doc_", doc$id)
 
         # Build download URL
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
         download_url <- file.path(resource_name, doc$filename)
 
+        # Register delete observer (once per document ID)
+        if (is.null(delete_doc_observers[[doc$id]])) {
+          delete_doc_observers[[doc$id]] <- observeEvent(input[[delete_id]], {
+            delete_document(con(), doc$id)
+            # Also remove the PDF file
+            pdf_path <- file.path(".temp", "pdfs", nb_id, doc$filename)
+            if (file.exists(pdf_path)) file.remove(pdf_path)
+            doc_refresh(doc_refresh() + 1)
+            showNotification(paste("Removed", doc$filename), type = "message")
+          }, ignoreInit = TRUE, once = TRUE)
+        }
+
         div(
-          class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom",
+          class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom position-relative",
           div(
             class = "d-flex align-items-center flex-grow-1 overflow-hidden",
             icon("file-pdf", class = "text-danger me-2"),
+            if (is_embedded) {
+              span(
+                class = "text-primary me-1",
+                style = "cursor: help; opacity: 0.7;",
+                title = "Embedded in search index",
+                icon("brain")
+              )
+            },
             span(doc$filename, class = "text-truncate", style = "max-width: 120px;",
                  title = doc$filename)
           ),
@@ -478,6 +537,13 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               class = "btn btn-sm btn-outline-secondary py-0 px-1",
               title = "Download PDF",
               icon("download")
+            ),
+            actionLink(
+              ns(delete_id),
+              icon("xmark"),
+              class = "text-muted",
+              style = "cursor: pointer; opacity: 0.5;",
+              title = "Remove document"
             )
           )
         )
@@ -563,6 +629,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
               # Build/update the search index
               build_ragnar_index(store)
+
+              # Mark chunks as embedded so brain icon shows
+              mark_as_ragnar_indexed(con(), doc_id, source_type = "document")
 
               rag_ready(TRUE)
               store_healthy(TRUE)
@@ -734,6 +803,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
+      session$sendCustomMessage("docChatReady", ns(""))
     })
 
     # Also send on Enter key

@@ -282,7 +282,14 @@ mod_settings_server <- function(id, con, config_rv) {
     }
 
     # Load current settings on init
+    # Track whether we've populated the UI (prevent re-populating after user edits)
+    settings_populated <- reactiveVal(FALSE)
+
     observe({
+      # Wait until settings UI is rendered (input is NULL until then)
+      req(!is.null(input$save))
+      req(!settings_populated())
+
       cfg <- config_rv()
 
       # API Keys - prefer DB settings, fall back to config file
@@ -327,7 +334,9 @@ mod_settings_server <- function(id, con, config_rv) {
       # Validate initial API key values using helper functions
       validate_and_update_openrouter_status(or_key)
       validate_and_update_openalex_status(oa_email)
-    }) |> bindEvent(config_rv(), once = TRUE)
+
+      settings_populated(TRUE)
+    })
 
     # Refresh embedding models when API key changes or refresh button clicked
     observe({
@@ -619,8 +628,17 @@ mod_settings_server <- function(id, con, config_rv) {
     # Save settings
     observeEvent(input$save, {
       tryCatch({
-        save_db_setting(con(), "openrouter_api_key", input$openrouter_key)
-        save_db_setting(con(), "openalex_email", input$openalex_email)
+        # Only save credentials to DB if non-empty (empty = defer to config.yml)
+        or_key <- trimws(input$openrouter_key %||% "")
+        if (nchar(or_key) > 0) {
+          save_db_setting(con(), "openrouter_api_key", or_key)
+        }
+
+        oa_email <- trimws(input$openalex_email %||% "")
+        if (nchar(oa_email) > 0) {
+          save_db_setting(con(), "openalex_email", oa_email)
+        }
+
         save_db_setting(con(), "chat_model", input$chat_model)
         save_db_setting(con(), "embedding_model", input$embed_model)
         save_db_setting(con(), "chunk_size", input$chunk_size)
@@ -637,17 +655,22 @@ mod_settings_server <- function(id, con, config_rv) {
 
     # Return reactive that gets current effective settings
     # This merges config file with DB overrides
+    # Helper: treat empty strings as NULL so %||% fallback works
+    non_empty <- function(x) {
+      if (is.null(x) || (is.character(x) && nchar(trimws(x)) == 0)) NULL else x
+    }
+
     reactive({
       cfg <- config_rv() %||% list()
 
       list(
         openrouter = list(
-          api_key = get_db_setting(con(), "openrouter_api_key") %||%
-                    get_setting(cfg, "openrouter", "api_key") %||% ""
+          api_key = non_empty(get_db_setting(con(), "openrouter_api_key")) %||%
+                    non_empty(get_setting(cfg, "openrouter", "api_key")) %||% ""
         ),
         openalex = list(
-          email = get_db_setting(con(), "openalex_email") %||%
-                  get_setting(cfg, "openalex", "email") %||% ""
+          email = non_empty(get_db_setting(con(), "openalex_email")) %||%
+                  non_empty(get_setting(cfg, "openalex", "email")) %||% ""
         ),
         defaults = list(
           chat_model = get_db_setting(con(), "chat_model") %||%

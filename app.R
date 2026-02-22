@@ -2,10 +2,10 @@ library(shiny)
 library(bslib)
 library(DBI)
 library(duckdb)
-library(connections)
+#library(connections)
 
 # Options
-options("duckdb.enable_rstudio_connection_pane" = TRUE)
+#options("duckdb.enable_rstudio_connection_pane" = TRUE)
 
 # Source all R files
 for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
@@ -230,7 +230,6 @@ server <- function(input, output, session) {
 
   # Database connection - create fresh for this session
   con <- get_db_connection(db_path)
-  init_schema(con)
   seed_quality_data(con)
 
   # Clean up on session end

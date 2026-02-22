@@ -9,7 +9,9 @@ get_db_connection <- function(path = "data/notebooks.duckdb") {
 
   con <- dbConnect(duckdb(), dbdir = path)
 
-  # Run pending migrations before returning connection
+  # Create base tables first (idempotent), then run migrations to add columns/indexes
+
+  init_schema(con)
   run_pending_migrations(con)
 
   con
