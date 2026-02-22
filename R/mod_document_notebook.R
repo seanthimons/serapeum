@@ -9,15 +9,18 @@ mod_document_notebook_ui <- function(id) {
       $(document).on('click', '#%s', function() {
         var btn = $(this);
         btn.data('original-html', btn.html());
-        btn.html('<span class=\"spinner-border spinner-border-sm\" role=\"status\"></span> Thinking\u2026');
+        btn.html('<span class=\"spinner-border spinner-border-sm\" role=\"status\"></span> Thinking\\u2026');
         btn.prop('disabled', true);
       });
-      Shiny.addCustomMessageHandler('docChatReady', function(ns) {
-        var btn = $('#' + ns + 'send');
-        var orig = btn.data('original-html');
-        if (orig) btn.html(orig);
-        btn.prop('disabled', false);
-      });
+      if (!window._docChatReadyRegistered) {
+        window._docChatReadyRegistered = true;
+        Shiny.addCustomMessageHandler('docChatReady', function(ns) {
+          var btn = $('#' + ns + 'send');
+          var orig = btn.data('original-html');
+          if (orig) btn.html(orig);
+          btn.prop('disabled', false);
+        });
+      }
     ", ns("send")))),
 
     # JavaScript handler for re-index progress updates

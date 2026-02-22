@@ -73,15 +73,23 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 
   embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
+  # Debug: check store existence
+  store_path <- get_notebook_ragnar_path(notebook_id)
+  message("[rag_query] Store path: ", store_path, " exists: ", file.exists(store_path))
+
   chunks <- tryCatch({
     search_chunks_hybrid(con, question, notebook_id, limit = 5,
                          api_key = api_key, embed_model = embed_model)
   }, error = function(e) {
-    message("Ragnar search failed: ", e$message)
+    message("[rag_query] Ragnar search failed: ", e$message)
     NULL
   })
 
   if (!is.data.frame(chunks) || nrow(chunks) == 0) {
+    # Provide actionable feedback based on store state
+    if (!file.exists(store_path)) {
+      return("No search index found for this notebook. Please re-index to enable RAG chat (use the rebuild button in the document list).")
+    }
     return("I couldn't find any relevant information in your documents to answer this question. Make sure your documents have been processed and embedded.")
   }
 

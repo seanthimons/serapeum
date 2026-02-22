@@ -739,7 +739,10 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     if (!is.null(store)) {
       results <- tryCatch({
         retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
-      }, error = function(e) NULL)
+      }, error = function(e) {
+        message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
+        NULL
+      })
 
       if (!is.null(results) && nrow(results) > 0) {
         # Filter by notebook if specified

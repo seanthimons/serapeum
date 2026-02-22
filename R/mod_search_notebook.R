@@ -48,12 +48,15 @@ mod_search_notebook_ui <- function(id) {
         btn.html('<span class=\"spinner-border spinner-border-sm\" role=\"status\"></span>');
         btn.prop('disabled', true);
       });
-      Shiny.addCustomMessageHandler('searchChatReady', function(ns) {
-        var btn = $('#' + ns + 'send');
-        var orig = btn.data('original-html');
-        if (orig) btn.html(orig);
-        btn.prop('disabled', false);
-      });
+      if (!window._searchChatReadyRegistered) {
+        window._searchChatReadyRegistered = true;
+        Shiny.addCustomMessageHandler('searchChatReady', function(ns) {
+          var btn = $('#' + ns + 'send');
+          var orig = btn.data('original-html');
+          if (orig) btn.html(orig);
+          btn.prop('disabled', false);
+        });
+      }
     ", ns("send")))),
 
     layout_columns(
