@@ -778,6 +778,12 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
             }
           }, logical(1))
 
+          message("[search_chunks_hybrid] Filter: ", sum(keep_rows), "/", length(keep_rows), " rows kept")
+          if (nrow(results) > 0) {
+            message("[search_chunks_hybrid] Sample origin: ", results$origin[1])
+            message("[search_chunks_hybrid] Sample doc_name: ", results$doc_name[1])
+            message("[search_chunks_hybrid] DB filenames: ", paste(notebook_docs$filename, collapse = ", "))
+          }
           results <- results[keep_rows, , drop = FALSE]
         }
 
