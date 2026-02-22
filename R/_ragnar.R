@@ -834,7 +834,7 @@ retrieve_with_ragnar <- function(store, query, top_k = 5) {
     }, character(1))
 
     results$page_number <- vapply(results$origin, function(o) {
-      match <- regmatches(o, regexec("#page=(\\d+)$", o))[[1]]
+      match <- regmatches(o, regexec("#page=(\\d+)", o))[[1]]
       if (length(match) >= 2) as.integer(match[2]) else NA_integer_
     }, integer(1))
 
@@ -842,7 +842,8 @@ retrieve_with_ragnar <- function(store, query, top_k = 5) {
       if (grepl("^abstract:", o)) {
         NA_character_  # Abstracts don't have doc_name
       } else {
-        sub("#page=\\d+$", "", o)
+        # Strip #page=N and any pipe-delimited metadata suffix
+        sub("#page=\\d+.*$", "", o)
       }
     }, character(1))
 
