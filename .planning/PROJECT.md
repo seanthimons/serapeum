@@ -170,15 +170,24 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 | %in% set membership for disclaimer check (v4.0) | Extensible for future preset types vs chained identical() | ✓ Good — Literature Review Table will benefit |
 
 ---
-## Current Milestone: v4.0 Stability + Synthesis
+## Current State
 
-**Goal:** Stabilize the codebase after rapid v1.0–v3.0 shipping, then deliver the highest-value AI synthesis outputs leveraging v3.0's ragnar infrastructure.
+**Latest shipped:** v4.0 Stability + Synthesis (2026-02-22)
+**Total milestones:** 7 shipped (v1.0–v4.0)
+**Total phases:** 28 across 47 plans
 
-**Target features:**
-- All known bugs fixed and tech debt resolved (clean foundation)
-- Unified Overview preset replacing separate Summarize + Key Points
-- Literature Review Table for structured paper comparison
-- Research Question Generator for discovery-to-analysis workflow
+**v4.0 delivered:**
+- Stabilized codebase (12 bugs/debt/UI items resolved)
+- Unified Overview preset (Quick/Thorough modes with batching)
+- Research Question Generator (PICO-framed, gap-grounded)
+- Literature Review Table (GFM comparison matrix with DOI injection)
+- Cross-process DuckDB lock fix (pre-fetch pattern for mirai workers)
+
+**Known tech debt:**
+- Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
+- 13 pre-existing test fixture failures (missing schema columns)
+
+**Next milestone:** Not yet defined — run `/gsd:new-milestone` to start v5.0
 
 ---
-*Last updated: 2026-02-19 after Phase 27*
+*Last updated: 2026-02-22 after v4.0 archive*
