@@ -710,7 +710,9 @@ get_chunks_for_documents <- function(con, document_ids) {
 search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
                                   ragnar_store_path = NULL,
-                                  section_filter = NULL) {
+                                  section_filter = NULL,
+                                  api_key = NULL,
+                                  embed_model = "openai/text-embedding-3-small") {
 
   # Derive store path from notebook_id if not provided (Phase 22: per-notebook stores)
   if (is.null(ragnar_store_path) && !is.null(notebook_id)) {
@@ -721,6 +723,11 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
   if (!is.null(ragnar_store_path) && file.exists(ragnar_store_path)) {
     own_store <- is.null(ragnar_store)
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
+
+    # Attach embed function for query vectorization (ragnar_retrieve needs it)
+    if (!is.null(store) && !is.null(api_key) && nchar(api_key) > 0) {
+      store@embed <- make_embed_function(api_key, embed_model)
+    }
 
     if (!is.null(store) && own_store) {
       on.exit(

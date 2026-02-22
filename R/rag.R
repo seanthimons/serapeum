@@ -71,8 +71,11 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
+  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
   chunks <- tryCatch({
-    search_chunks_hybrid(con, question, notebook_id, limit = 5)
+    search_chunks_hybrid(con, question, notebook_id, limit = 5,
+                         api_key = api_key, embed_model = embed_model)
   }, error = function(e) {
     message("Ragnar search failed: ", e$message)
     NULL
@@ -242,6 +245,8 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
   chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
+  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
   # Check api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
@@ -266,7 +271,8 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         query = "conclusions limitations future work research gaps directions",
         notebook_id = notebook_id,
         limit = 10,
-        section_filter = c("conclusion", "limitations", "future_work", "discussion", "late_section")
+        section_filter = c("conclusion", "limitations", "future_work", "discussion", "late_section"),
+        api_key = api_key, embed_model = embed_model
       )
     }, error = function(e) {
       message("[generate_conclusions_preset] Section-filtered search failed: ", e$message)
@@ -281,7 +287,8 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
           con,
           query = "conclusions limitations future work research gaps directions",
           notebook_id = notebook_id,
-          limit = 10
+          limit = 10,
+          api_key = api_key, embed_model = embed_model
         )
       }, error = function(e) {
         message("[generate_conclusions_preset] Fallback search failed: ", e$message)
@@ -295,7 +302,8 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         con,
         query = "conclusions limitations future work research gaps",
         notebook_id = notebook_id,
-        limit = 10
+        limit = 10,
+        api_key = api_key, embed_model = embed_model
       )
     }, error = function(e) {
       message("[generate_conclusions_preset] Search notebook retrieval failed: ", e$message)
@@ -653,6 +661,8 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
   chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
+  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
   # Check api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
@@ -707,7 +717,8 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
       con,
       query = "research gaps limitations future work methodology population understudied contradictions",
       notebook_id = notebook_id,
-      limit = 15
+      limit = 15,
+      api_key = api_key, embed_model = embed_model
     )
   }, error = function(e) {
     message("[generate_research_questions] Hybrid search failed: ", e$message)
