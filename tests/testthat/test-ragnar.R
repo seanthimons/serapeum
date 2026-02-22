@@ -78,3 +78,35 @@ test_that("connect_ragnar_store returns NULL for non-existent store", {
   result <- connect_ragnar_store(tmp_store)
   expect_null(result)
 })
+
+test_that("make_embed_function returns a function that calls get_embeddings", {
+  # Mock get_embeddings to verify it's called with correct args
+  called_with <- NULL
+  mock_embeddings <- function(api_key, model, texts) {
+    called_with <<- list(api_key = api_key, model = model, texts = texts)
+    list(embeddings = list(c(0.1, 0.2, 0.3), c(0.4, 0.5, 0.6)))
+  }
+
+  # Temporarily replace get_embeddings
+  original <- get_embeddings
+  assign("get_embeddings", mock_embeddings, envir = environment(make_embed_function))
+  on.exit(assign("get_embeddings", original, envir = environment(make_embed_function)))
+
+  embed_fn <- make_embed_function("test-key", "test-model")
+
+  # Verify it returns a function
+
+  expect_type(embed_fn, "closure")
+
+  # Call it and verify correct args passed through
+  result <- embed_fn(c("hello", "world"))
+
+  expect_equal(called_with$api_key, "test-key")
+  expect_equal(called_with$model, "test-model")
+  expect_equal(called_with$texts, c("hello", "world"))
+
+  # Verify matrix output
+  expect_true(is.matrix(result))
+  expect_equal(nrow(result), 2)
+  expect_equal(ncol(result), 3)
+})

@@ -134,13 +134,33 @@ decode_origin_metadata <- function(origin) {
 
 # ---- Ragnar Store Management ----
 
+#' Build embed function for OpenRouter
+#'
+#' Creates a self-contained embed function that calls the OpenRouter
+#' embeddings API directly via httr2. This function is set on ragnar
+#' stores at runtime via the S7 @embed property, bypassing ragnar's
+#' closure serialization which loses environment references.
+#'
+#' @param api_key OpenRouter API key
+#' @param embed_model Embedding model ID
+#' @return Function(texts) -> matrix of embeddings
+make_embed_function <- function(api_key, embed_model) {
+  force(api_key)
+  force(embed_model)
+  function(texts) {
+    result <- get_embeddings(api_key, embed_model, texts)
+    do.call(rbind, result$embeddings)
+  }
+}
+
 #' Get or create RagnarStore for chunk embeddings
 #'
 #' Uses OpenRouter for embeddings (same API key as chat), so no separate
-#' OpenAI key is required.
+#' OpenAI key is required. Attaches the embed function at runtime via the
+#' S7 @embed property to bypass ragnar's closure serialization bug.
 #'
 #' @param path Path to the ragnar store database
-#' @param openrouter_api_key OpenRouter API key (required for new stores)
+#' @param openrouter_api_key OpenRouter API key (required for embedding)
 #' @param embed_model Embedding model (OpenRouter format, e.g., "openai/text-embedding-3-small")
 #' @return RagnarStore object
 get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
@@ -148,29 +168,26 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
                               embed_model = "openai/text-embedding-3-small") {
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
+  # Require API key (needed for embed function on both create and connect)
+  if (is.null(openrouter_api_key) || nchar(openrouter_api_key) == 0) {
+    stop("OpenRouter API key required to create/open ragnar store for embedding")
+  }
+
   if (file.exists(path)) {
-    ragnar::ragnar_store_connect(path)
+    store <- ragnar::ragnar_store_connect(path)
   } else {
-    # Require API key for new stores (needed to generate embeddings)
-    if (is.null(openrouter_api_key) || nchar(openrouter_api_key) == 0) {
-      stop("OpenRouter API key required to create new ragnar store")
-    }
-
-    # Create custom embed function using OpenRouter
-    embed_via_openrouter <- function(texts) {
-      # get_embeddings returns list(embeddings, usage, model)
-      result <- get_embeddings(openrouter_api_key, embed_model, texts)
-
-      # Extract embeddings and convert to matrix format expected by ragnar (each row is an embedding)
-      do.call(rbind, result$embeddings)
-    }
-
-    ragnar::ragnar_store_create(
+    # Create with a dummy embed (ragnar requires one at creation)
+    # The real embed is attached below via @embed
+    store <- ragnar::ragnar_store_create(
       path,
-      embed = embed_via_openrouter,
+      embed = function(texts) stop("placeholder — should be replaced at runtime"),
       version = 1
     )
   }
+
+  # Attach working embed function at runtime (bypasses serialization)
+  store@embed <- make_embed_function(openrouter_api_key, embed_model)
+  store
 }
 
 #' Connect to existing RagnarStore (for retrieval only)
@@ -299,9 +316,14 @@ ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
                                  embed_model = "openai/text-embedding-3-small") {
   store_path <- get_notebook_ragnar_path(notebook_id)
 
-  # If store exists, connect and return
+  # If store exists, connect and attach embed function
   if (file.exists(store_path)) {
-    return(ragnar::ragnar_store_connect(store_path))
+    store <- ragnar::ragnar_store_connect(store_path)
+    # Attach working embed function (bypasses broken serialized closure)
+    if (!is.null(api_key) && nchar(api_key) > 0) {
+      store@embed <- make_embed_function(api_key, embed_model)
+    }
+    return(store)
   }
 
   # Store doesn't exist - create it with brief notification
