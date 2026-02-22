@@ -737,12 +737,19 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     }
 
     if (!is.null(store)) {
+      # Debug: check chunk count in store
+      chunk_count <- tryCatch({
+        DBI::dbGetQuery(store@con, "SELECT COUNT(*) as n FROM chunks")$n[1]
+      }, error = function(e) NA)
+      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, api_key present: ", !is.null(api_key))
+
       results <- tryCatch({
         retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
       }, error = function(e) {
         message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
         NULL
       })
+      message("[search_chunks_hybrid] retrieve returned ", if (is.null(results)) "NULL" else paste0(nrow(results), " rows"))
 
       if (!is.null(results) && nrow(results) > 0) {
         # Filter by notebook if specified
