@@ -164,25 +164,27 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     reindex_poller <- reactiveVal(NULL)
 
     # Async re-index task (Phase 22) — follows mod_citation_network.R ExtendedTask pattern
-    reindex_task <- ExtendedTask$new(function(notebook_id, db_path, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+    # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
-        source(file.path(app_dir, "R", "interrupt.R"), local = TRUE)
-        source(file.path(app_dir, "R", "_ragnar.R"), local = TRUE)
-        source(file.path(app_dir, "R", "db.R"), local = TRUE)
+        source(file.path(app_dir, "R", "interrupt.R"))
+        source(file.path(app_dir, "R", "api_openalex.R"))
+        source(file.path(app_dir, "R", "api_openrouter.R"))
+        source(file.path(app_dir, "R", "_ragnar.R"))
 
         result <- rebuild_notebook_store(
           notebook_id = notebook_id,
-          con = NULL,
-          db_path = db_path,
           api_key = api_key,
           embed_model = embed_model,
+          documents = documents,
+          abstracts = abstracts,
           interrupt_flag = interrupt_flag,
           progress_file = progress_file,
           progress_callback = NULL
         )
         result
-      }, notebook_id = notebook_id, db_path = db_path, api_key = api_key,
-         embed_model = embed_model, interrupt_flag = interrupt_flag,
+      }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
+         api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir)
     })
 
@@ -320,7 +322,13 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       cfg <- config()
       api_key <- get_setting(cfg, "openrouter", "api_key")
       embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
-      db_path <- get_setting(cfg, "app", "db_path") %||% "data/notebooks.duckdb"
+
+      # Pre-fetch data in main process (avoids cross-process DuckDB lock)
+      documents <- list_documents(con(), nb_id)
+      abstracts <- list_abstracts(con(), nb_id)
+
+      # Delete existing store in main process (mirai worker can't delete cross-process locked files)
+      delete_notebook_store(nb_id)
 
       # Create interrupt and progress files
       flag_file <- create_interrupt_flag(session$token)
@@ -358,7 +366,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, db_path, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
     })
 
     # Cancel re-index handler (Phase 22)

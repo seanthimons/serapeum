@@ -187,9 +187,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     network_task <- ExtendedTask$new(function(seed_id, email, direction, depth, node_limit, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         # Source required files in isolated process
-        source(file.path(app_dir, "R", "interrupt.R"), local = TRUE)
-        source(file.path(app_dir, "R", "api_openalex.R"), local = TRUE)
-        source(file.path(app_dir, "R", "citation_network.R"), local = TRUE)
+        source(file.path(app_dir, "R", "interrupt.R"))
+        source(file.path(app_dir, "R", "api_openalex.R"))
+        source(file.path(app_dir, "R", "citation_network.R"))
 
         # Build network with interrupt and progress support
         result <- fetch_citation_network(

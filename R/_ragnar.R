@@ -402,8 +402,8 @@ delete_notebook_store <- function(notebook_id) {
     }
 
     # Also try to remove DuckDB temp files (ignore failures on these)
-    tryCatch(file.remove(paste0(store_path, ".wal")), error = function(e) {})
-    tryCatch(file.remove(paste0(store_path, ".tmp")), error = function(e) {})
+    suppressWarnings(tryCatch(file.remove(paste0(store_path, ".wal")), error = function(e) {}))
+    suppressWarnings(tryCatch(file.remove(paste0(store_path, ".tmp")), error = function(e) {}))
 
     TRUE
 
@@ -528,24 +528,37 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
                                     progress_callback = NULL,
                                     interrupt_flag = NULL,
                                     progress_file = NULL,
-                                    db_path = NULL) {
-  # If db_path provided, open own connection (for mirai workers)
-  own_con <- FALSE
-  if (!is.null(db_path) && is.null(con)) {
-    con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
-    own_con <- TRUE
-    on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+                                    db_path = NULL,
+                                    documents = NULL,
+                                    abstracts = NULL) {
+  # If pre-fetched data not provided, read from DB
+  if (is.null(documents) || is.null(abstracts)) {
+    # If db_path provided, open own connection (for mirai workers)
+    own_con <- FALSE
+    if (!is.null(db_path) && is.null(con)) {
+      con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+      own_con <- TRUE
+      on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+    }
   }
 
   tryCatch({
     store_path <- get_notebook_ragnar_path(notebook_id)
 
-    # Delete existing store file
-    delete_notebook_store(notebook_id)
+    # Delete existing store file and all DuckDB sidecar files
+    deleted <- delete_notebook_store(notebook_id)
+    if (!deleted || file.exists(store_path)) {
+      for (suffix in c("", ".wal", ".tmp")) {
+        suppressWarnings(file.remove(paste0(store_path, suffix)))
+      }
+      if (file.exists(store_path)) {
+        stop("Could not delete existing store file: ", store_path)
+      }
+    }
 
-    # Get all documents and abstracts for this notebook
-    documents <- list_documents(con, notebook_id)
-    abstracts <- list_abstracts(con, notebook_id)
+    # Get documents and abstracts (use pre-fetched data if available)
+    if (is.null(documents)) documents <- list_documents(con, notebook_id)
+    if (is.null(abstracts)) abstracts <- list_abstracts(con, notebook_id)
 
     total_items <- nrow(documents) + nrow(abstracts)
     count <- 0
