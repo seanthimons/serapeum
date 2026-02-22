@@ -20,7 +20,7 @@ Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| — | bug: Ragnar embedding broken — `get_embeddings` not found in ragnar's serialized closure environment | Medium | **Critical** |
+| — | ~~bug: Ragnar embedding broken~~ — **FIXED** (Phase 29: runtime embed via `@embed` property) | — | — |
 | [#117](https://github.com/seanthimons/serapeum/issues/117) | tech-debt: Connection leak in search_chunks_hybrid — ragnar store never closed | Low | Medium |
 | [#110](https://github.com/seanthimons/serapeum/issues/110) | Seed paper not showing up in abstract search | Low | Medium |
 | [#111](https://github.com/seanthimons/serapeum/issues/111) | When removing abstract, modal repeats multiple times | Low | Medium |
@@ -49,7 +49,7 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#106](https://github.com/seanthimons/serapeum/issues/106) | feat: Teaching Materials Generator | Low-Medium | Medium |
 | [#113](https://github.com/seanthimons/serapeum/issues/113) | Bulk upload for network analysis/seeding | Medium | Medium |
 | [#114](https://github.com/seanthimons/serapeum/issues/114) | Hide keywords panel | Medium | Medium |
-| [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging | Medium | Medium |
+| [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging — *spinners done (Phase 29), modal messaging remaining* | Medium | Medium |
 | [#79](https://github.com/seanthimons/serapeum/issues/79) | bug: Tooltip overflows graph container and overlaps side panel | Medium | Medium |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + vice versa | High | Medium |
 | [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
@@ -181,6 +181,11 @@ High-effort, high-payoff features for the future.
 - [x] [#95](https://github.com/seanthimons/serapeum/issues/95): E2E test — PDF through ragnar query (v3.0)
 - [x] [#96](https://github.com/seanthimons/serapeum/issues/96): E2E test — abstract through ragnar query (v3.0)
 - [x] [#97](https://github.com/seanthimons/serapeum/issues/97): Benchmark hybrid vs legacy — obsolete (v3.0)
+- [x] bug: Ragnar embed closure serialization — runtime `@embed` attachment bypasses broken deserialization (Phase 29)
+- [x] fix: RAG retrieval path needs embed for query vectorization (Phase 29)
+- [x] fix: Origin metadata suffix breaking notebook filter — all retrieved rows dropped (Phase 29)
+- [x] fix: Stale ragnar chunks on document delete (Phase 29)
+- [x] feat: Chat send button spinner during RAG processing (Phase 29, partial #87)
 
 ---
 
