@@ -7,6 +7,7 @@ mod_cost_tracker_ui <- function(id) {
     fill = FALSE,
     card_header("Cost Tracker"),
     card_body(
+      fillable = FALSE,
       # OpenRouter balance
       uiOutput(ns("openrouter_balance")),
       # Session summary value box
