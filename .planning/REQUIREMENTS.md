@@ -1,0 +1,80 @@
+# Requirements: Serapeum v6.0
+
+**Defined:** 2026-02-22
+**Core Value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
+
+## v6.0 Requirements
+
+Requirements for dark mode redesign and UI polish. Each maps to roadmap phases.
+
+### Dark Mode Palette
+
+- [ ] **DARK-01**: Dark mode uses intentional dark gray backgrounds (#1e1e2e range), not pure black
+- [ ] **DARK-02**: All text meets WCAG AA contrast ratios (4.5:1 normal, 3:1 large text) in dark mode
+- [ ] **DARK-03**: Accent colors are desaturated ~20% vs light mode to prevent vibration on dark backgrounds
+- [ ] **DARK-04**: Semantic colors (success/danger/warning/info) remain recognizable in dark mode
+- [ ] **DARK-05**: Dark mode palette is centralized in a single overrides file injected via bs_add_rules()
+
+### Component Styling
+
+- [ ] **COMP-01**: All Bootstrap components (cards, buttons, forms, modals, toasts, badges) render correctly in dark mode
+- [ ] **COMP-02**: visNetwork citation graph canvas has proper dark background (fixes #89)
+- [ ] **COMP-03**: Custom CSS uses Bootstrap CSS variables (var(--bs-*)) instead of hardcoded hex colors
+- [ ] **COMP-04**: Interactive states (hover, focus, disabled) meet WCAG contrast requirements in dark mode
+- [ ] **COMP-05**: Visual separation uses borders/elevation instead of shadows in dark mode
+
+### UI Polish
+
+- [ ] **UIPX-01**: Spacing follows consistent rhythm across all views
+- [ ] **UIPX-02**: Typography hierarchy is consistent (line-height, font sizes, weight)
+- [ ] **UIPX-03**: UI touch ups from #123 are resolved
+- [ ] **UIPX-04**: All solutions are Shiny-compliant (no raw DOM manipulation that reactivity can undo)
+- [ ] **UIPX-05**: About page layout and styling harmonized with the rest of the app
+
+## Future Requirements
+
+### Dark Mode Enhancements
+
+- **DARK-06**: Per-session theme persistence via localStorage
+- **DARK-07**: Smooth CSS transition between light/dark mode (200ms fade)
+- **DARK-08**: Dark mode-specific imagery/logo adjustments
+- **DARK-09**: Glow effects for interactive elements replacing shadows on hover/focus
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Theme auto-switch by time of day | Not what bslib supports; manual toggle sufficient |
+| Multiple dark theme variants | Adds complexity without clear value |
+| Per-component theme overrides in app code | Maintenance nightmare; global theme via bs_theme() |
+| R plot theming (ggplot2/base) | No plots in current app; add if/when plots are introduced |
+| Tooltip overflow fix (#79) | Separate bug, not dark-mode-specific; tackle in future milestone |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| DARK-01 | — | Pending |
+| DARK-02 | — | Pending |
+| DARK-03 | — | Pending |
+| DARK-04 | — | Pending |
+| DARK-05 | — | Pending |
+| COMP-01 | — | Pending |
+| COMP-02 | — | Pending |
+| COMP-03 | — | Pending |
+| COMP-04 | — | Pending |
+| COMP-05 | — | Pending |
+| UIPX-01 | — | Pending |
+| UIPX-02 | — | Pending |
+| UIPX-03 | — | Pending |
+| UIPX-04 | — | Pending |
+| UIPX-05 | — | Pending |
+
+**Coverage:**
+- v6.0 requirements: 15 total
+- Mapped to phases: 0
+- Unmapped: 15 (roadmap not yet created)
+
+---
+*Requirements defined: 2026-02-22*
+*Last updated: 2026-02-22 after initial definition*
