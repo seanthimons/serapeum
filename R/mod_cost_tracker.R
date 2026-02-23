@@ -4,6 +4,7 @@ mod_cost_tracker_ui <- function(id) {
   ns <- NS(id)
 
   card(
+    fill = FALSE,
     card_header("Cost Tracker"),
     card_body(
       # OpenRouter balance
