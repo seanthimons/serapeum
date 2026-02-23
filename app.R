@@ -7,6 +7,7 @@ library(duckdb)
 # Options
 #options("duckdb.enable_rstudio_connection_pane" = TRUE)
 
+
 # Source all R files
 for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
   source(f)
