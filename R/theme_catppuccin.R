@@ -187,5 +187,52 @@ catppuccin_dark_css <- function() {
   border-color: rgba(249, 226, 175, 0.3);
   color: var(--bs-body-color);
 }
+
+/* Phase 31-03: Value box text overrides for dark mode (UAT tests 10+11) */
+/* Sass compiles .bg-primary/.bg-success text to black at build time. */
+/* Dark mode updates backgrounds to bright Catppuccin pastels via CSS vars, */
+/* but text stays black. Override to Mocha Crust for readable dark text on pastel bg. */
+[data-bs-theme="dark"] .bg-primary,
+[data-bs-theme="dark"] .bg-success,
+[data-bs-theme="dark"] .bg-danger,
+[data-bs-theme="dark"] .bg-warning,
+[data-bs-theme="dark"] .bg-info {
+  color: ', MOCHA$crust, ' !important;
+}
+
+/* Target value_box specifically for bslib-specific selectors */
+[data-bs-theme="dark"] .value-box.bg-primary .value-box-title,
+[data-bs-theme="dark"] .value-box.bg-primary .value-box-value,
+[data-bs-theme="dark"] .value-box.bg-success .value-box-title,
+[data-bs-theme="dark"] .value-box.bg-success .value-box-value,
+[data-bs-theme="dark"] .value-box.bg-warning .value-box-title,
+[data-bs-theme="dark"] .value-box.bg-warning .value-box-value,
+[data-bs-theme="dark"] .value-box.bg-danger .value-box-title,
+[data-bs-theme="dark"] .value-box.bg-danger .value-box-value,
+[data-bs-theme="dark"] .value-box.bg-info .value-box-title,
+[data-bs-theme="dark"] .value-box.bg-info .value-box-value {
+  color: ', MOCHA$crust, ' !important;
+}
+
+/* Phase 31-03: Progress/notification base class styling (UAT test 9) */
+/* Existing rules only style typed notifications (message/warning/error). */
+/* Add base .shiny-notification and .shiny-progress-notification for visibility. */
+[data-bs-theme="dark"] .shiny-notification {
+  background-color: ', MOCHA$surface0, ';
+  color: ', MOCHA$text, ';
+  border-color: ', MOCHA$surface1, ';
+}
+
+[data-bs-theme="dark"] .shiny-progress-notification .progress {
+  background-color: ', MOCHA$surface1, ';
+}
+
+[data-bs-theme="dark"] .shiny-progress-notification .progress-bar {
+  background-color: ', MOCHA$lavender, ';
+}
+
+[data-bs-theme="dark"] .shiny-progress-notification .progress-text {
+  color: ', MOCHA$text, ';
+}
 ')
 }
