@@ -4,6 +4,7 @@ mod_about_ui <- function(id) {
   ns <- NS(id)
 
   card(
+    fill = FALSE,
     class = "border-0",
     card_body(
       class = "py-4",

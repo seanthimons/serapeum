@@ -229,6 +229,8 @@ ui <- page_sidebar(
 
 # Server
 server <- function(input, output, session) {
+  # Enable thematic auto-theming for all renderPlot outputs (Phase 31-03)
+  thematic::thematic_shiny()
 
   # Database connection - create fresh for this session
   con <- get_db_connection(db_path)
@@ -931,7 +933,7 @@ server <- function(input, output, session) {
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
-          class = "border-0",
+          class = "border-0 bg-transparent",
           card_body(
             class = "text-center py-5",
             icon("book-open", class = "fa-4x text-primary mb-4"),
