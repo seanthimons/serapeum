@@ -183,7 +183,7 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
       barplot(
         height = history$total_cost,
         names.arg = format(as.Date(history$date), "%m/%d"),
-        col = "#6366f1",
+        col = LATTE$lavender,
         border = NA,
         las = 2,
         ylab = "Cost (USD)",

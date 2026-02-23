@@ -656,19 +656,19 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Helper: Get badge class and style for work type
     get_type_badge <- function(work_type) {
       if (is.null(work_type) || is.na(work_type) || work_type == "") {
-        return(list(class = "bg-light text-dark", label = "unknown"))
+        return(list(class = "bg-body-tertiary text-body", label = "unknown"))
       }
       switch(work_type,
         "article" = list(class = "bg-secondary", label = "article"),
         "review" = list(class = "bg-info", label = "review"),
-        "preprint" = list(class = "bg-warning text-dark", label = "preprint"),
+        "preprint" = list(class = "bg-warning text-body", label = "preprint"),
         "book" = list(class = "bg-primary", label = "book"),
-        "dissertation" = list(class = "bg-purple text-white", label = "dissertation", style = "background-color: #6f42c1;"),
+        "dissertation" = list(class = "bg-info-subtle text-info-emphasis", label = "dissertation"),
         "dataset" = list(class = "bg-success", label = "dataset"),
-        "paratext" = list(class = "bg-light text-dark", label = "paratext"),
-        "letter" = list(class = "bg-light text-dark", label = "letter"),
-        "editorial" = list(class = "bg-light text-dark", label = "editorial"),
-        list(class = "bg-light text-dark", label = work_type)  # default
+        "paratext" = list(class = "bg-body-tertiary text-body", label = "paratext"),
+        "letter" = list(class = "bg-body-tertiary text-body", label = "letter"),
+        "editorial" = list(class = "bg-body-tertiary text-body", label = "editorial"),
+        list(class = "bg-body-tertiary text-body", label = work_type)  # default
       )
     }
 
@@ -843,7 +843,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       } else {
         # Minimal histogram
         ggplot2::ggplot(year_counts, ggplot2::aes(x = year, y = count)) +
-          ggplot2::geom_col(fill = "#6366f1", width = 0.8, alpha = 0.7) +
+          ggplot2::geom_col(fill = LATTE$lavender, width = 0.8, alpha = 0.7) +
           ggplot2::theme_void() +
           ggplot2::theme(
             plot.background = ggplot2::element_blank(),
