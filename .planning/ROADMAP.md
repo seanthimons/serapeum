@@ -99,7 +99,7 @@ See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
 <details>
 <summary>✅ v6.0 Dark Mode + UI Polish (Phases 30-32) - SHIPPED 2026-02-22</summary>
 
-- [x] **Phase 30: Core Dark Mode Palette** - Establish WCAG-compliant dark mode foundation (completed 2026-02-22)
+- [x] **Phase 30: Core Dark Mode Palette** - Establish WCAG-compliant dark mode foundation (completed 2026-02-22)
 - [x] **Phase 31: Component Styling & Visual Consistency** - Refactor components and ensure visual polish (completed 2026-02-22)
 - [x] **Phase 32: Testing & Polish** - Comprehensive cross-module validation (completed 2026-02-22)
 
@@ -142,8 +142,8 @@ See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 30-01-PLAN.md — Catppuccin theme foundation (Latte light + Mocha dark via bs_theme/bs_add_rules)
-- [ ] 30-02-PLAN.md — visNetwork dark mode adaptation (dark canvas, node borders, legend/nav controls)
+- [x] 30-01-PLAN.md — Catppuccin theme foundation (Latte light + Mocha dark via bs_theme/bs_add_rules)
+- [x] 30-02-PLAN.md — visNetwork dark mode adaptation (dark canvas, node borders, legend/nav controls)
 
 ---
 
@@ -164,12 +164,14 @@ Plans:
 7. All UI touch ups from issue #123 are resolved
 8. All solutions are Shiny-compliant (no raw DOM manipulation)
 
-**Plans**: 3 plans
+**Plans**: 5 plans
 
 Plans:
-- [x] 31-01-PLAN.md -- Hardcoded color migration + theme-aware classes
-- [x] 31-02-PLAN.md -- About page harmonization + spacing/typography audit
-- [ ] 31-03-PLAN.md -- Gap closure: value boxes, barplot, splash card, about clipping, notifications
+- [x] 31-01-PLAN.md — Hardcoded color migration + theme-aware classes
+- [x] 31-02-PLAN.md — About page harmonization + spacing/typography audit
+- [x] 31-03-PLAN.md — Gap closure: value boxes, barplot, splash card, about clipping, notifications
+- [ ] 31-04-PLAN.md — UAT gap closure: value box text, disclaimer contrast, chat message readability
+- [ ] 31-05-PLAN.md — UAT gap closure: barplot theming with input_dark_mode()
 
 ---
 
@@ -187,8 +189,11 @@ Plans:
 4. Theme toggle UX verified (localStorage persistence, smooth transitions)
 5. Cross-mode consistency verified across all views
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [x] 32-01-PLAN.md — Comprehensive validation and polish
 
 ---
 
-*Updated: 2026-02-22 — v6.0 roadmap created*
+*Updated: 2026-02-23 — Phase 31 UAT gap closure plans added*
