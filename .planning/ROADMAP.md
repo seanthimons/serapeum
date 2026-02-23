@@ -164,7 +164,12 @@ Plans:
 7. All UI touch ups from issue #123 are resolved
 8. All solutions are Shiny-compliant (no raw DOM manipulation)
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 31-01-PLAN.md -- Hardcoded color migration + theme-aware classes
+- [x] 31-02-PLAN.md -- About page harmonization + spacing/typography audit
+- [ ] 31-03-PLAN.md -- Gap closure: value boxes, barplot, splash card, about clipping, notifications
 
 ---
 
