@@ -6,24 +6,23 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
 
-**Current focus:** Phase 32 - Testing & Polish
+**Current focus:** v6.0 milestone complete — all phases shipped
 
 ## Current Position
 
-Phase: 32 of 32 (Testing & Polish)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-22 — Phase 31 complete (2 plans, 4 commits)
-Last activity: 2026-02-22 — Plan 31-02 executed (about page harmonization + audit)
+Phase: 32 of 32 (Testing & Polish) — COMPLETE
+Plan: 1 of 1 in current phase — COMPLETE
+Status: v6.0 milestone shipped
+Last activity: 2026-02-22 — Phase 32 validation passed, v6.0 complete
 
-Progress: [██████████████████████░░░░░░░░░░░░░░] 51/TBD plans complete across all milestones
+Progress: [████████████████████████████████████] 53/53 plans complete across all milestones
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 51
-- Milestones shipped: 8 (v1.0 through v5.0)
-- Total phases completed: 31
+- Total plans completed: 53
+- Milestones shipped: 9 (v1.0 through v6.0)
+- Total phases completed: 32
 
 **By Milestone:**
 
@@ -37,12 +36,12 @@ Progress: [██████████████████████░
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
 | v4.0 | 25-28 | 6 | Complete | 2026-02-22 |
 | v5.0 | 29 | 1 | Complete | 2026-02-22 |
-| v6.0 | 30-32 | 4+ | Active | — |
+| v6.0 | 30-32 | 5 | Complete | 2026-02-22 |
 
 **Recent Trend:**
-- Phase 31: 2 plans, <1 day — component styling & audit
-- Phase 30: 2 plans, <1 day — core dark mode palette
-- Pattern: Rapid execution of UI polish phases
+- v6.0: 5 plans across 3 phases, <1 day — dark mode + UI polish
+- Phase 32: validation-only, 0 code changes needed
+- Pattern: Clean execution with no bugs found in validation
 
 ## Accumulated Context
 
@@ -50,12 +49,13 @@ Progress: [██████████████████████░
 
 All decisions logged in PROJECT.md Key Decisions table.
 
-Recent decisions affecting current work:
-- Phase 31 (v6.0): bg-body-secondary for panels, bg-body-tertiary for badges, text-body for contrast
-- Phase 31 (v6.0): CSS safety net for bg-light/text-dark, alert-warning dark override
-- Phase 30 (v6.0): Catppuccin Latte/Mocha palette via bs_theme() + bs_add_rules()
-- Phase 30 (v6.0): All dark mode CSS centralized in catppuccin_dark_css() (R/theme_catppuccin.R)
-- Phase 30 (v6.0): rgba borders for viridis node visibility on dark canvas
+Recent decisions (v6.0):
+- Phase 32: All validation checks passed, no code changes needed
+- Phase 31: bg-body-secondary for panels, bg-body-tertiary for badges, text-body for contrast
+- Phase 31: CSS safety net for bg-light/text-dark, alert-warning dark override
+- Phase 30: Catppuccin Latte/Mocha palette via bs_theme() + bs_add_rules()
+- Phase 30: All dark mode CSS centralized in catppuccin_dark_css() (R/theme_catppuccin.R)
+- Phase 30: rgba borders for viridis node visibility on dark canvas
 
 ### Pending Todos
 
@@ -65,27 +65,20 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-**Known tech debt (not blocking v6.0):**
+**Known tech debt (not blocking):**
 - Connection leak in search_chunks_hybrid (#117)
 - Section_hint not encoded in PDF ragnar origins (#118)
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 
-**v6.0 specific:**
-- Issue #89 (citation network background) FIXED in Phase 30
-- Issue #123 (UI touch ups) FIXED in Phase 31
-- All solutions must be Shiny-compliant (no raw DOM manipulation)
-- R/theme_catppuccin.R is the single source of truth for all Catppuccin colors
-
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Phase 31 complete, ready for Phase 32
-Resume file: .planning/phases/31-component-styling-visual-consistency/31-02-SUMMARY.md
+Stopped at: v6.0 milestone complete
+Resume file: .planning/phases/32-testing-polish/32-01-SUMMARY.md
 
 **Next steps:**
-1. Discuss/plan Phase 32 (Testing & Polish)
-2. Execute Phase 32 plans
-3. Complete v6.0 milestone
+1. Run /gsd:complete-milestone to archive v6.0
+2. Plan next milestone (v7.0)
 
 ---
-*Updated: 2026-02-22 — Phase 31 complete*
+*Updated: 2026-02-22 — v6.0 milestone shipped*

@@ -96,12 +96,12 @@ See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
 
 </details>
 
-<details open>
-<summary>🔄 v6.0 Dark Mode + UI Polish (Phases 30-32) - ACTIVE</summary>
+<details>
+<summary>✅ v6.0 Dark Mode + UI Polish (Phases 30-32) - SHIPPED 2026-02-22</summary>
 
-- [x] **Phase 30: Core Dark Mode Palette** - Establish WCAG-compliant dark mode foundation (completed 2026-02-23)
+- [x] **Phase 30: Core Dark Mode Palette** - Establish WCAG-compliant dark mode foundation (completed 2026-02-22)
 - [x] **Phase 31: Component Styling & Visual Consistency** - Refactor components and ensure visual polish (completed 2026-02-22)
-- [ ] **Phase 32: Testing & Polish** - Comprehensive cross-module validation
+- [x] **Phase 32: Testing & Polish** - Comprehensive cross-module validation (completed 2026-02-22)
 
 </details>
 
@@ -117,9 +117,9 @@ See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
 | v4.0 | 25-28 | 6 | Complete | 2026-02-22 |
 | v5.0 | 29 | 1 | Complete | 2026-02-22 |
-| v6.0 | 30-32 | TBD | Active | — |
+| v6.0 | 30-32 | 5 | Complete | 2026-02-22 |
 
-**Total: 47 plans complete across 29 phases (8 milestones shipped, 1 active)**
+**Total: 53 plans complete across 32 phases (9 milestones shipped)**
 
 ---
 
