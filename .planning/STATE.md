@@ -78,8 +78,8 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Phase 30 complete, ready to plan Phase 31
-Resume file: None
+Stopped at: Phase 31 context gathered, ready to plan
+Resume file: .planning/phases/31-component-styling-visual-consistency/31-CONTEXT.md
 
 **Next steps:**
 1. Discuss/plan Phase 31 (Component Styling & Visual Consistency)
