@@ -21,9 +21,9 @@ Progress: [████████████████████░░░
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47
+- Total plans completed: 49
 - Milestones shipped: 8 (v1.0 through v5.0)
-- Total phases completed: 29
+- Total phases completed: 30
 
 **By Milestone:**
 
@@ -37,7 +37,7 @@ Progress: [████████████████████░░░
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
 | v4.0 | 25-28 | 6 | Complete | 2026-02-22 |
 | v5.0 | 29 | 1 | Complete | 2026-02-22 |
-| v6.0 | 30-32 | TBD | Active | — |
+| v6.0 | 30-32 | 2+ | Active | — |
 
 **Recent Trend:**
 - Last milestone (v5.0): 1 plan, <1 day — critical bugfix
@@ -51,10 +51,10 @@ Progress: [████████████████████░░░
 All decisions logged in PROJECT.md Key Decisions table.
 
 Recent decisions affecting current work:
+- Phase 30 (v6.0): Catppuccin Latte/Mocha palette via bs_theme() + bs_add_rules()
+- Phase 30 (v6.0): All dark mode CSS centralized in catppuccin_dark_css() (R/theme_catppuccin.R)
+- Phase 30 (v6.0): rgba borders for viridis node visibility on dark canvas
 - Phase 29 (v5.0): Runtime @embed property attachment bypasses broken deserialization
-- Phase 27 (v4.0): Standalone generate_research_questions() keeps separation from presets
-- Phase 24 (v3.0): ragnar store version=1 required for compatibility
-- Phase 21 (v3.0): Per-notebook ragnar stores eliminate cross-notebook pollution
 
 ### Pending Todos
 
@@ -70,20 +70,21 @@ Recent decisions affecting current work:
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 
 **v6.0 specific:**
-- Issue #89 (citation network background) must be fixed in Phase 30 (architectural)
+- Issue #89 (citation network background) FIXED in Phase 30
 - Issue #123 (UI touch ups) resolved in Phase 31
 - All solutions must be Shiny-compliant (no raw DOM manipulation)
+- R/theme_catppuccin.R is the single source of truth for all Catppuccin colors
 
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: v6.0 roadmap created, ready for Phase 30 planning
+Stopped at: Phase 30 complete, ready to plan Phase 31
 Resume file: None
 
 **Next steps:**
-1. Plan Phase 30 (Core Dark Mode Palette)
-2. Execute Phase 30 plans
-3. Transition to Phase 31
+1. Discuss/plan Phase 31 (Component Styling & Visual Consistency)
+2. Execute Phase 31 plans
+3. Transition to Phase 32
 
 ---
-*Updated: 2026-02-22 — v6.0 milestone started*
+*Updated: 2026-02-22 — Phase 30 complete*

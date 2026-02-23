@@ -84,7 +84,8 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - [ ] Remove dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 - [ ] Land PR #112: Fix duplicate toast notifications
 - [ ] Land PR #115: Make keywords panel collapsible
-- [ ] Fix tooltip overflow + citation network background color (#79, #89)
+- [ ] Fix tooltip overflow (#79)
+- [x] Fix citation network background color (#89) — Phase 30
 - [ ] Rebalance settings page two-column layout
 
 **Phase 2 — Synthesis:**
@@ -168,6 +169,10 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 | DBI::dbDisconnect(store@con) for S7 objects (v3.0) | S7 DuckDBRagnarStore has no DBI method registered | ✓ Good — caught by integration tests |
 | Standalone generate_research_questions() (v4.0) | Separate function, not added to generate_preset() — different prompt structure, paper metadata enrichment | ✓ Good — clean separation |
 | %in% set membership for disclaimer check (v4.0) | Extensible for future preset types vs chained identical() | ✓ Good — Literature Review Table will benefit |
+| Catppuccin Latte/Mocha palette (v6.0) | Official palette with proven WCAG contrast ratios, not ad-hoc colors | ✓ Good — 11.8:1 contrast ratio |
+| Centralized dark CSS via bs_add_rules() (v6.0) | Single function generates all dark overrides, avoids scatter | ✓ Good — DARK-05 satisfied |
+| Inline block expression for bs_theme (v6.0) | Keeps theme creation + augmentation together in page_sidebar() | ✓ Good — readable, no separate variable |
+| rgba borders for viridis node visibility (v6.0) | Semi-transparent borders work on both light and dark canvas | ✓ Good — all viridis scales visible |
 
 ---
 ## Current Milestone: v6.0 Dark Mode + UI Polish
@@ -184,7 +189,7 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 **Latest shipped:** v5.0 Fix Document Embeddings (2026-02-22)
 **Active milestone:** v6.0 Dark Mode + UI Polish
 **Total milestones:** 8 shipped (v1.0–v5.0), 1 active (v6.0)
-**Total phases:** 29 across 48 plans
+**Total phases:** 30 across 49 plans
 
 **v5.0 shipped:** Fixed critical ragnar embed closure serialization bug — runtime `@embed` property attachment bypasses broken deserialization. Also fixed origin metadata parsing, stale chunk cleanup on delete, and added chat send button spinner.
 
@@ -196,4 +201,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 
 ---
-*Last updated: 2026-02-22 — v6.0 milestone started*
+*Last updated: 2026-02-22 after Phase 30*
