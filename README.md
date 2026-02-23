@@ -59,6 +59,24 @@ Explore citation relationships through interactive network graphs.
 - **Save & reload** - Persist networks to database with layout positions preserved
 - **Collapsible legend** - Minimizable legend with dynamic gradient preview
 
+### Dark Mode
+
+Full dark mode support with Catppuccin color palette.
+
+- **One-click toggle** - Moon/sun icon in the navbar switches between light (Latte) and dark (Mocha) themes
+- **Persistent preference** - Theme choice saved to localStorage, restored on reload
+- **Auto-themed plots** - Chart backgrounds adapt automatically via thematic integration
+- **Comprehensive coverage** - All components styled: value boxes, alerts, chat messages, network graphs, tables
+
+### Cost Tracking
+
+Monitor API usage in real-time.
+
+- **Session costs** - Live cost display in the sidebar footer
+- **OpenRouter balance** - View remaining credits and usage
+- **Cost history** - 30-day bar chart of daily API spending
+- **Per-call breakdown** - Detailed log of every API call with model, tokens, and cost
+
 ### Settings & Configuration
 
 - **API key validation** - Visual indicators show if keys are configured and working
@@ -189,20 +207,32 @@ serapeum/
 ├── R/
 │   ├── config.R          # Config loading
 │   ├── db.R              # Database operations
+│   ├── db_migrations.R   # Schema migrations
 │   ├── api_openrouter.R  # OpenRouter client
 │   ├── api_openalex.R    # OpenAlex client
 │   ├── pdf.R             # PDF utilities
 │   ├── rag.R             # RAG pipeline
+│   ├── _ragnar.R         # Ragnar embedding store helpers
 │   ├── slides.R          # Slide generation
+│   ├── cost_tracking.R   # API cost tracking and pricing
+│   ├── theme_catppuccin.R # Catppuccin Latte/Mocha dark mode CSS
+│   ├── citation_network.R # Citation graph data and layout
+│   ├── quality_filter.R  # Predatory/retraction filtering + auto-seed
+│   ├── interrupt.R       # Graceful request cancellation
 │   ├── utils_doi.R       # DOI normalization and citation keys
 │   ├── utils_citation.R  # BibTeX/CSV export formatters
 │   ├── utils_export.R    # Chat export formatters (Markdown/HTML)
-│   ├── citation_network.R # Citation graph data and layout
-│   ├── quality_filter.R  # Predatory/retraction filtering + auto-seed
+│   ├── utils_filters.R   # Search filter utilities
 │   ├── mod_about.R       # About page
 │   ├── mod_citation_network.R  # Network visualization UI
+│   ├── mod_cost_tracker.R      # Cost tracking dashboard
 │   ├── mod_document_notebook.R
 │   ├── mod_search_notebook.R
+│   ├── mod_seed_discovery.R    # Seed paper discovery
+│   ├── mod_query_builder.R     # LLM-assisted query building
+│   ├── mod_topic_explorer.R    # Topic browsing
+│   ├── mod_journal_filter.R    # Journal filtering
+│   ├── mod_keyword_filter.R    # Keyword filtering
 │   ├── mod_settings.R
 │   └── mod_slides.R
 ├── data/
