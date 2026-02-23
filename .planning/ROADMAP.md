@@ -100,7 +100,7 @@ See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
 <summary>🔄 v6.0 Dark Mode + UI Polish (Phases 30-32) - ACTIVE</summary>
 
 - [x] **Phase 30: Core Dark Mode Palette** - Establish WCAG-compliant dark mode foundation (completed 2026-02-23)
-- [ ] **Phase 31: Component Styling & Visual Consistency** - Refactor components and ensure visual polish
+- [x] **Phase 31: Component Styling & Visual Consistency** - Refactor components and ensure visual polish (completed 2026-02-22)
 - [ ] **Phase 32: Testing & Polish** - Comprehensive cross-module validation
 
 </details>
