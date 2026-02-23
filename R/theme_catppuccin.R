@@ -155,22 +155,6 @@ catppuccin_dark_css <- function() {
   background-color: ', MOCHA$surface1, ';
 }
 
-/* Toast notifications with semantic Catppuccin Mocha colors */
-[data-bs-theme="dark"] .shiny-notification-message {
-  background-color: ', MOCHA$green, ' !important;
-  color: ', MOCHA$base, ' !important;
-}
-
-[data-bs-theme="dark"] .shiny-notification-warning {
-  background-color: ', MOCHA$yellow, ' !important;
-  color: ', MOCHA$base, ' !important;
-}
-
-[data-bs-theme="dark"] .shiny-notification-error {
-  background-color: ', MOCHA$red, ' !important;
-  color: ', MOCHA$base, ' !important;
-}
-
 /* Safety net: catch any remaining bg-light/text-dark in dark mode (Phase 31) */
 [data-bs-theme="dark"] .bg-light {
   background-color: var(--bs-secondary-bg) !important;
@@ -227,6 +211,22 @@ catppuccin_dark_css <- function() {
   background-color: ', MOCHA$surface0, ' !important;
   color: ', MOCHA$text, ' !important;
   border-color: ', MOCHA$surface1, ' !important;
+}
+
+/* Typed notification overrides — must come AFTER base .shiny-notification */
+[data-bs-theme="dark"] .shiny-notification-message {
+  background-color: ', MOCHA$green, ' !important;
+  color: ', MOCHA$base, ' !important;
+}
+
+[data-bs-theme="dark"] .shiny-notification-warning {
+  background-color: ', MOCHA$yellow, ' !important;
+  color: ', MOCHA$base, ' !important;
+}
+
+[data-bs-theme="dark"] .shiny-notification-error {
+  background-color: ', MOCHA$red, ' !important;
+  color: ', MOCHA$base, ' !important;
 }
 
 [data-bs-theme="dark"] .shiny-progress-notification .progress {
