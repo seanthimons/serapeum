@@ -139,7 +139,11 @@ See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
 4. Semantic colors (success/danger/warning/info) remain recognizable in dark mode
 5. visNetwork citation graph has proper dark background (issue #89 resolved)
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 30-01-PLAN.md — Catppuccin theme foundation (Latte light + Mocha dark via bs_theme/bs_add_rules)
+- [ ] 30-02-PLAN.md — visNetwork dark mode adaptation (dark canvas, node borders, legend/nav controls)
 
 ---
 
