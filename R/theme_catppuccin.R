@@ -115,9 +115,6 @@ catppuccin_dark_css <- function() {
   /* Cards */
   --bs-card-bg: ', MOCHA$surface0, ';
   --bs-card-border-color: ', MOCHA$surface1, ';
-
-  /* Inputs */
-  --bs-body-bg: ', MOCHA$base, ';
 }
 
 /* Dark mode input fields */
