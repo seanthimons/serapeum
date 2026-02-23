@@ -8,7 +8,12 @@
 }
 
 [data-bs-theme="dark"] .citation-network-container {
-  background-color: #1e1e2e;
+  background-color: #1e1e2e;  /* Mocha Base */
+}
+
+/* Force vis.js canvas dark background in dark mode (COMP-02) */
+[data-bs-theme="dark"] .citation-network-container .vis-network canvas {
+  background-color: #1e1e2e !important;  /* Mocha Base — !important needed because vis.js sets bg programmatically */
 }
 
 /* Clip tooltips at graph boundary so they don't overlap side panel */
@@ -127,6 +132,18 @@
 
 [data-bs-theme="dark"] .citation-network-legend .legend-toggle:hover {
   color: #cdd6f4;  /* Mocha Text */
+}
+
+/* Dark mode: vis.js navigation buttons */
+[data-bs-theme="dark"] .citation-network-container .vis-navigation .vis-button {
+  filter: invert(0.85);  /* Invert dark buttons to be light */
+}
+
+/* Dark mode: vis.js tooltips */
+[data-bs-theme="dark"] .vis-tooltip {
+  background-color: #313244 !important;  /* Mocha Surface0 */
+  color: #cdd6f4 !important;             /* Mocha Text */
+  border: 1px solid #45475a !important;  /* Mocha Surface1 */
 }
 
 /* Hover effects for notebook items */
