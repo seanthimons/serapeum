@@ -213,18 +213,18 @@ catppuccin_dark_css <- function() {
   border-color: ', MOCHA$surface1, ' !important;
 }
 
-/* Typed notification overrides — must come AFTER base .shiny-notification */
-[data-bs-theme="dark"] .shiny-notification-message {
+/* Typed notification overrides — chained class for higher specificity than base */
+[data-bs-theme="dark"] .shiny-notification.shiny-notification-message {
   background-color: ', MOCHA$green, ' !important;
   color: ', MOCHA$base, ' !important;
 }
 
-[data-bs-theme="dark"] .shiny-notification-warning {
+[data-bs-theme="dark"] .shiny-notification.shiny-notification-warning {
   background-color: ', MOCHA$yellow, ' !important;
   color: ', MOCHA$base, ' !important;
 }
 
-[data-bs-theme="dark"] .shiny-notification-error {
+[data-bs-theme="dark"] .shiny-notification.shiny-notification-error {
   background-color: ', MOCHA$red, ' !important;
   color: ', MOCHA$base, ' !important;
 }
