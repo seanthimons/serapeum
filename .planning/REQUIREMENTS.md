@@ -17,17 +17,17 @@ Requirements for dark mode redesign and UI polish. Each maps to roadmap phases.
 
 ### Component Styling
 
-- [ ] **COMP-01**: All Bootstrap components (cards, buttons, forms, modals, toasts, badges) render correctly in dark mode
+- [x] **COMP-01**: All Bootstrap components (cards, buttons, forms, modals, toasts, badges) render correctly in dark mode
 - [ ] **COMP-02**: visNetwork citation graph canvas has proper dark background (fixes #89)
 - [ ] **COMP-03**: Custom CSS uses Bootstrap CSS variables (var(--bs-*)) instead of hardcoded hex colors
-- [ ] **COMP-04**: Interactive states (hover, focus, disabled) meet WCAG contrast requirements in dark mode
+- [x] **COMP-04**: Interactive states (hover, focus, disabled) meet WCAG contrast requirements in dark mode
 - [ ] **COMP-05**: Visual separation uses borders/elevation instead of shadows in dark mode
 
 ### UI Polish
 
 - [ ] **UIPX-01**: Spacing follows consistent rhythm across all views
 - [ ] **UIPX-02**: Typography hierarchy is consistent (line-height, font sizes, weight)
-- [ ] **UIPX-03**: UI touch ups from #123 are resolved
+- [x] **UIPX-03**: UI touch ups from #123 are resolved
 - [ ] **UIPX-04**: All solutions are Shiny-compliant (no raw DOM manipulation that reactivity can undo)
 - [ ] **UIPX-05**: About page layout and styling harmonized with the rest of the app
 
@@ -59,14 +59,14 @@ Requirements for dark mode redesign and UI polish. Each maps to roadmap phases.
 | DARK-03 | Phase 30 | Pending |
 | DARK-04 | Phase 30 | Pending |
 | DARK-05 | Phase 30 | Pending |
-| COMP-01 | Phase 31 | Pending |
+| COMP-01 | Phase 31 | Complete |
 | COMP-02 | Phase 30 | Pending |
 | COMP-03 | Phase 31 | Pending |
-| COMP-04 | Phase 31 | Pending |
+| COMP-04 | Phase 31 | Complete |
 | COMP-05 | Phase 31 | Pending |
 | UIPX-01 | Phase 31 | Pending |
 | UIPX-02 | Phase 31 | Pending |
-| UIPX-03 | Phase 31 | Pending |
+| UIPX-03 | Phase 31 | Complete |
 | UIPX-04 | Phase 31 | Pending |
 | UIPX-05 | Phase 31 | Pending |
 

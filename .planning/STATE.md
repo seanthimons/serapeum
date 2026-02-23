@@ -42,6 +42,7 @@ Progress: [███████████████████████
 - v6.0: 5 plans across 3 phases, <1 day — dark mode + UI polish
 - Phase 32: validation-only, 0 code changes needed
 - Pattern: Clean execution with no bugs found in validation
+| Phase 31 P03 | 2.5 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -56,6 +57,8 @@ Recent decisions (v6.0):
 - Phase 30: Catppuccin Latte/Mocha palette via bs_theme() + bs_add_rules()
 - Phase 30: All dark mode CSS centralized in catppuccin_dark_css() (R/theme_catppuccin.R)
 - Phase 30: rgba borders for viridis node visibility on dark canvas
+- [Phase 31-03]: Use Mocha Crust for value box text in dark mode (Sass-compiled text colors require CSS !important overrides)
+- [Phase 31-03]: Enable thematic_shiny() globally for auto-themed R plot backgrounds
 
 ### Pending Todos
 
