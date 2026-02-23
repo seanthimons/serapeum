@@ -86,9 +86,8 @@ mod_settings_ui <- function(id) {
             ),
             actionButton(ns("refresh_chat_models"), NULL,
                          icon = icon("refresh"),
-                         class = "btn-outline-secondary btn-sm",
-                         title = "Refresh model list",
-                         style = "margin-bottom: 15px;")
+                         class = "btn-outline-secondary btn-sm mb-3",
+                         title = "Refresh model list")
           ),
           uiOutput(ns("model_info")),
           div(
@@ -106,9 +105,8 @@ mod_settings_ui <- function(id) {
             ),
             actionButton(ns("refresh_embed_models"), NULL,
                          icon = icon("refresh"),
-                         class = "btn-outline-secondary btn-sm",
-                         title = "Refresh model list",
-                         style = "margin-bottom: 15px;")
+                         class = "btn-outline-secondary btn-sm mb-3",
+                         title = "Refresh model list")
           ),
           hr(),
           h5(icon("shield-halved"), " Quality Data"),
@@ -381,8 +379,8 @@ mod_settings_server <- function(id, con, config_rv) {
       )
 
       div(
-        class = icon_info$class,
-        style = "margin-bottom: 15px; font-size: 1.2em; cursor: help;",
+        class = paste(icon_info$class, "mb-3"),
+        style = "font-size: 1.2em; cursor: help;",
         title = icon_info$title,
         icon(icon_info$icon, class = if (status == "validating") "fa-spin" else NULL)
       )
