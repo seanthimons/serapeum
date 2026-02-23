@@ -64,11 +64,24 @@ ui <- page_sidebar(
       icon("moon")
     )
   ),
-  theme = bs_theme(
-    preset = "shiny",
-    primary = "#6366f1",
-    "border-radius" = "0.5rem"
-  ),
+  theme = {
+    serapeum_theme <- bs_theme(
+      version = 5,
+      preset = "shiny",
+      bg = LATTE$base,
+      fg = LATTE$text,
+      primary = LATTE$lavender,
+      secondary = LATTE$surface1,
+      success = LATTE$green,
+      danger = LATTE$red,
+      warning = LATTE$yellow,
+      info = LATTE$blue,
+      "border-radius" = "0.5rem",
+      "link-color" = LATTE$sapphire,
+      "link-hover-color" = LATTE$sky
+    )
+    bs_add_rules(serapeum_theme, catppuccin_dark_css())
+  },
   tags$head(
     tags$link(rel = "shortcut icon", href = "favicon.ico"),
     tags$link(rel = "icon", type = "image/png", sizes = "32x32", href = "favicon-32x32.png"),
@@ -130,18 +143,7 @@ ui <- page_sidebar(
       min-width: 120px;
       max-width: 250px;
     }
-    /* Dark theme support for frozen column */
-    [data-bs-theme='dark'] .lit-review-scroll {
-      border-color: #495057;
-    }
-    [data-bs-theme='dark'] .lit-review-scroll th:first-child,
-    [data-bs-theme='dark'] .lit-review-scroll td:first-child {
-      background-color: #343a40;
-      border-right-color: #6c757d;
-    }
-    [data-bs-theme='dark'] .lit-review-scroll th:first-child {
-      background-color: #2b3035;
-    }
+    /* Dark theme support for frozen column — handled by catppuccin_dark_css() */
     ")),
     tags$script(HTML("
     // Startup wizard localStorage support
