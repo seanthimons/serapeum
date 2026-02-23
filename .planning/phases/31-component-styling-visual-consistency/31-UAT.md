@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 31-component-styling-visual-consistency
 source: 31-01-SUMMARY.md, 31-02-SUMMARY.md, 31-03-SUMMARY.md
 started: 2026-02-23T17:00:00Z
@@ -87,9 +87,12 @@ skipped: 0
   reason: "User reported: Grey text is hard to discriminate against green background of balance card"
   severity: cosmetic
   test: 2
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "p tag inside value_box uses class 'text-muted' which overrides to grey on the green bg-success background. text-muted is for neutral backgrounds, not colored value boxes."
+  artifacts:
+    - path: "R/mod_cost_tracker.R"
+      issue: "Line 85: class='small text-muted mb-0' inside bg-success value_box"
+  missing:
+    - "Remove text-muted class from the subtitle p tag"
   debug_session: ""
 
 - truth: "Cost tracker barplot has appropriate background for current theme mode"
@@ -97,37 +100,51 @@ skipped: 0
   reason: "User reported: plot has dark background on lite-mode"
   severity: major
   test: 4
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Custom JS dark mode toggle only changes client DOM data-bs-theme attribute. thematic_shiny() relies on server-side getCurrentOutputInfo() which never gets notified of theme changes. Server stays stuck on whatever theme was active at startup."
+  artifacts:
+    - path: "app.R"
+      issue: "Lines 54-66: JS toggle bypasses Shiny reactive system, thematic never updates"
+  missing:
+    - "Replace custom JS toggle with bslib::input_dark_mode() OR send theme changes to server via Shiny.setInputValue + session$setCurrentTheme()"
+  debug_session: ".planning/debug/resolved/cost-tracker-barplot-dark-bg.md"
 
 - truth: "Shiny notification modals are themed for dark mode"
   status: failed
   reason: "User reported: Modals are not colored"
   severity: major
   test: 6
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Shiny default notification CSS has higher specificity than Catppuccin dark mode rules. Missing !important flags on background-color, color, border-color properties."
+  artifacts:
+    - path: "R/theme_catppuccin.R"
+      issue: "Lines 159-172, 220-224: notification rules lacked !important flags"
+  missing:
+    - "Add !important to notification dark mode CSS properties (ALREADY FIXED by debug agent in commit 64b2cbb)"
+  debug_session: ".planning/debug/resolved/shiny-notification-dark-mode.md"
 
 - truth: "About page disclaimer shows yellow-tinted alert-warning background in dark mode"
   status: failed
   reason: "User reported: Disclaimer is in grey, not yellow"
   severity: cosmetic
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "alert-warning dark mode CSS uses rgba(249,226,175, 0.15) — 15% opacity is too subtle on dark background (#1e1e2e), appears grey."
+  artifacts:
+    - path: "R/theme_catppuccin.R"
+      issue: "Line 186: background-color opacity 0.15 insufficient contrast"
+  missing:
+    - "Increase background opacity to 0.20-0.25 and border opacity to 0.5"
+  debug_session: ".planning/debug/about-disclaimer-grey-in-dark-mode.md"
 
 - truth: "Document notebook content text is readable in dark mode"
   status: failed
   reason: "User reported: chat window on document notebook has faded/low-contrast text in dark mode"
   severity: major
   test: 11
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "Assistant messages in mod_document_notebook.R use class='bg-white'. Dark mode safety net covers .bg-light but NOT .bg-white — no override for text color, so text stays faded."
+  artifacts:
+    - path: "R/mod_document_notebook.R"
+      issue: "Line 706: class='bg-white border p-2 rounded chat-markdown' missing dark mode override"
+    - path: "R/theme_catppuccin.R"
+      issue: "Safety net covers .bg-light but not .bg-white"
+  missing:
+    - "Add [data-bs-theme='dark'] .bg-white { background-color: var(--bs-secondary-bg) !important; color: var(--bs-body-color) !important; } to catppuccin_dark_css()"
   debug_session: ""
