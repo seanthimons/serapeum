@@ -1,274 +1,339 @@
-# Pitfalls Research: v4.0 Stability + Synthesis Features
+# Pitfalls Research
 
-**Domain:** Adding structured synthesis outputs, merging presets, and fixing tech debt in an existing R/Shiny RAG research assistant
-**Researched:** 2026-02-18
+**Domain:** Dark Mode Redesign in R/Shiny/bslib Applications
+**Researched:** 2026-02-22
 **Confidence:** HIGH
-
----
 
 ## Critical Pitfalls
 
-### Pitfall 1: LLM Structured Output Schema Adherence vs. Syntax Correctness Are Different Problems
+### Pitfall 1: Canvas Elements Ignore CSS Dark Mode Styling
 
 **What goes wrong:**
-The Literature Review Table feature requires the LLM to emit a multi-row structured comparison matrix. Developers use OpenRouter's `response_format: json_schema` (or ask for markdown table via prompt alone) and assume "if it parses, it's correct." In practice, the LLM returns valid JSON or valid markdown but with wrong field names, missing rows, merged cells, inconsistent column counts, or hallucinated paper attributes — none of which are caught by JSON parsers or OpenRouter's Response Healing feature.
+visNetwork (vis.js) canvas elements don't respect `[data-bs-theme="dark"]` CSS selectors. Background colors set via CSS on the container are ignored by the canvas, resulting in white/light backgrounds in dark mode or dark backgrounds bleeding through in light mode. This is already documented in Serapeum as issue #89 where dark navy background (`#1a1a2e`) blends with viridis palette dark nodes.
 
 **Why it happens:**
-OpenRouter's Response Healing (launched 2025) fixes *syntax* errors only — trailing commas, unescaped control characters, unclosed brackets. It explicitly does not fix schema adherence. A response that returns `{"papers": [...]}` when you expected `{"rows": [...]}` is syntactically valid JSON that fails schema validation and still breaks the parsing code. Additionally, models have a U-shaped positional bias: they handle the first and last items in a large context reliably but lose fidelity in the middle — which is exactly where most papers in a literature review live.
+HTML5 canvas elements render via JavaScript drawing APIs, not the DOM. CSS background-color on the wrapper div has no effect on the canvas itself. vis.js creates its own canvas element and sets background programmatically. Bootstrap's `data-bs-theme` attribute changes CSS variables, but canvas rendering doesn't read CSS variables automatically.
 
 **How to avoid:**
-- **Use OpenRouter structured outputs with `strict: true`** — pass `response_format: {type: "json_schema", json_schema: {...}, strict: true}` in the API request body. This enforces schema at the provider level, not just via prompt.
-- **Add require_parameters constraint:** OpenRouter may fall back to `json_object` for providers that don't support `json_schema`. Set `providers: {require_parameters: true}` to prevent silent schema downgrade.
-- **Parse defensively in R:** After receiving the JSON, validate field presence, row count > 0, and required fields before rendering the table. Return a user-facing error, not a crash, if validation fails.
-- **Decompose the task:** If strict schema mode causes quality degradation (models sometimes produce worse answers when constrained), use a two-step approach: first generate prose synthesis, then call LLM again to "format the above into this JSON schema" with the prose as input.
-- **Limit row count:** Request 5–10 rows per call, not all papers at once. Attention drops at scale — the model will silently drop papers after the first 40 entries. If the notebook has 20+ papers, consider chunking the table generation into batches.
-- **Cap context window:** Don't send all 50 chunks when 10 focused chunks will do. The existing `generate_preset` function sends up to 50 chunks — for structured table output, quality improves with targeted retrieval (reduce `LIMIT` and increase query specificity).
+- Set `background` parameter directly in `visNetwork()` function call (e.g., `visNetwork(..., background = "#1e1e2e")`)
+- Use `htmlwidgets::onRender()` to inject JavaScript that reads the current theme and sets canvas background post-render
+- Avoid relying on CSS alone for canvas-based widgets (visNetwork, plotly canvas mode, custom canvas charts)
+- Consider using `shiny::getCurrentOutputInfo()` to detect theme and pass appropriate colors to widget parameters
 
 **Warning signs:**
-- LLM returns a table with 3 rows when the notebook has 15 papers
-- Column names in the response differ from the schema (e.g., `author` vs `first_author`)
-- Some rows have 5 columns, others have 3
-- `fromJSON()` succeeds but `tbl$required_field` returns NULL
-- The rendered table shows NA or empty cells for most rows
+- White flash when switching to dark mode on graph/chart components
+- Canvas background doesn't match container background in either theme
+- Color palettes (viridis, magma) with dark ends blend into background making nodes invisible
+- Dark mode CSS rules have no visible effect on visualization widgets
 
 **Phase to address:**
-The phase implementing Literature Review Table (likely Phase 27 or equivalent). Implement schema validation and fallback *before* connecting the UI. Test with a notebook containing 3, 10, and 20 papers to verify scaling behavior.
+Phase 1 (Core Dark Mode Palette) — establish pattern for all canvas-based widgets. Fix citation network background as proof of concept.
 
 ---
 
-### Pitfall 2: Merging Presets Breaks Existing Chat Histories and Export Files
+### Pitfall 2: CSS Specificity Wars Between Custom Rules and Bootstrap Variables
 
 **What goes wrong:**
-The `summarize` and `keypoints` presets in `generate_preset()` are identified by `preset_type` string. Chat messages store `preset_type` on the message object. Export functions may branch on `preset_type`. Merging these two into a unified "Overview" preset by removing the old IDs and adding a new one means:
-
-1. Existing chat sessions (loaded from `messages` reactiveVal) that contain `preset_type = "summarize"` will hit unmatched branches if any code checks for specific preset types.
-2. If bookmark/session persistence is added later, old sessions with removed preset types will fail to render correctly.
-3. Cost tracking uses `log_cost(con, "chat", ...)` — the feature type label is currently generic, but if preset tracking was added, removing `"summarize"` as a key could silently drop those cost rows.
-4. The UI button `btn_summarize` and `btn_keypoints` have hardcoded `inputId`s used in `observeEvent`. Removing them removes their observers — if any JavaScript, CSS, or test references those IDs, they silently break.
+Custom CSS rules with high specificity override Bootstrap's dark mode CSS variables, causing light mode styles to "stick" in dark mode. Components remain light-colored even with `[data-bs-theme="dark"]` applied. This manifests as white cards, light buttons, or bright backgrounds persisting in dark mode.
 
 **Why it happens:**
-The preset system was built incrementally across multiple phases. The IDs `"summarize"` and `"keypoints"` appear in at least four places: the `presets` list in `generate_preset()`, the `observeEvent` bindings in `mod_document_notebook_server()`, the button `inputId` values in `mod_document_notebook_ui()`, and potentially in any test that clicks those buttons. Merging requires updating all four, and it is easy to miss the test layer or forget that the search notebook has its own preset section (the offcanvas chat panel in `mod_search_notebook.R`).
+Bootstrap 5.3 uses CSS custom properties (variables) that cascade and inherit. When you write custom CSS like `.my-card { background-color: white; }`, this has higher specificity than Bootstrap's variable-based approach `background-color: var(--bs-body-bg)`. CSS specificity rules mean your custom rule wins, blocking the dark mode variable from taking effect.
 
 **How to avoid:**
-- **Audit all occurrences before touching code:** `grep -r "summarize\|keypoints\|btn_summarize\|btn_keypoints"` across R/, tests/, and any UI snapshot files before removing anything.
-- **Check both modules:** The document notebook and search notebook are separate modules. If either has a `btn_summarize`, it must be updated. From reading `mod_search_notebook.R`, the search notebook offcanvas chat only has a `conclusions_btn_ui` — confirm whether `generate_preset("summarize", ...)` is called from the search notebook too.
-- **Keep the `"summarize"` key in `generate_preset()` as an alias** during the transition phase — have it call the new "overview" implementation rather than deleting the key. This avoids breakage if any code constructs the preset type string dynamically.
-- **Verify cost log categories:** Check `log_cost()` calls to ensure removing `"summarize"` as a preset type does not orphan existing cost records. The cost tracking table stores `feature_type` as a VARCHAR — old records remain valid; future records will use the new label.
-- **Update tests first:** If `tests/testthat/` has tests that click `btn_summarize` or call `generate_preset("summarize", ...)`, update them *before* removing the old IDs, so the failing test catches the gap.
-
-**Warning signs:**
-- `observeEvent(input$btn_overview, ...)` is present in server but `actionButton(ns("btn_overview"), ...)` is missing from UI (or vice versa) — the UI renders but the button does nothing
-- Tests that previously tested the summary feature now error with "object not found" or "unused argument"
-- Cost tracker shows no costs for synthesis operations after the merge
-
-**Phase to address:**
-The tech-debt/bug-fix phase (Phase 25 or equivalent). Run `grep` audit before writing code. Update tests first, then rename UI IDs, then update server observers, then update `generate_preset()`.
-
----
-
-### Pitfall 3: DuckDB Connection Leak in search_chunks_hybrid — Known Issue
-
-**What goes wrong:**
-`search_chunks_hybrid()` in `R/db.R` calls `connect_ragnar_store(ragnar_store_path)` to open a ragnar (DuckDB) connection for retrieval. The connection is never explicitly closed within this function. The opened `store` object goes out of scope when the function returns, relying on R's garbage collector to finalize the DuckDB connection. This is tracked as issue #117.
-
-Specific consequences:
-- Every call to `rag_query()` or `generate_preset()` opens a new ragnar DuckDB connection that is not cleaned up until GC runs.
-- Under Shiny, GC is infrequent. A session with 10 RAG queries has 10 open file handles to the same `.duckdb` file.
-- On Windows (which this project runs on), file handles held by DuckDB prevent deletion of ragnar store files. The `delete_notebook_store()` function will fail silently while handles are open.
-- When `rebuild_notebook_store()` deletes the store and creates a new one, stale handles from prior `search_chunks_hybrid` calls may hold a lock on the old file path, causing the new store to fail to open.
-- The DuckDB R package emits a warning: "Database is garbage-collected, use dbDisconnect(con, shutdown=TRUE)" — which appears in the Shiny console and can mask other warnings.
-
-**Why it happens:**
-`search_chunks_hybrid()` was written with a `ragnar_store` optional parameter (pass in an already-open store to avoid creating one). When the caller does NOT pass a store, the function creates one internally. The intent was that callers managing their own store lifecycle would pass it in, but all actual callers (`rag_query`, `generate_conclusions_preset`) pass `NULL`, so the function always creates and leaks a connection.
-
-**How to avoid:**
-- **Fix is simple: wrap the internal store open/close in a `tryCatch` with `on.exit`:**
-  ```r
-  if (!is.null(ragnar_store_path) && file.exists(ragnar_store_path)) {
-    store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
-    own_store <- is.null(ragnar_store)  # We created it, we close it
-    if (own_store) {
-      on.exit({
-        tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
-      }, add = TRUE)
-    }
-    # ... rest of function unchanged ...
-  }
+- Use Bootstrap CSS variables instead of hardcoded colors: `background-color: var(--bs-body-bg)` not `background-color: white`
+- Scope custom color overrides with `[data-bs-theme="light"]` selector explicitly
+- When you must override, use both light and dark mode selectors:
+  ```css
+  [data-bs-theme="light"] .my-card { background-color: white; }
+  [data-bs-theme="dark"] .my-card { background-color: #1e1e2e; }
   ```
-- **Do not add `shutdown = TRUE` if `ragnar_store` was passed by caller** — the caller owns that connection lifecycle.
-- **Fix this before implementing new synthesis features** — Literature Review Table and Research Question Generator both call `generate_preset()` which calls `search_chunks_hybrid()`. Adding more callers amplifies the leak.
-- **Test on Windows specifically:** File locking is more aggressive on Windows. Verify that after calling `search_chunks_hybrid()` twice in a row, the ragnar store file can be deleted without error.
+- Test with browser DevTools: if a CSS variable is being overridden, you'll see it crossed out in the inspector
 
 **Warning signs:**
-- DuckDB "Database is garbage-collected" warnings appearing in Shiny console during normal use
-- `delete_notebook_store()` returns FALSE or errors with "permission denied" immediately after a RAG query
-- `rebuild_notebook_store()` fails with "file in use" on Windows
-- Memory usage grows gradually over a long session with repeated RAG queries
+- Components remain light when `data-bs-theme="dark"` is applied to `<html>`
+- Browser DevTools shows Bootstrap variables crossed out by custom rules
+- Dark mode works in vanilla Bootstrap example but not in your app
+- Must use `!important` flags to make dark mode work (symptom of specificity conflict)
 
 **Phase to address:**
-The tech-debt/bug-fix phase (Phase 25 / issue #117). Fix `search_chunks_hybrid()` before any new synthesis feature is added. This is a 5-line fix with clear scope — do not expand it into a connection-pooling refactor during a bug fix phase.
+Phase 1 (Core Dark Mode Palette) — audit `www/custom.css` for all hardcoded color values. Phase 2 (Visual Consistency) — verify no specificity conflicts remain.
 
 ---
 
-### Pitfall 4: Removing Dead Code That Has Hidden Callers in a 14,000+ LOC Codebase
+### Pitfall 3: Pure Black Backgrounds Cause Eye Strain and Halation
 
 **What goes wrong:**
-`with_ragnar_store()` and `register_ragnar_cleanup()` in `R/_ragnar.R` are flagged as dead code in issue #119. They look unused because no production code calls them by name. However, dead code in a 14k+ LOC R codebase can have hidden callers:
-
-1. **Test files** — tests may call the function directly to test it, or use it as a helper. Removing the function breaks the test.
-2. **Commented-out code** — if any module has `# with_ragnar_store(...)` in a comment (leftover from v3.0 refactor), that's low risk, but it signals the function was recently used.
-3. **String-based dispatch** — if any code constructs function names as strings and calls `do.call()` or `match.fun()`, static grep will miss it.
-4. **Documentation or examples** — if the function is in a vignette or `@examples`, the `devtools::check()` will run those examples and fail.
-5. **Future phases** — the roadmap may reference these functions in a `.planning/` file without them being in `R/`. Removing without checking `.planning/` causes confusion.
-
-Specific risk for this codebase: `with_ragnar_store()` wraps the `on.exit()` connection cleanup pattern. The new `search_chunks_hybrid` fix (Pitfall 3 above) needs exactly this pattern. Removing `with_ragnar_store()` and then reimplementing the same logic inline is more work, not less.
+Using pure black (`#000000`) backgrounds with white or light text creates harsh contrast that causes eye fatigue and "halation" — an optical effect where bright text appears to bleed or glow against dark backgrounds. Users with astigmatism experience this more severely. The harsh contrast defeats the purpose of dark mode (reducing eye strain).
 
 **Why it happens:**
-The v3.0 ragnar overhaul was a rapid refactor across ~9 phases in a single milestone. Functions designed for one approach get replaced by a better approach but not immediately deleted. The TODO captures them as "low priority" dead code, which is correct — but "low priority" gets treated as "safe to delete anytime."
+Developers assume maximum contrast (21:1) is always better for accessibility. Pure black seems like the "correct" dark mode choice. However, 100% contrast is actually harder to read and causes more eye strain than slightly reduced contrast. This is especially problematic in low-light conditions when users are most likely to use dark mode.
 
 **How to avoid:**
-- **Grep for callers before deleting:** `grep -r "with_ragnar_store\|register_ragnar_cleanup"` across `R/`, `tests/`, `app.R`, and `.planning/` before removing.
-- **Check test files explicitly:** `tests/testthat/` may have tests targeting these functions. Run `testthat::test_dir("tests/testthat")` before and after removal and compare.
-- **Consider keeping `with_ragnar_store()` as the fix for Pitfall 3** — it already implements `on.exit()` cleanup correctly. Instead of deleting it and writing new inline cleanup, keep it and route `search_chunks_hybrid()` through it. This converts "dead code removal" + "connection leak fix" into a single coherent change.
-- **Delete one function per PR, not both at once** — isolation makes it easier to identify which deletion caused a test failure.
+- Use dark gray backgrounds instead of pure black: `#121212`, `#1a1a1a`, or `#1e1e2e` (Bootstrap default)
+- Use slightly off-white text instead of pure white: `#e8e8e8`, `#f0f0f0` or `var(--bs-body-color)` in dark mode
+- Aim for 15:1 to 17:1 contrast ratio, not 21:1 maximum
+- Test with actual users or simulate astigmatism effects
+- Follow Material Design dark theme guidance: surface colors should be dark grays, not true black
 
 **Warning signs:**
-- Test suite fails after deletion with "could not find function" errors
-- `R CMD check` reports errors in examples after deletion
-- A subsequent phase needs to reimplement the same pattern from scratch
+- User reports of eye strain specifically in dark mode
+- Text appears to "glow" or blur around edges on dark backgrounds
+- Design uses `#000000` or `#ffffff` directly
+- Contrast checker shows 21:1 ratio (too high, ironically)
 
 **Phase to address:**
-The tech-debt/bug-fix phase. Address after the connection leak fix (Pitfall 3) is resolved — the decision of whether `with_ragnar_store()` can be deleted depends on whether the connection leak fix uses it.
+Phase 1 (Core Dark Mode Palette) — establish dark gray palette (`#1e1e2e` range), never use pure black. Document in style guide.
 
 ---
 
-### Pitfall 5: section_hint Not Encoded in PDF Ragnar Origins — Silent Degradation for Structured Synthesis
+### Pitfall 4: Hardcoded Colors in R Plot Code Break Dark Mode
 
 **What goes wrong:**
-Issue #118 identifies that `section_hint` is not being encoded into the `origin` field when PDFs are chunked. `encode_origin_metadata()` is defined in `_ragnar.R` and the abstract path calls it correctly. But in `mod_document_notebook.R` (line ~533), when inserting document chunks via `insert_chunks_to_ragnar()`, the `chunks` data frame from `pdf.R` may have `section_hint` values that are NOT encoded into the `origin` field.
-
-This matters for v4.0 because:
-- The Literature Review Table generation needs to retrieve methodology/results sections specifically.
-- The Research Question Generator benefits from gap-analysis-targeted retrieval.
-- Both features will call `search_chunks_hybrid()` with `section_filter` — which already queries the `chunks` table to look up `section_hint` by content prefix matching.
-
-If `section_hint` is not stored in the `chunks` table for PDFs uploaded before this fix, all section-filtered queries fall back to `"general"` silently. Users get a broader-than-expected result set with no error. The structured output then includes full paper content instead of targeted methodology/conclusion chunks.
+ggplot2 and other R plotting libraries generate plots with hardcoded colors (white backgrounds, black text, light gray grid lines) that look terrible in dark mode. The plots become unreadable white rectangles in an otherwise dark interface. This is particularly bad for plots embedded in Shiny outputs.
 
 **Why it happens:**
-The `chunk_with_ragnar()` function builds `all_chunks` with an `origin` field but does not call `encode_origin_metadata()`. The origin is just `"filename.pdf#page=N"`. The `section_hint` is detected separately in `pdf.R` and stored in the `chunks` table, but the ragnar store's `origin` field doesn't carry it. The `search_chunks_hybrid()` workaround (content prefix join to `chunks` table) is the bridge — but it only works if `pdf.R` correctly populates `section_hint` in the main `chunks` table during upload.
+R plotting functions default to light backgrounds. When you call `ggplot()` without specifying theme, it uses `theme_gray()` with white background and black text. These are baked into the plot image, not styled with CSS. Unlike HTML widgets, static plot images can't respond to CSS dark mode selectors.
 
 **How to avoid:**
-- **Fix the encoding path in PDF upload** (issue #118): In `mod_document_notebook.R` upload handler, after `create_chunk()` sets `section_hint`, also call `encode_origin_metadata()` when building the `origin` for ragnar. This ensures both storage locations are populated.
-- **Do not depend on the content-prefix join for new features** — it is O(n) and fragile (whitespace normalization can cause mismatches). New synthesis features should document that section filtering is "best effort" on pre-#118-fix notebooks.
-- **Add a validation check** in the new synthesis feature: if `section_filter` returns 0 results, fall back to unfiltered retrieval and log a warning. Do not silently return empty context.
+- Use the `thematic` package: `thematic::thematic_shiny()` auto-detects bslib theme and styles plots to match
+- For ggplot2 specifically: use `ggdark` package or implement dark theme with `theme_minimal() + theme(panel.background = element_rect(fill = "transparent"))`
+- Set plot background to transparent and let container background show through
+- Use `shiny::getCurrentOutputInfo()` to detect current theme and conditionally apply dark/light ggplot themes
+- For static exports, offer theme toggle that regenerates plots
 
 **Warning signs:**
-- `search_chunks_hybrid()` with `section_filter = c("conclusion")` returns 0 results for a notebook that definitely has conclusion sections
-- All chunks have `section_hint = "general"` in the `chunks` table after PDF upload (check with `dbGetQuery(con, "SELECT DISTINCT section_hint FROM chunks WHERE source_type='document'")`)
-- Console message: `[search_chunks_hybrid] section_hint column not found, skipping section filter` (even though the column exists — this fires when the content-prefix join finds no matches)
+- White ggplot2 plots in dark mode UI
+- Plot backgrounds don't match surrounding card backgrounds
+- Grid lines disappear against dark plot backgrounds
+- Text labels are black on dark backgrounds (unreadable)
 
 **Phase to address:**
-The tech-debt phase (issue #118) — fix the encoding before implementing structured synthesis features that depend on section filtering. If this fix ships in Phase 25, new synthesis features in Phase 26+ can rely on section filtering for newly uploaded PDFs, with documented degraded behavior for pre-fix notebooks.
+Phase 1 (Core Dark Mode Palette) — integrate `thematic` if plots exist. Phase 2 (Visual Consistency) — audit all plot outputs for theme compatibility.
+
+---
+
+### Pitfall 5: Scoped Theme Inheritance Breaks Nested Components
+
+**What goes wrong:**
+Setting `data-bs-theme="dark"` on a component creates theme boundaries that prevent proper inheritance. Child components may revert to global theme instead of respecting parent component theme. Or, setting theme on parent causes unintended cascade to children that should remain light.
+
+**Why it happens:**
+CSS custom properties inherit from parent but can be overridden by higher specificity selectors. Bootstrap's color mode system uses `data-bs-theme` attribute selectors. When you apply this to nested components, CSS specificity rules become complex. A selector like `.my-component [data-bs-theme="dark"]` has different specificity than `[data-bs-theme="dark"] .my-component`, causing inheritance proximity to fail.
+
+**How to avoid:**
+- Apply `data-bs-theme` at the highest level possible (usually `<html>`)
+- Avoid setting `data-bs-theme` on individual components unless absolutely necessary
+- If you must scope theme to component, explicitly set theme on all children that need it
+- Test theme changes with nested layouts: card → card-body → button → tooltip
+- Use browser DevTools to trace which theme selector is winning for each element
+
+**Warning signs:**
+- Theme changes work on some components but not others in same container
+- Nested components flicker between light/dark when parent theme changes
+- Must apply `data-bs-theme` to every component individually (symptom of broken inheritance)
+- Tooltips, popovers, modals appear in wrong theme (they render outside parent in DOM)
+
+**Phase to address:**
+Phase 1 (Core Dark Mode Palette) — establish theme application at `<html>` level only. Phase 2 (Visual Consistency) — audit all nested components for correct inheritance.
+
+---
+
+### Pitfall 6: Contrast Ratio Failures on Interactive States (Hover, Focus, Disabled)
+
+**What goes wrong:**
+Default light mode hover/focus states fail WCAG contrast requirements in dark mode. A button that has sufficient contrast in default state becomes unreadable on hover. Focus indicators are invisible. Disabled states blend into background. This breaks accessibility and keyboard navigation.
+
+**Why it happens:**
+Developers test default state contrast but forget to test interactive states. Bootstrap's default hover/focus states darken colors, which works in light mode but fails in dark mode (darkening an already dark color reduces contrast). Focus rings that are dark blue on light backgrounds become invisible on dark backgrounds.
+
+**How to avoid:**
+- Test all interactive states (default, hover, focus, active, disabled) in both themes
+- Use color-contrast() Sass function to ensure hover states maintain 4.5:1 ratio minimum
+- For focus indicators, use contrasting accent color or glow effect, not just border darkening
+- Aim for 3:1 minimum contrast for focus indicators (WCAG 2.1 Success Criterion 1.4.11)
+- Use browser DevTools to force hover/focus states and check contrast
+- Consider outline instead of border for focus (outline doesn't affect layout)
+
+**Warning signs:**
+- Focus ring disappears in dark mode
+- Hovered buttons are barely distinguishable from default state
+- Disabled inputs/buttons invisible against background
+- Color contrast checker passes for default state but fails on :hover/:focus pseudo-classes
+- Keyboard navigation difficult in dark mode (invisible focus)
+
+**Phase to address:**
+Phase 2 (Visual Consistency) — audit all interactive elements for contrast in all states. Create component testing checklist.
+
+---
+
+### Pitfall 7: Tooltip and Modal Z-Index Conflicts in Dark Mode
+
+**What goes wrong:**
+Tooltips appear behind modals. Popovers are cut off by parent containers. Dark mode overlays blend with dark backgrounds making modal backdrops invisible. Z-index stacking contexts break when custom positioned elements are introduced for dark mode styling.
+
+**Why it happens:**
+Bootstrap's z-index scale (modal-backdrop: 1050, modal: 1055, tooltip: 1080) assumes simple stacking. When you add custom positioned elements (absolute/fixed/relative) for dark mode styling, you create new stacking contexts. Elements with `position: relative` and `z-index: 1` can break tooltip rendering if they're parents of the trigger element.
+
+Additionally, Bootstrap renders tooltips/popovers in `<body>`, not inside their trigger's parent, so `data-bs-theme` applied to parent doesn't affect them.
+
+**How to avoid:**
+- Avoid `position: relative` with `z-index` on containers that have tooltips/popovers
+- If you must position elements, ensure z-index doesn't exceed Bootstrap's overlay range (< 1000)
+- Test tooltips/popovers inside: modals, positioned cards, fixed headers, scrollable containers
+- For modal backdrops in dark mode, use semi-transparent dark overlay: `rgba(0, 0, 0, 0.7)` not `rgba(0, 0, 0, 0.5)`
+- Ensure tooltips have proper theme by setting `data-bs-theme` on `<html>` not component level
+
+**Warning signs:**
+- Tooltips appear behind parent elements or modals
+- Popovers are clipped by `overflow: hidden` containers
+- Modal backdrop is nearly invisible in dark mode
+- Citation network tooltips overflow container boundary (documented in #79)
+- Tooltip theme doesn't match application theme
+
+**Phase to address:**
+Phase 2 (Visual Consistency) — fix known tooltip overflow issue (#79). Audit all positioned elements and z-index values.
 
 ---
 
 ## Technical Debt Patterns
 
+Shortcuts that seem reasonable but create long-term problems.
+
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Prompt-only structured output (no `json_schema`) | Simpler API call, works with all models | LLM produces markdown tables, CSV, prose, or mixed formats unpredictably; parsing code becomes a brittle regex farm | Never for user-facing structured output that is parsed programmatically |
-| Keep old preset IDs as no-ops after merge | Zero breakage risk during merge | Orphaned `observeEvent` handlers waste memory, confuse future developers, cause duplicate observers if both old and new buttons are registered | Acceptable for 1 phase as alias, then remove |
-| Skip `on.exit` cleanup in `search_chunks_hybrid` | Faster implementation | File handle leak on Windows; blocks `delete_notebook_store()`; GC warning spam in console | Never — this is a 5-line fix with no tradeoff |
-| Generate entire lit review table in one LLM call | Simpler code | Context window pressure causes silent row omission for large notebooks (>15 papers); no way to detect missing rows | Acceptable at MVP for small notebooks (<10 papers), needs batch strategy for larger sets |
-| Delete `with_ragnar_store` and `register_ragnar_cleanup` immediately | Slightly smaller codebase | Removes a working connection-management pattern that may be the solution to the connection leak; increases risk of Pitfall 3 fix introducing new bugs | Delete only after connection leak is fixed and confirmed not to use these functions |
-
----
+| Using `!important` to override Bootstrap dark mode styles | Quick fix for specificity issues | Creates maintenance nightmare, harder to override later, indicates underlying specificity problem | Never — always fix specificity root cause |
+| Hardcoding colors instead of Bootstrap CSS variables | Faster than looking up variable names | Breaks dark mode, requires duplicate rules for light/dark, harder to rebrand | Never in production — only in prototyping if removed before merge |
+| Setting inline styles in Shiny UI functions | Easy to apply conditional colors in R code | Can't be overridden by CSS, breaks theme switching, creates inconsistency | Only for truly dynamic colors (e.g., data-driven node colors in graphs) |
+| Duplicating light/dark color values instead of using Sass variables | Works without understanding Sass | Difficult to maintain, colors drift out of sync, no single source of truth | MVP only — refactor before adding more themes |
+| Inverting all colors with CSS filter | Single line of CSS for instant dark mode | Breaks images, inverts logos, poor contrast, unprofessional appearance | Never for production — demo/prototype only |
+| Skipping contrast testing on interactive states | Default state passes, assume hover/focus are fine | Accessibility failures, keyboard nav breaks, WCAG violation | Never — interactive states are critical for a11y |
 
 ## Integration Gotchas
 
+Common mistakes when integrating dark mode with external libraries and widgets.
+
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| OpenRouter structured outputs | Assume all models support `json_schema` mode | Check model compatibility first; set `require_parameters: true` to prevent silent fallback to `json_object`; handle 400 errors gracefully with fallback to prose |
-| OpenRouter Response Healing | Assume it catches schema violations | Response Healing fixes syntax only. Schema violations (wrong field names, missing required properties) still reach your code. Add R-side validation. |
-| ragnar + DuckDB file handles on Windows | Assume R GC closes connections promptly | Use explicit `DBI::dbDisconnect(store@con, shutdown = TRUE)` in `on.exit()`. On Windows, un-GC'd connections hold exclusive file locks that block `file.remove()`. |
-| `generate_preset()` with structured output | Reuse existing prose-oriented `chat_completion()` call | Add a separate `chat_completion_structured()` helper that includes `response_format` in the request body. Do not modify the existing function — it will break prose presets. |
-| Section filtering after Pitfall 5 | Expect `section_filter` to work reliably on all notebooks | Section filtering is best-effort. Pre-fix notebooks return `"general"` for all chunks. Add fallback: if filtered results < 3, retry without section filter. |
-
----
+| visNetwork / vis.js | Relying on CSS background-color for canvas | Set `background` parameter in `visNetwork()` call + `htmlwidgets::onRender()` for theme detection |
+| ggplot2 plots | Using default `theme_gray()` with white background | Use `thematic::thematic_shiny()` for auto-theming or manual theme switching with `getCurrentOutputInfo()` |
+| DT DataTables | Assuming bslib theming extends to DataTables | DT uses separate theming system — must set `style = "bootstrap5"` and customize via `formatStyle()` |
+| Quarto slides | Expecting dark mode to carry over to exported slides | Slides are standalone HTML — must set reveal.js theme to dark explicitly in YAML header |
+| Plotly | Canvas rendering ignores CSS theme variables | Use `layout(paper_bgcolor, plot_bgcolor)` with conditional theme detection, not CSS |
+| Custom JavaScript widgets | Assuming they read CSS variables automatically | Pass theme colors as widget config parameters from R, use JS to read `data-bs-theme` attribute if needed |
+| Modal/popover content | Setting `data-bs-theme` on trigger element only | Bootstrap renders modals/popovers in `<body>` — set theme globally or on modal element itself |
 
 ## Performance Traps
 
+Patterns that work at small scale but fail as usage grows.
+
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Structured JSON for 20+ papers in one call | Table has 8 rows when notebook has 22 papers; no error raised | Batch: generate 5–7 paper rows per call, merge results | >15 papers in context |
-| Sending all 50 chunks for structured synthesis | LLM ignores middle chunks; table has correct structure but wrong content | Reduce to 15–20 targeted chunks via focused query; increase `section_filter` specificity | >30 chunks in context |
-| ragnar connection per `search_chunks_hybrid` call (open, use, leak) | Memory grows 10–30 MB/session; "Database is garbage-collected" warnings | `on.exit()` cleanup as described in Pitfall 3 | >5 RAG queries per session |
-| Regenerating structured table on every reactive invalidation | LLM called repeatedly as user navigates tabs; high API cost | Gate structured generation behind explicit button click, not reactive dependency; cache result in `reactiveVal` | Any reactive dependency on the table output |
-
----
+| Regenerating all plots on theme change | UI freezes when toggling dark mode | Use `thematic::thematic_shiny()` for reactive theming or cache plot objects and only regenerate on data change | > 5 plots on page |
+| Re-rendering entire visNetwork on theme change | 1-2 second freeze, layout recalculation | Use `htmlwidgets::onRender()` to update only canvas background, preserve node positions | > 50 nodes |
+| Inline style injection for every themed element | Slow initial render, large HTML payload | Use CSS rules with `[data-bs-theme]` selectors, not inline styles | > 100 themed elements |
+| CSS filter inversion for dark mode | Entire page must repaint on theme toggle | Proper CSS variable approach with minimal repaints | Any page with animations |
+| Loading separate CSS bundles for light/dark | Flash of unstyled content (FOUC), double HTTP requests | Single CSS bundle with `[data-bs-theme]` selectors | Always a problem |
 
 ## UX Pitfalls
 
+Common user experience mistakes in dark mode design.
+
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Showing raw JSON when structured output parsing fails | User sees `{"rows": [...]}` instead of a table; confused and thinks the feature is broken | Catch parse failures, show error toast with "Could not generate table — try again or use a different model" |
-| Literature Review Table with missing papers (silent row omission) | User has 18 papers, table shows 10; user assumes 8 papers had no relevant content | Add a row count indicator: "Showing 10 of 18 papers — some may not have been included due to context limits" |
-| Overview preset replacing both Summarize and Key Points with no user notice | Returning user clicks where "Summarize" was, finds "Overview" instead, doesn't know if it's the same | Minimal UI change: rename button label, keep same visual position, add tooltip "Combines summary and key points" |
-| Research Question Generator producing generic questions | User gets "What are the future research directions in this field?" — questions not grounded in the specific papers | Require the LLM to cite the specific source(s) that motivated each question; validate that citations appear in output before accepting |
-
----
+| No persistent theme preference | User must re-select dark mode every session | Use `input_dark_mode()` with localStorage persistence (built into bslib) |
+| Abrupt theme switching without transition | Jarring visual change, disorienting | Add CSS transition on root variables: `transition: background-color 0.2s, color 0.2s` |
+| No theme toggle discoverable in UI | Users don't realize dark mode exists | Place theme toggle in prominent location (navbar, settings, or use bslib's built-in toggle) |
+| Images/logos designed only for light backgrounds | Logo invisible in dark mode | Provide separate logo for dark mode or use transparent PNGs with proper contrast |
+| Pure white or pure black extremes | Eye strain, halation, harsh contrast | Use near-black (`#1e1e2e`) and off-white (`#e8e8e8`) for comfortable reading |
+| Insufficient testing of content in both themes | Screenshots, badges, embedded content break | Test all user-generated and external content in both themes |
+| Syntax highlighting breaks in dark mode | Code blocks unreadable with light theme colors | Use theme-aware syntax highlighting (e.g., Prism.js with dark theme) |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Literature Review Table:** Often missing row count validation — verify table has 1 row per paper that has relevant content, not just 1–3 rows of "best examples"
-- [ ] **Structured output API call:** Often missing `require_parameters: true` — verify the request actually uses `json_schema` mode by checking network response headers (OpenRouter returns `x-model-provider` and routing info)
-- [ ] **Preset merge (Overview):** Often missing update to the *search* notebook offcanvas chat panel — verify both `mod_document_notebook.R` AND `mod_search_notebook.R` are updated if either currently has `btn_summarize` or `btn_keypoints`
-- [ ] **Connection leak fix:** Often "fixed" by only adding `on.exit` for the success path — verify the `on.exit` fires on error paths too (use `on.exit(..., add = TRUE)` not assignment after `on.exit`)
-- [ ] **Dead code removal:** Often marked done after `grep` shows no callers in `R/` — verify `tests/testthat/` is also clean and the test suite still passes
-- [ ] **section_hint encoding fix:** Often fixed in new upload flow but not retroactively — existing notebook content still has un-encoded origins; verify new synthesis features have graceful fallback for pre-fix data
-- [ ] **Cost tracking for new presets:** Often the new `preset_type` label is never passed to `log_cost()` — verify new features pass `session_id` and `preset_type` strings that will appear correctly in the cost tracker
+Things that appear complete but are missing critical pieces.
 
----
+- [ ] **Dark mode toggle exists:** Often missing localStorage persistence — verify theme survives page reload
+- [ ] **Components are dark:** Often missing proper color variables — verify Bootstrap variables used, not hardcoded colors
+- [ ] **Interactive states work:** Often missing hover/focus contrast — verify all states meet WCAG 2.1 standards in both themes
+- [ ] **Canvas widgets are themed:** Often missing programmatic background setting — verify visNetwork, plotly have explicit background colors
+- [ ] **Custom CSS respects theme:** Often missing `[data-bs-theme]` selectors — verify no light mode colors "stick" in dark mode
+- [ ] **Focus indicators visible:** Often missing contrast testing — verify focus rings meet 3:1 ratio in dark mode
+- [ ] **Modals and tooltips themed:** Often missing because rendered outside component tree — verify global theme applies correctly
+- [ ] **Plot outputs match theme:** Often missing thematic integration — verify ggplot2/base R plots adapt to dark mode
+- [ ] **Disabled states visible:** Often missing sufficient contrast — verify disabled inputs don't disappear in dark mode
+- [ ] **Logos and images adapt:** Often missing dark mode variants — verify brand assets work on dark backgrounds
 
 ## Recovery Strategies
 
+When pitfalls occur despite prevention, how to recover.
+
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Structured output returns wrong schema | LOW | Add R-side validation; retry with prose mode; surface error to user |
-| Preset merge breaks existing button references in tests | LOW | `grep` for old IDs, update in one pass; tests catch it before users do |
-| Connection leak causes "file in use" on Windows | LOW | Restart R process to release handles; apply Pitfall 3 fix; test on Windows before release |
-| Dead code removal breaks tests | LOW | `git revert` the deletion commit; add `on.exit` fix to `with_ragnar_store` instead; remove after confirming |
-| section_hint not populated (Pitfall 5) | LOW-MEDIUM | For pre-fix notebooks: accept degraded section filtering; for post-fix: re-upload PDFs or trigger re-index; document behavior difference |
-
----
+| CSS specificity war with Bootstrap | LOW | Use DevTools to identify conflicting rule → add `[data-bs-theme]` selector → replace hardcoded color with CSS variable |
+| Canvas widget ignores dark mode | LOW | Add `background` parameter to widget function → test in both themes → consider `htmlwidgets::onRender()` if dynamic needed |
+| Pure black/white causing eye strain | LOW | Replace `#000000` → `#1e1e2e`, `#ffffff` → `#e8e8e8` in CSS variables → propagates through entire theme |
+| Hardcoded plot colors | MEDIUM | Install `thematic` package → add `thematic::thematic_shiny()` to app initialization → test all plot outputs |
+| Interactive state contrast failures | MEDIUM | Audit all buttons/inputs/links with DevTools → add dark mode hover/focus rules → test with keyboard navigation |
+| Scoped theme inheritance broken | MEDIUM | Move `data-bs-theme` to `<html>` → remove component-level theme attributes → test nested layouts |
+| Z-index conflicts | MEDIUM | Audit all `position` and `z-index` rules → remove unnecessary positioning → test tooltips in modals |
+| No theme persistence | LOW | Ensure `input_dark_mode()` is used (includes localStorage by default) → verify browser localStorage not disabled |
+| Entire UI needs dark mode retrofit | HIGH | Phase 1: Core palette + canvas widgets → Phase 2: Interactive states + nested components → Phase 3: Content testing |
 
 ## Pitfall-to-Phase Mapping
 
+How roadmap phases should address these pitfalls.
+
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| LLM schema adherence vs. syntax | Literature Review Table phase | Test with `strict: true` and a schema; verify R-side validation catches schema violations; test with 3, 10, 20 paper notebooks |
-| Preset merge breaking observers | Bug-fix / tech-debt phase | `grep` audit before code change; run full test suite after merge; manually verify both doc notebook and search notebook UI |
-| `search_chunks_hybrid` connection leak | Bug-fix / tech-debt phase (issue #117) | After fix: call `search_chunks_hybrid` 10 times in a test, verify no DuckDB GC warnings; verify ragnar store file deletable immediately after query |
-| Dead code removal risks | Bug-fix / tech-debt phase (issue #119) | Run `testthat::test_dir("tests/testthat")` before AND after deletion; compare output line by line |
-| section_hint encoding gap | Tech-debt phase (issue #118) | After fix: upload a PDF, query `SELECT DISTINCT section_hint FROM chunks`; verify values other than "general" appear; test section-filtered retrieval |
-
----
+| Canvas elements ignore CSS | Phase 1: Core Dark Mode Palette | Test visNetwork citation network background in both themes, no white flash |
+| CSS specificity wars | Phase 1: Core Dark Mode Palette | DevTools audit shows no hardcoded colors overriding Bootstrap variables |
+| Pure black eye strain | Phase 1: Core Dark Mode Palette | All backgrounds use `#1e1e2e` range, no `#000000` in CSS or Bootstrap config |
+| Hardcoded R plot colors | Phase 1: Core Dark Mode Palette | If plots exist: `thematic` integrated, plots match theme automatically |
+| Scoped theme inheritance | Phase 1: Core Dark Mode Palette | `data-bs-theme` only on `<html>`, no component-level theme attributes |
+| Interactive state contrast | Phase 2: Visual Consistency | All buttons/inputs tested with keyboard nav, focus visible in dark mode, WCAG 2.1 compliant |
+| Z-index conflicts | Phase 2: Visual Consistency | Tooltip overflow (#79) fixed, modals tested with tooltips, no stacking issues |
+| Theme toggle UX | Phase 2: Visual Consistency | `input_dark_mode()` visible in navbar, theme persists across sessions |
+| Images/logos don't adapt | Phase 2: Visual Consistency | Favicon and brand assets work on both backgrounds |
+| Missing content testing | Phase 3: Polish & Testing | All synthesis outputs, exported slides, BibTeX, HTML tested in both themes |
 
 ## Sources
 
-- [OpenRouter Structured Outputs Documentation](https://openrouter.ai/docs/guides/features/structured-outputs) — Schema modes, `strict` parameter, model compatibility
-- [OpenRouter Response Healing Announcement](https://openrouter.ai/announcements/response-healing-reduce-json-defects-by-80percent) — What it fixes and explicitly does NOT fix (schema adherence)
-- [OpenRouter Provider Routing — require_parameters](https://openrouter.ai/docs/guides/routing/provider-selection) — Preventing silent fallback from `json_schema` to `json_object`
-- [DuckDB File Locking Discussion](https://github.com/duckdb/duckdb/discussions/8126) — Windows file lock behavior
-- [DuckDB Connection Lock Issue](https://github.com/duckdb/duckdb/discussions/10397) — Multiple connection locking patterns
-- [DuckDB R Package GC Warning](https://github.com/duckdb/duckdb-r/issues/34) — "Database is garbage-collected" warning cause and fix
-- [LLM Table Format Accuracy Study](https://www.improvingagents.com/blog/best-input-data-format-for-llms) — Markdown-KV outperforms CSV; format choice affects accuracy
-- [LLM Positional Bias in Tables](https://arxiv.org/html/2305.13062v4) — U-shaped accuracy: good at start/end, drops in middle of large contexts
-- [LLM Engineering Failure Modes 2025](https://medium.com/@gbalagangadhar/llm-engineering-in-2025-the-failure-modes-that-actually-matter-and-how-i-fix-them-ad1f6f1da77e) — Structured output latency and reliability issues
-- Serapeum codebase analysis — `R/db.R` lines 698–834 (`search_chunks_hybrid` connection leak), `R/_ragnar.R` lines 296–361 (`with_ragnar_store`, `register_ragnar_cleanup` dead code), `R/rag.R` lines 134–223 (`generate_preset` preset system), `R/mod_document_notebook.R` lines 44–65 (preset button IDs)
-- Serapeum issue tracker — #117 (connection leak), #118 (section_hint encoding), #119 (dead code removal), #98 (preset merge), #99 (Literature Review Table), #102 (Research Question Generator)
+**Official Documentation:**
+- [bslib Theming Guide](https://rstudio.github.io/bslib/articles/theming/index.html) — HIGH confidence
+- [Bootstrap 5.3 Color Modes](https://getbootstrap.com/docs/5.3/customize/color-modes/) — HIGH confidence
+- [Bootstrap 5.3 CSS Variables](https://getbootstrap.com/docs/5.3/customize/css-variables/) — HIGH confidence
+- [Bootstrap 5.3 Z-Index](https://getbootstrap.com/docs/5.3/utilities/z-index/) — HIGH confidence
+- [Shiny for R 1.8.0: Dark Mode](https://shiny.posit.co/blog/posts/shiny-r-1.8.0/) — HIGH confidence
+- [thematic Auto-Theming](https://rstudio.github.io/thematic/articles/auto.html) — HIGH confidence
+- [visNetwork Documentation](https://cran.r-project.org/web/packages/visNetwork/visNetwork.pdf) — HIGH confidence
+
+**Accessibility Standards:**
+- [WebAIM Contrast Guide](https://webaim.org/articles/contrast/) — HIGH confidence
+- [WCAG 2.1 Contrast Minimum](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html) — HIGH confidence
+- [WCAG 2.1 Non-text Contrast](https://www.w3.org/WAI/WCAG21/Understanding/non-text-contrast.html) — HIGH confidence
+
+**Dark Mode Best Practices:**
+- [Color Contrast Accessibility Guide 2025](https://www.allaccessible.org/blog/color-contrast-accessibility-wcag-guide-2025) — MEDIUM confidence
+- [Dark Mode Accessibility Guide](https://www.accessibilitychecker.org/blog/dark-mode-accessibility/) — MEDIUM confidence
+- [Dark Mode Charts Best Practices 2026](https://www.cleanchart.app/blog/dark-mode-charts) — MEDIUM confidence
+- [BrowserStack Dark Mode Testing](https://www.browserstack.com/guide/how-to-test-apps-in-dark-mode) — MEDIUM confidence
+
+**CSS Variables and Cascade:**
+- [Dark Mode and CSS Variables](https://betterprogramming.pub/dark-mode-and-css-variables-ed6dc250232c) — MEDIUM confidence
+- [CSS Custom Properties Complete Guide](https://devtoolbox.dedyn.io/blog/css-variables-complete-guide) — MEDIUM confidence
+- [MDN CSS Custom Properties](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_cascading_variables/Using_CSS_custom_properties) — HIGH confidence
+
+**Project-Specific Issues:**
+- `.planning/todos/pending/2026-02-13-fix-citation-network-background-color-blending.md` — Known visNetwork dark mode issue in Serapeum
+- `www/custom.css` lines 10-12 — Current dark mode implementation for citation network
+- GitHub Issue #79 — Tooltip overflow in citation network
+- GitHub Issue #89 — Citation network background color blending
+
+**Community Resources:**
+- [Passing CSS Theme to Canvas (Aaron Gustafson)](https://www.aaron-gustafson.com/notebook/passing-your-css-theme-to-canvas/) — LOW confidence (general canvas theming)
+- [ggdark Package](https://github.com/nsgrantham/ggdark) — MEDIUM confidence (specific to ggplot2)
+- [Bootstrap GitHub Issue #38973](https://github.com/twbs/bootstrap/issues/38973) — MEDIUM confidence (data-bs-theme behavior differences)
 
 ---
-*Pitfalls research for: Serapeum v4.0 Stability + Synthesis Features*
-*Researched: 2026-02-18*
-*Confidence: HIGH — Based on official OpenRouter documentation, DuckDB issue tracker, LLM structured output research, and direct codebase analysis of the known bugs and planned features*
+*Pitfalls research for: Dark Mode Redesign in R/Shiny/bslib Applications*
+*Researched: 2026-02-22*
