@@ -124,7 +124,7 @@ mod_document_notebook_ui <- function(id) {
           div(
             id = ns("chat_messages"),
             class = "flex-grow-1 overflow-auto mb-3 p-2",
-            style = "background-color: var(--bs-light); border-radius: 0.5rem;",
+            style = "background-color: var(--bs-tertiary-bg); border-radius: 0.5rem;",
             uiOutput(ns("messages"))
           ),
           div(

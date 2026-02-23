@@ -431,7 +431,7 @@ mod_settings_server <- function(id, con, config_rv) {
       tier_badge <- switch(row$tier,
         "budget" = span(class = "badge bg-success", "Budget"),
         "mid" = span(class = "badge bg-primary", "Mid-tier"),
-        "premium" = span(class = "badge bg-warning text-dark", "Premium"),
+        "premium" = span(class = "badge bg-warning text-body", "Premium"),
         span(class = "badge bg-secondary", row$tier)
       )
 
@@ -442,7 +442,7 @@ mod_settings_server <- function(id, con, config_rv) {
       }
 
       div(
-        class = "card card-body bg-light py-2 px-3 mt-2 small",
+        class = "card card-body bg-body-secondary py-2 px-3 mt-2 small",
         div(class = "d-flex justify-content-between align-items-center mb-1",
           span(class = "fw-semibold", row$name),
           tier_badge
@@ -473,7 +473,7 @@ mod_settings_server <- function(id, con, config_rv) {
       div(
         class = "small",
         span(class = "badge bg-success me-2", paste(status$has_doi, "with DOI")),
-        span(class = "badge bg-warning text-dark", paste(status$missing_doi, "missing DOI"))
+        span(class = "badge bg-warning text-body", paste(status$missing_doi, "missing DOI"))
       )
     })
 

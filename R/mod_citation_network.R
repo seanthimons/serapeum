@@ -25,7 +25,7 @@ mod_citation_network_ui <- function(id) {
 
     # Top controls bar
     div(
-      class = "citation-network-controls mb-3 p-3 bg-light rounded",
+      class = "citation-network-controls mb-3 p-3 bg-body-secondary rounded",
       layout_columns(
         col_widths = c(2, 2, 2, 3, 3),
 

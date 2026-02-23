@@ -277,7 +277,7 @@ mod_search_notebook_ui <- function(id) {
         div(
           id = ns("chat_messages"),
           class = "flex-grow-1 overflow-auto p-3",
-          style = "background-color: var(--bs-light);",
+          style = "background-color: var(--bs-tertiary-bg);",
           uiOutput(ns("messages"))
         ),
         # Input area
@@ -679,7 +679,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       switch(oa_status,
         "diamond" = list(class = "bg-info", icon = "gem", tooltip = "Diamond OA: Free to read & publish"),
-        "gold" = list(class = "bg-warning text-dark", icon = "unlock", tooltip = "Gold OA: Open access journal"),
+        "gold" = list(class = "bg-warning text-body", icon = "unlock", tooltip = "Gold OA: Open access journal"),
         "green" = list(class = "bg-success", icon = "leaf", tooltip = "Green OA: Repository copy"),
         "hybrid" = list(class = "bg-primary", icon = "code-branch", tooltip = "Hybrid OA: Open in toll-access journal"),
         "bronze" = list(class = "bg-secondary", icon = "lock-open", tooltip = "Bronze OA: Free but no license"),
@@ -1165,7 +1165,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         oa_badge <- get_oa_badge(paper$oa_status)
 
         div(
-          class = paste("border-bottom py-2 position-relative", if (is_viewed) "bg-light"),
+          class = paste("border-bottom py-2 position-relative", if (is_viewed) "bg-body-tertiary"),
           # Delete button (top-right)
           actionLink(
             ns(paste0("delete_paper_", paper$id)),
@@ -1367,7 +1367,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               )
             },
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
-              span(class = "badge bg-light text-dark border", paper$venue)
+              span(class = "badge bg-body-tertiary text-body border", paper$venue)
             }
             ,
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
@@ -1711,7 +1711,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           class = "mt-3",
           tags$summary(class = "text-muted small cursor-pointer", "Show API Query"),
           div(
-            class = "mt-2 p-2 bg-light rounded small font-monospace",
+            class = "mt-2 p-2 bg-body-secondary rounded small font-monospace",
             style = "word-break: break-all;",
             uiOutput(ns("query_preview"))
           )
@@ -1774,7 +1774,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = "mt-2",
             tags$summary(class = "text-muted small", style = "cursor: pointer;",
                          icon("chart-bar"), " View distribution in results"),
-            div(class = "mt-2 p-2 bg-light rounded small text-muted",
+            div(class = "mt-2 p-2 bg-body-secondary rounded small text-muted",
                 "Type data not available. Re-run search to fetch type information.")
           )
         )
@@ -1792,7 +1792,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         tags$summary(class = "text-muted small", style = "cursor: pointer;",
                      icon("chart-bar"), " View distribution in results"),
         div(
-          class = "mt-2 p-2 bg-light rounded",
+          class = "mt-2 p-2 bg-body-secondary rounded",
           lapply(names(type_counts), function(type_name) {
             count <- type_counts[[type_name]]
             pct <- if (max_count > 0) (count / max_count) * 100 else 0

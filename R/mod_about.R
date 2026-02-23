@@ -183,7 +183,7 @@ mod_about_ui <- function(id) {
           tags$a(
             href = "https://github.com/seanthimons/serapeum",
             target = "_blank",
-            class = "btn btn-outline-dark",
+            class = "btn btn-outline-secondary",
             icon("github"), " View on GitHub"
           )
         ),

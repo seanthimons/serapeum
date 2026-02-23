@@ -173,5 +173,22 @@ catppuccin_dark_css <- function() {
   background-color: ', MOCHA$red, ';
   color: ', MOCHA$base, ';
 }
+
+/* Safety net: catch any remaining bg-light/text-dark in dark mode (Phase 31) */
+[data-bs-theme="dark"] .bg-light {
+  background-color: var(--bs-secondary-bg) !important;
+  color: var(--bs-body-color) !important;
+}
+
+[data-bs-theme="dark"] .text-dark {
+  color: var(--bs-body-color) !important;
+}
+
+/* Dark mode alert overrides for better readability */
+[data-bs-theme="dark"] .alert-warning {
+  background-color: rgba(249, 226, 175, 0.15);
+  border-color: rgba(249, 226, 175, 0.3);
+  color: var(--bs-body-color);
+}
 ')
 }
