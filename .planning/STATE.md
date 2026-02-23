@@ -51,6 +51,8 @@ Progress: [███████████████████████
 All decisions logged in PROJECT.md Key Decisions table.
 
 Recent decisions (v6.0):
+- Phase 31 gap closure: Replaced custom JS toggle with bslib::input_dark_mode() for thematic integration
+- Phase 31 gap closure: Fixed value box text-muted, disclaimer opacity, .bg-white dark override
 - Phase 32: All validation checks passed, no code changes needed
 - Phase 31: bg-body-secondary for panels, bg-body-tertiary for badges, text-body for contrast
 - Phase 31: CSS safety net for bg-light/text-dark, alert-warning dark override

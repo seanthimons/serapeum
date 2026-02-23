@@ -1,7 +1,7 @@
 ---
 phase: 31-component-styling-visual-consistency
 plan: 05
-status: pending-verification
+status: complete
 commit: 0c765d0
 gap_closure: true
 ---
@@ -24,6 +24,6 @@ Replaced custom JavaScript theme toggle with `bslib::input_dark_mode()` to enabl
 
 - `app.R` — Replaced JS toggle with bslib widget, added persistence observer
 
-## Awaiting verification
+## Verification
 
-Manual testing required for barplot theme adaptation (see checkpoint in plan).
+Manually verified: barplot backgrounds adapt correctly to theme changes. User approved.
