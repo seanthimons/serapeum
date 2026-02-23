@@ -181,10 +181,16 @@ catppuccin_dark_css <- function() {
   color: var(--bs-body-color) !important;
 }
 
+/* Override .bg-white in dark mode (document notebook chat uses this) */
+[data-bs-theme="dark"] .bg-white {
+  background-color: var(--bs-secondary-bg) !important;
+  color: var(--bs-body-color) !important;
+}
+
 /* Dark mode alert overrides for better readability */
 [data-bs-theme="dark"] .alert-warning {
-  background-color: rgba(249, 226, 175, 0.15);
-  border-color: rgba(249, 226, 175, 0.3);
+  background-color: rgba(249, 226, 175, 0.22);
+  border-color: rgba(249, 226, 175, 0.5);
   color: var(--bs-body-color);
 }
 

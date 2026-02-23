@@ -82,7 +82,7 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
           showcase = icon("wallet"),
           showcase_layout = "left center",
           theme = theme,
-          p(class = "small text-muted mb-0",
+          p(class = "small mb-0",
             sprintf("$%.2f used of $%.2f", creds$total_usage, creds$total_credits))
         ),
         hr()
