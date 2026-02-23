@@ -7,6 +7,7 @@ mod_about_ui <- function(id) {
     fill = FALSE,
     class = "border-0",
     card_body(
+      fillable = FALSE,
       class = "py-4",
 
       # Header
