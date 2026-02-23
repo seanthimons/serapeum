@@ -591,7 +591,10 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       vn <- vn |>
         visNetwork::visEdges(
           arrows = "to",
-          color = list(color = "#cccccc", highlight = "#666666"),
+          color = list(
+            color = "rgba(205, 214, 244, 0.2)",
+            highlight = "rgba(180, 190, 254, 0.4)"
+          ),
           smooth = list(type = "continuous")
         ) |>
         visNetwork::visNodes(
@@ -724,7 +727,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       # Update via proxy (no full re-render)
       visNetwork::visNetworkProxy("network_graph") |>
         visNetwork::visUpdateNodes(nodes[, c("id", "color", "value", "shape",
-                                              "borderWidth", "color.border")])
+                                              "borderWidth", "color.border",
+                                              "color.highlight.border")])
     }, ignoreInit = TRUE)
 
     # Handle node click

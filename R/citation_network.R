@@ -462,9 +462,11 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   # Shape: star for seed, dot for others
   nodes_df$shape <- ifelse(nodes_df$is_seed, "star", "dot")
 
-  # Border: gold ring for seed
-  nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 1)
-  nodes_df$color.border <- ifelse(nodes_df$is_seed, "#FFD700", "#2B7CE9")
+  # Borders: all nodes get light border for dark mode visibility (COMP-02)
+  # Seed paper keeps gold border but thicker
+  nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 2)
+  nodes_df$color.border <- ifelse(nodes_df$is_seed, "#FFD700", "rgba(205, 214, 244, 0.5)")
+  nodes_df$color.highlight.border <- ifelse(nodes_df$is_seed, "#FFD700", "#b4befe")
 
   # Preserve original paper title before overwriting with tooltip
   nodes_df$paper_title <- nodes_df$title
