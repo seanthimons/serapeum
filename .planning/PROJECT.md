@@ -170,14 +170,23 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 | %in% set membership for disclaimer check (v4.0) | Extensible for future preset types vs chained identical() | ✓ Good — Literature Review Table will benefit |
 
 ---
+## Current Milestone: v6.0 Dark Mode + UI Polish
+
+**Goal:** Full dark mode palette redesign with intentional colors and proper contrast, plus general UI touch ups for visual consistency.
+
+**Target features:**
+- Redesign dark mode palette from scratch — proper contrast ratios, readable text, intentional color choices (#121)
+- UI touch ups — visual consistency and polish across the app (#123)
+
+---
 ## Current State
 
-**Latest shipped:** v4.0 Stability + Synthesis (2026-02-22)
-**Active milestone:** v5.0 Fix Document Embeddings
-**Total milestones:** 7 shipped (v1.0–v4.0), 1 active (v5.0)
+**Latest shipped:** v5.0 Fix Document Embeddings (2026-02-22)
+**Active milestone:** v6.0 Dark Mode + UI Polish
+**Total milestones:** 8 shipped (v1.0–v5.0), 1 active (v6.0)
 **Total phases:** 29 across 48 plans
 
-**v5.0 goal:** Fix the critical ragnar embed closure serialization bug — the embed function is serialized to disk by ragnar but loses its closure environment on deserialization, breaking all document and abstract embedding. Fix: set embed function via S7 `@embed` property at runtime after every store create/connect.
+**v5.0 shipped:** Fixed critical ragnar embed closure serialization bug — runtime `@embed` property attachment bypasses broken deserialization. Also fixed origin metadata parsing, stale chunk cleanup on delete, and added chat send button spinner.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -187,4 +196,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 
 ---
-*Last updated: 2026-02-22 — v5.0 milestone created*
+*Last updated: 2026-02-22 — v6.0 milestone started*

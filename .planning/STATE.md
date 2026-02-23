@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** v4.0 shipped; next milestone not yet defined
+**Current focus:** v6.0 Dark Mode + UI Polish
 
 ## Current Position
 
-Phase: v4.0 complete (28 phases across 7 milestones)
-Status: Between milestones — v4.0 archived, v5.0 not started
-Last activity: 2026-02-22 — v4.0 milestone archived and tagged
+Phase: Not started (defining requirements)
+Status: Defining requirements for v6.0
+Last activity: 2026-02-22 — Milestone v6.0 started
 
-Progress: [##########] 100% (all milestones through v4.0)
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47 (across v1.0-v4.0)
-- Total phases: 28
-- Total milestones: 7
+- Total plans completed: 48 (across v1.0-v5.0)
+- Total phases: 29
+- Total milestones: 8
 
 **By Milestone:**
 
@@ -33,6 +33,7 @@ Progress: [##########] 100% (all milestones through v4.0)
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
 | v4.0 | 25-28 | 6 | Complete | 2026-02-22 |
+| v5.0 | 29 | 1 | Complete | 2026-02-22 |
 
 ## Accumulated Context
 
@@ -48,12 +49,12 @@ All decisions logged in PROJECT.md Key Decisions table.
 
 ### Blockers/Concerns
 
-None — between milestones.
+None.
 
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: v4.0 milestone archived
+Stopped at: Defining v6.0 milestone requirements
 Resume file: none
 
-**Next action:** Run `/gsd:new-milestone` to define v5.0 scope and requirements.
+**Next action:** Complete requirements and roadmap for v6.0.
