@@ -9,6 +9,8 @@
 - ✅ **v2.1 Polish & Analysis** - Phases 16-19 (shipped 2026-02-13)
 - ✅ **v3.0 Ragnar RAG Overhaul** - Phases 20-24 (shipped 2026-02-17)
 - ✅ **v4.0 Stability + Synthesis** - Phases 25-28 (shipped 2026-02-22)
+- ✅ **v5.0 Fix Document Embeddings** - Phase 29 (shipped 2026-02-22)
+- 🔄 **v6.0 Dark Mode + UI Polish** - Phases 30-32 (active)
 
 ## Phases
 
@@ -85,6 +87,24 @@ See [v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md) for full details.
 
 </details>
 
+<details>
+<summary>✅ v5.0 Fix Document Embeddings (Phase 29) - SHIPPED 2026-02-22</summary>
+
+- [x] Phase 29: Fix Ragnar Embed Closure Bug (1/1 plan) - completed 2026-02-22
+
+See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
+
+</details>
+
+<details open>
+<summary>🔄 v6.0 Dark Mode + UI Polish (Phases 30-32) - ACTIVE</summary>
+
+- [ ] **Phase 30: Core Dark Mode Palette** - Establish WCAG-compliant dark mode foundation
+- [ ] **Phase 31: Component Styling & Visual Consistency** - Refactor components and ensure visual polish
+- [ ] **Phase 32: Testing & Polish** - Comprehensive cross-module validation
+
+</details>
+
 ## Progress
 
 | Milestone | Phases | Plans | Status | Shipped |
@@ -96,8 +116,70 @@ See [v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md) for full details.
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
 | v4.0 | 25-28 | 6 | Complete | 2026-02-22 |
+| v5.0 | 29 | 1 | Complete | 2026-02-22 |
+| v6.0 | 30-32 | TBD | Active | — |
 
-**Total: 47 plans complete across 28 phases (7 milestones shipped)**
+**Total: 47 plans complete across 29 phases (8 milestones shipped, 1 active)**
 
 ---
-*Updated: 2026-02-22 — v4.0 archived*
+
+## v6.0 Phase Details
+
+### Phase 30: Core Dark Mode Palette
+**Goal**: Establish a WCAG-compliant dark mode foundation with intentional colors and proper contrast
+
+**Depends on**: Phase 29 (complete)
+
+**Requirements**: DARK-01, DARK-02, DARK-03, DARK-04, DARK-05, COMP-02
+
+**Success Criteria** (what must be TRUE):
+1. User sees dark gray backgrounds (#1e1e2e range) in dark mode, not pure black
+2. All text in dark mode meets WCAG AA contrast ratios (4.5:1 normal, 3:1 large)
+3. Accent colors are desaturated ~20% vs light mode to prevent vibration
+4. Semantic colors (success/danger/warning/info) remain recognizable in dark mode
+5. visNetwork citation graph has proper dark background (issue #89 resolved)
+
+**Plans**: TBD
+
+---
+
+### Phase 31: Component Styling & Visual Consistency
+**Goal**: Ensure all components use Bootstrap CSS variables and achieve visual consistency across the app
+
+**Depends on**: Phase 30 (dark mode palette must be established)
+
+**Requirements**: COMP-01, COMP-03, COMP-04, COMP-05, UIPX-01, UIPX-02, UIPX-03, UIPX-04, UIPX-05
+
+**Success Criteria** (what must be TRUE):
+1. All Bootstrap components (cards, buttons, forms, modals, toasts, badges) render correctly in dark mode
+2. Custom CSS uses Bootstrap CSS variables (var(--bs-*)) instead of hardcoded hex colors
+3. Interactive states (hover, focus, disabled) meet WCAG contrast requirements in both themes
+4. Spacing follows consistent rhythm across all views (8pt grid adherence)
+5. Typography hierarchy is consistent (line-height, font sizes, weight)
+6. About page layout harmonized with rest of app
+7. All UI touch ups from issue #123 are resolved
+8. All solutions are Shiny-compliant (no raw DOM manipulation)
+
+**Plans**: TBD
+
+---
+
+### Phase 32: Testing & Polish
+**Goal**: Comprehensive cross-module validation and final polish across all components
+
+**Depends on**: Phase 31 (components must be dark mode aware)
+
+**Requirements**: None (validation phase)
+
+**Success Criteria** (what must be TRUE):
+1. All modules tested and functional in both light and dark modes
+2. Empty states, error states, and loading states verified in both themes
+3. Edge cases resolved (long text wrapping, overlapping elements)
+4. Theme toggle UX verified (localStorage persistence, smooth transitions)
+5. Cross-mode consistency verified across all views
+
+**Plans**: TBD
+
+---
+
+*Updated: 2026-02-22 — v6.0 roadmap created*

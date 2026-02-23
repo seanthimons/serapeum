@@ -54,27 +54,32 @@ Requirements for dark mode redesign and UI polish. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DARK-01 | — | Pending |
-| DARK-02 | — | Pending |
-| DARK-03 | — | Pending |
-| DARK-04 | — | Pending |
-| DARK-05 | — | Pending |
-| COMP-01 | — | Pending |
-| COMP-02 | — | Pending |
-| COMP-03 | — | Pending |
-| COMP-04 | — | Pending |
-| COMP-05 | — | Pending |
-| UIPX-01 | — | Pending |
-| UIPX-02 | — | Pending |
-| UIPX-03 | — | Pending |
-| UIPX-04 | — | Pending |
-| UIPX-05 | — | Pending |
+| DARK-01 | Phase 30 | Pending |
+| DARK-02 | Phase 30 | Pending |
+| DARK-03 | Phase 30 | Pending |
+| DARK-04 | Phase 30 | Pending |
+| DARK-05 | Phase 30 | Pending |
+| COMP-01 | Phase 31 | Pending |
+| COMP-02 | Phase 30 | Pending |
+| COMP-03 | Phase 31 | Pending |
+| COMP-04 | Phase 31 | Pending |
+| COMP-05 | Phase 31 | Pending |
+| UIPX-01 | Phase 31 | Pending |
+| UIPX-02 | Phase 31 | Pending |
+| UIPX-03 | Phase 31 | Pending |
+| UIPX-04 | Phase 31 | Pending |
+| UIPX-05 | Phase 31 | Pending |
 
 **Coverage:**
 - v6.0 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 (roadmap not yet created)
+- Mapped to phases: 15 (100%)
+- Unmapped: 0
+
+**Phase breakdown:**
+- Phase 30 (Core Dark Mode Palette): 6 requirements (DARK-01 through DARK-05, COMP-02)
+- Phase 31 (Component Styling & Visual Consistency): 9 requirements (COMP-01, COMP-03 through COMP-05, UIPX-01 through UIPX-05)
+- Phase 32 (Testing & Polish): 0 requirements (validation phase)
 
 ---
 *Requirements defined: 2026-02-22*
-*Last updated: 2026-02-22 after initial definition*
+*Last updated: 2026-02-22 — roadmap created, traceability complete*
