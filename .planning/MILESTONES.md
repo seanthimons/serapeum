@@ -113,3 +113,54 @@
 
 ---
 
+
+## v4.0 Stability + Synthesis (Shipped: 2026-02-22)
+
+**Phases completed:** 4 phases (25-28), 6 plans
+
+**Key accomplishments:**
+- Bug fixes: seed paper display (#110), modal repeat (#111), cost tracking updates (#116), refresh after remove (#86)
+- Landed PR #112 (duplicate toasts) and PR #115 (collapsible keywords)
+- Unified Overview preset merging Summarize + Key Points into single synthesis output
+- Research Question Generator as standalone preset with paper metadata enrichment
+- Literature Review Table — structured comparison matrix for search notebook papers
+
+**Timeline:** 3 days (2026-02-18 → 2026-02-19)
+**Git range:** gsd/v4.0-stability-synthesis branch
+
+---
+
+
+## v5.0 Fix Document Embeddings (Shipped: 2026-02-22)
+
+**Phases completed:** 1 phase (29), 1 plan
+
+**Key accomplishments:**
+- Fixed critical ragnar embed closure serialization bug — runtime @embed property attachment bypasses broken deserialization
+- Fixed origin metadata parsing and stale chunk cleanup on delete
+- Added chat send button spinner for user feedback
+
+**Timeline:** <1 day (2026-02-22)
+**Git range:** gsd/v5.0-fix-document-embeddings branch
+
+---
+
+
+## v6.0 Dark Mode + UI Polish (Shipped: 2026-02-25)
+
+**Phases completed:** 3 phases (30-32), 8 plans
+
+**Key accomplishments:**
+- Catppuccin Latte/Mocha palette via bs_theme() + bs_add_rules() with 11.8:1 contrast ratio
+- Centralized dark CSS in R/theme_catppuccin.R (~244 lines) — single source of truth for all dark overrides
+- visNetwork dark canvas with rgba borders for viridis node visibility across all color scales
+- Replaced all hardcoded colors with theme-aware Bootstrap classes (bg-body-secondary, text-body, etc.)
+- Replaced custom JS toggle with bslib::input_dark_mode() for native thematic integration
+- Phase 32 validation passed all checks with 0 code changes needed
+
+**Stats:** 14 files changed, +454 / -105 lines
+**Timeline:** 3 days (2026-02-22 → 2026-02-25)
+**Git range:** gsd/v6.0-dark-mode-ui-polish branch
+
+---
+
