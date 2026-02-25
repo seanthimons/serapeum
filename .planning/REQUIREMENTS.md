@@ -74,34 +74,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUDIT-01 | — | Pending |
-| AUDIT-02 | — | Pending |
-| AUDIT-03 | — | Pending |
-| AUDIT-04 | — | Pending |
-| AUDIT-05 | — | Pending |
-| AUDIT-06 | — | Pending |
-| AUDIT-07 | — | Pending |
-| BULK-01 | — | Pending |
-| BULK-02 | — | Pending |
-| BULK-03 | — | Pending |
-| BULK-04 | — | Pending |
-| BULK-05 | — | Pending |
-| BULK-06 | — | Pending |
-| BULK-07 | — | Pending |
-| BULK-08 | — | Pending |
-| SLCT-01 | — | Pending |
-| SLCT-02 | — | Pending |
-| SLCT-03 | — | Pending |
-| SLIDE-01 | — | Pending |
-| SLIDE-02 | — | Pending |
-| SLIDE-03 | — | Pending |
-| SLIDE-04 | — | Pending |
+| AUDIT-01 | Phase 37 | Pending |
+| AUDIT-02 | Phase 37 | Pending |
+| AUDIT-03 | Phase 37 | Pending |
+| AUDIT-04 | Phase 37 | Pending |
+| AUDIT-05 | Phase 37 | Pending |
+| AUDIT-06 | Phase 37 | Pending |
+| AUDIT-07 | Phase 37 | Pending |
+| BULK-01 | Phase 35 | Pending |
+| BULK-02 | Phase 35 | Pending |
+| BULK-03 | Phase 36 | Pending |
+| BULK-04 | Phase 35 | Pending |
+| BULK-05 | Phase 35 | Pending |
+| BULK-06 | Phase 35 | Pending |
+| BULK-07 | Phase 36 | Pending |
+| BULK-08 | Phase 36 | Pending |
+| SLCT-01 | Phase 38 | Pending |
+| SLCT-02 | Phase 38 | Pending |
+| SLCT-03 | Phase 38 | Pending |
+| SLIDE-01 | Phase 39 | Pending |
+| SLIDE-02 | Phase 39 | Pending |
+| SLIDE-03 | Phase 39 | Pending |
+| SLIDE-04 | Phase 39 | Pending |
 
 **Coverage:**
 - v7.0 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22
+- Mapped to phases: 22
+- Unmapped: 0
+- Coverage: 100%
+
+**Foundation requirements:**
+- Phase 33 (DOI Parsing Utilities): Enables BULK-01, BULK-02, BULK-03, AUDIT-06
+- Phase 34 (OpenAlex Batch API): Enables BULK-04, BULK-05, AUDIT-02, AUDIT-03, AUDIT-06
 
 ---
 *Requirements defined: 2026-02-25*
-*Last updated: 2026-02-25 after initial definition*
+*Last updated: 2026-02-25 after roadmap creation*
