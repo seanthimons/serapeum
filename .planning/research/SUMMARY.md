@@ -1,241 +1,261 @@
 # Project Research Summary
 
-**Project:** Dark Mode Palette Redesign & UI Polish
-**Domain:** R/Shiny/bslib dark mode theming and visual consistency
-**Researched:** 2026-02-22
+**Project:** Serapeum v7.0 — Citation Audit + Bulk Import + Prompt Healing
+**Domain:** Academic research assistant (R/Shiny) with citation analysis and literature management
+**Researched:** 2026-02-25
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Serapeum needs a comprehensive dark mode redesign, moving from a basic toggle with poor contrast to an intentional, accessible dark palette with proper UI consistency. The research reveals that bslib and Bootstrap 5.3+ provide excellent dark mode foundations through CSS custom properties and the `data-bs-theme` attribute system, but successful implementation requires careful attention to contrast ratios (WCAG AA 4.5:1 minimum), desaturated accent colors, dark gray backgrounds (#1e1e2e, not pure black), and component-specific overrides for canvas-based widgets like visNetwork.
+Serapeum v7.0 adds citation audit and bulk import capabilities to an existing R/Shiny research assistant. The research reveals a clear technical path: leverage existing DuckDB infrastructure for citation frequency analysis, use OpenAlex API batch endpoints for efficient bulk lookups, and adopt established BibTeX parsing libraries (bib2df) for interoperability with reference managers. All features integrate cleanly with the current Shiny module architecture and async patterns—no new infrastructure required.
 
-The recommended approach is a three-phase implementation: (1) establish a core dark mode palette using Bootstrap CSS variables, handling canvas widgets explicitly; (2) audit and fix visual consistency issues including spacing, typography, interactive states, and the known citation network background problem (#89) and tooltip overflow (#79); (3) comprehensive testing and polish across all modules. The biggest risks are CSS specificity wars where custom rules override Bootstrap's dark mode variables, canvas elements (visNetwork) that don't respond to CSS and need programmatic background colors, and interactive state contrast failures on hover/focus/disabled states that break accessibility.
+The recommended approach prioritizes foundational utilities first (DOI parsing, batch API operations), then builds user-facing features on that foundation (bulk import UI, citation audit, BibTeX support). This order mitigates the highest risk: OpenAlex rate limiting during bulk operations. Research shows that naive sequential API calls fail catastrophically at 20+ DOIs due to rate limits—batching 50 DOIs per request with proper delays is non-negotiable. The second major risk is BibTeX parsing fragility with real-world files, addressed by using tolerant parsers with per-entry error handling.
 
-The existing JavaScript toggle mechanism is sound and requires no changes. The core work involves creating a centralized dark mode palette file (`www/dark-mode-overrides.scss`), refactoring existing custom CSS to use Bootstrap CSS variables instead of hardcoded colors, and explicitly configuring visNetwork graph backgrounds. This is a low-to-medium complexity project with well-established patterns and high-quality official documentation from Posit/RStudio and Bootstrap.
+Citation gap detection emerges as a key differentiator—most competitors (Connected Papers, Scite) show what you have, but identifying frequently-cited papers missing from your collection provides unique research insight. Combined with local-first analysis (no cloud upload required), Serapeum occupies a distinct position in the literature management landscape.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Bootstrap 5.3.1+ with bslib 0.10.0 provides the foundation for dark mode theming through native CSS custom properties (`--bs-body-bg`, `--bs-body-color`, etc.) and the `data-bs-theme` attribute system. The colorspace package enables WCAG 2.1 contrast validation with the `contrast_ratio()` function. No additional libraries are required—bslib handles all Bootstrap theming needs, and third-party widgets like visNetwork and commonmark will inherit dark mode colors through CSS variables automatically (with exceptions for canvas elements).
+The v7.0 features require only one new dependency: **bib2df** for BibTeX parsing. All other functionality leverages existing packages (readr for CSV parsing, httr2 for API calls, DuckDB for citation aggregation). This minimal stack addition reduces integration risk and maintains the project's lightweight philosophy.
 
 **Core technologies:**
-- **bslib 0.10.0**: Bootstrap theming framework for Shiny — provides `bs_theme()` for Sass variable customization, supports Bootstrap 5.3+ with native dark mode, allows dynamic theme updates via `bs_add_rules()`
-- **Bootstrap 5.3.1+**: UI framework with native color modes — introduced `data-bs-theme` attribute for global mode switching, extensive CSS custom properties for dark mode, semantic color system that adapts automatically
-- **colorspace (latest)**: WCAG contrast validation — provides `contrast_ratio()` implementing WCAG 2.1 algorithms, essential for verifying 4.5:1 normal text and 3:1 large text requirements
-- **sass (latest)**: Sass compilation for custom theming — dependency of bslib, required for `bs_add_rules()` and Bootstrap Sass mixins
+- **bib2df 1.1.2.0**: Parse BibTeX to tibbles — rOpenSci package with clean API, handles malformed entries gracefully, direct DOI extraction
+- **readr 2.2.0** (existing): CSV/text parsing for DOI lists — 10-100x faster than base R, already in tidyverse dependencies
+- **httr2** (existing): OpenAlex batch requests — supports pipe-separated filter syntax for 50 DOIs per request
+- **DuckDB** (existing): Citation frequency aggregation — `UNNEST()` + `GROUP BY` for single-query analysis, 10-100x faster than R loops
 
-**Critical pattern:** Use Bootstrap CSS variables (`var(--bs-body-bg)`) instead of hardcoded hex values to ensure components automatically adapt to theme changes. Canvas-based widgets (visNetwork) require explicit background color configuration via JavaScript options, not CSS.
+**What NOT to add:**
+- **RefManageR**: Heavyweight bibliography manager—overkill for simple DOI extraction
+- **Base R read.csv()**: 10-100x slower than readr on large files
+- **bibtex package**: Lower-level parser requiring manual data frame conversion
 
 ### Expected Features
 
-Dark mode for R/Shiny/bslib applications has well-established expectations driven by accessibility standards and platform conventions. Users expect comfortable contrast (not harsh pure black/white), consistent semantic colors, and visual separation through borders (since shadows don't work in dark mode).
+Research identified a clear MVP (v7.0) vs deferred features (v7.x+) split. The MVP focuses on core citation audit workflow and bulk import table stakes. Advanced features like prompt healing and network seeding are validated as valuable but non-blocking for launch.
 
-**Must have (table stakes):**
-- **WCAG AA contrast ratios** (4.5:1 normal text, 3:1 large text) — accessibility baseline, dark mode cannot be inaccessible
-- **Dark gray backgrounds** (#1a1a1a to #1e1e2e, not pure black) — prevents eye strain and halation effects
-- **Desaturated accent colors** (reduce saturation ~20 points vs light mode) — saturated colors vibrate against dark backgrounds
-- **Semantic color consistency** (success/danger/warning/info recognizable) — Bootstrap handles automatically via CSS variables
-- **Borders for visual separation** (shadows disappear in dark mode) — use semi-transparent borders like rgba(255,255,255,0.1)
-- **Component coverage** (cards, buttons, forms, modals, toasts, badges) — all components must render correctly in dark mode
+**Must have (table stakes for v7.0):**
+- **Citation frequency analysis** — Count references across papers to identify seminal works (standard methodology in systematic reviews)
+- **Citation gap detection** — Show frequently-cited papers missing from collection (differentiator vs competitors)
+- **Bulk DOI import** — Paste/upload DOI lists for batch import (expected by all modern reference managers)
+- **BibTeX file upload** — Universal interchange format for library migration and tool integration
+- **Select-all batch operations** — Standard UI pattern for efficient multi-paper workflows
 
-**Should have (differentiators):**
-- **Intentional color palette** (not just inverted) — purpose-built dark palette shows design attention
-- **Comfortable contrast** (aim for 7:1 for body copy, not just minimum 4.5:1) — exceeds baseline for better readability
-- **Component-specific overrides** (visNetwork canvas, code blocks) — shows polish beyond Bootstrap defaults
-- **Smooth theme transitions** (fade between light/dark, 200ms) — professional feel vs instant flip
+**Should have (competitive advantage, v7.x):**
+- **Prompt healing for slides** — Auto-detect and correct malformed LLM-generated YAML (quality-of-life improvement)
+- **BibTeX for network seeding** — Novel workflow using .bib files to seed citation network exploration
+- **Export citation gaps as BibTeX** — Convenience feature for importing gaps into other tools
 
-**Defer (v2+):**
-- **Per-session theme persistence** — low friction to toggle each session, can add later
-- **Dark mode-specific imagery** — only if logo/branding looks bad, test first
-- **Glow effects for interactive elements** — nice-to-have polish, standard focus rings work fine
+**Defer (v8+ — requires significant infrastructure):**
+- **Multi-level backward citation mining** (depth=2+) — Advanced discovery requiring API quota management
+- **Citation context analysis** — Classify HOW papers cite each other (supporting/contrasting) like Scite—requires full-text PDF analysis
+- **Temporal citation trends** — Distinguish recent relevance from historical importance
+- **Journal impact weighting** — Weight citation frequency by source journal quality
 
 ### Architecture Approach
 
-Serapeum's dark mode architecture leverages existing patterns well. The current JavaScript toggle (manual `data-bs-theme` attribute manipulation with localStorage persistence) is the standard Bootstrap 5.3 approach and requires no changes. The core work involves enhancing the `bs_theme()` definition in `app.R` with a centralized dark mode overrides file, refactoring existing custom CSS to use Bootstrap CSS variables instead of hardcoded colors, and handling canvas widgets (visNetwork) through explicit programmatic configuration rather than CSS.
+All v7.0 features integrate with existing patterns—Shiny modules, DuckDB schema, async ExtendedTask for long operations. The architecture research validated that no schema changes are needed: the `referenced_works` column (added in v2.0) already stores citation data as JSON arrays. The key architectural insight is reusing the producer-consumer discovery pattern (search → preview → import) for all bulk import workflows.
 
 **Major components:**
-1. **Global dark mode palette** (`www/dark-mode-overrides.scss`) — centralized Bootstrap CSS variable redefinitions under `[data-bs-theme='dark']` selectors, injected via `bs_add_rules()`, single source of truth for all dark mode colors
-2. **Component-level overrides** (`www/custom.css`, inline styles) — extend existing files to use Bootstrap CSS variables (`var(--bs-body-bg)`) instead of hardcoded hex values, ensures automatic theme adaptation
-3. **Canvas widget configuration** (visNetwork in `R/citation_network.R`) — programmatic background color setting via widget options, container background theming via CSS, accepts that canvas content has limited CSS integration
-4. **Client-side theme toggle** (existing JavaScript) — no changes needed, already correctly using `data-bs-theme` attribute and localStorage persistence
+1. **Citation Audit Module** (new: `R/citation_audit.R`) — Analyze `referenced_works` column with DuckDB `UNNEST()`, batch fetch missing papers from OpenAlex, present ranked import UI
+2. **Bulk Import Utilities** (new: `R/utils_doi.R`, `R/utils_bibtex.R`) — Parse DOI lists and BibTeX files, normalize formats, extract DOIs for batch lookup
+3. **Batch API Operations** (modified: `R/api_openalex.R`) — Add `batch_fetch_works_by_doi()` using pipe-separated filter syntax (50 DOIs per request) with rate limiting
+4. **Select-All UI Pattern** (modified: `R/mod_search_notebook.R`) — Checkbox for bulk selection, reactive selection state, batch import with progress indicator
+5. **Slide Healing Workflow** (modified: `R/slides.R`, `R/mod_slides.R`) — Pre-inject YAML template in prompts, add regeneration UI with healing instructions
 
-**Key pattern:** Bootstrap CSS custom properties provide automatic theme consistency. When `data-bs-theme="dark"` is applied to `<html>`, all CSS variables update automatically, cascading through all components that reference them. Components that use hardcoded colors break this cascade and create specificity wars.
+**Integration patterns to reuse:**
+- **ExtendedTask + mirai** for async batch operations (>5 seconds) with progress updates and cancellation
+- **Modal-driven workflows** for multi-step operations (input → validate → confirm → execute)
+- **JSON column analysis** with DuckDB aggregation functions for citation frequency counting
 
 ### Critical Pitfalls
 
-1. **Canvas elements ignore CSS dark mode styling** — visNetwork canvas elements don't respect `[data-bs-theme="dark"]` CSS selectors because canvas renders via JavaScript drawing APIs, not DOM. Already documented in Serapeum as issue #89 where dark navy background blends with viridis palette. Prevention: Set `background` parameter directly in `visNetwork()` function call, use `htmlwidgets::onRender()` to read current theme, avoid relying on CSS alone for canvas widgets.
+Research uncovered six critical pitfalls, with OpenAlex rate limiting being the highest risk. The pitfalls map directly to specific phases, enabling targeted prevention during implementation.
 
-2. **CSS specificity wars between custom rules and Bootstrap variables** — custom CSS with hardcoded colors overrides Bootstrap's CSS variables, causing light mode styles to "stick" in dark mode. Warning signs: components remain light when `data-bs-theme="dark"` is applied, DevTools shows Bootstrap variables crossed out. Prevention: Use Bootstrap CSS variables (`var(--bs-body-bg)`) instead of hex values, scope custom overrides with explicit `[data-bs-theme="light"]` and `[data-bs-theme="dark"]` selectors.
+1. **OpenAlex Rate Limit Cascade Failure** — Bulk imports trigger rapid-fire requests hitting 100 req/sec limit or $1/day budget, causing 429 errors that block all operations. **Prevention:** Batch 50 DOIs per request using pipe-separated filter syntax, add 0.1-0.2s delays between batches, implement exponential backoff on 429 errors.
 
-3. **Pure black backgrounds cause eye strain and halation** — pure black (#000) with white text creates harsh 21:1 contrast that causes eye fatigue and optical "glow" effects, especially for users with astigmatism. Prevention: Use dark gray backgrounds (#121212, #1a1a1a, #1e1e2e) and slightly off-white text (#e8e8e8, #f0f0f0), aim for 15:1 to 17:1 contrast ratio instead of maximum 21:1.
+2. **BibTeX Parsing Malformed Entry Silent Failure** — Real-world .bib files from Zotero/Mendeley contain malformed entries (nested braces, unescaped characters) that crash parsers or silently skip without notification. **Prevention:** Use tolerant parsers (rbibutils or bib2df), implement per-entry try-catch, show parse diagnostics ("Parsed 42/50 entries. 8 failed"), extract DOIs via regex fallback.
 
-4. **Contrast ratio failures on interactive states** (hover, focus, disabled) — developers test default state but forget hover/focus, which fail WCAG when Bootstrap's default darkening is applied to already-dark colors. Focus rings disappear, disabled states blend into background. Prevention: Test all interactive states in both themes, use contrasting accent color for focus indicators (3:1 minimum per WCAG 2.1), avoid just darkening already-dark colors on hover.
+3. **Citation Audit SQL N+1 Query Explosion** — Naive loop over abstracts to count references takes 30+ seconds with 500 papers, locks UI, times out at 5000 papers. **Prevention:** Single SQL query with `UNNEST(referenced_works) ... GROUP BY` aggregation, materialize top-N only (limit 20-50), cache results in session variable.
 
-5. **Scoped theme inheritance breaks nested components** — setting `data-bs-theme` on individual components creates CSS specificity conflicts and inheritance failures. Tooltips/modals/popovers render outside parent in DOM so don't inherit component-level themes. Prevention: Apply `data-bs-theme` only at `<html>` level, avoid component-level theme attributes, let CSS cascade handle inheritance.
+4. **LLM Prompt Healing Infinite Loop on YAML Validation** — Generic "fix this YAML" prompts create retry loops with smaller models, burning tokens and time without fixing errors. **Prevention:** Validate YAML programmatically first with `yaml::yaml.load()`, provide specific error feedback ("missing colon at line 3"), limit to 2 retries maximum, fall back to template YAML with only title customized.
+
+5. **Select-All Import Memory Explosion with Large Result Sets** — Importing 500 abstracts serializes 3-5MB data through reactive values, crashes with memory allocation errors or Shiny disconnects. **Prevention:** Batch size warning if >100 papers, paginated transfer via DuckDB temp table (not reactive serialization), exclude `referenced_works` column from transfer, add progress indicator with ExtendedTask.
+
+6. **BibTeX Import Referenced_Works Data Loss During OpenAlex Enrichment** — Naive pattern overwrites .bib metadata with NULL when OpenAlex lookup fails for preprints/gray literature, losing author/title from original file. **Prevention:** Merge metadata (coalesce pattern: `openalex$title %||% bib$title`), mark enrichment status, show stats ("42 enriched, 8 from .bib only"), preserve DOI even on API failure.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure follows architectural dependencies and risk mitigation:
+Based on research, suggested 7-phase structure with clear dependency chain:
 
-### Phase 1: Core Dark Mode Palette
-**Rationale:** Establishes foundation that all subsequent work depends on. Must define global color system before touching component-specific styles. Addresses highest-risk pitfalls first (CSS specificity, canvas widgets, pure black backgrounds).
+### Phase 1: DOI Parsing Utilities (Foundation)
+**Rationale:** All bulk import features depend on robust DOI parsing and validation. Build this foundation first to avoid rework. Low complexity (utilities only, no UI), high reusability.
 
-**Delivers:**
-- Centralized dark mode palette in `www/dark-mode-overrides.scss` with Bootstrap CSS variable overrides
-- Integration via `bs_add_rules()` in `app.R`
-- WCAG AA validated contrast ratios (4.5:1 minimum)
-- Dark gray backgrounds (#1e1e2e range, not pure black)
-- Desaturated accent colors (~20% less saturation than light mode)
-- visNetwork canvas background fix (addresses issue #89)
+**Delivers:** `parse_doi_list()` and `validate_doi_batch()` functions in `utils_doi.R` with unit tests covering edge cases (URLs, bare DOIs, comma/newline/space-separated input).
 
-**Addresses:**
-- Must-have: WCAG AA contrast, dark gray backgrounds, desaturated accents, semantic color consistency
-- Differentiator: Intentional color palette (not just inverted)
+**Addresses:** Foundation for Bulk DOI Import, BibTeX Import, Citation Audit features.
 
-**Avoids:**
-- Pitfall #2: CSS specificity wars (establishes Bootstrap CSS variable pattern from start)
-- Pitfall #3: Pure black eye strain (uses dark gray palette)
-- Pitfall #1: Canvas elements ignore CSS (fixes visNetwork background explicitly)
+**Avoids:** Malformed input causing downstream errors in OpenAlex API calls. Early validation reduces debugging later.
 
-**Research flag:** Standard patterns — well-documented bslib/Bootstrap theming, official documentation high quality, skip deep research.
+---
 
-### Phase 2: Visual Consistency Audit
-**Rationale:** Once global palette is stable, can systematically refactor component-level styles. Spacing, typography, and interactive state issues are independent of each other and can be tackled methodically. Addresses known issues (#79 tooltip overflow, #89 citation network background).
+### Phase 2: OpenAlex Batch API Support
+**Rationale:** Citation audit and bulk import both require efficient batch fetching. Implementing this before UI prevents discovering rate limit issues late in development. Critical pitfall mitigation (rate limit cascade) happens here.
 
-**Delivers:**
-- Refactored `www/custom.css` using Bootstrap CSS variables instead of hardcoded colors
-- Refactored inline styles in `app.R` for theme responsiveness
-- Fixed spacing adherence to 8pt grid
-- Typography consistency (line-height 140-180%, proper hierarchy)
-- Interactive state contrast testing (hover, focus, disabled)
-- Resolution of known issues: tooltip overflow (#79), citation network background (#89)
-- Elevation system using borders and lighter surface colors (no shadows)
+**Delivers:** `batch_fetch_works_by_doi()` in `api_openalex.R` with chunking (50 DOIs per request), rate limiting (0.1s delays between batches), exponential backoff on 429 errors, graceful handling of missing DOIs.
 
-**Uses:**
-- Bootstrap CSS variables defined in Phase 1
-- `bs_add_rules()` for component-specific dark mode overrides
-- colorspace `contrast_ratio()` for interactive state validation
+**Uses:** OpenAlex pipe-separated filter syntax (`filter=doi:A|B|C`), existing httr2 infrastructure.
 
-**Implements:**
-- Component-level override pattern (use CSS vars, scope with `[data-bs-theme]`)
-- Progressive enhancement for canvas widgets (style containers, not canvas content)
+**Avoids:** **Pitfall #1 (Rate Limit Cascade)** — batching and delays prevent 429 errors, exponential backoff handles budget exhaustion gracefully.
 
-**Avoids:**
-- Pitfall #4: Interactive state contrast failures (explicit testing and validation)
-- Pitfall #5: Scoped theme inheritance (maintains `data-bs-theme` at `<html>` only)
-- Pitfall #7: Z-index conflicts (fixes tooltip overflow, tests positioning)
+---
 
-**Research flag:** Standard patterns — Bootstrap typography and spacing best practices well-documented, WCAG testing tools available, skip research.
+### Phase 3: Bulk DOI Import UI
+**Rationale:** First user-facing feature, validates that batch API operations work end-to-end before building more complex features on top. Provides immediate value (users can import paper lists from other tools).
 
-### Phase 3: Comprehensive Testing & Polish
-**Rationale:** Final validation after architecture and components are complete. Ensures nothing was missed, catches edge cases, verifies cross-module consistency.
+**Delivers:** "Bulk Import" → "DOI List..." modal in search notebook with textarea/file upload, ExtendedTask for async import with progress bar, error handling (invalid DOIs, API failures, duplicates), success notification with import stats.
 
-**Delivers:**
-- All modules tested in both light and dark modes
-- Empty states, error states, loading states verified
-- Long text wrapping, overlapping elements edge cases resolved
-- Cross-mode consistency checklist completed
-- Theme toggle UX verified (localStorage persistence, smooth transitions)
-- Documentation of dark mode patterns for future development
+**Uses:** Phase 1 DOI parsing, Phase 2 batch API, existing `create_abstract()` for persistence.
 
-**Testing coverage:**
-- Navigation (sidebar, navbar, active states)
-- Cards (search results, abstract previews, settings sections)
-- Forms (inputs, selects, checkboxes, sliders)
-- Buttons (primary, secondary, danger, disabled)
-- Modals (progress modal, confirmation dialogs)
-- Toasts (success, error, info notifications)
-- Badges (OA badges, document type, predatory journal warnings)
-- visNetwork graphs (citation network, all color palettes)
-- Year range slider histogram
+**Implements:** Modal-driven workflow pattern, ExtendedTask + mirai for async operations (standard architecture pattern).
 
-**Avoids:**
-- "Looks done but isn't" — systematic checklist prevents missing critical pieces
-- UX pitfalls — theme persistence, discoverable toggle, proper transitions
-- Integration gotchas — visNetwork, third-party widgets tested comprehensively
+---
 
-**Research flag:** No research needed — pure testing and validation phase.
+### Phase 4: BibTeX File Import
+**Rationale:** Thin wrapper over Phase 3 bulk import—reuses all backend logic, just adds .bib parsing layer. Low risk, high user value (library migration from Zotero/Mendeley).
+
+**Delivers:** "Bulk Import" → "BibTeX File..." modal, `parse_bibtex_file()` in `utils_bibtex.R` using bib2df, DOI extraction with normalization, wire to existing batch import flow, per-entry error handling with diagnostics.
+
+**Uses:** bib2df package (new dependency), Phase 1 DOI parsing, Phase 2 batch API.
+
+**Avoids:** **Pitfall #2 (BibTeX Parse Failure)** — per-entry try-catch prevents one malformed entry from blocking entire import, diagnostics show users what succeeded/failed.
+
+**Avoids:** **Pitfall #6 (Metadata Loss)** — merge-not-replace pattern preserves .bib metadata when OpenAlex lookup fails for unindexed papers.
+
+---
+
+### Phase 5: Citation Audit Analysis
+**Rationale:** Most complex feature—depends on batch API (Phase 2) and requires careful SQL optimization. Build after validating batch operations work reliably. Provides key differentiator (citation gap detection).
+
+**Delivers:** "Find Missing Papers" button in search notebook, `analyze_citation_gaps()` in `citation_audit.R` with single-query SQL aggregation (`UNNEST() + GROUP BY`), OpenAlex batch query by work ID (not DOI—critical distinction discovered in research), modal with ranked checkbox list, import via existing `create_abstract()`.
+
+**Uses:** DuckDB array functions for JSON parsing, Phase 2 batch API for metadata fetch.
+
+**Avoids:** **Pitfall #3 (SQL N+1 Explosion)** — single aggregation query with `UNNEST()` scales to 5000+ abstracts, R loop pattern would time out at 500.
+
+**Critical discovery:** OpenAlex `referenced_works` stores **work IDs** (`https://openalex.org/W123`), not DOIs. Must batch query by work ID to get DOI/title/author, then filter by work ID (not DOI) against corpus.
+
+---
+
+### Phase 6: Select-All Batch Import
+**Rationale:** Independent of other features (pure UI change), can be built in parallel with Phase 5. Enables efficient bulk workflows for filtered search results. UI refactor requires careful reactive logic.
+
+**Delivers:** Select-all checkbox above paper list, move predatory journal toggle into filter modal (UI refactor), `selected_papers_rv()` reactive merging select-all + individual checkboxes, import loop with transaction wrapper for atomicity.
+
+**Addresses:** Table stakes feature (expected by users from other reference managers).
+
+**Avoids:** **Pitfall #5 (Memory Explosion)** — batch size warning if >100 papers selected, progress indicator with ExtendedTask for large imports, paginated transfer via DuckDB (not reactive serialization).
+
+---
+
+### Phase 7: Slide Prompt Healing
+**Rationale:** Independent of all other features (operates on existing slide generation), lowest priority (quality-of-life improvement vs core workflow). Can be built in parallel with other phases or deferred to v7.x if needed.
+
+**Delivers:** YAML template pre-injection in `build_slides_prompt()`, `heal_qmd_yaml()` fallback function, "Regenerate" button + textarea in slides modal, healing observer that amends prompt with specific instructions, max 2 retries + template fallback.
+
+**Uses:** Existing `chat_completion()` with history context, `yaml::yaml.load()` for validation.
+
+**Avoids:** **Pitfall #4 (YAML Healing Infinite Loop)** — specific error feedback ("missing colon at line 3") instead of generic "fix this", 2-retry limit prevents cost runaway, template fallback ensures user gets usable output.
 
 ### Phase Ordering Rationale
 
-- **Phase 1 before Phase 2:** Global palette must be defined and stable before refactoring component CSS. Otherwise component changes may need rework when palette changes. Establishes CSS variable pattern that Phase 2 systematically applies.
+- **Phase 1 → Phase 2 dependency:** DOI utilities must exist before batch API operations can validate input
+- **Phase 2 → Phase 3 → Phase 4 dependency chain:** Batch API must work before bulk import UI, bulk import must work before .bib import (which reuses it)
+- **Phase 2 → Phase 5 dependency:** Batch API must work before citation audit (which fetches missing paper metadata)
+- **Phase 6 and Phase 7 parallelizable:** Both independent of other features—can be built concurrently with Phase 3-5
+- **Pitfall mitigation embedded in phase order:** Rate limiting (Phase 2) addressed before any bulk operations exposed to users, SQL optimization (Phase 5) required before citation audit ships, memory handling (Phase 6) required before select-all ships
 
-- **Phase 2 before Phase 3:** Can't test comprehensively until all components are dark mode aware. Testing incomplete components wastes time re-testing after changes.
-
-- **Canvas widget fix in Phase 1:** visNetwork background issue (#89) is architectural (CSS can't style canvas), not polish. Must be addressed when establishing dark mode approach, not deferred to Phase 2.
-
-- **Interactive state testing in Phase 2:** Requires stable palette from Phase 1 to test hover/focus colors. Part of visual consistency, not initial palette definition.
-
-- **Known issues (#79, #89) in Phase 2:** These are component-specific refinements that depend on Phase 1 palette. Tooltip overflow is z-index/positioning issue, citation network background is already being fixed in Phase 1 (canvas background), remainder of #89 (palette selection) is Phase 2 polish.
+This order minimizes rework: foundational utilities first, then features built on top. Critical pitfalls are addressed in the phases where they occur, not retroactively fixed later.
 
 ### Research Flags
 
-Phases with standard patterns (skip `research-phase`):
-- **Phase 1 (Core Palette):** Well-documented bslib/Bootstrap 5.3 theming patterns, official documentation from Posit and Bootstrap core team is comprehensive and high quality. colorspace WCAG validation is straightforward.
-- **Phase 2 (Visual Consistency):** Bootstrap spacing and typography best practices well-established, CSS specificity and variable usage patterns documented, interactive state testing uses standard WCAG tools.
-- **Phase 3 (Testing):** Pure testing and validation, no new patterns to research.
+**Phases needing standard patterns only (skip research-phase):**
+- **Phase 1 (DOI utilities):** Text parsing and regex validation—well-documented, no special research needed
+- **Phase 3 (Bulk DOI UI):** Reuses existing async patterns (ExtendedTask + mirai), modal workflows—established in codebase
+- **Phase 4 (BibTeX import):** bib2df is well-documented rOpenSci package, reuses Phase 3 infrastructure
+- **Phase 6 (Select-all):** Pure Shiny reactive UI logic, no external integration complexity
+- **Phase 7 (Slide healing):** Prompt engineering iteration, no research-phase needed (just testing)
 
-No phases require deeper research. All patterns are well-documented with official sources.
+**Phases where research already complete (use this research):**
+- **Phase 2 (Batch API):** OpenAlex API batching fully researched (pipe-separated syntax, 50 DOI limit, rate limiting strategies documented)
+- **Phase 5 (Citation audit):** DuckDB array aggregation patterns researched, OpenAlex work ID vs DOI distinction documented
+
+**No phases need additional research-phase.** This project research was comprehensive—all technical unknowns resolved. During implementation, if unexpected complexity emerges (e.g., bib2df can't handle a specific .bib format), handle with targeted task-level research rather than formal research-phase.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | **HIGH** | Official Posit/RStudio and Bootstrap documentation, bslib is mature and well-maintained, colorspace is standard R package for color calculations |
-| Features | **HIGH** | WCAG standards are objective, dark mode best practices well-established across industry (Material Design, Apple HIG, Bootstrap guidelines converge), table stakes vs differentiators clear from multiple sources |
-| Architecture | **HIGH** | Existing Serapeum implementation already follows correct pattern (JavaScript toggle with `data-bs-theme`), Bootstrap 5.3 architecture documented officially, bslib integration patterns from RStudio source code |
-| Pitfalls | **HIGH** | Known issues already documented in Serapeum (#79, #89), Bootstrap CSS specificity and canvas widget limitations well-documented in official docs and community discussions, WCAG contrast failures common and preventable |
+| Stack | HIGH | bib2df is rOpenSci package (peer-reviewed, actively maintained). OpenAlex batch API syntax verified in official docs. All other packages already in use (readr, httr2, DuckDB). |
+| Features | MEDIUM | Feature list validated against competitors (Litmaps, Connected Papers, Scite), but v7.0 scope based on inference from user needs (no user interviews conducted). Table stakes features (bulk import, .bib support) confirmed via reference manager landscape research. Citation gap detection validated as differentiator. |
+| Architecture | HIGH | Integration points verified by reading existing codebase. `referenced_works` column confirmed to exist (v2.0 migration). ExtendedTask + mirai pattern proven in production (Phase 30 citation network). No schema changes required. |
+| Pitfalls | HIGH | Rate limiting and batch API patterns verified in OpenAlex docs (Feb 2026 updates). BibTeX parsing pitfalls documented in rOpenSci roundup and GitHub issues. DuckDB performance characteristics confirmed in official docs. LLM YAML healing validated in research papers (2024-2026). |
 
 **Overall confidence:** HIGH
 
-Research is based primarily on official documentation from Posit/RStudio (bslib), Bootstrap core team, W3C WCAG standards, and confirmed by Serapeum's existing codebase inspection. Dark mode theming patterns are mature and well-established as of Bootstrap 5.3 (released 2023). No experimental or cutting-edge techniques required.
+Research sources are authoritative (official docs, rOpenSci peer-reviewed packages, OpenAlex API documentation, academic papers on LLM self-correction). The one MEDIUM confidence area (Features) reflects lack of direct user validation—feature priorities inferred from competitor analysis and systematic review methodology standards. This gap can be addressed during implementation by iterating on UX based on user feedback.
 
 ### Gaps to Address
 
-No significant gaps requiring additional research. All key areas have high-quality official documentation and established patterns. During implementation:
+- **BibTeX DOI quality validation:** Many real-world .bib files have missing or malformed DOI fields. Research identified this gap but didn't quantify prevalence. **Mitigation:** Phase 4 should test with diverse .bib exports (Zotero, Mendeley, EndNote) to measure skip rates and refine fallback strategies (title search vs skip-and-warn).
 
-- **Color palette specifics** — Exact hex values for primary/secondary/accent colors will require design judgment and iteration with WCAG testing. colorspace package makes validation straightforward, but aesthetic decisions are subjective.
+- **OpenAlex work ID resolution performance:** Citation audit must batch-query work IDs from `referenced_works` to get DOIs/titles. Research confirmed this is possible but didn't benchmark speed. **Mitigation:** Phase 5 should performance-test with 500+ abstracts (thousands of work IDs) to validate single-query aggregation scales as expected.
 
-- **visNetwork theme detection** — If dynamic theme switching for graph colors is desired (beyond container background), will need to implement JavaScript message passing between Shiny and htmlwidget. Research shows this is possible but not essential (container theming + neutral graph colors is acceptable).
+- **User expectations for citation audit threshold:** Research found 3-5 citations as common threshold for "frequently cited," but didn't determine optimal default. **Mitigation:** Phase 5 should start with threshold=3 (inclusive), add UI control in v7.x if users request configurability.
 
-- **Plots and charts** — If Serapeum generates R plots (ggplot2, base R), will need to integrate thematic package for auto-theming. Research doesn't show existing plots in current codebase, but pattern is well-documented if needed.
-
-These are implementation details, not research gaps. Proceed with confidence.
+- **LLM model variability in YAML generation:** Slide healing assumes smaller models produce malformed YAML more often, but research didn't quantify rates per model. **Mitigation:** Phase 7 should test with Claude Haiku, GPT-4o-mini, Llama 3.1 to validate healing improves success rates across model tiers.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [bslib Theming Guide](https://rstudio.github.io/bslib/articles/theming/index.html) — bs_theme() parameters, Sass variables, best practices
-- [bs_theme() Reference](https://rstudio.github.io/bslib/reference/bs_theme.html) — function parameters, Bootstrap version support
-- [input_dark_mode() Reference](https://rstudio.github.io/bslib/reference/input_dark_mode.html) — dark mode toggle parameters, server values
-- [Bootstrap 5.3 Color Modes](https://getbootstrap.com/docs/5.3/customize/color-modes/) — CSS custom properties, data-bs-theme attribute, semantic colors
-- [Bootstrap 5.3 Colors](https://getbootstrap.com/docs/5.3/customize/color/) — color system, Sass variables, theming maps
-- [Bootstrap 5.3 CSS Variables](https://getbootstrap.com/docs/5.3/customize/css-variables/) — comprehensive list of available CSS custom properties
-- [colorspace contrast_ratio()](https://colorspace.r-forge.r-project.org/reference/contrast_ratio.html) — WCAG validation, parameters, algorithms
-- [WCAG 2.1 Contrast Minimum](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html) — accessibility standards
-- [WCAG 2.1 Non-text Contrast](https://www.w3.org/WAI/WCAG21/Understanding/non-text-contrast.html) — UI component contrast requirements
+
+**OpenAlex API:**
+- [OpenAlex rate limits and authentication](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication) — 100 req/sec limit, $1/day free tier, batch syntax verified
+- [OpenAlex API batch DOI requests](https://blog.openalex.org/fetch-multiple-dois-in-one-openalex-api-request/) — Official guide to pipe-separated filter syntax (50 DOI limit per request)
+- [OpenAlex filter entity lists](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists) — Filter syntax documentation
+- [OpenAlex Work object](https://docs.openalex.org/api-entities/works/work-object) — `referenced_works` field stores work IDs, not DOIs
+
+**R Packages:**
+- [bib2df CRAN vignette](https://cran.r-project.org/web/packages/bib2df/vignettes/bib2df.html) — Version 1.1.2.0, rOpenSci peer-reviewed
+- [bib2df GitHub (rOpenSci)](https://github.com/ropensci/bib2df) — Active maintenance, last updated Jan 2026
+- [rOpenSci BibTeX parser roundup](https://ropensci.org/blog/2020/05/07/rmd-citations/) — Comparison of bib2df, bibtex, RefManageR, rbibutils
+- [ExtendedTask with mirai](https://mirai.r-lib.org/articles/shiny.html) — Official Shiny integration guide
+- [DuckDB Performance Tuning](https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads) — Columnar-vectorized execution, array aggregation
+
+**Citation Audit Methodology:**
+- [Litmaps research gap detection](https://www.litmaps.com) — Dynamic citation mapping competitor with gap detection
+- [Scite AI Smart Citations review](https://effortlessacademic.com/scite-ai-review-2026-literature-review-tool-for-researchers/) — Citation context analysis (supporting/contrasting)
+- [Finding Seminal Works - National University Library](https://resources.nu.edu/researchprocess/seminalworks) — Citation analysis methodology (3-5 citation threshold standard)
+- [In-text Citation Frequencies for Relevancy](https://pmc.ncbi.nlm.nih.gov/articles/PMC8189020/) — Papers cited >5 times in text = high relevance (academic standard)
 
 ### Secondary (MEDIUM confidence)
-- [Shiny Theming Overview](https://shiny.posit.co/r/articles/build/themes/) — integration patterns
-- [bslib 0.10.0 Changelog](https://rstudio.github.io/bslib/news/index.html) — latest version features
-- [Bootstrap 5.3.0 Release](https://blog.getbootstrap.com/2023/05/30/bootstrap-5-3-0/) — dark mode announcement
-- [Dark Mode UI Best Practices (Atmos)](https://atmos.style/blog/dark-mode-ui-best-practices) — design principles
-- [12 Principles of Dark Mode Design (Uxcel)](https://uxcel.com/blog/12-principles-of-dark-mode-design-627) — desaturation, elevation, contrast guidance
-- [Dark Mode Common Mistakes (Nielsen Norman Group)](https://www.nngroup.com/articles/dark-mode-users-issues/) — UX pitfalls
-- [Color Contrast Accessibility Guide 2025](https://www.allaccessible.org/blog/color-contrast-accessibility-wcag-guide-2025) — WCAG testing best practices
-- [visNetwork Introduction](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html) — styling options
-- [visNetwork GitHub Issue #151](https://github.com/datastorm-open/visNetwork/issues/151) — background color customization
 
-### Tertiary (LOW confidence, web search)
-- Various blog posts on dark mode design patterns — consistent with official sources, used for validation
-- CSS custom properties guides — supplementary to official Bootstrap docs
+**Reference Management Landscape:**
+- [Best Reference Management Software 2026](https://research.com/software/best-reference-management-software) — Industry standards for bulk import (DOI lists, .bib files expected)
+- [Paperguide AI Reference Manager](https://paperguide.ai/blog/ai-reference-manager-tools/) — BibTeX/RIS/DOI import patterns across tools
+- [Zotero/Mendeley bulk import guides](https://libguides.ucalgary.ca/guides/endnote/EN20references) — BibTeX batch workflow patterns
 
-### Project-Specific
-- `.planning/todos/pending/2026-02-13-fix-citation-network-background-color-blending.md` — known visNetwork dark mode issue in Serapeum (issue #89)
-- `www/custom.css` — current dark mode implementation patterns
-- GitHub Issue #79 — tooltip overflow in citation network
+**LLM Structured Output:**
+- [When Can LLMs Actually Correct Their Own Mistakes? (2024)](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00713/125177/) — Self-correction works only with reliable external feedback
+- [LLM Infinite Loops In Entity Extraction - GDELT](https://blog.gdeltproject.org/llm-infinite-loops-in-llm-entity-extraction-when-temperature-basic-prompt-engineering-cant-fix-things/) — Temperature=0 creates deterministic loops
+- [Implementing Retry Mechanisms for LLM Calls](https://apxml.com/courses/prompt-engineering-llm-application-development/chapter-7-output-parsing-validation-reliability/implementing-retry-mechanisms) — Best practices: validate → retry 1-2 times → escalate
+
+### Tertiary (LOW confidence)
+
+**BibTeX Edge Cases:**
+- [bibtex-parsing edge cases - citation-js Issue #73](https://github.com/citation-js/citation-js/issues/73) — Valid but unusual BibTeX entries (missing keys, arbitrary types)
+- [Parsing BibTeX in Racket](https://matt.might.net/articles/parsing-bibtex/) — Nested braces and string literal tokenization rules
 
 ---
-*Research completed: 2026-02-22*
+*Research completed: 2026-02-25*
 *Ready for roadmap: yes*

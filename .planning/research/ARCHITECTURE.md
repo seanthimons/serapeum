@@ -1,469 +1,815 @@
-# Architecture Research — Dark Mode Integration
+# Architecture Integration: Citation Audit + Bulk Import + Slide Healing
 
-**Domain:** R/Shiny/bslib dark mode redesign
-**Researched:** 2026-02-22
+**Project:** Serapeum v7.0
+**Researched:** 2026-02-25
 **Confidence:** HIGH
 
-## Existing Architecture Overview
+## Executive Summary
 
-### Current Theme Implementation
+This milestone adds 5 features to existing R/Shiny architecture:
+1. **Citation Audit** — analyze `referenced_works` in abstracts table to find missing seminal papers
+2. **Bulk DOI upload** — textarea + file upload for DOI lists → OpenAlex batch lookup
+3. **BibTeX file parsing** — extract DOIs from .bib files for network seeding
+4. **Select-all import** — bulk import filtered abstracts into document notebook
+5. **Slide prompt healing** — pre-inject YAML + regeneration workflow for malformed QMD
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      JavaScript Layer                            │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ localStorage theme persistence + dark_mode_toggle button │   │
-│  │ Manual data-bs-theme attribute manipulation              │   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-├───────────────────────┼──────────────────────────────────────────┤
-│                  bslib Theme Layer                               │
-│  ┌────────────────────┴─────────────────────────────────────┐   │
-│  │ bs_theme(preset = "shiny", primary = "#6366f1", ...)     │   │
-│  │ Generates Bootstrap 5 CSS with Sass variables            │   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-├───────────────────────┼──────────────────────────────────────────┤
-│                   CSS Layer                                      │
-│  ┌────────────────────┴─────────────────────────────────────┐   │
-│  │ Inline <style> in app.R (chat markdown, lit review)      │   │
-│  │ www/custom.css (citation network, hover effects)         │   │
-│  │ [data-bs-theme='dark'] selectors for component overrides│   │
-│  └────────────────────┬─────────────────────────────────────┘   │
-├───────────────────────┼──────────────────────────────────────────┤
-│              Third-Party Widget Layer                            │
-│  ┌────────────────────┴─────────────────────────────────────┐   │
-│  │ visNetwork (citation graphs) — canvas-based rendering    │   │
-│  │ No DT tables currently used                              │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
+All integrate with existing Shiny module pattern, DuckDB schema, and OpenAlex/OpenRouter APIs. **No new infrastructure needed** — reuse async ExtendedTask pattern, existing db.R functions, and producer-consumer discovery flow.
 
-### Component Responsibilities
+## System Context
 
-| Component | Responsibility | Current Implementation |
-|-----------|----------------|------------------------|
-| **app.R theme** | Global theme definition | `bs_theme(preset = "shiny", primary = "#6366f1", "border-radius" = "0.5rem")` |
-| **Inline styles** | Component-specific overrides | `<style>` tag in `tags$head()` for chat markdown, lit review table |
-| **www/custom.css** | Feature-specific styling | Citation network container, legend, hover effects |
-| **JavaScript toggle** | Manual theme switching | `setAttribute('data-bs-theme', next)` + localStorage persistence |
-| **visNetwork** | Graph visualization | Configured via R options, canvas rendering not CSS-styleable |
-
-## Recommended Dark Mode Architecture
-
-### Integration Points with Existing bslib Theme
-
-#### 1. Keep Existing JavaScript Toggle (No Changes Needed)
-
-**Current pattern (working correctly):**
-```javascript
-// In app.R — already implemented
-const html = document.documentElement;
-const current = html.getAttribute('data-bs-theme');
-const next = current === 'dark' ? 'light' : 'dark';
-html.setAttribute('data-bs-theme', next);
-localStorage.setItem('theme', next);
-```
-
-**Why keep it:** Bootstrap 5.3 uses `data-bs-theme` attribute on `<html>` for global dark mode. Serapeum's manual toggle is the standard approach when you don't need reactive server-side theme switching.
-
-**Integration point:** No action required. Existing toggle will activate all CSS custom property changes.
-
-#### 2. Enhance bs_theme() with Dark Mode Variables
-
-**Current:**
-```r
-bs_theme(
-  preset = "shiny",
-  primary = "#6366f1",
-  "border-radius" = "0.5rem"
-)
-```
-
-**Recommended:**
-```r
-bs_theme(
-  preset = "shiny",
-  version = 5,  # Explicit Bootstrap 5 (required for dark mode)
-  primary = "#6366f1",
-  "border-radius" = "0.5rem"
-) |>
-  bs_add_rules(sass::sass_file("www/dark-mode-overrides.scss"))
-```
-
-**Why:** bslib doesn't expose CSS custom properties directly via `bs_theme()`. Instead, use `bs_add_rules()` to inject Sass/CSS that references Bootstrap variables and creates dark mode overrides.
-
-**Integration point:** Modify `app.R` theme definition. New file: `www/dark-mode-overrides.scss`.
-
-#### 3. CSS Custom Properties Location Strategy
-
-**Where CSS lives:**
-
-| Scope | Location | Purpose |
-|-------|----------|---------|
-| **Global dark mode palette** | `www/dark-mode-overrides.scss` | Redefine Bootstrap CSS vars under `[data-bs-theme='dark']` |
-| **Component-specific dark styles** | Inline `<style>` in `app.R` (existing) | Chat markdown tables, lit review frozen column |
-| **Feature-specific dark styles** | `www/custom.css` (existing, extend) | Citation network, hover effects, widget containers |
-
-**Rationale:**
-- Global palette centralized in Sass file → easy to maintain, can use Bootstrap mixins
-- Inline styles already used for component overrides → keep pattern for consistency
-- custom.css already has dark mode selectors → extend existing file, don't fragment
-
-**Integration point:** Create new `www/dark-mode-overrides.scss`, extend existing `www/custom.css`.
-
-#### 4. Component-Level Dark Mode Override Pattern
-
-**Current pattern (already working):**
-```css
-/* www/custom.css */
-[data-bs-theme="dark"] .citation-network-legend {
-  background-color: rgba(30, 30, 46, 0.95);
-  color: #e0e0e0;
-}
-```
-
-**Recommended pattern (use Bootstrap CSS vars):**
-```css
-/* www/custom.css or www/dark-mode-overrides.scss */
-[data-bs-theme="dark"] .citation-network-legend {
-  background-color: var(--bs-dark-bg-subtle);
-  color: var(--bs-emphasis-color);
-  border-color: var(--bs-border-color);
-}
-```
-
-**Why:** Using Bootstrap CSS vars (`--bs-*`) ensures consistency with global theme and makes palette adjustments easier (change once, apply everywhere).
-
-**Integration point:** Refactor existing `[data-bs-theme="dark"]` selectors in `www/custom.css` to use Bootstrap CSS vars.
-
-### Third-Party Widget Styling (visNetwork)
-
-#### Challenge: Canvas Elements Don't Respond to CSS
-
-visNetwork uses HTML5 Canvas for graph rendering. CSS custom properties don't affect canvas content — you must configure colors via JavaScript options.
-
-**Current approach (already implemented):**
-```r
-# In mod_citation_network.R
-visNetwork(nodes, edges) |>
-  visNodes(
-    color = list(
-      background = node_colors,  # Computed in R
-      border = "#2b3035",        # Hardcoded
-      highlight = list(background = "#ffc107", border = "#333")
-    )
-  ) |>
-  visEdges(color = list(color = "#999", highlight = "#333"))
-```
-
-**Problem:** Hardcoded colors don't respond to theme changes. `#2b3035` is dark mode color, won't work in light mode.
-
-**Recommended solution:**
-
-1. **Detect current theme on network render:**
-```r
-# In mod_citation_network.R server function
-observe({
-  # Get current theme from JavaScript
-  session$sendCustomMessage("getCurrentTheme", list(
-    id = session$ns("current_theme")
-  ))
-})
-
-# Use theme-aware colors
-current_theme <- reactive(input$current_theme)  # From JS message
-
-node_border_color <- reactive({
-  if (current_theme() == "dark") "#999" else "#333"
-})
-```
-
-2. **Alternative (simpler): Container background only**
-
-Wrap visNetwork in a themed container (already done):
-```css
-/* www/custom.css — already exists */
-.citation-network-container {
-  background-color: #e8e8ee;  /* Light mode */
-}
-
-[data-bs-theme="dark"] .citation-network-container {
-  background-color: #1e1e2e;  /* Dark mode */
-}
-```
-
-**Recommendation:** Keep container background approach (already working). For node/edge colors, use neutral grays that work in both modes, or make palette selection (already implemented) more opinionated per theme.
-
-**Integration point:** Adjust visNetwork color defaults in `R/citation_network.R` to neutral values. Rely on container background for theme consistency.
-
-## Data Flow for Theme Switching
-
-### User Interaction Flow
+### Current Architecture (v6.0)
 
 ```
-[User clicks toggle]
-    ↓
-[JavaScript: setAttribute('data-bs-theme', 'dark')]
-    ↓
-[localStorage.setItem('theme', 'dark')]
-    ↓
-[CSS cascade applies [data-bs-theme="dark"] selectors]
-    ↓
-[Bootstrap CSS vars update (--bs-body-bg, --bs-body-color, etc.)]
-    ↓
-[Component styles using CSS vars auto-update]
-    ↓
-[visNetwork canvas: NO auto-update — container background changes only]
+┌──────────────────────────────────────────────────────────────┐
+│                    Shiny UI Layer                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ mod_search   │  │ mod_document │  │ mod_citation │       │
+│  │ _notebook    │  │ _notebook    │  │ _network     │       │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
+├─────────┼──────────────────┼──────────────────┼──────────────┤
+│                    Business Logic                             │
+│  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────┴───────┐       │
+│  │ api_openalex │  │ api_openrouter│  │ citation_    │       │
+│  │              │  │ + slides.R    │  │ network.R    │       │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
+├─────────┼──────────────────┼──────────────────┼──────────────┤
+│                    Data Layer                                 │
+│  ┌──────┴──────────────────┴──────────────────┴────────┐     │
+│  │ db.R → DuckDB (abstracts, documents, notebooks)     │     │
+│  └─────────────────────────────────────────────────────┘     │
+├──────────────────────────────────────────────────────────────┤
+│                    Async Infrastructure                       │
+│  ┌───────────────────────────────────────────────────────┐   │
+│  │ ExtendedTask + mirai (citation builds, ragnar reindex)│   │
+│  └───────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Page Load Flow
+**Key patterns already in place:**
+- **Shiny modules** (`mod_*.R`) with `ns()` namespacing
+- **API clients** (`api_*.R`) return structured lists with error handling
+- **Database layer** (`db.R`) with `get_db_connection()`, transaction support
+- **Async pattern** ExtendedTask + mirai for non-blocking operations
+- **Producer-consumer discovery** (seed/query/topic → abstract preview → import)
+
+## Feature Integration Maps
+
+### 1. Citation Audit
+
+**What:** Analyze `referenced_works` JSON column in abstracts table → find frequently-cited DOIs not in corpus → query OpenAlex for metadata → present import UI
+
+**Integration points:**
 
 ```
-[DOMContentLoaded]
-    ↓
-[JavaScript: const saved = localStorage.getItem('theme')]
-    ↓
-[If saved exists: setAttribute('data-bs-theme', saved)]
-    ↓
-[Update toggle button icon (sun/moon)]
-    ↓
-[CSS cascade applies saved theme]
+┌─────────────────────────────────────────────────────────┐
+│ mod_search_notebook.R (MODIFIED)                        │
+│  + "Find Missing Papers" button in header              │
+│  + observeEvent(input$audit_citations)                 │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ R/citation_audit.R (NEW)                                │
+│  + analyze_citation_gaps(con, notebook_id, top_n=20)   │
+│     1. SELECT referenced_works FROM abstracts           │
+│     2. Parse JSON arrays, flatten to DOI vector         │
+│     3. Count frequency, filter out existing abstracts   │
+│     4. Return top N missing DOIs with counts            │
+│  + fetch_missing_papers(dois, email, api_key)          │
+│     - OpenAlex batch query (pipe-separated filter)      │
+│     - Parse to abstract format                          │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ db.R (NO CHANGE)                                        │
+│  - Reuse list_abstracts(), create_abstract()           │
+│  - referenced_works column already exists (v2.0 mig)    │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ UI: Modal with ranked list                              │
+│  [✓] Paper Title (Author, Year) — cited 12 times       │
+│  [✓] Another Paper (Author, Year) — cited 8 times      │
+│  [Import Selected] [Cancel]                             │
+└─────────────────────────────────────────────────────────┘
 ```
 
-**Integration point:** No changes needed. Existing flow works correctly.
+**New components:**
+- `R/citation_audit.R` — analysis + OpenAlex batch fetch
 
-## Architectural Patterns
+**Modified components:**
+- `R/mod_search_notebook.R` — add audit button + modal UI
 
-### Pattern 1: Bootstrap CSS Custom Properties
+**Data flow:**
+1. User clicks "Find Missing Papers" button
+2. Extract all `referenced_works` JSON arrays from abstracts table
+3. Parse to DOI list, count frequency across corpus
+4. Filter out DOIs already in abstracts table (anti-join on DOI)
+5. Batch fetch top 20 from OpenAlex (pipe-separated filter, max 50 per request)
+6. Present checkbox list ranked by citation frequency
+7. Import selected via existing `create_abstract()` workflow
 
-**What:** Use Bootstrap 5.3 CSS variables for all color/spacing references instead of hardcoded hex values.
+**Complexity:** MEDIUM — requires JSON parsing, frequency analysis, batch API handling
 
-**When to use:** Any component style that should respond to theme changes.
+---
 
-**Trade-offs:**
-- **Pro:** Automatic theme consistency, easier palette changes, fewer selectors
-- **Pro:** Works with Bootstrap's semantic color system (primary, success, danger, etc.)
-- **Con:** Requires Bootstrap 5.3+ (already using it)
-- **Con:** Not all properties have CSS vars (borders, some shadows)
+### 2. Bulk DOI Upload
 
-**Example:**
-```scss
-// BEFORE (hardcoded)
-.my-card {
-  background: #ffffff;
-  color: #333333;
-  border: 1px solid #dee2e6;
-}
+**What:** Textarea for pasting DOI list + file upload (.txt, .csv) → parse, validate, batch OpenAlex lookup → import to notebook
 
-[data-bs-theme="dark"] .my-card {
-  background: #1e1e2e;
-  color: #e0e0e0;
-  border: 1px solid #495057;
-}
-
-// AFTER (CSS vars)
-.my-card {
-  background: var(--bs-body-bg);
-  color: var(--bs-body-color);
-  border: 1px solid var(--bs-border-color);
-}
-// Dark mode: no additional selector needed!
-```
-
-### Pattern 2: Sass Mixin for Complex Dark Mode Rules
-
-**What:** Use Bootstrap's `color-mode()` Sass mixin for scoped dark mode styles.
-
-**When to use:** Component-level overrides that need to reference Sass variables (not just CSS vars).
-
-**Trade-offs:**
-- **Pro:** Can use Sass color functions (lighten, darken, mix)
-- **Pro:** Cleaner syntax than manual `[data-bs-theme="dark"]` selectors
-- **Con:** Requires Sass compilation (bslib already does this)
-- **Con:** Not needed for simple color swaps (Pattern 1 is simpler)
-
-**Example:**
-```scss
-// In www/dark-mode-overrides.scss
-@include color-mode(dark) {
-  .citation-network-legend {
-    background-color: rgba($dark, 0.95);
-    box-shadow: 0 2px 8px rgba($black, 0.3);
-  }
-}
-
-// Compiles to:
-[data-bs-theme=dark] .citation-network-legend {
-  background-color: rgba(33, 37, 41, 0.95);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-```
-
-### Pattern 3: Progressive Enhancement for Third-Party Widgets
-
-**What:** Style widget *containers* with dark mode CSS, accept that canvas content may not fully adapt.
-
-**When to use:** Canvas-based widgets (visNetwork, plotly, etc.) where you don't control rendering.
-
-**Trade-offs:**
-- **Pro:** Simple, no JavaScript plumbing required
-- **Pro:** Provides visual consistency via background/border theming
-- **Con:** Widget content may not match theme perfectly
-- **Con:** Requires careful color choices for widget content (neutral grays)
-
-**Example:**
-```css
-/* Container responds to theme */
-.citation-network-container {
-  background-color: var(--bs-light-bg-subtle);
-  border: 1px solid var(--bs-border-color);
-}
-
-[data-bs-theme="dark"] .citation-network-container {
-  background-color: var(--bs-dark-bg-subtle);
-}
-
-/* Widget uses neutral colors that work in both themes */
-visNetwork(nodes, edges) |>
-  visNodes(color = list(border = "#6c757d"))  /* Bootstrap gray-600 */
-```
-
-## Build Order Considerations
-
-### Phase Dependencies
-
-**Sequential (must be ordered):**
-
-1. **Global palette redesign** (`www/dark-mode-overrides.scss`)
-   - Define new dark mode CSS variable values
-   - Test with existing components before touching component CSS
-   - Dependency: None (can start immediately)
-
-2. **Component-level refactoring** (`www/custom.css`, inline styles)
-   - Replace hardcoded colors with CSS vars
-   - Dependency: Global palette must be defined first
-   - Rationale: Need stable var values to reference
-
-3. **Third-party widget adjustments** (visNetwork colors)
-   - Adjust node/edge defaults to neutral values
-   - Dependency: Can happen in parallel with (2), but test after global palette
-   - Rationale: Need to see widget against new background colors
-
-**Parallel (can happen simultaneously):**
-
-- **UI polish** (badges, toasts, modals) — independent of dark mode palette
-- **Testing/QA** — can start as soon as global palette exists
-
-### Suggested Build Order
+**Integration points:**
 
 ```
-Phase 1: Foundation
-├─ Create www/dark-mode-overrides.scss
-├─ Define Bootstrap CSS var overrides for dark mode
-├─ Inject via bs_add_rules() in app.R
-└─ Test: Does toggle switch affect background/text colors?
-
-Phase 2: Component Integration
-├─ Refactor www/custom.css to use CSS vars
-├─ Refactor inline <style> in app.R to use CSS vars
-├─ Test each component: citation network, chat UI, settings
-└─ Dependency: Phase 1 complete
-
-Phase 3: Widget Adjustments
-├─ Review visNetwork color defaults
-├─ Replace hardcoded theme-specific colors with neutrals
-├─ Test: Graph readable in both light/dark modes?
-└─ Dependency: Phase 1 complete (can overlap with Phase 2)
-
-Phase 4: Polish & QA
-├─ Contrast ratio testing (WCAG AA compliance)
-├─ Color palette consistency review
-├─ Test all modules in both modes
-└─ Dependency: Phases 1-3 complete
+┌─────────────────────────────────────────────────────────┐
+│ mod_search_notebook.R (MODIFIED)                        │
+│  + "Bulk Import" dropdown option → "DOI List..."       │
+│  + Modal with textarea + fileInput                      │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ R/utils_doi.R (MODIFIED)                                │
+│  + parse_doi_list(text) — split by newline/comma/space │
+│  + validate_doi_batch(dois) — filter valid, return list│
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ R/api_openalex.R (MODIFIED)                             │
+│  + batch_fetch_works_by_doi(dois, email, api_key)      │
+│     - Chunk into batches of 50 (OpenAlex limit)        │
+│     - Build filter: doi:10.1234/a|10.5678/b             │
+│     - Return parsed work list                           │
+│     - Handle missing DOIs gracefully (warn, skip)       │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ ExtendedTask for async batch import                     │
+│  - Progress bar updates per batch                       │
+│  - Mirai isolated process for API calls                │
+│  - Interrupt flag support for cancel                    │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ db.R (NO CHANGE)                                        │
+│  - Reuse create_abstract() for each fetched paper      │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Anti-Patterns
+**New components:**
+- `parse_doi_list()` in utils_doi.R
+- `validate_doi_batch()` in utils_doi.R
+- `batch_fetch_works_by_doi()` in api_openalex.R
 
-### Anti-Pattern 1: Duplicate Color Definitions
+**Modified components:**
+- `mod_search_notebook.R` — add bulk import modal UI + ExtendedTask observer
 
-**What people do:** Define dark mode colors in multiple places (Sass vars, CSS vars, inline styles).
+**Data flow:**
+1. User clicks "Bulk Import" → "DOI List..."
+2. Modal opens with textarea (placeholder: "10.1234/abc\n10.5678/def") + fileInput
+3. Parse input: split by newline, comma, or whitespace
+4. Normalize with `normalize_doi_bare()`, validate format
+5. Deduplicate, filter out DOIs already in notebook
+6. Chunk into batches of 50 (OpenAlex max per request)
+7. Async ExtendedTask: batch fetch with progress updates
+8. Import each fetched paper via `create_abstract()`
+9. Show success notification: "Imported 47 papers, 3 DOIs not found"
 
-**Why it's wrong:** Changes require updating multiple files. Easy to miss one and create inconsistency.
+**UI considerations:**
+- Show validation errors inline (invalid DOI format)
+- Preview valid DOI count before import
+- Progress modal with cancel button (mirai interrupt flag)
 
-**Do this instead:**
-- Define dark mode palette ONCE in `www/dark-mode-overrides.scss`
-- All other CSS references Bootstrap CSS vars (`--bs-body-bg`, etc.)
-- Inline styles use CSS vars, not hardcoded colors
+**Complexity:** MEDIUM — parsing, batching, async handling
 
-### Anti-Pattern 2: Theme-Specific Class Names
+---
 
-**What people do:** Add `.dark-mode` classes to elements and toggle them with JavaScript.
+### 3. BibTeX File Parsing
 
-**Why it's wrong:** Fights against Bootstrap's built-in `data-bs-theme` system. Creates maintenance burden.
+**What:** File upload (.bib) → parse with bib2df → extract DOIs → same batch import flow as #2
 
-**Do this instead:**
-- Use `[data-bs-theme="dark"]` CSS selectors
-- Let Bootstrap's attribute cascade handle theme switching
-- No JavaScript class manipulation needed
+**Integration points:**
 
-### Anti-Pattern 3: Server-Side Theme Switching for Static Themes
+```
+┌─────────────────────────────────────────────────────────┐
+│ mod_search_notebook.R (MODIFIED)                        │
+│  + "Bulk Import" dropdown option → "BibTeX File..."    │
+│  + fileInput(accept = ".bib")                           │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ R/utils_bibtex.R (NEW)                                  │
+│  + parse_bibtex_file(filepath)                          │
+│     - Uses bib2df::bib2df(filepath)                     │
+│     - Extract DOI column from tibble                    │
+│     - Normalize with normalize_doi_bare()               │
+│     - Return cleaned DOI vector                         │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ Same batch fetch flow as #2                             │
+│  - batch_fetch_works_by_doi()                           │
+│  - ExtendedTask for async import                        │
+│  - db.R create_abstract() for persistence               │
+└─────────────────────────────────────────────────────────┘
+```
 
-**What people do:** Use `session$setCurrentTheme()` to switch themes reactively.
+**New components:**
+- `R/utils_bibtex.R` with `parse_bibtex_file()`
+- Add `bib2df` to DESCRIPTION dependencies
 
-**Why it's wrong:** Adds server round-trip latency. Overkill for simple light/dark toggle.
+**Modified components:**
+- `mod_search_notebook.R` — add .bib file upload modal
 
-**Do this instead:**
-- Client-side toggle (already implemented) for instant feedback
-- `session$setCurrentTheme()` only needed for dynamic theme *generation* (e.g., user-customized palettes)
+**Data flow:**
+1. User uploads .bib file
+2. Parse with `bib2df::bib2df(filepath)` → tibble
+3. Extract `DOI` column (may be NA, URL, or bare format)
+4. Normalize with `normalize_doi_bare()`, filter valid
+5. Pass DOI vector to existing batch import flow (#2)
+6. Show results: "Found 32 DOIs in BibTeX, imported 28 papers, 4 not found"
 
-### Anti-Pattern 4: Styling Canvas Content with CSS
+**BibTeX library choice:**
+- **bib2df** (rOpenSci) — converts to tibble, actively maintained (2026)
+- Alternative: `bibtex::read.bib()` (returns list, harder to extract DOIs)
+- `RefManageR::ReadBib()` — more complex, overkill for DOI extraction
 
-**What people do:** Try to use `[data-bs-theme="dark"]` selectors to change visNetwork node colors.
+**Complexity:** LOW — thin wrapper over bib2df, reuses DOI batch import
 
-**Why it's wrong:** Canvas elements don't respond to CSS. Wasted effort.
+---
 
-**Do this instead:**
-- Style *container* background/borders with CSS
-- Pass theme-aware colors via JavaScript options (or use neutral defaults)
-- Accept that canvas content has limited theme integration
+### 4. Select-All Import
 
-## Integration Points Summary
+**What:** Checkbox to select all filtered abstracts → bulk import into document notebook
 
-### New Files Needed
+**Integration points:**
 
-| File | Purpose | Contents |
+```
+┌─────────────────────────────────────────────────────────┐
+│ mod_search_notebook.R (MODIFIED)                        │
+│  + Checkbox above paper list: "Select all (N papers)"  │
+│  + Reactive: selected_papers_rv()                       │
+│     - If select_all checked: filtered_papers()          │
+│     - Else: papers with individual checkboxes           │
+│  + Import button: observeEvent(input$import_abstracts)  │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ R/db.R (NO CHANGE)                                      │
+│  - Reuse create_abstract() in loop                      │
+│  - Wrap in transaction for atomicity                    │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ UI updates                                              │
+│  - Move "Hide predatory journals" into Filter modal     │
+│  - Replace with select-all checkbox                     │
+│  - Individual checkboxes remain for manual selection    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**New components:** NONE
+
+**Modified components:**
+- `mod_search_notebook.R` — UI refactor + select-all reactive logic
+
+**Data flow:**
+1. User applies filters (year, keyword, journal quality)
+2. Filtered paper list updates
+3. "Select all (47 papers)" checkbox above list
+4. User checks select-all OR individual papers
+5. Click "Import to Document Notebook" dropdown → select notebook
+6. Loop through selected papers, call `create_abstract()` for each
+7. Transaction ensures all-or-nothing (if one fails, rollback)
+8. Toast notification: "Imported 47 papers to [Notebook Name]"
+
+**UI refactor:**
+- Current: predatory journal toggle outside filter modal
+- New: move toggle into filter modal, reclaim space for select-all checkbox
+
+**Complexity:** LOW — pure UI + reactive logic, no new backend code
+
+---
+
+### 5. Slide Prompt Healing
+
+**What:** Pre-inject YAML template into prompt + regeneration workflow to fix malformed QMD
+
+**Integration points:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ R/slides.R (MODIFIED)                                   │
+│  + build_slides_prompt() modifications:                 │
+│     - System prompt includes YAML template              │
+│     - "Output YAML exactly as shown below:"             │
+│     - Example YAML block in prompt                      │
+│  + heal_qmd_yaml(qmd_content, theme) — NEW             │
+│     - Detect malformed YAML (missing ---, wrong indent) │
+│     - Replace with correct template                     │
+│     - Preserve slide content below YAML                 │
+│       ↓                                                 │
+├─────────────────────────────────────────────────────────┤
+│ mod_slides.R (MODIFIED)                                 │
+│  + "Regenerate" button in preview modal                 │
+│  + textAreaInput for healing instructions              │
+│     - Placeholder: "Fix the YAML", "Fix table 3"       │
+│  + observeEvent(input$regenerate_slides)                │
+│     - Append healing instruction to original prompt     │
+│     - Call generate_slides() with amended messages      │
+│     - Update preview with healed QMD                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**New components:**
+- `heal_qmd_yaml()` function in slides.R (fallback fixer)
+
+**Modified components:**
+- `build_slides_prompt()` in slides.R — inject YAML template
+- `mod_slides.R` — add regeneration UI + observer
+
+**Prompt changes:**
+
+**Before:**
+```
+System: You are an expert presentation designer. Generate a Quarto RevealJS
+presentation in valid .qmd format.
+
+Output format requirements:
+- Start with YAML frontmatter (title, format: revealjs)
+- Use # for section titles...
+```
+
+**After:**
+```
+System: You are an expert presentation designer. Generate a Quarto RevealJS
+presentation in valid .qmd format.
+
+CRITICAL: Start with this YAML frontmatter EXACTLY as shown:
+---
+title: "Your Title Here"
+format:
+  revealjs:
+    theme: dark
+---
+
+Output format requirements:
+- Keep YAML exactly as shown above (only change title)
+- Use # for section titles...
+```
+
+**Healing workflow:**
+1. User generates slides
+2. LLM returns malformed YAML (common with smaller models)
+3. Quarto render fails
+4. User clicks "Regenerate" button
+5. Enters healing instruction: "Fix the YAML indentation"
+6. System appends to original prompt: "The previous output had errors. Fix: [instruction]. Regenerate the entire presentation with corrections."
+7. Call `chat_completion()` with amended messages (includes history context)
+8. Apply `heal_qmd_yaml()` as fallback (regex-based YAML replacement)
+9. Preview updated QMD
+
+**Complexity:** LOW — prompt engineering + simple UI addition
+
+---
+
+## Component Architecture
+
+### New Files
+
+| File | Purpose | LOC Est. |
 |------|---------|----------|
-| `www/dark-mode-overrides.scss` | Global dark mode palette | Bootstrap CSS var redefinitions under `[data-bs-theme="dark"]` |
+| `R/citation_audit.R` | Citation gap analysis + batch fetch | ~150 |
+| `R/utils_bibtex.R` | BibTeX parsing wrapper | ~50 |
 
 ### Modified Files
 
-| File | Changes | Why |
-|------|---------|-----|
-| `app.R` | Add `bs_add_rules(sass::sass_file("www/dark-mode-overrides.scss"))` | Inject dark mode Sass |
-| `www/custom.css` | Replace hardcoded colors with CSS vars | Theme-responsive component styles |
-| `R/citation_network.R` | Adjust visNetwork color defaults to neutrals | Better light/dark compatibility |
+| File | Changes | Complexity |
+|------|---------|------------|
+| `R/mod_search_notebook.R` | + Audit button + bulk import modals + select-all checkbox | MEDIUM (~200 LOC) |
+| `R/api_openalex.R` | + `batch_fetch_works_by_doi()` | LOW (~80 LOC) |
+| `R/utils_doi.R` | + `parse_doi_list()`, `validate_doi_batch()` | LOW (~60 LOC) |
+| `R/slides.R` | + YAML template in prompt + `heal_qmd_yaml()` | LOW (~100 LOC) |
+| `R/mod_slides.R` | + Regeneration UI + observer | LOW (~80 LOC) |
 
-### No Changes Needed
+### Dependencies
 
-| Component | Reason |
-|-----------|--------|
-| JavaScript toggle | Already correctly using `data-bs-theme` attribute |
-| localStorage persistence | Already working |
-| Shiny modules | CSS changes only, no R code changes required |
+**New R packages:**
+- `bib2df` — BibTeX parser (rOpenSci, CRAN, active 2026)
+  - Alternative: `bibtex` (CRAN, last updated 2025-07-22)
+  - Recommendation: **bib2df** for tibble output (easier DOI extraction)
+
+**No infrastructure changes:**
+- DuckDB schema unchanged (all columns exist)
+- Async pattern reuses ExtendedTask + mirai
+- OpenAlex API within rate limits (polite pool, batch requests)
+
+---
+
+## Data Flow Diagrams
+
+### Citation Audit Flow
+
+```
+User clicks "Find Missing Papers"
+    ↓
+Extract referenced_works from abstracts table
+    ↓
+Parse JSON arrays → flatten to DOI list
+    ↓
+Count frequency across corpus
+    ↓
+Filter out DOIs already in abstracts (anti-join)
+    ↓
+Rank by frequency → top 20
+    ↓
+OpenAlex batch query (pipe-separated filter)
+    ↓
+Modal with checkbox list (ranked by citations)
+    ↓
+User selects papers to import
+    ↓
+Loop: create_abstract() for each selected
+    ↓
+Toast: "Imported 8 seminal papers"
+```
+
+### Bulk DOI Import Flow
+
+```
+User clicks "Bulk Import" → "DOI List" or "BibTeX File"
+    ↓
+[If DOI List] Parse textarea/file → normalize → validate
+[If BibTeX] bib2df::bib2df() → extract DOI column → normalize
+    ↓
+Deduplicate, filter out existing DOIs
+    ↓
+Chunk into batches of 50
+    ↓
+ExtendedTask: batch_fetch_works_by_doi()
+    ↓ (per batch)
+OpenAlex API: filter=doi:A|B|C...
+    ↓
+Parse works, insert via create_abstract()
+    ↓
+Update progress bar: "Batch 2/5 — 20 papers imported"
+    ↓
+Toast: "Imported 87 papers, 3 DOIs not found"
+```
+
+### Slide Healing Flow
+
+```
+User generates slides
+    ↓
+LLM returns malformed YAML
+    ↓
+Quarto render fails (error shown in modal)
+    ↓
+User clicks "Regenerate"
+    ↓
+Enters healing instruction: "Fix YAML indentation"
+    ↓
+System builds amended prompt:
+  Original prompt + "Previous output had errors. Fix: [instruction]"
+    ↓
+chat_completion() with history context
+    ↓
+Apply heal_qmd_yaml() as fallback (regex-based)
+    ↓
+Preview updated QMD
+    ↓
+User downloads or re-renders
+```
+
+---
+
+## Integration Patterns
+
+### Pattern 1: Batch API Operations with Progress
+
+**What:** Chunk large operations (50+ items) into batches, use ExtendedTask + mirai for async execution with progress updates
+
+**When:** Bulk DOI import, citation audit fetch
+
+**Implementation:**
+```r
+# In mod_search_notebook.R server
+bulk_import_task <- ExtendedTask$new(function(dois, email, api_key) {
+  mirai::mirai({
+    batch_fetch_works_by_doi(dois, email, api_key)
+  })
+})
+
+observeEvent(input$start_bulk_import, {
+  # Parse and validate DOIs
+  dois <- parse_doi_list(input$doi_textarea)
+  valid_dois <- validate_doi_batch(dois)
+
+  # Invoke async task
+  bulk_import_task$invoke(valid_dois, cfg$email, cfg$api_key)
+})
+
+# Progress observer
+observe({
+  result <- bulk_import_task$result()
+  if (!is.null(result)) {
+    # Insert into DB
+    lapply(result, function(work) {
+      create_abstract(con(), notebook_id(), work$paper_id, ...)
+    })
+    showNotification("Import complete", type = "message")
+  }
+})
+```
+
+**Trade-offs:**
+- Pro: Non-blocking UI, cancellable, progress feedback
+- Con: Adds ~50 LOC per feature (task setup + observers)
+
+---
+
+### Pattern 2: Modal-Driven Workflows
+
+**What:** Use `showModal()` for multi-step operations (input → validate → confirm → execute)
+
+**When:** Citation audit, bulk import, slide regeneration
+
+**Implementation:**
+```r
+observeEvent(input$audit_citations, {
+  # Show loading modal
+  showModal(modalDialog(
+    title = "Analyzing Citations...",
+    "Finding missing papers...",
+    footer = NULL
+  ))
+
+  # Compute in background
+  gaps <- analyze_citation_gaps(con(), notebook_id(), top_n = 20)
+
+  # Replace with results modal
+  removeModal()
+  showModal(modalDialog(
+    title = "Missing Papers",
+    checkboxGroupInput(ns("papers_to_import"), NULL,
+                       choices = format_gap_list(gaps)),
+    footer = tagList(
+      actionButton(ns("import_gaps"), "Import Selected"),
+      modalButton("Cancel")
+    )
+  ))
+})
+```
+
+**Trade-offs:**
+- Pro: Familiar pattern in codebase, clean UX separation
+- Con: Modal stacking (loading → results) can feel janky if slow
+
+---
+
+### Pattern 3: JSON Column Analysis
+
+**What:** Query JSON column from DuckDB, parse in R, aggregate results
+
+**When:** Citation audit (extract `referenced_works` arrays)
+
+**Implementation:**
+```r
+analyze_citation_gaps <- function(con, notebook_id, top_n = 20) {
+  # Fetch all referenced_works JSON arrays
+  abstracts <- dbGetQuery(con, "
+    SELECT paper_id, doi, referenced_works
+    FROM abstracts
+    WHERE notebook_id = ?
+  ", list(notebook_id))
+
+  # Parse JSON arrays, flatten to DOI list
+  all_refs <- unlist(lapply(abstracts$referenced_works, function(json) {
+    if (is.na(json) || json == "") return(character())
+    refs <- jsonlite::fromJSON(json)
+    # Extract DOI from OpenAlex URL: https://openalex.org/W123
+    # Note: OpenAlex referenced_works are work IDs, not DOIs!
+    # Need to query OpenAlex to get DOIs for these work IDs
+    refs
+  }))
+
+  # Count frequency
+  ref_counts <- table(all_refs)
+  ref_counts <- sort(ref_counts, decreasing = TRUE)
+
+  # Filter out papers already in corpus
+  existing_ids <- abstracts$paper_id
+  missing_refs <- ref_counts[!names(ref_counts) %in% existing_ids]
+
+  # Top N
+  top_missing <- head(missing_refs, top_n)
+
+  # Fetch metadata from OpenAlex (batch query by work ID)
+  fetch_missing_papers(names(top_missing), email, api_key)
+}
+```
+
+**Trade-offs:**
+- Pro: Leverages existing schema, no new columns needed
+- Con: JSON parsing in R (slower than native DB query), work ID → DOI lookup needed
+
+**CRITICAL DISCOVERY:** OpenAlex `referenced_works` stores **work IDs** (e.g., `https://openalex.org/W123`), NOT DOIs. Citation audit must:
+1. Extract work IDs from `referenced_works` JSON
+2. Batch query OpenAlex by work ID to get DOI/title/author
+3. Filter out works already in corpus (match by work ID, not DOI)
+
+---
+
+## Build Order with Dependencies
+
+Recommended phase order considering feature dependencies:
+
+### Phase 1: Foundation (DOI utilities)
+**Goal:** Add parsing and validation utilities for bulk operations
+
+**Tasks:**
+- Add `parse_doi_list()` to utils_doi.R
+- Add `validate_doi_batch()` to utils_doi.R
+- Write unit tests for parsing edge cases (URLs, bare DOIs, malformed)
+
+**Why first:** All bulk import features depend on DOI parsing
+
+**Deliverables:**
+- `R/utils_doi.R` updated
+- `tests/testthat/test-utils_doi.R` added
+
+---
+
+### Phase 2: OpenAlex Batch Fetch
+**Goal:** Add batch API query support
+
+**Tasks:**
+- Add `batch_fetch_works_by_doi()` to api_openalex.R
+- Chunk into batches of 50 (OpenAlex max)
+- Handle missing DOIs gracefully (warn, skip)
+- Write integration test with mock API
+
+**Why second:** Citation audit and bulk import both need this
+
+**Deliverables:**
+- `R/api_openalex.R` updated
+- `tests/testthat/test-api_openalex.R` updated
+
+---
+
+### Phase 3: Bulk DOI Import UI
+**Goal:** Textarea + file upload → batch import workflow
+
+**Tasks:**
+- Add "Bulk Import" → "DOI List..." modal to mod_search_notebook.R
+- ExtendedTask for async import with progress
+- Wire up parse_doi_list() → batch_fetch_works_by_doi() → create_abstract()
+- Handle errors (invalid DOIs, API failures, duplicate papers)
+
+**Why third:** Validates batch fetch works before building on it
+
+**Deliverables:**
+- `R/mod_search_notebook.R` updated
+- Manual test: import 20 DOIs from textarea
+
+---
+
+### Phase 4: BibTeX Import
+**Goal:** .bib file upload → extract DOIs → reuse bulk import flow
+
+**Tasks:**
+- Add bib2df to DESCRIPTION
+- Create `R/utils_bibtex.R` with `parse_bibtex_file()`
+- Add "Bulk Import" → "BibTeX File..." modal
+- Wire up to existing batch import flow (Phase 3)
+
+**Why fourth:** Thin wrapper over Phase 3, low risk
+
+**Deliverables:**
+- `R/utils_bibtex.R` added
+- `R/mod_search_notebook.R` updated
+- Test fixture: sample.bib with 10 entries
+
+---
+
+### Phase 5: Citation Audit
+**Goal:** Analyze referenced_works → find missing papers → import workflow
+
+**Tasks:**
+- Create `R/citation_audit.R`
+- `analyze_citation_gaps()` — JSON parsing, frequency analysis, work ID extraction
+- OpenAlex batch query by work ID (NOT DOI — critical distinction)
+- Add "Find Missing Papers" button to mod_search_notebook.R
+- Modal with ranked checkbox list
+- Import selected via existing create_abstract()
+
+**Why fifth:** Most complex, depends on batch fetch (Phase 2)
+
+**Deliverables:**
+- `R/citation_audit.R` added
+- `R/mod_search_notebook.R` updated
+- Manual test: audit notebook with 30+ papers
+
+---
+
+### Phase 6: Select-All Import
+**Goal:** Checkbox to bulk-select filtered papers for import
+
+**Tasks:**
+- Add select-all checkbox above paper list
+- Move predatory journal toggle into filter modal (UI refactor)
+- Reactive: `selected_papers_rv()` merges select-all + individual checkboxes
+- Import loop with transaction wrapper
+
+**Why sixth:** Independent of other features, pure UI change
+
+**Deliverables:**
+- `R/mod_search_notebook.R` updated
+- Manual test: select all 50 papers, import to notebook
+
+---
+
+### Phase 7: Slide Prompt Healing
+**Goal:** Pre-inject YAML + regeneration workflow
+
+**Tasks:**
+- Update `build_slides_prompt()` with YAML template
+- Add `heal_qmd_yaml()` fallback function
+- Add "Regenerate" button + textarea to mod_slides.R
+- Healing observer: amend prompt with instruction, re-call chat_completion()
+
+**Why last:** Independent of all other features, lower priority
+
+**Deliverables:**
+- `R/slides.R` updated
+- `R/mod_slides.R` updated
+- Manual test: generate slides with small model, regenerate with healing
+
+---
+
+## Dependency Graph
+
+```
+Phase 1 (DOI utils)
+    ├─→ Phase 2 (Batch fetch)
+    │       ├─→ Phase 3 (DOI import)
+    │       │       └─→ Phase 4 (BibTeX import)
+    │       └─→ Phase 5 (Citation audit)
+    │
+    ├─→ Phase 6 (Select-all) — INDEPENDENT
+    └─→ Phase 7 (Slide healing) — INDEPENDENT
+```
+
+**Parallelization opportunities:**
+- Phase 6 and Phase 7 can be built in parallel with other phases
+- Phase 4 can start as soon as Phase 3 is functional
+
+---
+
+## Risk Assessment
+
+| Feature | Risk Level | Mitigation |
+|---------|------------|------------|
+| Citation Audit | MEDIUM | Work ID vs DOI confusion — verify OpenAlex response format early |
+| Bulk DOI Import | LOW | Batch chunking well-documented, existing async pattern proven |
+| BibTeX Parsing | LOW | bib2df is mature (rOpenSci), fallback to bibtex package if needed |
+| Select-All Import | VERY LOW | Pure UI + existing backend, no new infrastructure |
+| Slide Healing | LOW | Prompt engineering risk — test with multiple models early |
+
+**Highest risk:** Citation audit work ID extraction — OpenAlex `referenced_works` returns work URLs, not DOIs. Must batch query by work ID to get metadata, then filter by work ID (not DOI) against corpus.
+
+---
+
+## Open Questions
+
+1. **Citation audit performance:** With 100+ papers, JSON parsing for all `referenced_works` may be slow. Should we:
+   - Cache analysis results in DB table?
+   - Compute on-demand only (current plan)?
+   - Use DuckDB JSON functions instead of R parsing?
+
+2. **Bulk import deduplication:** If user imports same DOI twice:
+   - Silently skip (current plan)?
+   - Warn user in preview?
+   - Update existing abstract metadata?
+
+3. **BibTeX DOI quality:** Many .bib files have missing or malformed DOIs. Should we:
+   - Fall back to title search if DOI missing?
+   - Import only entries with valid DOIs (current plan)?
+   - Show preview of skipped entries?
+
+4. **Slide healing retry limit:** Should we:
+   - Allow unlimited regenerations (current plan)?
+   - Cap at 3 attempts to prevent cost runaway?
+   - Track healing cost separately from original generation?
+
+---
 
 ## Sources
 
-**HIGH Confidence:**
-- [Bootstrap v5.3 Color Modes Documentation](https://getbootstrap.com/docs/5.3/customize/color-modes/) — Official Bootstrap docs on CSS custom properties and `data-bs-theme`
-- [bslib Theming Guide](https://rstudio.github.io/bslib/articles/theming/index.html) — Official bslib docs on `bs_theme()` and `bs_add_rules()`
-- [bslib Dark Mode Implementation](https://github.com/rstudio/bslib/blob/main/R/input-dark-mode.R) — Source code for bslib's dark mode toggle
+**OpenAlex API:**
+- [Batch DOI lookup with pipe-separated filter](https://blog.openalex.org/fetch-multiple-dois-in-one-openalex-api-request/) — Official guide, up to 50 DOIs per request
+- [Filter entity lists](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists) — OpenAlex filter syntax
+- [Work object](https://docs.openalex.org/api-entities/works/work-object) — `referenced_works` field documentation
 
-**MEDIUM Confidence:**
-- [visNetwork Shiny Integration](https://datastorm-open.github.io/visNetwork/shiny.html) — Official docs on visNetwork styling options
-- [DataTables Dark Mode](https://datatables.net/manual/styling/dark-mode) — Official DT dark mode docs (not currently used, but reference for future)
+**R Packages:**
+- [bib2df package](https://docs.ropensci.org/bib2df/) — rOpenSci BibTeX parser, converts to tibble
+- [bibtex package (CRAN)](https://cran.r-project.org/package=bibtex) — Alternative parser, updated 2025-07-22
+- [rbibutils (CRAN)](https://cran.r-project.org/web/packages/rbibutils/rbibutils.pdf) — Updated 2026-01-21
 
-**LOW Confidence:**
-- WebSearch results on htmlwidgets dark mode — general guidance, not Serapeum-specific
+**Shiny Patterns:**
+- [ExtendedTask with mirai](https://mirai.r-lib.org/articles/shiny.html) — Official Shiny integration guide
+- [Promises and progress bars](https://mirai.r-lib.org/articles/v3-promises.html) — Progress updates with mirai_map()
+- [File upload control](https://shiny.posit.co/r/reference/shiny/latest/fileinput.html) — Official Shiny fileInput() docs
 
 ---
-*Architecture research for: Serapeum v6.0 Dark Mode Redesign*
-*Researched: 2026-02-22*
+
+*Architecture research for Serapeum v7.0 milestone*
+*Researched: 2026-02-25*
+*Confidence: HIGH (existing architecture verified, OpenAlex API documented, R packages confirmed)*

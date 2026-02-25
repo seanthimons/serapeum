@@ -1,197 +1,166 @@
 # Pitfalls Research
 
-**Domain:** Dark Mode Redesign in R/Shiny/bslib Applications
-**Researched:** 2026-02-22
+**Domain:** Citation Audit, Bulk Import, .bib Parsing, and Prompt Healing for R/Shiny Research Assistant
+**Researched:** 2026-02-25
 **Confidence:** HIGH
 
 ## Critical Pitfalls
 
-### Pitfall 1: Canvas Elements Ignore CSS Dark Mode Styling
+### Pitfall 1: OpenAlex Rate Limit Cascade Failure
 
 **What goes wrong:**
-visNetwork (vis.js) canvas elements don't respect `[data-bs-theme="dark"]` CSS selectors. Background colors set via CSS on the container are ignored by the canvas, resulting in white/light backgrounds in dark mode or dark backgrounds bleeding through in light mode. This is already documented in Serapeum as issue #89 where dark navy background (`#1a1a2e`) blends with viridis palette dark nodes.
+Bulk DOI imports trigger rapid-fire API requests that hit the 100 req/sec limit (or $1/day budget limit with free API key), causing 429 errors that block all subsequent operations. Users paste 50 DOIs, app makes 50 sequential requests in 2 seconds, OpenAlex returns 429 for requests 11-50, and the entire batch fails without partial results.
 
 **Why it happens:**
-HTML5 canvas elements render via JavaScript drawing APIs, not the DOM. CSS background-color on the wrapper div has no effect on the canvas itself. vis.js creates its own canvas element and sets background programmatically. Bootstrap's `data-bs-theme` attribute changes CSS variables, but canvas rendering doesn't read CSS variables automatically.
+Developers treat bulk operations as "loop over single-item function" without considering that OpenAlex enforces per-second rate limits globally, not per-session. The existing `get_paper()` function has no rate limiting—it's designed for single lookups. As of February 13, 2026, OpenAlex requires an API key and free tier gets $1/day budget—single entity lookups are free, but list queries cost $0.0001 and search queries cost $0.001. Exceeding budget or making >100 req/sec returns 429 errors.
 
 **How to avoid:**
-- Set `background` parameter directly in `visNetwork()` function call (e.g., `visNetwork(..., background = "#1e1e2e")`)
-- Use `htmlwidgets::onRender()` to inject JavaScript that reads the current theme and sets canvas background post-render
-- Avoid relying on CSS alone for canvas-based widgets (visNetwork, plotly canvas mode, custom canvas charts)
-- Consider using `shiny::getCurrentOutputInfo()` to detect theme and pass appropriate colors to widget parameters
+1. **Batch API requests using OR syntax**: OpenAlex supports `filter=doi:10.xxx/yyy|10.aaa/bbb` with up to 50 DOIs per request—this turns 50 requests into 1 request
+2. **Add global rate limiter**: Track requests per second across all threads using semaphore or rate limiter (not per-thread counters)
+3. **Add delays between batches**: If processing >50 DOIs, add 0.1-0.2 second sleep between each 50-DOI batch
+4. **Implement exponential backoff**: On 429 error, wait 2^n seconds before retry (n = attempt number)
+5. **Show partial results**: Store successfully fetched papers before rate limit hit, allow user to retry remaining
 
 **Warning signs:**
-- White flash when switching to dark mode on graph/chart components
-- Canvas background doesn't match container background in either theme
-- Color palettes (viridis, magma) with dark ends blend into background making nodes invisible
-- Dark mode CSS rules have no visible effect on visualization widgets
+- 429 errors in logs during bulk operations
+- User reports "some papers loaded, then nothing"
+- OpenAlex API calls fail after first 10-20 DOIs
+- Budget exhaustion messages in API responses
 
 **Phase to address:**
-Phase 1 (Core Dark Mode Palette) — establish pattern for all canvas-based widgets. Fix citation network background as proof of concept.
+Phase 34 (Bulk DOI Upload) must implement batching and rate limiting before any UI work
 
 ---
 
-### Pitfall 2: CSS Specificity Wars Between Custom Rules and Bootstrap Variables
+### Pitfall 2: BibTeX Parsing Malformed Entry Silent Failure
 
 **What goes wrong:**
-Custom CSS rules with high specificity override Bootstrap's dark mode CSS variables, causing light mode styles to "stick" in dark mode. Components remain light-colored even with `[data-bs-theme="dark"]` applied. This manifests as white cards, light buttons, or bright backgrounds persisting in dark mode.
+User uploads .bib file with one malformed entry (missing closing brace, unescaped special character in author field, nested braces in abstract), parser fails on that entry and either crashes the entire import or silently skips it without notification. User expects 50 papers, gets 42, doesn't know which 8 failed or why.
 
 **Why it happens:**
-Bootstrap 5.3 uses CSS custom properties (variables) that cascade and inherit. When you write custom CSS like `.my-card { background-color: white; }`, this has higher specificity than Bootstrap's variable-based approach `background-color: var(--bs-body-bg)`. CSS specificity rules mean your custom rule wins, blocking the dark mode variable from taking effect.
+Real-world BibTeX files are messy: exported from different reference managers (Zotero, Mendeley, EndNote) with varying compliance to BibTeX spec, contain UTF-8 characters without proper escaping, have multi-line fields with unpredictable whitespace, include custom fields that don't match standard schema. R's `bib2df::bib2df()` and `bibtex::read.bib()` parsers throw errors on malformed entries rather than attempting recovery. Inside string literals and nested braces (2+ levels deep), virtually everything including whitespace becomes literal string tokens—naive line-by-line splitting breaks.
 
 **How to avoid:**
-- Use Bootstrap CSS variables instead of hardcoded colors: `background-color: var(--bs-body-bg)` not `background-color: white`
-- Scope custom color overrides with `[data-bs-theme="light"]` selector explicitly
-- When you must override, use both light and dark mode selectors:
-  ```css
-  [data-bs-theme="light"] .my-card { background-color: white; }
-  [data-bs-theme="dark"] .my-card { background-color: #1e1e2e; }
-  ```
-- Test with browser DevTools: if a CSS variable is being overridden, you'll see it crossed out in the inspector
+1. **Use rbibutils or RefManageR**: These parsers (based on btparse C library) are more tolerant of malformed entries than bib2df
+2. **Implement entry-level try-catch**: Parse each `@article{...}` block independently—if one fails, mark it as "unknown" type and preserve content for manual fixing
+3. **Pre-validate file structure**: Before full parse, check for matching braces, detect encoding (UTF-8 BOM vs Latin-1), count entries
+4. **Show parse diagnostics**: Display "Parsed 42/50 entries. 8 failed (see details)" with line numbers and error types
+5. **Extract DOIs even from malformed entries**: Use regex to find `doi = {10.\d{4,}/\S+}` patterns before structural parsing—DOIs can seed OpenAlex lookups to recover metadata
 
 **Warning signs:**
-- Components remain light when `data-bs-theme="dark"` is applied to `<html>`
-- Browser DevTools shows Bootstrap variables crossed out by custom rules
-- Dark mode works in vanilla Bootstrap example but not in your app
-- Must use `!important` flags to make dark mode work (symptom of specificity conflict)
+- Import completes but result count doesn't match file's `@article` count
+- No error message displayed but network graph is incomplete
+- DOI extraction returns empty list from non-empty .bib file
+- Special characters (ä, é, ñ) in author names cause parse failures
 
 **Phase to address:**
-Phase 1 (Core Dark Mode Palette) — audit `www/custom.css` for all hardcoded color values. Phase 2 (Visual Consistency) — verify no specificity conflicts remain.
+Phase 35 (.bib File Upload) must include robust parser with per-entry error handling and diagnostic UI
 
 ---
 
-### Pitfall 3: Pure Black Backgrounds Cause Eye Strain and Halation
+### Pitfall 3: Citation Audit SQL N+1 Query Explosion
 
 **What goes wrong:**
-Using pure black (`#000000`) backgrounds with white or light text creates harsh contrast that causes eye fatigue and "halation" — an optical effect where bright text appears to bleed or glow against dark backgrounds. Users with astigmatism experience this more severely. The harsh contrast defeats the purpose of dark mode (reducing eye strain).
+Citation audit analyzes `referenced_works` column for 500 abstracts in database. Naive implementation loops through each abstract, queries `referenced_works`, counts occurrences across all rows—results in 500 individual SQL queries that take 30+ seconds and lock UI. At 5,000 abstracts, operation times out.
 
 **Why it happens:**
-Developers assume maximum contrast (21:1) is always better for accessibility. Pure black seems like the "correct" dark mode choice. However, 100% contrast is actually harder to read and causes more eye strain than slightly reduced contrast. This is especially problematic in low-light conditions when users are most likely to use dark mode.
+`referenced_works` is stored as TEXT array in DuckDB abstracts table (line 252 in `api_openalex.R`: `referenced_works = if (!is.null(work$referenced_works)) as.character(work$referenced_works) else character()`). Developers treat this as "need to read each row" without recognizing that DuckDB supports array operations and aggregations. The "find missing seminal papers" requirement naturally suggests "scan all rows, count references"—but doing this in R rather than SQL moves data inefficiently.
 
 **How to avoid:**
-- Use dark gray backgrounds instead of pure black: `#121212`, `#1a1a1a`, or `#1e1e2e` (Bootstrap default)
-- Use slightly off-white text instead of pure white: `#e8e8e8`, `#f0f0f0` or `var(--bs-body-color)` in dark mode
-- Aim for 15:1 to 17:1 contrast ratio, not 21:1 maximum
-- Test with actual users or simulate astigmatism effects
-- Follow Material Design dark theme guidance: surface colors should be dark grays, not true black
+1. **Use DuckDB array functions**: `UNNEST(referenced_works)` flattens arrays into rows for aggregation in single query
+2. **Single aggregation query**: `SELECT UNNEST(referenced_works) AS ref_id, COUNT(*) AS freq FROM abstracts WHERE notebook_id = ? GROUP BY ref_id ORDER BY freq DESC`
+3. **Materialize top-N only**: Don't fetch all reference counts—limit to top 20-50 most frequently cited, batch lookup metadata from OpenAlex
+4. **Index on referenced_works if needed**: DuckDB 1.0+ supports GIN indexes on arrays for faster UNNEST operations
+5. **Cache audit results**: Store audit results in temporary table or R session variable—don't re-run on every view
 
 **Warning signs:**
-- User reports of eye strain specifically in dark mode
-- Text appears to "glow" or blur around edges on dark backgrounds
-- Design uses `#000000` or `#ffffff` directly
-- Contrast checker shows 21:1 ratio (too high, ironically)
+- Citation audit button hangs for >10 seconds with 100+ abstracts
+- Database CPU spikes to 100% during audit
+- Shiny session becomes unresponsive during audit
+- `dbGetQuery()` calls in loop pattern in code
 
 **Phase to address:**
-Phase 1 (Core Dark Mode Palette) — establish dark gray palette (`#1e1e2e` range), never use pure black. Document in style guide.
+Phase 33 (Citation Audit) must implement single-query aggregation pattern with DuckDB array operations
 
 ---
 
-### Pitfall 4: Hardcoded Colors in R Plot Code Break Dark Mode
+### Pitfall 4: LLM Prompt Healing Infinite Loop on YAML Validation
 
 **What goes wrong:**
-ggplot2 and other R plotting libraries generate plots with hardcoded colors (white backgrounds, black text, light gray grid lines) that look terrible in dark mode. The plots become unreadable white rectangles in an otherwise dark interface. This is particularly bad for plots embedded in Shiny outputs.
+Slide generation produces malformed YAML (missing colon after `format`, incorrect indentation, `theme` at wrong nesting level). Healing logic detects error, sends YAML back to LLM with "fix this YAML" prompt, LLM returns different malformed YAML, healing retries, repeat until max retries (3-5 attempts). User sees "Generating slides..." spinner for 2+ minutes, costs rack up ($0.30+ on Claude Sonnet), final result is still broken.
 
 **Why it happens:**
-R plotting functions default to light backgrounds. When you call `ggplot()` without specifying theme, it uses `theme_gray()` with white background and black text. These are baked into the plot image, not styled with CSS. Unlike HTML widgets, static plot images can't respond to CSS dark mode selectors.
+LLMs generate YAML with ~90% structural correctness—errors are often subtle (2 spaces vs 4 spaces, colon vs space-colon). Prompt engineering improves accuracy but can't guarantee 100% compliance. Generic "fix this YAML" prompts don't provide enough context—LLM doesn't know *which* part is wrong. Temperature=0 (deterministic mode) increases likelihood of inescapable loops—same input produces same wrong output. The existing `inject_theme_to_qmd()` and `inject_citation_css()` functions use regex substitution on LLM-generated content, which assumes correct structure—if structure is wrong, injection fails silently (lines 101-196 in `slides.R`).
 
 **How to avoid:**
-- Use the `thematic` package: `thematic::thematic_shiny()` auto-detects bslib theme and styles plots to match
-- For ggplot2 specifically: use `ggdark` package or implement dark theme with `theme_minimal() + theme(panel.background = element_rect(fill = "transparent"))`
-- Set plot background to transparent and let container background show through
-- Use `shiny::getCurrentOutputInfo()` to detect current theme and conditionally apply dark/light ggplot themes
-- For static exports, offer theme toggle that regenerates plots
+1. **Validate YAML structure programmatically first**: Use `yaml::yaml.load()` to parse frontmatter—catch specific errors (missing keys, wrong types) before LLM retry
+2. **Provide specific error feedback**: Instead of "fix this YAML", send "YAML parser error: 'format' key missing colon at line 3. Valid format: `format:\n  revealjs:`"
+3. **Limit retries to 2 maximum**: After 2 failed attempts, fall back to template YAML with only title customized—don't burn tokens on endless retries
+4. **Use schema validation, not freeform generation**: Provide JSON schema or Pydantic model for structured output—OpenAI/Anthropic support structured output modes (100% schema compliance)
+5. **Post-process with template merging**: If YAML parse fails after 2 retries, extract title from LLM output, merge into known-good template YAML, append body content
 
 **Warning signs:**
-- White ggplot2 plots in dark mode UI
-- Plot backgrounds don't match surrounding card backgrounds
-- Grid lines disappear against dark plot backgrounds
-- Text labels are black on dark backgrounds (unreadable)
+- Slide generation takes >30 seconds on medium-length content
+- Multiple "Generating..." progress updates for single generation
+- Cost logs show 3-5 API calls for single slide generation
+- Same YAML error appears in consecutive generations
+- Users report "slides take forever to generate"
 
 **Phase to address:**
-Phase 1 (Core Dark Mode Palette) — integrate `thematic` if plots exist. Phase 2 (Visual Consistency) — audit all plot outputs for theme compatibility.
+Phase 37 (Slide Prompt Healing) must implement YAML validation + specific error feedback + 2-retry limit + template fallback
 
 ---
 
-### Pitfall 5: Scoped Theme Inheritance Breaks Nested Components
+### Pitfall 5: Select-All Import Memory Explosion with Large Result Sets
 
 **What goes wrong:**
-Setting `data-bs-theme="dark"` on a component creates theme boundaries that prevent proper inheritance. Child components may revert to global theme instead of respecting parent component theme. Or, setting theme on parent causes unintended cascade to children that should remain light.
+User searches OpenAlex, gets 500 results, clicks "Select All and Import to Document Notebook". App attempts to load all 500 abstracts into memory, serialize for transfer between notebooks, crashes with "cannot allocate vector of size X GB" or Shiny session disconnects. Even if memory doesn't crash, UI freezes for 30+ seconds during transfer.
 
 **Why it happens:**
-CSS custom properties inherit from parent but can be overridden by higher specificity selectors. Bootstrap's color mode system uses `data-bs-theme` attribute selectors. When you apply this to nested components, CSS specificity rules become complex. A selector like `.my-component [data-bs-theme="dark"]` has different specificity than `[data-bs-theme="dark"] .my-component`, causing inheritance proximity to fail.
+Shiny's default file upload limit is 5MB—abstracts are small, but 500 abstracts × 2KB average = 1MB of text data, plus metadata (authors, keywords, venue) = 3-5MB total. If abstracts include `referenced_works` arrays (up to 100 references × 30 bytes = 3KB per abstract), 500 abstracts = 1.5MB of referenced_works alone. Transferring this between modules requires serialization into reactive value or temp file—R's object overhead (pointers, attributes) multiplies actual size by 3-5x. The existing code doesn't paginate—it assumes reasonably small batches (<50 papers).
 
 **How to avoid:**
-- Apply `data-bs-theme` at the highest level possible (usually `<html>`)
-- Avoid setting `data-bs-theme` on individual components unless absolutely necessary
-- If you must scope theme to component, explicitly set theme on all children that need it
-- Test theme changes with nested layouts: card → card-body → button → tooltip
-- Use browser DevTools to trace which theme selector is winning for each element
+1. **Implement batch size warning**: If selection >100 abstracts, show modal: "Large batch detected. Importing 500 abstracts may take 30-60 seconds. Continue?"
+2. **Paginated transfer via database**: Instead of serializing 500 abstracts through reactive, write to temp table in DuckDB, pass table ID to destination notebook, read in batches of 50
+3. **Progress indicator for large batches**: Use `withProgress()` or ExtendedTask for imports >100 abstracts—show "Importing batch X of Y"
+4. **Exclude referenced_works from transfer**: When transferring abstracts between notebooks, drop `referenced_works` column to reduce size—can be re-fetched if user opens citation network
+5. **Test with realistic data volumes**: Add integration test with 500-paper import to catch memory issues before production
 
 **Warning signs:**
-- Theme changes work on some components but not others in same container
-- Nested components flicker between light/dark when parent theme changes
-- Must apply `data-bs-theme` to every component individually (symptom of broken inheritance)
-- Tooltips, popovers, modals appear in wrong theme (they render outside parent in DOM)
+- "Select All" button exists but no batch size limit documented
+- No progress indicator for import operation
+- Memory usage spikes >1GB during abstract transfer
+- Shiny session disconnects with "lost connection to server"
+- RStudio session crashes during large import
 
 **Phase to address:**
-Phase 1 (Core Dark Mode Palette) — establish theme application at `<html>` level only. Phase 2 (Visual Consistency) — audit all nested components for correct inheritance.
+Phase 36 (Select-All Import) must implement batch size warning + paginated transfer or progress indicator before enabling select-all
 
 ---
 
-### Pitfall 6: Contrast Ratio Failures on Interactive States (Hover, Focus, Disabled)
+### Pitfall 6: .bib Import Referenced_Works Data Loss During OpenAlex Enrichment
 
 **What goes wrong:**
-Default light mode hover/focus states fail WCAG contrast requirements in dark mode. A button that has sufficient contrast in default state becomes unreadable on hover. Focus indicators are invisible. Disabled states blend into background. This breaks accessibility and keyboard navigation.
+User uploads .bib file with 50 papers. App extracts DOIs, queries OpenAlex API for full metadata to enrich venue/citation counts. During enrichment, some papers lack OpenAlex matches (not indexed, DOI mismatch, preprints). Code overwrites .bib metadata with NULL values from failed API lookups, losing author/title information that was in original .bib file.
 
 **Why it happens:**
-Developers test default state contrast but forget to test interactive states. Bootstrap's default hover/focus states darken colors, which works in light mode but fails in dark mode (darkening an already dark color reduces contrast). Focus rings that are dark blue on light backgrounds become invisible on dark backgrounds.
+BibTeX files often contain preprints, working papers, or gray literature not indexed in OpenAlex. The naive pattern is: parse .bib → extract DOI → `get_paper(doi)` → if NULL, skip or store NULL. This loses the .bib's author/title/year. Developers assume OpenAlex is canonical source without considering that .bib file *already contains* metadata—API is for *enrichment*, not *replacement*.
 
 **How to avoid:**
-- Test all interactive states (default, hover, focus, active, disabled) in both themes
-- Use color-contrast() Sass function to ensure hover states maintain 4.5:1 ratio minimum
-- For focus indicators, use contrasting accent color or glow effect, not just border darkening
-- Aim for 3:1 minimum contrast for focus indicators (WCAG 2.1 Success Criterion 1.4.11)
-- Use browser DevTools to force hover/focus states and check contrast
-- Consider outline instead of border for focus (outline doesn't affect layout)
+1. **Merge, don't replace**: Store .bib metadata first, then enrich with OpenAlex data—use coalesce pattern: `title = openalex$title %||% bib$title`
+2. **Mark enrichment status**: Add `openalex_enriched` boolean column—TRUE if API match found, FALSE if only .bib data available
+3. **Show enrichment stats**: After import, display "Imported 50 papers. 42 enriched with OpenAlex metadata. 8 from .bib only."
+4. **Preserve DOI even on API failure**: If OpenAlex lookup fails, keep DOI from .bib—user may want to manually look up later
+5. **Handle DOI format mismatches**: .bib files contain DOIs in various formats (full URL, doi: prefix, bare 10.xxxx)—normalize before OpenAlex lookup using `normalize_doi()` function
 
 **Warning signs:**
-- Focus ring disappears in dark mode
-- Hovered buttons are barely distinguishable from default state
-- Disabled inputs/buttons invisible against background
-- Color contrast checker passes for default state but fails on :hover/:focus pseudo-classes
-- Keyboard navigation difficult in dark mode (invisible focus)
+- Papers imported from .bib show "Unknown" author when .bib had author field
+- Citation counts are NULL for papers that should have them
+- Venue/year disappear after .bib import
+- Import log shows "50 papers parsed, 35 imported" with no explanation of missing 15
 
 **Phase to address:**
-Phase 2 (Visual Consistency) — audit all interactive elements for contrast in all states. Create component testing checklist.
-
----
-
-### Pitfall 7: Tooltip and Modal Z-Index Conflicts in Dark Mode
-
-**What goes wrong:**
-Tooltips appear behind modals. Popovers are cut off by parent containers. Dark mode overlays blend with dark backgrounds making modal backdrops invisible. Z-index stacking contexts break when custom positioned elements are introduced for dark mode styling.
-
-**Why it happens:**
-Bootstrap's z-index scale (modal-backdrop: 1050, modal: 1055, tooltip: 1080) assumes simple stacking. When you add custom positioned elements (absolute/fixed/relative) for dark mode styling, you create new stacking contexts. Elements with `position: relative` and `z-index: 1` can break tooltip rendering if they're parents of the trigger element.
-
-Additionally, Bootstrap renders tooltips/popovers in `<body>`, not inside their trigger's parent, so `data-bs-theme` applied to parent doesn't affect them.
-
-**How to avoid:**
-- Avoid `position: relative` with `z-index` on containers that have tooltips/popovers
-- If you must position elements, ensure z-index doesn't exceed Bootstrap's overlay range (< 1000)
-- Test tooltips/popovers inside: modals, positioned cards, fixed headers, scrollable containers
-- For modal backdrops in dark mode, use semi-transparent dark overlay: `rgba(0, 0, 0, 0.7)` not `rgba(0, 0, 0, 0.5)`
-- Ensure tooltips have proper theme by setting `data-bs-theme` on `<html>` not component level
-
-**Warning signs:**
-- Tooltips appear behind parent elements or modals
-- Popovers are clipped by `overflow: hidden` containers
-- Modal backdrop is nearly invisible in dark mode
-- Citation network tooltips overflow container boundary (documented in #79)
-- Tooltip theme doesn't match application theme
-
-**Phase to address:**
-Phase 2 (Visual Consistency) — fix known tooltip overflow issue (#79). Audit all positioned elements and z-index values.
+Phase 35 (.bib File Upload) must implement merge-not-replace pattern with enrichment status tracking
 
 ---
 
@@ -201,26 +170,27 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Using `!important` to override Bootstrap dark mode styles | Quick fix for specificity issues | Creates maintenance nightmare, harder to override later, indicates underlying specificity problem | Never — always fix specificity root cause |
-| Hardcoding colors instead of Bootstrap CSS variables | Faster than looking up variable names | Breaks dark mode, requires duplicate rules for light/dark, harder to rebrand | Never in production — only in prototyping if removed before merge |
-| Setting inline styles in Shiny UI functions | Easy to apply conditional colors in R code | Can't be overridden by CSS, breaks theme switching, creates inconsistency | Only for truly dynamic colors (e.g., data-driven node colors in graphs) |
-| Duplicating light/dark color values instead of using Sass variables | Works without understanding Sass | Difficult to maintain, colors drift out of sync, no single source of truth | MVP only — refactor before adding more themes |
-| Inverting all colors with CSS filter | Single line of CSS for instant dark mode | Breaks images, inverts logos, poor contrast, unprofessional appearance | Never for production — demo/prototype only |
-| Skipping contrast testing on interactive states | Default state passes, assume hover/focus are fine | Accessibility failures, keyboard nav breaks, WCAG violation | Never — interactive states are critical for a11y |
+| Sequential API calls in loop | Simple code—`lapply(dois, get_paper)` | Rate limits, poor UX, scales terribly | Only for single-paper lookups (existing use case) |
+| Silently skip malformed .bib entries | Avoids error handling, "works" for clean files | Users lose data without notification, mysterious partial imports | Never—always log skipped entries |
+| Load all selected abstracts into memory | Avoids pagination complexity | Crashes on >200 papers, poor UX | Only if hard-coded limit <100 papers with warning |
+| Generic "fix this YAML" retry prompt | Easy to implement | Infinite loops, high cost, low success rate | Never—use schema validation or specific error feedback |
+| Replace .bib metadata with NULL on API failure | Simpler merge logic | Data loss, user frustration | Never—.bib metadata is ground truth for unindexed papers |
+| No progress indicator for bulk operations | Fewer UI components | Users think app froze, kill process prematurely | Only for operations guaranteed <2 seconds |
+| R-based citation frequency counting | Familiar dplyr syntax | N+1 queries, doesn't scale past 1000 abstracts | Only for PoC or test—production must use SQL aggregation |
 
 ## Integration Gotchas
 
-Common mistakes when integrating dark mode with external libraries and widgets.
+Common mistakes when connecting to external services.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| visNetwork / vis.js | Relying on CSS background-color for canvas | Set `background` parameter in `visNetwork()` call + `htmlwidgets::onRender()` for theme detection |
-| ggplot2 plots | Using default `theme_gray()` with white background | Use `thematic::thematic_shiny()` for auto-theming or manual theme switching with `getCurrentOutputInfo()` |
-| DT DataTables | Assuming bslib theming extends to DataTables | DT uses separate theming system — must set `style = "bootstrap5"` and customize via `formatStyle()` |
-| Quarto slides | Expecting dark mode to carry over to exported slides | Slides are standalone HTML — must set reveal.js theme to dark explicitly in YAML header |
-| Plotly | Canvas rendering ignores CSS theme variables | Use `layout(paper_bgcolor, plot_bgcolor)` with conditional theme detection, not CSS |
-| Custom JavaScript widgets | Assuming they read CSS variables automatically | Pass theme colors as widget config parameters from R, use JS to read `data-bs-theme` attribute if needed |
-| Modal/popover content | Setting `data-bs-theme` on trigger element only | Bootstrap renders modals/popovers in `<body>` — set theme globally or on modal element itself |
+| OpenAlex API (bulk lookups) | Loop over `get_paper()` for each DOI | Use `filter=doi:A\|B\|C` with up to 50 DOIs per request |
+| OpenAlex rate limits | Assume "polite" per-thread limits work | Track req/sec *globally* across all threads, add 0.1s delays between batches |
+| OpenAlex cost budgeting | Ignore $1/day free tier limit | Track daily spend, show user cost estimate before bulk operations |
+| BibTeX parsing (R packages) | Use first parser found on CRAN | Test `bib2df`, `bibtex`, `rbibutils`, `RefManageR` with real-world messy .bib files |
+| BibTeX DOI extraction | Assume `doi` field always exists and is formatted | Regex search across all fields—DOIs appear in `url`, `note`, custom fields |
+| LLM YAML generation | Retry with same prompt on failure | Parse error, provide *specific* error in retry prompt (line number, expected format) |
+| DuckDB array aggregation | Read `referenced_works` in R, count in R | Use `UNNEST()` + `GROUP BY` in SQL—10-100x faster |
 
 ## Performance Traps
 
@@ -228,40 +198,58 @@ Patterns that work at small scale but fail as usage grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Regenerating all plots on theme change | UI freezes when toggling dark mode | Use `thematic::thematic_shiny()` for reactive theming or cache plot objects and only regenerate on data change | > 5 plots on page |
-| Re-rendering entire visNetwork on theme change | 1-2 second freeze, layout recalculation | Use `htmlwidgets::onRender()` to update only canvas background, preserve node positions | > 50 nodes |
-| Inline style injection for every themed element | Slow initial render, large HTML payload | Use CSS rules with `[data-bs-theme]` selectors, not inline styles | > 100 themed elements |
-| CSS filter inversion for dark mode | Entire page must repaint on theme toggle | Proper CSS variable approach with minimal repaints | Any page with animations |
-| Loading separate CSS bundles for light/dark | Flash of unstyled content (FOUC), double HTTP requests | Single CSS bundle with `[data-bs-theme]` selectors | Always a problem |
+| Sequential DOI lookups | Works fine with 5 DOIs | Batch OR queries, rate limiting | >20 DOIs (~20 seconds) |
+| In-memory abstract transfer | Fast with 10 papers | Paginated DB transfer or progress bar | >100 papers (~5MB) |
+| R-based citation counting | Instant with 50 abstracts | SQL `UNNEST()` + `GROUP BY` | >500 abstracts (~30s) |
+| Unbounded LLM retry loops | Fixes occasional YAML errors | Max 2 retries + template fallback | ~10% of generations, costs 5x |
+| No progress indicator | Fine for <2 second ops | Add ExtendedTask for >5 second ops | Any bulk operation >10 items |
+| Synchronous .bib parsing | 1-2 seconds for 50 entries | ExtendedTask for >100 entries | >200 entries (file reads block UI) |
+| Full metadata in reactive transfer | Negligible with 10 papers | Drop large columns (referenced_works, abstract) | >50 papers (3MB+ reactive value) |
+
+## Security Mistakes
+
+Domain-specific security issues beyond general web security.
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Execute arbitrary YAML from LLM | Code injection if YAML contains `!expr` tags | Parse YAML with safe loader—`yaml::yaml.load(handlers = list())` disables evaluation |
+| Trust DOI format from user input | SQL injection if DOI used in raw query | Use `normalize_doi()` + parameterized queries (existing code already safe via DBI placeholders) |
+| Store API keys in generated QMD files | Leakage if user shares slides | Never embed API keys in LLM prompts or outputs—use session-scoped keys |
+| Allow unlimited bulk API calls | User exhausts OpenAlex API key budget | Hard-limit bulk operations to 100 items per request + daily budget tracking |
+| Parse .bib with `eval()` or `source()` | Arbitrary R code execution | Use dedicated BibTeX parsers only (bib2df, rbibutils)—never eval .bib content |
 
 ## UX Pitfalls
 
-Common user experience mistakes in dark mode design.
+Common user experience mistakes in this domain.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No persistent theme preference | User must re-select dark mode every session | Use `input_dark_mode()` with localStorage persistence (built into bslib) |
-| Abrupt theme switching without transition | Jarring visual change, disorienting | Add CSS transition on root variables: `transition: background-color 0.2s, color 0.2s` |
-| No theme toggle discoverable in UI | Users don't realize dark mode exists | Place theme toggle in prominent location (navbar, settings, or use bslib's built-in toggle) |
-| Images/logos designed only for light backgrounds | Logo invisible in dark mode | Provide separate logo for dark mode or use transparent PNGs with proper contrast |
-| Pure white or pure black extremes | Eye strain, halation, harsh contrast | Use near-black (`#1e1e2e`) and off-white (`#e8e8e8`) for comfortable reading |
-| Insufficient testing of content in both themes | Screenshots, badges, embedded content break | Test all user-generated and external content in both themes |
-| Syntax highlighting breaks in dark mode | Code blocks unreadable with light theme colors | Use theme-aware syntax highlighting (e.g., Prism.js with dark theme) |
+| No feedback during bulk import | "App is frozen—refresh and lose progress" | Progress modal with "Fetching batch 2 of 8..." and cancel button |
+| Silent .bib parse failures | "Why are only 35 papers imported?" | Show diagnostic: "Parsed 35/50. 15 failed (see details)" with expandable error list |
+| No batch size warning | Users try to import 1000 papers, crash app | Modal warning if >100 items: "Large batch may take 1-2 minutes. Continue?" |
+| Rate limit errors shown raw | "HTTP 429: What does this mean?" | User-friendly message: "OpenAlex rate limit reached. Pausing for 10 seconds..." with auto-retry |
+| No partial results on cancel | User cancels 80% complete citation network, gets nothing | Save partial results before cancellation—show "Saved 234 of ~300 papers. Resume or use partial?" |
+| Citation audit takes 30s with no indicator | "App froze again" | Progress bar + estimated time remaining OR run in ExtendedTask with notification |
+| Slide YAML errors shown as LLM output | "What is YAML? I just wanted slides" | Catch YAML errors, use template fallback, show user-friendly message: "Generated slides with default theme" |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Dark mode toggle exists:** Often missing localStorage persistence — verify theme survives page reload
-- [ ] **Components are dark:** Often missing proper color variables — verify Bootstrap variables used, not hardcoded colors
-- [ ] **Interactive states work:** Often missing hover/focus contrast — verify all states meet WCAG 2.1 standards in both themes
-- [ ] **Canvas widgets are themed:** Often missing programmatic background setting — verify visNetwork, plotly have explicit background colors
-- [ ] **Custom CSS respects theme:** Often missing `[data-bs-theme]` selectors — verify no light mode colors "stick" in dark mode
-- [ ] **Focus indicators visible:** Often missing contrast testing — verify focus rings meet 3:1 ratio in dark mode
-- [ ] **Modals and tooltips themed:** Often missing because rendered outside component tree — verify global theme applies correctly
-- [ ] **Plot outputs match theme:** Often missing thematic integration — verify ggplot2/base R plots adapt to dark mode
-- [ ] **Disabled states visible:** Often missing sufficient contrast — verify disabled inputs don't disappear in dark mode
-- [ ] **Logos and images adapt:** Often missing dark mode variants — verify brand assets work on dark backgrounds
+- [ ] **Bulk DOI import:** Often missing rate limiting—verify API calls batched (50/request) and delayed (0.1s between batches)
+- [ ] **Bulk DOI import:** Often missing cost estimation—verify user sees "$0.15 estimated cost for 200 papers. Continue?"
+- [ ] **Bulk DOI import:** Often missing partial results—verify first 50 papers saved even if request 51 fails
+- [ ] **.bib upload:** Often missing malformed entry handling—verify per-entry try-catch with diagnostic output
+- [ ] **.bib upload:** Often missing DOI normalization—verify `normalize_doi()` called on extracted DOIs before OpenAlex lookup
+- [ ] **.bib upload:** Often missing metadata merge—verify .bib data preserved when OpenAlex lookup fails (author/title not NULL)
+- [ ] **Citation audit:** Often missing SQL optimization—verify single `UNNEST()` + `GROUP BY` query, not R loop
+- [ ] **Citation audit:** Often missing progress indicator—verify ExtendedTask used if >500 abstracts expected
+- [ ] **Select-all import:** Often missing batch size warning—verify modal shown if >100 papers selected
+- [ ] **Select-all import:** Often missing memory test—verify 500-paper import tested without crash
+- [ ] **Slide prompt healing:** Often missing retry limit—verify max 2 retries before template fallback
+- [ ] **Slide prompt healing:** Often missing specific error feedback—verify YAML parser errors sent to LLM with line numbers
+- [ ] **Slide prompt healing:** Often missing cost tracking—verify healing retries logged to cost_log table
+- [ ] **All bulk operations:** Often missing ExtendedTask—verify operations >5 seconds use ExtendedTask + progress + cancel
 
 ## Recovery Strategies
 
@@ -269,15 +257,13 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| CSS specificity war with Bootstrap | LOW | Use DevTools to identify conflicting rule → add `[data-bs-theme]` selector → replace hardcoded color with CSS variable |
-| Canvas widget ignores dark mode | LOW | Add `background` parameter to widget function → test in both themes → consider `htmlwidgets::onRender()` if dynamic needed |
-| Pure black/white causing eye strain | LOW | Replace `#000000` → `#1e1e2e`, `#ffffff` → `#e8e8e8` in CSS variables → propagates through entire theme |
-| Hardcoded plot colors | MEDIUM | Install `thematic` package → add `thematic::thematic_shiny()` to app initialization → test all plot outputs |
-| Interactive state contrast failures | MEDIUM | Audit all buttons/inputs/links with DevTools → add dark mode hover/focus rules → test with keyboard navigation |
-| Scoped theme inheritance broken | MEDIUM | Move `data-bs-theme` to `<html>` → remove component-level theme attributes → test nested layouts |
-| Z-index conflicts | MEDIUM | Audit all `position` and `z-index` rules → remove unnecessary positioning → test tooltips in modals |
-| No theme persistence | LOW | Ensure `input_dark_mode()` is used (includes localStorage by default) → verify browser localStorage not disabled |
-| Entire UI needs dark mode retrofit | HIGH | Phase 1: Core palette + canvas widgets → Phase 2: Interactive states + nested components → Phase 3: Content testing |
+| Rate limit cascade | LOW | 1. Detect 429 error 2. Save partial results 3. Show "Paused—rate limited. Resuming in 10s..." 4. Exponential backoff retry |
+| .bib parse failure | MEDIUM | 1. Catch parse error 2. Use regex to extract DOIs from unparsed text 3. Query OpenAlex with DOIs only 4. Show "Imported X papers via DOI recovery" |
+| Citation audit timeout | LOW | 1. Cancel long-running query 2. Switch to TOP N approach (`LIMIT 20`) 3. Show "Showing top 20 cited papers (fast mode)" |
+| LLM YAML infinite loop | LOW | 1. Detect 2+ retries with same error 2. Fall back to template 3. Log incident 4. Show "Generated with default formatting" |
+| Memory crash on select-all | HIGH | 1. Session lost—can't recover 2. On restart, show "Previous import failed. Try smaller batch (<100 papers)" 3. Add batch limit in code |
+| OpenAlex budget exhaustion | MEDIUM | 1. Detect 429 with budget message 2. Save progress 3. Show "Daily budget reached. Resume tomorrow or add API credit" 4. Cache results to avoid re-query |
+| Partial .bib metadata loss | HIGH | 1. Data already overwritten—can't recover 2. User must re-upload .bib 3. Fix: Implement merge-not-replace before launch |
 
 ## Pitfall-to-Phase Mapping
 
@@ -285,55 +271,53 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Canvas elements ignore CSS | Phase 1: Core Dark Mode Palette | Test visNetwork citation network background in both themes, no white flash |
-| CSS specificity wars | Phase 1: Core Dark Mode Palette | DevTools audit shows no hardcoded colors overriding Bootstrap variables |
-| Pure black eye strain | Phase 1: Core Dark Mode Palette | All backgrounds use `#1e1e2e` range, no `#000000` in CSS or Bootstrap config |
-| Hardcoded R plot colors | Phase 1: Core Dark Mode Palette | If plots exist: `thematic` integrated, plots match theme automatically |
-| Scoped theme inheritance | Phase 1: Core Dark Mode Palette | `data-bs-theme` only on `<html>`, no component-level theme attributes |
-| Interactive state contrast | Phase 2: Visual Consistency | All buttons/inputs tested with keyboard nav, focus visible in dark mode, WCAG 2.1 compliant |
-| Z-index conflicts | Phase 2: Visual Consistency | Tooltip overflow (#79) fixed, modals tested with tooltips, no stacking issues |
-| Theme toggle UX | Phase 2: Visual Consistency | `input_dark_mode()` visible in navbar, theme persists across sessions |
-| Images/logos don't adapt | Phase 2: Visual Consistency | Favicon and brand assets work on both backgrounds |
-| Missing content testing | Phase 3: Polish & Testing | All synthesis outputs, exported slides, BibTeX, HTML tested in both themes |
+| Rate limit cascade | Phase 34 (Bulk DOI Upload) | Load test: Import 100 DOIs in <20 seconds without 429 errors |
+| .bib parse failure | Phase 35 (.bib Upload) | Test with 5 malformed .bib files—verify diagnostic output shows skipped entries |
+| SQL N+1 explosion | Phase 33 (Citation Audit) | Benchmark: 1000 abstracts audit completes in <5 seconds using single SQL query |
+| YAML healing loops | Phase 37 (Slide Healing) | Test: Force YAML error—verify max 2 retries + fallback, total time <30s |
+| Memory explosion | Phase 36 (Select-All Import) | Test: Import 500 papers—verify no crash, progress indicator shown |
+| Metadata loss on enrichment | Phase 35 (.bib Upload) | Test: Upload .bib with 3 unindexed papers—verify author/title preserved after OpenAlex lookup fails |
+| No progress on bulk ops | All bulk operation phases (33-36) | UX review: All operations >5s must have progress indicator or ExtendedTask |
 
 ## Sources
 
-**Official Documentation:**
-- [bslib Theming Guide](https://rstudio.github.io/bslib/articles/theming/index.html) — HIGH confidence
-- [Bootstrap 5.3 Color Modes](https://getbootstrap.com/docs/5.3/customize/color-modes/) — HIGH confidence
-- [Bootstrap 5.3 CSS Variables](https://getbootstrap.com/docs/5.3/customize/css-variables/) — HIGH confidence
-- [Bootstrap 5.3 Z-Index](https://getbootstrap.com/docs/5.3/utilities/z-index/) — HIGH confidence
-- [Shiny for R 1.8.0: Dark Mode](https://shiny.posit.co/blog/posts/shiny-r-1.8.0/) — HIGH confidence
-- [thematic Auto-Theming](https://rstudio.github.io/thematic/articles/auto.html) — HIGH confidence
-- [visNetwork Documentation](https://cran.r-project.org/web/packages/visNetwork/visNetwork.pdf) — HIGH confidence
+**OpenAlex API Documentation & Best Practices:**
+- [Rate limits and authentication | OpenAlex technical documentation](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication) — Rate limit requirements (100 req/sec, $1/day free tier) and batching guidelines
+- [API Guide for LLMs | OpenAlex technical documentation](https://docs.openalex.org/api-guide-for-llms) — Batch query syntax with 50 DOIs per request using OR filters
+- [Performance and optimization • openalexR](https://docs.ropensci.org/openalexR/articles/performance-optimization.html) — R-specific optimization patterns for OpenAlex API
 
-**Accessibility Standards:**
-- [WebAIM Contrast Guide](https://webaim.org/articles/contrast/) — HIGH confidence
-- [WCAG 2.1 Contrast Minimum](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html) — HIGH confidence
-- [WCAG 2.1 Non-text Contrast](https://www.w3.org/WAI/WCAG21/Understanding/non-text-contrast.html) — HIGH confidence
+**BibTeX Parsing Edge Cases:**
+- [bibtex-parsing edge cases · Issue #73 · citation-js/citation-js](https://github.com/citation-js/citation-js/issues/73) — Valid but unusual BibTeX entries (missing keys, arbitrary types)
+- [Building an AI Review Article Writer: Bibliography Management and Validation](https://reckoning.dev/posts/ai-review-writer-07-bibliography) — Real-world BibTeX irregularities and handling strategies
+- [Parsing BibTeX in Racket and generating S-Expressions, JSON, XML and BibTeX](https://matt.might.net/articles/parsing-bibtex/) — Nested braces and string literal tokenization rules
+- [rOpenSci | A Roundup of R Tools for Handling BibTeX](https://ropensci.org/blog/2020/05/07/rmd-citations/) — Comparison of R BibTeX parsers (bib2df, bibtex, RefManageR, rbibutils)
+- [Package 'rbibutils' January 21, 2026](https://cran.r-project.org/web/packages/rbibutils/rbibutils.pdf) — Most recent R BibTeX parser based on tolerant btparse C library
 
-**Dark Mode Best Practices:**
-- [Color Contrast Accessibility Guide 2025](https://www.allaccessible.org/blog/color-contrast-accessibility-wcag-guide-2025) — MEDIUM confidence
-- [Dark Mode Accessibility Guide](https://www.accessibilitychecker.org/blog/dark-mode-accessibility/) — MEDIUM confidence
-- [Dark Mode Charts Best Practices 2026](https://www.cleanchart.app/blog/dark-mode-charts) — MEDIUM confidence
-- [BrowserStack Dark Mode Testing](https://www.browserstack.com/guide/how-to-test-apps-in-dark-mode) — MEDIUM confidence
+**R Shiny Memory & Performance:**
+- [File upload taking a very long time using shiny 1.3.2 · Issue #2471 · rstudio/shiny](https://github.com/rstudio/shiny/issues/2471) — File upload performance issues with large files
+- [Uploading large files fails - ShinyProxy](https://support.openanalytics.eu/t/uploading-large-files-fails/731) — Default 5MB limit and `shiny.maxRequestSize` configuration
+- [ExtendedTask: Task or computation that proceeds in the background • shiny](https://rstudio.github.io/shiny/reference/ExtendedTask.html) — Non-blocking async operations for long-running tasks
+- [Progress indicators | Shiny](https://shiny.posit.co/r/articles/build/progress/) — Progress bars for user feedback during long operations
 
-**CSS Variables and Cascade:**
-- [Dark Mode and CSS Variables](https://betterprogramming.pub/dark-mode-and-css-variables-ed6dc250232c) — MEDIUM confidence
-- [CSS Custom Properties Complete Guide](https://devtoolbox.dedyn.io/blog/css-variables-complete-guide) — MEDIUM confidence
-- [MDN CSS Custom Properties](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_cascading_variables/Using_CSS_custom_properties) — HIGH confidence
+**LLM Structured Output & Validation:**
+- [LLM Infinite Loops In LLM Entity Extraction – The GDELT Project](https://blog.gdeltproject.org/llm-infinite-loops-in-llm-entity-extraction-when-temperature-basic-prompt-engineering-cant-fix-things/) — Temperature=0 creates deterministic loops, failure mode analysis
+- [Prompt Learning Loops Define the Next Generation of LLM Reliability](https://www.startuphub.ai/ai-news/ai-video/2026/prompt-learning-loops-define-the-next-generation-of-llm-reliability/) — 2026 trends: continuous validation and adaptive iteration to prevent prompt degradation
+- [Implementing Retry Mechanisms for LLM Calls](https://apxml.com/courses/prompt-engineering-llm-application-development/chapter-7-output-parsing-validation-reliability/implementing-retry-mechanisms) — Best practices: validate → retry 1-2 times → escalate, limit retries to prevent infinite loops
+- [LLM Structured Outputs: Schema Validation for Real Pipelines | Collin Wilkins](https://collinwilkins.com/articles/structured-output) — Schema-first development with Pydantic/Zod for 100% compliance
+- [PydanticAI: Validation and Reliability in LLM Applications](https://bix-tech.com/pydanticai-validation-and-reliability-in-llm-applications-without-the-headaches/) — Advanced error feedback loops with specific validation messages
 
-**Project-Specific Issues:**
-- `.planning/todos/pending/2026-02-13-fix-citation-network-background-color-blending.md` — Known visNetwork dark mode issue in Serapeum
-- `www/custom.css` lines 10-12 — Current dark mode implementation for citation network
-- GitHub Issue #79 — Tooltip overflow in citation network
-- GitHub Issue #89 — Citation network background color blending
+**DuckDB Performance:**
+- [Optimizing DuckDB Memory Limits for Aggregation](https://www.technetexperts.com/duckdb-memory-tuning-large-aggregations/) — Memory requirements for aggregation-heavy workloads (1-2 GB per thread)
+- [DuckDB Performance: Querying Large Datasets on a Single Machine](https://motherduck.com/duckdb-book-summary-chapter10/) — Columnar-vectorized execution, 10-100x faster than SQLite for aggregations
+- [Tuning Workloads – DuckDB](https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads) — DuckDB can't yet offload complex intermediate aggregate states to disk—may OOM on very large datasets
+- [DuckDB Ecosystem Newsletter – February 2026](https://motherduck.com/blog/duckdb-ecosystem-newsletter-february-2026/) — Recent 2026 performance improvements and extensions
 
-**Community Resources:**
-- [Passing CSS Theme to Canvas (Aaron Gustafson)](https://www.aaron-gustafson.com/notebook/passing-your-css-theme-to-canvas/) — LOW confidence (general canvas theming)
-- [ggdark Package](https://github.com/nsgrantham/ggdark) — MEDIUM confidence (specific to ggplot2)
-- [Bootstrap GitHub Issue #38973](https://github.com/twbs/bootstrap/issues/38973) — MEDIUM confidence (data-bs-theme behavior differences)
+**Existing Serapeum Code:**
+- `R/api_openalex.R` (lines 252, 498-568) — `referenced_works` array storage, existing `get_paper()` and `get_citing_papers()` functions
+- `R/slides.R` (lines 101-196) — Existing YAML injection functions (`inject_theme_to_qmd`, `inject_citation_css`) that assume correct structure
+- `R/citation_network.R` (lines 1-150) — Existing BFS citation network with `interrupt_flag` and `progress_callback` patterns
+- `R/db.R` (lines 60-76) — Abstracts table schema with `referenced_works` column (TEXT array)
 
 ---
-*Pitfalls research for: Dark Mode Redesign in R/Shiny/bslib Applications*
-*Researched: 2026-02-22*
+*Pitfalls research for: Citation Audit, Bulk Import, .bib Parsing, Prompt Healing*
+*Researched: 2026-02-25*

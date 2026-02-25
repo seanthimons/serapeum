@@ -1,343 +1,237 @@
-# Feature Landscape: Dark Mode Palette Redesign & UI Polish
+# Feature Research
 
-**Domain:** Dark mode theming and UI consistency for Bootstrap 5 / bslib R/Shiny apps
-**Researched:** 2026-02-22
+**Domain:** Academic Research Assistant — Citation Audit, Bulk Import, and Slide Generation Workflows
+**Researched:** 2026-02-25
+**Confidence:** MEDIUM
 
-## Table Stakes
+## Feature Landscape
 
-Features users expect. Missing = dark mode feels broken or unprofessional.
+### Table Stakes (Users Expect These)
+
+Features users assume exist. Missing these = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| WCAG AA contrast ratios (4.5:1 normal, 3:1 large text) | Accessibility baseline — dark mode cannot be inaccessible | Low | bslib handles most of this automatically; verify custom overrides |
-| Dark gray (not pure black) backgrounds | Pure black (#000) causes eye strain and halation; industry standard is #121212 or similar | Low | bslib's `bg` parameter in `bs_theme()` |
-| Desaturated accent colors | Saturated colors vibrate against dark backgrounds | Low | Reduce saturation ~20 points vs light mode |
-| Semantic color consistency | success/danger/warning/info must remain recognizable | Low | Bootstrap semantic variables already adapt; verify custom styles |
-| Elevated surfaces use lighter shades | Light mode uses shadows for depth; dark mode uses lighter surface colors | Medium | Bootstrap CSS variables for card/modal backgrounds need testing |
-| Readable text contrast | Body text, links, disabled states must all be readable | Low | Test with WCAG contrast checker |
-| Borders for visual separation | Shadows disappear in dark mode; subtle borders replace them | Low | Use semi-transparent borders (e.g., rgba(255,255,255,0.1)) |
-| Component coverage | All components (cards, buttons, forms, modals, toasts, badges) render correctly | Medium | Bootstrap handles most; test custom components like visNetwork graphs |
-| Consistent spacing and typography | Same spatial rhythm and typographic scale as light mode | Low | No changes needed; verify no regressions |
-| Icons remain visible | Icon colors must adapt to dark backgrounds | Low | Fontawesome/bsicons should inherit text color; verify custom SVGs |
+| Bulk DOI import with validation | Standard in all modern reference managers (Zotero, Mendeley, Paperpile) — users expect paste-list-and-import | MEDIUM | Requires DOI validation (10.xxxx/yyyy format), OpenAlex API batch lookup, duplicate detection, error handling for invalid DOIs |
+| BibTeX file upload | Universal interchange format for academic tools — expected for library migration and external tool integration | LOW | Parse .bib files, extract DOIs, handle missing fields gracefully, validate structure |
+| Select-all with batch operations | Standard interface pattern across research tools — users expect efficient multi-paper workflows | LOW | Checkbox pattern with "Select All" toggle, batch actions (import to notebook, export, remove), clear visual feedback |
+| Citation frequency analysis | Core citation audit methodology — identifying papers cited >5 times is standard practice for finding seminal works | MEDIUM | Count references across papers in collection, rank by frequency, filter by threshold (common: 3-5 citations minimum) |
+| Backward citation tracking | Fundamental research discovery method used in systematic reviews ("snowballing", "citation chasing") | MEDIUM | Already have citation network BFS — extend to identify papers cited by multiple sources but not in collection |
+| Output format validation | Users expect generated content (slides, exports) to render correctly without manual fixing | MEDIUM | Validate LaTeX/Markdown syntax, handle escaping, catch malformed output before presentation |
 
-## Differentiators
+### Differentiators (Competitive Advantage)
 
-Features that set dark mode apart. Not expected, but valued.
+Features that set the product apart. Not required, but valuable.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Per-session theme persistence | User's choice remembered within session | Low | Bootstrap `data-bs-theme` + sessionStorage (not bslib built-in) |
-| Smooth theme transitions | Fade between light/dark instead of instant flip | Low | CSS transitions on root color variables |
-| Component-specific overrides | Specialized dark styles for visNetwork canvas, code blocks, etc. | Medium | visNetwork background can be set via options; syntax highlighting needs care |
-| Comfortable contrast (not just compliant) | Go beyond 4.5:1 minimum for primary text (aim for 7:1 for body copy) | Low | bslib defaults likely already good; verify with testing |
-| Intentional color palette | Not just inverted colors — purpose-built dark palette | Medium | Requires design decisions for primary/secondary/accent colors |
-| Dark mode-specific imagery | Adjust logo contrast or icon brightness for dark backgrounds | Low-Medium | May need alternative assets for branding |
-| Glow effects for interactive elements | Subtle glows replace shadows on hover/focus states | Low | CSS box-shadow with light semi-transparent color |
-| Reduced motion support | Respect `prefers-reduced-motion` for theme transitions | Low | Good accessibility practice |
+| Citation gap detection with recommendations | Most tools show what you have — showing what you're MISSING (frequently-cited papers not in collection) is unique insight | MEDIUM | Analyze reference lists across papers, identify papers cited ≥N times that aren't in collection, provide one-click "Add to search" action |
+| BibTeX for network seeding | Most tools import for citation management — using .bib as seed for citation network exploration is novel workflow | LOW | Parse .bib → extract DOIs → seed existing citation network builder, leverages existing infrastructure |
+| Prompt healing for slides | Most tools require manual fixing of malformed LLM output — auto-detection and correction is quality-of-life win | HIGH | Detect LaTeX syntax errors, unmatched delimiters, broken Markdown, trigger self-correction with feedback, validate before display |
+| Local-first citation audit | Cloud tools (Litmaps, Connected Papers, Scite) require upload/sync — local analysis on user's collection is privacy win | LOW | Leverage existing DuckDB infrastructure, no external API calls for audit analysis |
+| Multi-level backward citation mining | First-level ("what cited these papers?") is common — second-level ("what did THOSE cite?") is advanced discovery | MEDIUM | Extend BFS to track citation depth, identify papers at depth=2+ not in collection, prevent exponential explosion |
 
-## Anti-Features
+### Anti-Features (Commonly Requested, Often Problematic)
 
-Features to explicitly NOT build.
+Features that seem good but create problems.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Pure color inversion | Results in illegible images, broken icons, harsh contrast | Design purpose-built dark palette with desaturated colors |
-| Auto-switching based on time of day | Annoying when user has preference; not what bslib/Bootstrap support | Use system preference (`prefers-color-scheme`) or manual toggle |
-| Multiple dark theme variants | Adds complexity without clear value for this app | One well-designed dark theme |
-| Dark mode-only features | Creates inconsistency between modes | All features available in both modes |
-| Overly bright accent colors | Cause eye strain and vibration on dark backgrounds | Desaturate and slightly darken accent colors |
-| Ignoring existing `input_dark_mode()` | bslib provides built-in toggle — reinventing it adds maintenance burden | Use `input_dark_mode()` from bslib if toggle needed |
-| Per-component theme overrides in app code | Data attributes scattered everywhere become maintenance nightmare | Global theme via `bs_theme()`, component overrides only for edge cases |
-| Aggressive shadows in dark mode | Don't work visually; blend into background or look out of place | Use elevation via lighter surface colors and subtle borders |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Automatic slide healing on every generation | "Why not fix it automatically every time?" | Self-correction without external feedback has low success rates (2024 research: works only with reliable external tools), adds latency to every generation, can fail silently and corrupt valid output | Manual trigger ("Regenerate Slides" button) when user detects issue — keeps generation fast, user controls when to apply expensive correction |
+| Recursive citation import (auto-import everything cited) | "Just grab all references automatically" | Exponential explosion (100 papers × 30 refs each = 3000 papers), loses intentionality in research process, contradicts local-first philosophy (massive API load) | Citation gap detection with manual selection — user sees what's missing, decides what to add |
+| Cross-collection citation analysis | "Find gaps across all my notebooks" | Contradicts per-notebook isolation architecture, expensive computation on large collections, unclear UX for results spanning multiple contexts | Per-notebook citation audit — maintains architectural boundaries, keeps scope manageable |
+| Real-time citation gap updates | "Update gap list as I add papers" | Reactive storm on large collections (recalculate on every paper add), premature optimization (users don't need instant updates during bulk import) | Explicit "Run Citation Audit" button — user controls when to recompute, batches analysis after bulk operations |
 
 ## Feature Dependencies
 
 ```
-WCAG contrast ratios → Readable text contrast
-Dark gray backgrounds → Elevated surfaces use lighter shades
-Borders for visual separation → Component coverage (borders must work on all components)
-Semantic color consistency → Desaturated accent colors (semantic colors need desaturation too)
-Intentional color palette → All table stakes features (palette drives everything else)
+[BibTeX file upload]
+    └──requires──> [DOI extraction logic]
+                       └──requires──> [OpenAlex DOI lookup]
+
+[Citation gap detection]
+    └──requires──> [Citation frequency analysis]
+                       └──requires──> [Reference list parsing from abstracts]
+
+[Bulk DOI import] ──enhances──> [Citation gap detection] (import missing papers directly)
+
+[BibTeX for network seeding] ──reuses──> [Citation network builder] (existing infrastructure)
+
+[Select-all batch operations] ──enables──> [Bulk DOI import] (UI pattern for triggering import)
+
+[Prompt healing] ──standalone──> [No dependencies on other v7.0 features]
+
+[Multi-level backward citation mining] ──conflicts──> [Local-first philosophy] (requires exponential API calls)
 ```
 
-## MVP Recommendation
+### Dependency Notes
 
-**Prioritize:**
+- **Citation gap detection requires Citation frequency analysis:** Must count references before identifying gaps — frequency analysis is the foundation.
+- **Bulk DOI import requires DOI extraction logic:** BibTeX files don't always have DOI fields — need fallback to title+author matching or skip gracefully.
+- **BibTeX for network seeding reuses Citation network builder:** Existing BFS traversal and graph visualization infrastructure — just need new entry point from .bib file.
+- **Prompt healing standalone:** Operates on generated output independent of other features — can ship separately.
+- **Multi-level backward citation conflicts with Local-first philosophy:** Depth-2 citation mining requires API calls for papers not in collection — violates privacy and can exhaust API quotas. Keep to depth-1 (analyze only what's already collected).
 
-1. **Intentional color palette** — Define bg, fg, primary, secondary, success, danger, warning, info with proper desaturation and contrast
-   - Use bslib's `bs_theme()` with custom colors
-   - Test with WCAG contrast checker
-   - Document hex values and rationale
+## MVP Definition
 
-2. **Component coverage validation** — Test all existing components in new dark mode
-   - Cards, buttons, forms, modals, toasts, badges
-   - visNetwork citation graphs (set canvas background)
-   - Syntax highlighting in code blocks (if applicable)
-   - Year range slider histogram
-   - Toast notifications
-   - Settings page two-column layout
+### Launch With (v7.0)
 
-3. **Borders for visual separation** — Replace shadow-based depth with borders
-   - Semi-transparent borders on cards
-   - Subtle dividers between sections
-   - Elevated modal/dropdown borders
+Minimum viable product — what's needed to validate the concepts.
 
-4. **UI consistency audit** — Fix spacing, typography, and visual hierarchy issues in both modes
-   - Verify 8pt spatial grid adherence
-   - Check line-height consistency (140-180%)
-   - Ensure interactive states (hover, focus, disabled) are clear
-   - Test tooltip overflow (#79 already in backlog)
-   - Validate citation network background color (#89 already in backlog)
+- [x] **Citation frequency analysis** — Core functionality for identifying seminal works, foundation for gap detection
+- [x] **Citation gap detection** — The key differentiator, shows what's missing vs what exists
+- [x] **Bulk DOI import** — Table stakes for efficient workflows, unlocks import of identified gaps
+- [x] **Select-all batch operations** — Required UI pattern for bulk actions (import, export, remove)
+- [x] **BibTeX file upload** — Table stakes for tool interoperability, enables migration from other tools
 
-**Defer:**
+### Add After Validation (v7.x)
 
-- **Per-session persistence** — User can toggle each session; low friction to defer
-- **Smooth transitions** — Polish, not essential; can add after core palette works
-- **Dark mode-specific imagery** — Only if logo/branding looks bad; test first
-- **Glow effects** — Nice-to-have; standard focus rings work fine
+Features to add once core citation audit workflow is validated.
 
-## Implementation Approach
+- [ ] **Prompt healing for slides** — Quality-of-life improvement, ships after validating user actually experiences format issues (may be rare in practice)
+- [ ] **BibTeX for network seeding** — Novel workflow, validate citation audit first before adding network integration
+- [ ] **Export citation gaps as BibTeX** — Convenience feature, add if users request exporting gap lists for import elsewhere
+- [ ] **Citation gap thresholds** — Allow users to configure minimum citation frequency (default: 3) for gap detection
 
-### Phase 1: Define Dark Palette (Low complexity, 2-4 hours)
+### Future Consideration (v8+)
 
-**Inputs needed:**
-- Current light mode theme inspection (read from app.R or theme file)
-- Brand color requirements (if any)
-- WCAG contrast validation tool
+Features to defer until citation audit is proven valuable.
 
-**Outputs:**
-```r
-dark_theme <- bs_theme(
-  version = 5,
-  bg = "#1a1a1a",           # Dark gray, not pure black
-  fg = "#e0e0e0",           # Light gray text
-  primary = "#[desaturated primary]",
-  secondary = "#[desaturated secondary]",
-  success = "#[desaturated green]",
-  danger = "#[desaturated red]",
-  warning = "#[desaturated yellow]",
-  info = "#[desaturated cyan]",
-  base_font = font_google("Inter"),  # or current font
-  code_font = font_google("JetBrains Mono")
-)
-```
+- [ ] **Multi-level backward citation mining (depth=2)** — Advanced discovery, requires API quota management and careful UX to prevent runaway exploration
+- [ ] **Citation context analysis** — Identify HOW papers cite each other (supporting, contrasting, mentioning) like Scite — requires full-text PDF analysis, not just abstracts
+- [ ] **Temporal citation trends** — Show when papers were cited (recent vs historical) to distinguish current relevance from historical importance
+- [ ] **Journal impact weighting** — Weight citation frequency by source journal quality (papers cited by Nature > predatory journals)
 
-**Dependencies:**
-- Access to bslib package (already in project)
-- WCAG contrast checker (WebAIM, browser DevTools)
+## Feature Prioritization Matrix
 
-**Validation:**
-- Test all semantic colors against dark bg (4.5:1 minimum for normal text)
-- Verify fg against bg (aim for 7:1+ for body copy)
-- Check desaturation (~20 points lower than light mode)
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Citation frequency analysis | HIGH | MEDIUM | P1 |
+| Citation gap detection | HIGH | MEDIUM | P1 |
+| Bulk DOI import | HIGH | MEDIUM | P1 |
+| Select-all batch operations | HIGH | LOW | P1 |
+| BibTeX file upload | HIGH | LOW | P1 |
+| Prompt healing for slides | MEDIUM | HIGH | P2 |
+| BibTeX for network seeding | MEDIUM | LOW | P2 |
+| Export citation gaps as BibTeX | LOW | LOW | P2 |
+| Citation gap thresholds | LOW | LOW | P3 |
+| Multi-level backward citation mining | HIGH | HIGH | P3 |
+| Citation context analysis | HIGH | HIGH | P3 |
+| Temporal citation trends | MEDIUM | MEDIUM | P3 |
+| Journal impact weighting | MEDIUM | HIGH | P3 |
 
----
+**Priority key:**
+- P1: Must have for v7.0 launch (core citation audit + bulk import workflows)
+- P2: Should have, add in v7.x if validated (prompt healing, network integration)
+- P3: Nice to have, defer to v8+ (advanced analysis requiring significant infrastructure)
 
-### Phase 2: Component Testing & Fixes (Medium complexity, 4-8 hours)
+## Competitor Feature Analysis
 
-**Components to validate:**
-1. **Navigation** — Sidebar, navbar, active states
-2. **Cards** — Search results, abstract previews, settings sections
-3. **Forms** — Input fields, selects, checkboxes, sliders
-4. **Buttons** — Primary, secondary, danger, disabled states
-5. **Modals** — Progress modal, confirmation dialogs
-6. **Toasts** — Success, error, info notifications
-7. **Badges** — OA badges, document type badges, predatory journal warnings
-8. **Tables** — Cost history table (if visible in dark mode)
-9. **visNetwork graphs** — Citation network canvas background
-10. **Year range slider** — Histogram bars, slider track
+| Feature | Litmaps | Connected Papers | Scite | Serapeum v7.0 |
+|---------|---------|------------------|-------|---------------|
+| Citation network visualization | ✓ Force-directed graph | ✓ Similarity-based layout | ✓ Network view | ✓ BFS-based graph (shipped v2.0) |
+| Citation gap detection | ✓ "Find research gaps" | ✗ No gap detection | ✗ No gap detection | ✓ Frequency-based gap analysis |
+| Bulk DOI import | ✓ Paste DOI list | ✓ Import seed list | ✓ Import references | ✓ Paste DOI list with validation |
+| BibTeX import | ✓ Upload .bib | ✓ Upload .bib | ✓ Upload .bib | ✓ Upload .bib for import/seeding |
+| Citation context (supporting/contrasting) | ✗ No context | ✗ No context | ✓ Smart Citations (supports/contrasts/mentions) | ✗ Defer to v8+ (requires full-text) |
+| Local-first (no upload) | ✗ Cloud-based | ✗ Cloud-based | ✗ Cloud-based | ✓ All analysis runs locally |
+| Select-all batch operations | ✓ Multi-select | ✓ Multi-select | ✓ Multi-select | ✓ Select-all checkbox pattern |
+| Slide generation from research | ✗ No slide gen | ✗ No slide gen | ✗ No slide gen | ✓ Quarto slides (shipped v1.0), healing in v7.x |
 
-**Fixes needed:**
-- Add `background` parameter to visNetwork options for dark canvas
-- Test Bootstrap card borders (may need `border-color` override)
-- Verify form input borders visible (Bootstrap should handle this)
-- Check disabled button contrast (common dark mode pitfall)
+**Key Insights:**
 
-**Edge cases:**
-- visNetwork requires explicit background color option (not automatic from bslib)
-- Tooltip overflow (#79) may be more visible in dark mode
-- Citation network year filter histogram bars need color testing
+- **Citation gap detection is a differentiator:** Litmaps has it, but Connected Papers and Scite don't — this is a valuable feature that sets tools apart.
+- **Local-first is unique:** All major competitors are cloud-based — Serapeum's local analysis is a privacy/control advantage.
+- **Citation context requires full-text:** Scite's Smart Citations are powerful but require analyzing full paper text, not just abstracts — defer to future when PDF pipeline is ready (#44).
+- **Slide generation is unique:** No competitor offers presentation generation — Serapeum already has this differentiator (v1.0), prompt healing extends it.
 
----
+## Implementation Complexity Notes
 
-### Phase 3: Borders & Elevation (Low-Medium complexity, 2-4 hours)
+### Citation Frequency Analysis (MEDIUM)
+- Parse `referenced_works` field from OpenAlex abstracts (already stored in DuckDB)
+- Extract DOI from each reference URL (`https://openalex.org/W12345` → need to resolve to DOI)
+- Count occurrences across all papers in search notebook
+- Rank by frequency, filter by threshold (e.g., ≥3 citations)
+- **Challenge:** OpenAlex work IDs are not DOIs — need to either (a) make API call to resolve W12345 → DOI, or (b) match by title heuristics
+- **Recommendation:** Use OpenAlex API batch endpoint to resolve work IDs in bulk, cache results
 
-**Problem:** Shadows don't work in dark mode (blend into background or look like glows).
+### Citation Gap Detection (MEDIUM)
+- Run citation frequency analysis on collection
+- Cross-reference high-frequency citations with existing papers in collection (match by DOI)
+- Generate list of "papers cited N+ times that you don't have"
+- Provide OpenAlex metadata (title, authors, year, DOI) for each gap
+- Add "Add to Search" button to fetch full abstract from OpenAlex
+- **Challenge:** Matching citations to existing collection reliably (DOI is best, title is fuzzy)
+- **Recommendation:** Store DOIs in normalized format (`10.xxxx/yyyy`), match on DOI first, fallback to fuzzy title match
 
-**Solution:** Use combination of:
-1. Lighter surface colors for elevated components (cards, modals)
-2. Subtle borders for visual separation
+### Bulk DOI Import (MEDIUM)
+- UI: Textarea for pasting DOI list (one per line or comma-separated)
+- Parse input, validate DOI format (`10.` prefix, check-digit if strict)
+- Batch lookup via OpenAlex API (`https://api.openalex.org/works/doi:10.xxxx/yyyy`)
+- Handle errors: invalid DOIs, API rate limits, not found
+- Add valid papers to search notebook, show error report for failures
+- **Challenge:** Rate limiting on bulk API calls (OpenAlex: 10 req/sec, polite pool 100K/day)
+- **Recommendation:** Batch 50 DOIs per API call using OR filters, add progress modal with cancellation
 
-**Implementation via `bs_add_rules()`:**
-```scss
-[data-bs-theme="dark"] {
-  .card {
-    background-color: lighten($bg, 5%);  // Slightly lighter than page bg
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
+### Select-All Batch Operations (LOW)
+- Add checkbox column to search results table
+- "Select All" checkbox in header toggles all visible rows
+- Show action bar when ≥1 paper selected: "Import to Document Notebook", "Export", "Remove"
+- Track selection state in reactive values
+- **Challenge:** Maintain selection state across filters/sorting
+- **Recommendation:** Use paper DOI as selection key (stable across operations), clear selection after batch action completes
 
-  .modal-content {
-    background-color: lighten($bg, 8%);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-  }
+### BibTeX File Upload (LOW)
+- File input accepting `.bib` files
+- Parse BibTeX using existing R packages (`bib2df` or `bibtex::read.bib`)
+- Extract DOI from `doi` field or URL fields, handle missing DOIs gracefully
+- Lookup papers via OpenAlex using DOI
+- Import to search notebook or seed citation network (user choice)
+- **Challenge:** BibTeX formats vary wildly, many entries lack DOIs
+- **Recommendation:** Require DOI field, skip entries without DOI, show report of skipped entries
 
-  hr {
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-}
-```
-
-**Test:**
-- Cards visually separated from page background
-- Modal clearly elevated above page
-- Section dividers visible but subtle
-
----
-
-### Phase 4: UI Consistency Polish (Medium complexity, 4-6 hours)
-
-**Audit areas:**
-1. **Spacing** — Verify 8pt grid (or 4pt half-step) adherence
-   - Card padding consistent
-   - Button spacing uniform
-   - Section margins follow system
-
-2. **Typography** — Verify scale and rhythm
-   - Line-height 140-180% (test readability)
-   - Paragraph spacing 2x font size
-   - Heading hierarchy clear
-   - Font weights consistent
-
-3. **Interactive states** — All components show clear feedback
-   - Hover states visible
-   - Focus rings WCAG compliant (3:1 contrast)
-   - Disabled states distinguishable but not distracting
-   - Active/selected states obvious
-
-4. **Visual hierarchy** — Information architecture clear
-   - Primary actions stand out (via color, size, position)
-   - Secondary actions recede
-   - Tertiary actions available but not distracting
-
-**Known issues to fix:**
-- Tooltip overflow (#79) — clip or reposition
-- Citation network background (#89) — visNetwork canvas color
-- Settings page two-column layout — balance visual weight
-
-**Tools:**
-- Browser DevTools inspector for spacing measurements
-- WCAG contrast checker for focus states
-- Visual comparison screenshots (before/after)
-
----
-
-## Testing Checklist
-
-**Contrast validation:**
-- [ ] Body text vs background (aim for 7:1+)
-- [ ] Link text vs background (4.5:1 minimum)
-- [ ] Button text vs button background (4.5:1 minimum)
-- [ ] Disabled text vs background (no minimum, but should be clearly disabled)
-- [ ] Focus indicators vs background (3:1 minimum per WCAG 2.1)
-- [ ] Badge text vs badge background (4.5:1 for normal size)
-- [ ] Semantic colors (success/danger/warning/info) vs backgrounds
-
-**Component coverage:**
-- [ ] Sidebar navigation
-- [ ] Search result cards
-- [ ] Abstract preview modal
-- [ ] Settings page sections
-- [ ] Input fields (text, select, checkbox, slider)
-- [ ] Primary/secondary/danger buttons
-- [ ] Toast notifications (all types)
-- [ ] Badges (OA, document type, blocked journal)
-- [ ] Cost history table
-- [ ] Citation network graph (canvas background)
-- [ ] Year range slider + histogram
-- [ ] Progress modal with spinner
-- [ ] Synthesis output panels
-
-**Cross-mode consistency:**
-- [ ] Same spacing in light and dark
-- [ ] Same typography scale in light and dark
-- [ ] Same interactive behavior in light and dark
-- [ ] Same feature availability in light and dark
-- [ ] Smooth toggle between modes (no layout shift)
-
-**Edge cases:**
-- [ ] Long text wrapping in cards
-- [ ] Empty states (no search results, no documents)
-- [ ] Error states (API failures, validation errors)
-- [ ] Loading states (spinners, progress bars)
-- [ ] Overlapping elements (modals over graphs, tooltips over cards)
-
----
-
-## Complexity Assessment
-
-| Feature Category | Complexity | Rationale |
-|------------------|------------|-----------|
-| Color palette definition | **Low** | bslib's `bs_theme()` makes this straightforward; main effort is design decisions and contrast testing |
-| Bootstrap component adaptation | **Low-Medium** | Bootstrap 5.3 handles most automatically via CSS variables; need to test and verify, not rebuild |
-| Custom component overrides | **Medium** | visNetwork, syntax highlighting, and app-specific styles need manual attention |
-| Border/elevation system | **Low-Medium** | CSS rules via `bs_add_rules()`; requires design eye for subtlety |
-| UI consistency audit | **Medium** | Time-consuming inspection and testing, but no complex code changes |
-| Interactive state polish | **Low** | Mostly verification; Bootstrap defaults likely good, minor tweaks possible |
-| Testing and validation | **Medium** | Comprehensive but straightforward; WCAG tools exist; manual visual testing required |
-
-**Overall:** Low-Medium complexity. bslib and Bootstrap 5.3 provide excellent dark mode foundations. Main effort is design decisions, testing, and edge case handling (visNetwork, custom components).
-
----
-
-## Dependencies on Existing Infrastructure
-
-| Dependency | Impact | Notes |
-|------------|--------|-------|
-| bslib package | **Critical** | All theming goes through `bs_theme()`; version must support Bootstrap 5.3 color modes |
-| Bootstrap 5.3+ | **Critical** | Requires `data-bs-theme` attribute support and dark mode CSS variables |
-| visNetwork | **Medium** | Citation graphs need explicit background color option; not automatic from bslib |
-| Existing custom CSS | **Medium** | Any `style.css` or inline styles may override theme; need audit |
-| Shiny modules | **Low** | Modules should inherit theme automatically; verify no hardcoded colors |
-| Fontawesome/bsicons | **Low** | Icons should inherit text color; verify no hardcoded fills |
-| Toast notification system | **Low** | Should use Bootstrap toast classes; verify color inheritance |
-| Year range slider (likely custom) | **Medium** | Histogram bars may need color adjustment for dark background |
-
-**Migration risks:**
-- Existing light mode custom styles may break dark mode (need `[data-bs-theme="dark"]` scoping)
-- visNetwork graphs will have white canvas by default (needs explicit background setting)
-- Any hardcoded hex colors in R code or inline styles will not adapt
-
----
+### Prompt Healing for Slides (HIGH)
+- After slide generation, validate output for common issues:
+  - Unmatched LaTeX delimiters (`$`, `$$`, `\(`, `\)`)
+  - Broken Markdown syntax (unmatched `**`, `_`, `[]()`)
+  - Invalid Quarto YAML structure
+- If errors detected, show "Regenerate Slides" button
+- Trigger self-correction prompt with feedback: "The following errors were detected: [list]. Please fix them."
+- Re-generate and validate again (max 2 correction attempts)
+- **Challenge:** Self-correction without external validation has low success rates — may produce worse output
+- **Recommendation:** Make healing opt-in (manual trigger), provide diff view of changes, let user revert if correction fails
 
 ## Sources
 
-### Official Documentation
-- [Bootstrap 5.3 Color Modes](https://getbootstrap.com/docs/5.3/customize/color-modes/)
-- [bslib Theming Guide](https://rstudio.github.io/bslib/articles/theming/index.html)
-- [bslib Dark Mode Input](https://rstudio.github.io/bslib/reference/input_dark_mode.html)
-- [WCAG Contrast Requirements](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html)
+### Citation Audit & Gap Detection
+- [Litmaps: Find Research Gaps](https://www.litmaps.com) — Dynamic citation mapping tool with gap detection
+- [Scite AI: Smart Citations](https://effortlessacademic.com/scite-ai-review-2026-literature-review-tool-for-researchers/) — Citation context analysis (supporting/contrasting/mentioning)
+- [Connected Papers](https://www.cypris.ai/insights/11-best-ai-tools-for-scientific-literature-review-in-2026) — Similarity-based citation networks
+- [Finding Seminal Works - National University Library](https://resources.nu.edu/researchprocess/seminalworks) — Citation analysis methodology
+- [In-text Citation Frequencies for Relevancy](https://pmc.ncbi.nlm.nih.gov/articles/PMC8189020/) — Papers cited >5 times in text = high relevance
 
-### Best Practices & Design Principles
-- [Dark Mode UI Design Best Practices (Atmos)](https://atmos.style/blog/dark-mode-ui-best-practices)
-- [12 Principles of Dark Mode Design (Uxcel)](https://uxcel.com/blog/12-principles-of-dark-mode-design-627)
-- [Dark Mode: Common Mistakes and Issues (Nielsen Norman Group)](https://www.nngroup.com/articles/dark-mode-users-issues/)
-- [Dark UI Design Principles (Toptal)](https://www.toptal.com/designers/ui/dark-ui-design)
+### Bulk Import & Reference Management
+- [Best Reference Management Software 2026](https://research.com/software/best-reference-management-software) — Industry standards for bulk import
+- [Zotero Bulk Import Guide](https://libguides.ucalgary.ca/guides/endnote/EN20references) — BibTeX/RIS batch workflows
+- [Paperguide AI Reference Manager](https://paperguide.ai/blog/ai-reference-manager-tools/) — BibTeX, RIS, DOI import patterns
+- [Paperpile Batch Import](https://paperguide.ai/blog/ai-reference-manager-tools/) — Drag-and-drop PDF, .ris batch import, direct DOI import
 
-### Implementation Guides
-- [Shiny R 1.8.0 Dark Mode Updates](https://shiny.posit.co/blog/posts/shiny-r-1.8.0/)
-- [R Shiny bslib Theming (Appsilon)](https://www.appsilon.com/post/r-shiny-bslib)
-- [Bootstrap Dark Mode Extended (MDBootstrap)](https://mdbootstrap.com/docs/standard/extended/dark-mode/)
+### Backward Citation Tracking
+- [Citation Chaser Tool](https://onlinelibrary.wiley.com/doi/full/10.1002/jrsm.1563) — Forward and backward citation chasing for systematic reviews
+- [Reference Mining Guide - UW Whitewater](https://libguides.uww.edu/c.php?g=548441&p=3764383) — Multi-level citation tracking methodology
+- [Backward Citation Searching - Brown University](https://libguides.brown.edu/searching/citation) — Finding seminal works through reference lists
 
-### Accessibility & Testing
-- [Dark Mode Accessibility (DubBot)](https://dubbot.com/dubblog/2023/dark-mode-a11y.html)
-- [Dark Mode Contrast Checker Tools 2026](https://accesstive.com/blog/best-color-contrast-checker-tools/)
-- [WCAG Color Contrast Guide 2025 (AllAccessible)](https://www.allaccessible.org/blog/color-contrast-accessibility-wcag-guide-2025)
+### Prompt Healing & LLM Self-Correction
+- [Self-Correction in LLM Calls: A Review](https://theelderscripts.com/self-correction-in-llm-calls-a-review/) — Feedback-based correction strategies
+- [When Can LLMs Actually Correct Their Own Mistakes?](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00713/125177/) — 2024 research: self-correction works only with reliable external feedback
+- [Automatically Correcting Large Language Models](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00660/120911/) — Survey of automated correction strategies
+- [Prompt Debugging for Reliable AI Performance](https://promptwritersai.com/prompt-debugging-diagnosing-and-fixing-broken-llm-outputs/) — Structured output schema validation
 
-### UI Polish & Consistency
-- [Design System Checklist (UXPin)](https://www.uxpin.com/studio/blog/launching-design-system-checklist/)
-- [Typography Spacing Principles (BuninUX)](https://buninux.com/learn/typography-spacing)
-- [UI Consistency Best Practices (UXPin)](https://www.uxpin.com/studio/blog/guide-design-consistency-best-practices-ui-ux-designers/)
+### LLM Markdown/LaTeX Output
+- [LLM Markdown Rendering Demo](https://github.com/skovy/llm-markdown) — Rich-text LLM responses with Markdown, Mermaid, LaTeX
+- [Dynamic LaTeX Display in Streamlit](https://discuss.streamlit.io/t/dynamic-displaying-for-llm-output-latex-inline-full-line-and-non-latex-sign/82483) — Handling mixed LaTeX and Markdown in LLM output
+- [Documentation Tools 2026: Markdown & LaTeX](https://www.glukhov.org/documentation-tools/) — LaTeX to Markdown conversion workflows
 
-### Component-Specific
-- [visNetwork Introduction (CRAN)](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html)
-- [Bootstrap Semantic Colors](https://getbootstrap.com/docs/5.3/customize/color/)
+---
+*Feature research for: Serapeum v7.0 Citation Audit + Bulk Import Workflows*
+*Researched: 2026-02-25*
