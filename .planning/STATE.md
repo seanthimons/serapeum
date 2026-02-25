@@ -6,13 +6,14 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
 
-**Current focus:** Planning next milestone
+**Current focus:** v7.0 Citation Audit + Quick Wins
 
 ## Current Position
 
-Phase: 32 of 32 — all phases complete
-Status: v6.0 archived, ready for next milestone
-Last activity: 2026-02-25 — v6.0 milestone archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-25 — Milestone v7.0 started
 
 Progress: [████████████████████████████████████] 53/53 plans complete across 9 milestones
 
@@ -60,11 +61,11 @@ All decisions logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: v6.0 milestone archived
+Stopped at: Defining v7.0 requirements
 Resume file: None
 
 **Next steps:**
-1. Run /gsd:new-milestone to plan next milestone
+1. Define requirements and create roadmap
 
 ---
-*Updated: 2026-02-25 — v6.0 milestone archived*
+*Updated: 2026-02-25 — v7.0 milestone started*

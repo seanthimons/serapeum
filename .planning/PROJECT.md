@@ -90,7 +90,14 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active milestone — define next with /gsd:new-milestone)
+## Current Milestone: v7.0 Citation Audit + Quick Wins
+
+**Goal:** Add citation audit to surface missing seminal papers, plus select-all import and slide prompt healing.
+
+**Target features:**
+- Citation Audit — find missing seminal papers by reference frequency (#103)
+- Select all abstracts for import into document notebook (#85)
+- Slide generation prompt tweak / healing (#124)
 
 ### Out of Scope
 
@@ -182,7 +189,7 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 ## Current State
 
 **Latest shipped:** v6.0 Dark Mode + UI Polish (2026-02-25)
-**Active milestone:** None — ready for /gsd:new-milestone
+**Active milestone:** v7.0 Citation Audit + Quick Wins
 **Total milestones:** 9 shipped (v1.0–v6.0)
 **Total phases:** 32 across 53 plans
 
@@ -198,4 +205,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-02-25 after v6.0 milestone*
+*Last updated: 2026-02-25 after v7.0 milestone started*
