@@ -58,13 +58,19 @@ mod_citation_network_ui <- function(id) {
           )
         ),
 
-        # Build button
+        # Build button and physics toggle
         div(
           actionButton(
             ns("build_network"),
             "Build Network",
             class = "btn-primary",
             icon = icon("diagram-project")
+          ),
+          # #TODO: auto-set physics default based on network size (off for large graphs)
+          checkboxInput(
+            ns("physics_enabled"),
+            tags$span("Physics", title = "Keep force simulation running so the graph can rebalance. Disable to freeze node positions."),
+            value = TRUE
           )
         ),
 
@@ -579,12 +585,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             ),
             stabilization = list(iterations = stab_iters)
           ) |>
-          visNetwork::visLayout(randomSeed = 42) |>
-          visNetwork::visEvents(
-            stabilizationIterationsDone = "function() {
-              this.setOptions({ physics: false });
-            }"
-          )
+          visNetwork::visLayout(randomSeed = 42)
       }
 
       # Configure appearance
@@ -735,6 +736,13 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                                               "value", "shape", "borderWidth",
                                               "color.border",
                                               "color.highlight.border")])
+    }, ignoreInit = TRUE)
+
+    # Toggle physics simulation on/off
+    observeEvent(input$physics_enabled, {
+      req(current_network_data())
+      visNetwork::visNetworkProxy("network_graph") |>
+        visNetwork::visPhysics(enabled = input$physics_enabled)
     }, ignoreInit = TRUE)
 
     # Handle node click
