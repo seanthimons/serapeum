@@ -456,17 +456,19 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   # Add visNetwork columns
   nodes_df$id <- nodes_df$paper_id
   nodes_df$label <- NA  # No labels by default (show on hover)
-  nodes_df$color <- map_year_to_color(nodes_df$year, palette)
   nodes_df$value <- compute_node_sizes(nodes_df$cited_by_count)
 
   # Shape: star for seed, dot for others
   nodes_df$shape <- ifelse(nodes_df$is_seed, "star", "dot")
 
-  # Borders: all nodes get light border for dark mode visibility (COMP-02)
-  # Seed paper keeps gold border but thicker
-  nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 2)
+  # Node colors: use color.background so visNetwork builds a nested color object.
+  # Setting flat `color` + `color.border` crashes vis.js dataframeToD3 because
+  # it overwrites the string with a nested path lookup (GH debug 2026-02-25).
+  nodes_df$color.background <- map_year_to_color(nodes_df$year, palette)
   nodes_df$color.border <- ifelse(nodes_df$is_seed, "#FFD700", "rgba(205, 214, 244, 0.5)")
   nodes_df$color.highlight.border <- ifelse(nodes_df$is_seed, "#FFD700", "#b4befe")
+  nodes_df$color.highlight.background <- nodes_df$color.background
+  nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 2)
 
   # Preserve original paper title before overwriting with tooltip
   nodes_df$paper_title <- nodes_df$title

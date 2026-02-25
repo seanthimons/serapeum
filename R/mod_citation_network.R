@@ -592,8 +592,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         visNetwork::visEdges(
           arrows = "to",
           color = list(
-            color = "rgba(205, 214, 244, 0.2)",
-            highlight = "rgba(180, 190, 254, 0.4)"
+            color = "rgba(140, 143, 161, 0.35)",
+            highlight = "rgba(140, 143, 161, 0.7)"
           ),
           smooth = list(type = "continuous")
         ) |>
@@ -703,7 +703,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       nodes <- net_data$nodes
 
       # Recompute colors with new palette
-      nodes$color <- map_year_to_color(nodes$year, palette)
+      new_colors <- map_year_to_color(nodes$year, palette)
+      nodes$color.background <- new_colors
+      nodes$color.highlight.background <- new_colors
 
       # Update stored data
       net_data$nodes <- nodes
@@ -713,7 +715,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       # Also update unfiltered snapshot so next Apply uses new colors
       uf_data <- unfiltered_network_data()
       if (!is.null(uf_data)) {
-        uf_data$nodes$color <- map_year_to_color(uf_data$nodes$year, palette)
+        uf_colors <- map_year_to_color(uf_data$nodes$year, palette)
+        uf_data$nodes$color.background <- uf_colors
+        uf_data$nodes$color.highlight.background <- uf_colors
         uf_data$metadata$palette <- palette
         unfiltered_network_data(uf_data)
       }
@@ -726,8 +730,10 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Update via proxy (no full re-render)
       visNetwork::visNetworkProxy("network_graph") |>
-        visNetwork::visUpdateNodes(nodes[, c("id", "color", "value", "shape",
-                                              "borderWidth", "color.border",
+        visNetwork::visUpdateNodes(nodes[, c("id", "color.background",
+                                              "color.highlight.background",
+                                              "value", "shape", "borderWidth",
+                                              "color.border",
                                               "color.highlight.border")])
     }, ignoreInit = TRUE)
 
