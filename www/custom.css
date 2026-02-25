@@ -2,13 +2,18 @@
 
 .citation-network-container {
   position: relative;
-  background-color: #e8e8ee;
+  background-color: #e6e9ef;  /* Latte Mantle */
   border-radius: 0.5rem;
   overflow: hidden;
 }
 
 [data-bs-theme="dark"] .citation-network-container {
-  background-color: #1e1e2e;
+  background-color: #1e1e2e;  /* Mocha Base */
+}
+
+/* Force vis.js canvas dark background in dark mode (COMP-02) */
+[data-bs-theme="dark"] .citation-network-container .vis-network canvas {
+  background-color: #1e1e2e !important;  /* Mocha Base — !important needed because vis.js sets bg programmatically */
 }
 
 /* Clip tooltips at graph boundary so they don't overlap side panel */
@@ -67,19 +72,19 @@
   border: none;
   padding: 2px 4px;
   cursor: pointer;
-  color: #666;
+  color: #6c6f85;  /* Latte Subtext0 */
   font-size: 0.9rem;
   line-height: 1;
 }
 
 .citation-network-legend .legend-toggle:hover {
-  color: #333;
+  color: #4c4f69;  /* Latte Text */
 }
 
 .citation-network-legend h6 {
   margin-bottom: 10px;
   font-weight: 600;
-  color: #333;
+  color: #4c4f69;  /* Latte Text */
 }
 
 .citation-network-legend .color-gradient {
@@ -88,8 +93,13 @@
 }
 
 .citation-network-controls {
-  background-color: #f8f9fa !important;
-  border: 1px solid #dee2e6;
+  background-color: #e6e9ef !important;  /* Latte Mantle */
+  border: 1px solid #ccd0da;             /* Latte Surface0 */
+}
+
+[data-bs-theme="dark"] .citation-network-controls {
+  background-color: #313244 !important;  /* Mocha Surface0 */
+  border-color: #45475a;                 /* Mocha Surface1 */
 }
 
 .citation-network-side-panel {
@@ -105,22 +115,35 @@
   overflow-y: auto;
 }
 
-/* Dark theme support for legend */
+/* Dark theme support for legend — Catppuccin Mocha palette */
 [data-bs-theme="dark"] .citation-network-legend {
-  background-color: rgba(30, 30, 46, 0.95);
-  color: #e0e0e0;
+  background-color: rgba(49, 50, 68, 0.95);  /* Mocha Surface0 at 95% */
+  color: #cdd6f4;                             /* Mocha Text */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 [data-bs-theme="dark"] .citation-network-legend h6 {
-  color: #e0e0e0;
+  color: #cdd6f4;  /* Mocha Text */
 }
 
 [data-bs-theme="dark"] .citation-network-legend .legend-toggle {
-  color: #aaa;
+  color: #6c7086;  /* Mocha Overlay0 */
 }
 
 [data-bs-theme="dark"] .citation-network-legend .legend-toggle:hover {
-  color: #e0e0e0;
+  color: #cdd6f4;  /* Mocha Text */
+}
+
+/* Dark mode: vis.js navigation buttons */
+[data-bs-theme="dark"] .citation-network-container .vis-navigation .vis-button {
+  filter: invert(0.85);  /* Invert dark buttons to be light */
+}
+
+/* Dark mode: vis.js tooltips */
+[data-bs-theme="dark"] .vis-tooltip {
+  background-color: #313244 !important;  /* Mocha Surface0 */
+  color: #cdd6f4 !important;             /* Mocha Text */
+  border: 1px solid #45475a !important;  /* Mocha Surface1 */
 }
 
 /* Hover effects for notebook items */

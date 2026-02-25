@@ -1,244 +1,303 @@
 # Stack Research
 
-**Domain:** v4.0 Stability + Synthesis — Overview preset, Literature Review Table, Research Question Generator
-**Researched:** 2026-02-18
+**Domain:** Dark mode theming for R/Shiny/bslib applications
+**Researched:** 2026-02-22
 **Confidence:** HIGH
-
-## Context
-
-This is a SUBSEQUENT MILESTONE on an existing 14,000+ LOC R/Shiny codebase. The validated base stack (R, Shiny, bslib, DuckDB, OpenRouter, ragnar, igraph, visNetwork, commonmark, mirai, ExtendedTask) is NOT re-researched here. This document covers ONLY the additions or changes needed for three new features:
-
-1. **Overview preset** — A unified "Overview" synthesis button that aggregates multiple section-targeted RAG retrievals into one structured response
-2. **Literature Review Table** — A structured comparison matrix of papers (methods, findings, limitations) rendered as an interactive table with export
-3. **Research Question Generator** — LLM-generated research questions derived from gap analysis across the notebook
-
----
 
 ## Recommended Stack
 
-### New Libraries to Add
+### Core Technologies
 
-| Library | Version | Purpose | Why |
-|---------|---------|---------|-----|
-| DT | 0.34.0 | Interactive HTML table widget for Literature Review Table | Mature Shiny-native table package with built-in export buttons (CSV, Excel, copy), server-side rendering, column filtering, and inline styling. Maintained by Posit. DTOutput/renderDT avoid namespace conflicts with Shiny. Does not require Java. |
-| writexl | 1.5.4 | Excel export for Literature Review Table via downloadHandler | Zero-dependency (no Java, no Rtools beyond base R). `write_xlsx()` accepts a named list for multi-sheet workbooks. Fastest benchmark performance among R Excel writers. writexl is the right choice when you just need to write clean .xlsx without formatting complexity. |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| bslib | 0.10.0 | Bootstrap theming framework for Shiny | Official Posit/RStudio package for Bootstrap 5.3+ theming, provides `bs_theme()` for Sass variable customization, `input_dark_mode()` for client-side mode switching, and `session$setCurrentTheme()` for dynamic theme updates. Bootstrap 5.3.1 support enables pure CSS dark mode without Sass recompilation. |
+| Bootstrap | 5.3.1+ | UI framework with CSS custom properties | Bootstrap 5.3+ introduced native color modes with `data-bs-theme` attribute, extensive CSS custom properties for dark mode (`--bs-body-bg`, `--bs-body-color`, etc.), and semantic color system (`{color}-bg-subtle`, `{color}-text-emphasis`, `{color}-border-subtle`). Automatically included via bslib. |
+| colorspace | latest | WCAG contrast ratio validation | R package providing `contrast_ratio()` function implementing WCAG 2.1 and APCA 0.98G-4g algorithms. Computes contrast ratios with visualization support. Essential for verifying 4.5:1 (normal text) and 3:1 (large text) WCAG AA requirements. |
+| sass | latest | Sass compilation for custom theming | Dependency of bslib, compiles Bootstrap Sass with custom variables. Required for `bs_add_variables()` and `bs_add_rules()` advanced theming. Automatically handles Bootstrap Sass mixins and variable resolution. |
 
-### Existing Libraries with New Usage Patterns
+### Supporting Libraries
 
-| Library | Current Version | New Usage | Notes |
-|---------|----------------|-----------|-------|
-| jsonlite | 2.0.0 | Parse structured JSON returned by LLM (for table row extraction) | Already in project. `jsonlite::fromJSON()` converts LLM JSON output into R data frames. Use `simplifyDataFrame = TRUE` (default) for automatic conversion of JSON arrays of objects. |
-| httr2 | 1.2.1 | Add `response_format` parameter to `chat_completion()` calls for JSON mode | Already in project. Pass `response_format = list(type = "json_object")` via `req_body_json()`. No new library needed — this is an API parameter change to the existing `chat_completion()` function. |
-| commonmark | 2.0.0 | Render Overview and Research Question outputs (same pattern as existing presets) | No change. Existing markdown-to-HTML pipeline handles all unstructured text outputs. |
-| bslib | 0.9.0 | Layout for Literature Review Table card within existing notebook modules | No change. Existing `card()`, `layout_columns()`, and `card_body()` handle the new table container. |
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| N/A | N/A | No additional libraries required | bslib handles all Bootstrap theming needs. Custom CSS can be added via `bs_add_rules()`. visNetwork and commonmark will inherit Bootstrap color mode automatically via CSS custom properties. |
 
-### Libraries Evaluated and Rejected
+### Development Tools
 
-| Library | Verdict | Reason |
-|---------|---------|--------|
-| reactable | Rejected | Better aesthetics but no built-in CSV/Excel export without reactable.extras addon. DT Buttons extension provides export natively. For a comparison matrix with export as a primary use case, DT is the direct choice. |
-| gt | Rejected | Designed for publication-quality static tables (reports, documents), not interactive Shiny tables with row filtering and CSV download. Heavyweight for this use case. |
-| flextable | Rejected | Output targets Word/PowerPoint/HTML reports, not interactive Shiny widgets. Wrong tool for this domain. |
-| openxlsx2 | Rejected | Adds significant complexity for formatted workbooks. writexl is sufficient because Literature Review Table export is a flat data frame dump, not a styled report. |
-| jsonvalidate | Not needed | Schema validation of LLM JSON output adds latency and complexity with marginal benefit. The LLM JSON mode produces consistently parseable output; `tryCatch(jsonlite::fromJSON(...))` is sufficient error handling. |
-| ellmer | Not needed | Posit's new LLM client. Project already has a working, well-tested httr2-based OpenRouter client. Migrating for this milestone creates churn without benefit. |
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `bs_theme_preview()` | Interactive theme builder | Launch with `bslib::bs_theme_preview()` to test theme changes in real time. Includes `bs_themer()` widget for live editing of colors, fonts, and spacing. Great for prototyping dark mode palettes before hardcoding. |
+| `contrast_ratio()` | Contrast validation during development | Use `colorspace::contrast_ratio(bg, fg, algorithm = "WCAG", plot = TRUE)` to visualize contrast ratios. Returns numeric vector with ratios; >=4.5 for normal text, >=3 for large text (WCAG AA). |
+| WebAIM Contrast Checker | Online fallback for ad-hoc checks | https://webaim.org/resources/contrastchecker/ for quick browser-based validation if colorspace is unavailable. |
 
----
+## Implementation Patterns
 
-## Structured LLM Output: JSON Mode
+### Pattern 1: Static Dark Mode Palette (Recommended Start)
 
-The Literature Review Table and Research Question Generator both require the LLM to return structured data (not free-form markdown). The correct approach is OpenRouter's `json_object` mode via `response_format`.
+**When:** Redesigning dark mode from scratch with intentional colors.
 
-### How to Add to Existing `chat_completion()`
-
-The existing function in `R/api_openrouter.R` uses `req_body_json()`. Add `response_format` as an optional parameter:
-
+**How:**
 ```r
-chat_completion <- function(api_key, model, messages, response_format = NULL) {
-  body <- list(
-    model = model,
-    messages = messages
-  )
-  if (!is.null(response_format)) {
-    body$response_format <- response_format
-  }
-
-  req <- build_openrouter_request(api_key, "chat/completions") |>
-    req_body_json(body) |>
-    req_timeout(120)
-  # ... rest unchanged
-}
-```
-
-### JSON Mode vs JSON Schema Mode
-
-OpenRouter supports two modes:
-
-| Mode | Parameter | Model Support | Use For |
-|------|-----------|---------------|---------|
-| `json_object` | `list(type = "json_object")` | Near-universal (all major models) | Literature Review Table rows, Research Questions list |
-| `json_schema` | `list(type = "json_schema", json_schema = list(...))` | OpenAI GPT-4o+, Anthropic Sonnet 4.5+, Gemini | Strict schema enforcement |
-
-**Use `json_object` mode** (not `json_schema`) because:
-- The user may choose any model from the OpenRouter list — many models don't support `json_schema`
-- `json_object` is sufficient: the prompt instructs the exact structure, and `tryCatch(jsonlite::fromJSON())` handles malformed output gracefully
-- `json_schema` adds request complexity and fails hard on unsupported models
-
-### Parsing Pattern
-
-```r
-# In generate_lit_review_table() or generate_research_questions()
-result <- chat_completion(api_key, model, messages,
-                          response_format = list(type = "json_object"))
-
-parsed <- tryCatch(
-  jsonlite::fromJSON(result$content, simplifyDataFrame = TRUE),
-  error = function(e) NULL
-)
-
-if (is.null(parsed) || !is.data.frame(parsed$papers)) {
-  # Fallback: return error message or re-invoke without json_object mode
-  return("Error: Could not parse structured output.")
-}
-
-parsed$papers  # Use as data frame
-```
-
----
-
-## DT: Literature Review Table Integration
-
-DT is the correct choice for the Literature Review Table because it:
-- Integrates directly with Shiny via `DTOutput()` / `renderDT()`
-- Provides built-in export (CSV, copy) via the Buttons extension without additional packages
-- Supports column filtering (`filter = "top"`) for searching across paper metadata
-- Handles varying column counts gracefully (the matrix columns vary by notebook content)
-
-### Installation
-
-```r
-install.packages("DT")  # v0.34.0
-```
-
-### Usage Pattern
-
-```r
-# UI
-DTOutput(ns("lit_review_table"))
-
-# Server
-output$lit_review_table <- renderDT({
-  df <- lit_review_data()
-  req(is.data.frame(df) && nrow(df) > 0)
-
-  datatable(
-    df,
-    extensions = "Buttons",
-    filter = "top",
-    rownames = FALSE,
-    options = list(
-      dom = "Bfrtip",
-      buttons = c("copy", "csv"),
-      pageLength = 25,
-      scrollX = TRUE,
-      columnDefs = list(
-        list(width = "200px", targets = 0)  # Title column
-      )
-    ),
-    escape = FALSE  # Allow HTML in cells if needed for citations
-  )
-})
-```
-
-### Export Pattern (downloadHandler for .xlsx)
-
-The DT Buttons extension handles CSV client-side. For a formatted Excel download:
-
-```r
-downloadHandler(
-  filename = function() paste0("literature-review-", Sys.Date(), ".xlsx"),
-  content = function(file) {
-    writexl::write_xlsx(lit_review_data(), file)
-  }
+dark_theme <- bs_theme(
+  version = 5,
+  preset = "shiny",  # Start with Shiny preset for dashboard improvements
+  bg = "#1a1a1a",    # Dark background
+  fg = "#e0e0e0",    # Light foreground text
+  primary = "#4a9eff",      # Accessible blue
+  secondary = "#6c757d",    # Muted gray
+  success = "#28a745",      # Green
+  danger = "#dc3545",       # Red
+  # Custom Sass variables via ...
+  "card-bg" = "#2d2d2d",
+  "border-color" = "#444444"
 )
 ```
 
----
+**Why:** Gives full control over palette, ensures consistent application of colors, works with existing `input_dark_mode()` toggle infrastructure.
 
-## Overview Preset: No New Libraries Needed
+### Pattern 2: Dynamic Theme Switching
 
-The Overview preset aggregates multiple existing RAG retrievals (introduction, methods, results, conclusions sections) into a single structured markdown response. This is a **prompt engineering and orchestration change**, not a library change.
+**When:** Users need to toggle between light and dark modes.
 
-The existing pipeline handles this completely:
-- `search_chunks_hybrid()` with `section_filter` parameter (already implemented)
-- `chat_completion()` (existing)
-- `commonmark::markdown_html()` for rendering (existing)
-- `format_chat_as_markdown()` / `format_chat_as_html()` for export (existing)
-
-No new library additions required.
-
----
-
-## Research Question Generator: No New Libraries Needed
-
-The Research Question Generator returns a structured list of questions. Two implementation options, both using existing libraries:
-
-**Option A — JSON mode (structured, renderable as list):**
-Uses `chat_completion()` with `response_format = list(type = "json_object")` (the same addition needed for Literature Review Table). Returns `{"questions": [...]}` parsed via `jsonlite::fromJSON()`.
-
-**Option B — Markdown mode (simpler, same pattern as other presets):**
-Prompt instructs the model to return a numbered markdown list. No JSON parsing needed. Rendered via existing `commonmark::markdown_html()`.
-
-**Recommendation: Option B** for Research Question Generator. A numbered markdown list is easier to read, export, and render than a parsed JSON list. Reserve JSON mode for the Literature Review Table where structured data is required for table rendering.
-
----
-
-## Installation Summary
-
+**How:**
 ```r
-# New packages to add
-install.packages("DT")       # 0.34.0
-install.packages("writexl")  # 1.5.4
-
-# No other additions — all other capabilities use existing packages
+# Already implemented in Serapeum via input_dark_mode()
+# UI: input_dark_mode(id = "mode")
+# Server: observeEvent(input$mode, { session$setCurrentTheme(theme_object) })
 ```
 
----
+**Current state:** Serapeum has basic toggle but with poor contrast palette. Keep toggle mechanism, replace theme definitions.
 
-## What NOT to Add
+### Pattern 3: Component-Level Dark Mode Customization
+
+**When:** Specific components (visNetwork, commonmark HTML) need dark mode overrides.
+
+**How:**
+```r
+dark_theme <- bs_theme(...) |>
+  bs_add_rules(
+    ".vis-network { background-color: var(--bs-body-bg); }",
+    ".markdown-body { color: var(--bs-body-color); background: var(--bs-body-bg); }",
+    # Reference Bootstrap CSS variables for automatic light/dark adaptation
+  )
+```
+
+**Why:** CSS custom properties (`--bs-*`) automatically update when `data-bs-theme` changes, so rules adapt to both modes. Avoids hardcoded colors in custom CSS.
+
+## Theming API Reference
+
+### bs_theme() Parameters for Dark Mode
+
+| Parameter | Type | Purpose | Dark Mode Value Example |
+|-----------|------|---------|-------------------------|
+| `bg` | color string | Background color | `"#1a1a1a"` (near-black) |
+| `fg` | color string | Foreground/text color | `"#e0e0e0"` (light gray) |
+| `primary` | color string | Links, primary buttons | `"#4a9eff"` (accessible blue) |
+| `secondary` | color string | Secondary buttons, muted UI | `"#6c757d"` |
+| `...` | Sass variables | Any Bootstrap Sass variable | `"card-bg" = "#2d2d2d"` |
+
+### Bootstrap 5.3 CSS Custom Properties
+
+Dark mode values are defined in `_variables-dark.scss` and exposed as CSS custom properties:
+
+| Variable | Purpose | Example Dark Value |
+|----------|---------|-------------------|
+| `--bs-body-bg` | Main background | `#212529` |
+| `--bs-body-color` | Main text color | `#adb5bd` |
+| `--bs-emphasis-color` | High-contrast text | `#fff` |
+| `--bs-secondary-color` | Muted text | `rgba(173, 181, 189, 0.75)` |
+| `--bs-tertiary-bg` | Card/panel backgrounds | `#2c3034` |
+| `--bs-border-color` | Border colors | `#495057` |
+| `--bs-link-color` | Link color | `#6ea8fe` |
+| `--bs-primary-bg-subtle` | Subtle primary background | `shade-color($primary, 80%)` |
+| `--bs-primary-text-emphasis` | Primary emphasis text | `tint-color($primary, 40%)` |
+
+**Usage in custom CSS:** Reference these variables to inherit dark mode automatically:
+```css
+.custom-component {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+}
+```
+
+### bslib Functions
+
+| Function | Purpose | Example |
+|----------|---------|---------|
+| `bs_theme()` | Create theme object | `bs_theme(version = 5, bg = "#1a1a1a", fg = "#e0e0e0")` |
+| `bs_add_rules()` | Add custom CSS/Sass | `theme |> bs_add_rules(".class { color: var(--bs-primary); }")` |
+| `bs_add_variables()` | Add Sass variables after declarations | `theme |> bs_add_variables("my-var" = "$primary", .where = "declarations")` |
+| `input_dark_mode()` | UI toggle for dark mode | `input_dark_mode(id = "mode", mode = NULL)` (NULL = respect system preference) |
+| `toggle_dark_mode()` | Programmatic mode switch | `toggle_dark_mode(mode = "dark", session = session)` |
+| `session$setCurrentTheme()` | Dynamic theme update | `session$setCurrentTheme(new_theme)` (must be same Bootstrap version) |
+| `bs_theme_preview()` | Interactive theme builder | `bs_theme_preview()` or `bs_theme_preview(theme)` |
+
+## WCAG Contrast Validation Workflow
+
+### Using colorspace Package
+
+```r
+library(colorspace)
+
+# Check text on background
+contrast_ratio("#e0e0e0", "#1a1a1a", algorithm = "WCAG", plot = TRUE)
+# Returns: 12.63 (PASS - exceeds 4.5 minimum)
+
+# Check link color
+contrast_ratio("#4a9eff", "#1a1a1a", algorithm = "WCAG")
+# Returns: 6.2 (PASS)
+
+# Batch check theme colors
+bg <- "#1a1a1a"
+colors <- c(fg = "#e0e0e0", primary = "#4a9eff", secondary = "#6c757d")
+sapply(colors, function(col) contrast_ratio(col, bg, algorithm = "WCAG"))
+```
+
+**WCAG 2.1 Requirements:**
+- Normal text (< 18pt): 4.5:1 minimum (AA), 7:1 (AAA)
+- Large text (>= 18pt or 14pt bold): 3:1 minimum (AA), 4.5:1 (AAA)
+- UI components and graphics: 3:1 minimum
+
+**APCA Alternative:** Newer algorithm under development. `algorithm = "APCA"` returns polarity-aware values (~60 ≈ WCAG 4.5).
+
+### Manual Checking
+
+For spot checks without R:
+- WebAIM: https://webaim.org/resources/contrastchecker/
+- Accessible Colors: https://accessible-colors.com/
+
+## Integration with Existing Serapeum Components
+
+### visNetwork Citation Graphs
+
+**Current state:** Canvas-based network visualization.
+
+**Dark mode approach:**
+```r
+# In mod_citation_network.R
+visNetwork(nodes, edges) %>%
+  visOptions(
+    highlightNearest = TRUE,
+    nodesIdSelection = TRUE
+  ) %>%
+  # Set background to match Bootstrap body-bg
+  # Use JavaScript to read CSS variable:
+  htmlwidgets::onRender("
+    function(el, x) {
+      var bg = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bs-body-bg').trim();
+      el.style.backgroundColor = bg;
+    }
+  ")
+```
+
+**Alternative:** Set background statically in theme via `bs_add_rules()`:
+```r
+bs_add_rules(".vis-network { background-color: var(--bs-body-bg) !important; }")
+```
+
+### commonmark Markdown Rendering
+
+**Current state:** Chat messages rendered via `commonmark::markdown_html()`.
+
+**Dark mode approach:**
+- Bootstrap 5.3 typography utilities automatically adapt to `data-bs-theme`
+- Wrap rendered HTML in container with Bootstrap classes:
+  ```r
+  tags$div(
+    class = "markdown-body",
+    HTML(commonmark::markdown_html(text))
+  )
+  ```
+- Add CSS rules for markdown elements:
+  ```r
+  bs_add_rules("
+    .markdown-body {
+      color: var(--bs-body-color);
+      background: transparent;
+    }
+    .markdown-body code {
+      background-color: var(--bs-tertiary-bg);
+      color: var(--bs-emphasis-color);
+    }
+  ")
+  ```
+
+**No additional libraries needed** — Bootstrap CSS variables handle adaptation.
+
+## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| reactable | No built-in export; requires reactable.extras for Shiny interactivity that DT already provides | DT with Buttons extension |
-| gt / flextable | Static report output, not interactive Shiny tables | DT |
-| openxlsx2 | Overkill for flat data frame export | writexl |
-| json_schema mode for response_format | Fails on models without strict schema support (most budget models the user may select) | json_object mode with prompt-guided structure |
-| ellmer / chattr | Full LLM client framework migration mid-project creates churn; existing httr2 client works and is tested | Extend existing chat_completion() |
-| jsonvalidate | Schema validation of LLM output is over-engineering; tryCatch + fromJSON handles failures | tryCatch(jsonlite::fromJSON()) |
+| Hardcoded color values in custom CSS | Breaks when switching light/dark modes | Bootstrap CSS custom properties (`var(--bs-body-bg)`) |
+| Manual `@media (prefers-color-scheme: dark)` queries | Conflicts with bslib's `data-bs-theme` approach | Let bslib handle mode detection via `input_dark_mode()` |
+| Bootstrap 4 or earlier | No native dark mode support, requires Sass recompilation for theme changes | Bootstrap 5.3+ via `bs_theme(version = 5)` |
+| Third-party dark mode libraries (e.g., darkmode.js) | Unnecessary with Bootstrap 5.3 built-in support | `input_dark_mode()` + `bs_theme()` |
+| Linear contrast ratios for validation | WCAG uses logarithmic luminance calculation | `colorspace::contrast_ratio(algorithm = "WCAG")` |
+| Custom theme switching with different Bootstrap versions | bslib throws error when `session$setCurrentTheme()` changes Bootstrap version | Ensure all themes use same `version = 5` |
 
----
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| bslib `bs_theme()` | Manual Bootstrap Sass compilation | Never for Shiny apps — bslib is the official theming layer |
+| Bootstrap 5.3 CSS variables | Sass variable overrides only | When you need compile-time logic (e.g., color calculations with `tint-color()`, `shade-color()`) — but can combine both approaches |
+| colorspace package | Online contrast checkers | For one-off checks during design phase; use colorspace for automated validation in tests |
+| `input_dark_mode()` | Custom toggle with `session$setCurrentTheme()` | When you need additional logic beyond simple light/dark toggle (e.g., multiple theme presets) |
 
 ## Version Compatibility
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| DT 0.34.0 | Shiny 1.11.1 | DTOutput/renderDT are the correct Shiny-compatible functions (not dataTableOutput/renderDataTable) |
-| DT 0.34.0 | bslib 0.9.0 | DT renders inside bslib cards without issues; Bootstrap 5 theming applies |
-| writexl 1.5.4 | R 4.5.1 | No external Java or system dependency required |
-| jsonlite 2.0.0 | httr2 1.2.1 | Already used together in api_openrouter.R; `fromJSON()` on `resp_body_json()` output works cleanly |
+| Package | Version | Compatible With | Notes |
+|---------|---------|-----------------|-------|
+| bslib | 0.10.0 | Bootstrap 5.3.1, sass (any recent), shiny 1.6+ | Requires Shiny 1.6+ for `session$setCurrentTheme()`. Bootstrap 5.3+ required for `input_dark_mode()`. |
+| Bootstrap | 5.3.1+ | bslib 0.6.0+ | Dark mode support added in Bootstrap 5.3.0. bslib 0.8.0+ upgraded default to 5.3.1. |
+| colorspace | latest | R 4.0+ | No shiny/bslib dependencies; pure color calculation library. |
+| sass | latest | bslib (any), R 4.0+ | Automatically installed as bslib dependency. Direct use only needed for advanced Sass compilation. |
 
----
+**Key constraint:** `session$setCurrentTheme()` cannot change Bootstrap version dynamically. All themes must use `version = 5`.
+
+## Installation
+
+```r
+# Core theming (already in Serapeum)
+install.packages("bslib")  # Includes sass as dependency
+
+# Contrast validation
+install.packages("colorspace")
+```
+
+**No additional packages needed.** Serapeum already has bslib and all required dependencies.
+
+## Recommended Implementation Sequence
+
+1. **Validation setup:** Install `colorspace`, create contrast checking function
+2. **Palette design:** Use `bs_theme_preview()` to prototype dark mode colors
+3. **Theme definition:** Create dark theme object with validated colors via `bs_theme()`
+4. **Component integration:** Add `bs_add_rules()` for visNetwork, commonmark, any custom components
+5. **Testing:** Verify contrast ratios programmatically, test toggle behavior
+6. **Polish:** Adjust semantic colors (success, danger, etc.) for dark mode readability
 
 ## Sources
 
-- [OpenRouter Structured Outputs docs](https://openrouter.ai/docs/guides/features/structured-outputs) — json_object vs json_schema mode, model support — HIGH confidence (official docs, verified 2026-02-18)
-- [OpenRouter API Parameters docs](https://openrouter.ai/docs/api/reference/parameters) — response_format parameter syntax — HIGH confidence
-- DT package v0.34.0 — [rdrr.io/cran/DT](https://rdrr.io/cran/DT/) — version confirmed, Buttons extension — HIGH confidence
-- reactable v0.4.5 — [CRAN package page](https://cran.r-project.org/web/packages/reactable/index.html) — no built-in export confirmed — HIGH confidence
-- writexl v1.5.4 — [rdrr.io/cran/writexl](https://rdrr.io/cran/writexl/) — zero-dependency, current version — HIGH confidence
-- jsonlite v2.0.0 — renv.lock (codebase) + [CRAN](https://jeroen.r-universe.dev/jsonlite) — existing dependency confirmed — HIGH confidence
-- Existing codebase: `R/api_openrouter.R`, `R/rag.R`, `R/utils_export.R` — integration points verified by direct read — HIGH confidence
+**HIGH confidence (official documentation):**
+- [bslib Theming Guide](https://rstudio.github.io/bslib/articles/theming/index.html) — bs_theme() parameters, Sass variables, best practices
+- [bs_theme() Reference](https://rstudio.github.io/bslib/reference/bs_theme.html) — Function parameters, Bootstrap version support
+- [input_dark_mode() Reference](https://rstudio.github.io/bslib/reference/input_dark_mode.html) — Dark mode toggle parameters, server values
+- [Bootstrap 5.3 Color Modes](https://getbootstrap.com/docs/5.3/customize/color-modes/) — CSS custom properties, data-bs-theme attribute, semantic colors
+- [Bootstrap 5.3 Colors](https://getbootstrap.com/docs/5.3/customize/color/) — Color system, Sass variables, theming maps
+- [colorspace contrast_ratio()](https://colorspace.r-forge.r-project.org/reference/contrast_ratio.html) — WCAG validation, parameters, algorithms
+- [bslib Changelog 0.10.0](https://rstudio.github.io/bslib/news/index.html) — Latest version features, brand.yml support, dark mode improvements
+- [bslib Custom Components](https://rstudio.github.io/bslib/articles/custom-components/index.html) — Making components dynamically themeable
+
+**MEDIUM confidence (official blogs/community resources):**
+- [Shiny Theming Overview](https://shiny.posit.co/r/articles/build/themes/) — Integration patterns
+- [bslib 0.9.0 Release](https://shiny.posit.co/blog/posts/bslib-0.9.0/) — Brand theming features
+- [Bootstrap 5.3.0 Release](https://blog.getbootstrap.com/2023/05/30/bootstrap-5-3-0/) — Dark mode announcement, new features
+
+**MEDIUM confidence (web search):**
+- [visNetwork GitHub Issue #151](https://github.com/datastorm-open/visNetwork/issues/151) — Background color customization
+- [visNetwork Introduction](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html) — Styling options
 
 ---
-*Stack research for: v4.0 Stability + Synthesis (Overview preset, Literature Review Table, Research Question Generator)*
-*Researched: 2026-02-18*
+*Stack research for: Dark mode theming in R/Shiny/bslib applications*
+*Researched: 2026-02-22*

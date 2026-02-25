@@ -291,7 +291,7 @@ mod_topic_explorer_server <- function(id, con, config) {
       }, error = function(e) NULL)
 
       div(
-        class = "border rounded p-3 bg-light mt-3",
+        class = "border rounded p-3 bg-body-secondary mt-3",
         h5(topic_row$display_name),
         p(class = "small text-muted", topic_row$description),
         p(class = "mb-2",

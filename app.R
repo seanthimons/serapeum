@@ -7,6 +7,7 @@ library(duckdb)
 # Options
 #options("duckdb.enable_rstudio_connection_pane" = TRUE)
 
+
 # Source all R files
 for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
   source(f)
@@ -50,25 +51,26 @@ ui <- page_sidebar(
       icon("book-open"),
       "Serapeum"
     ),
-    tags$button(
-      id = "dark_mode_toggle",
-      class = "btn btn-sm btn-outline-secondary border-0",
-      onclick = "
-        const html = document.documentElement;
-        const current = html.getAttribute('data-bs-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        html.setAttribute('data-bs-theme', next);
-        localStorage.setItem('theme', next);
-        this.innerHTML = next === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
-      ",
-      icon("moon")
+    bslib::input_dark_mode(id = "dark_mode")
+  ),
+  theme = {
+    serapeum_theme <- bs_theme(
+      version = 5,
+      preset = "shiny",
+      bg = LATTE$base,
+      fg = LATTE$text,
+      primary = LATTE$lavender,
+      secondary = LATTE$surface1,
+      success = LATTE$green,
+      danger = LATTE$red,
+      warning = LATTE$yellow,
+      info = LATTE$blue,
+      "border-radius" = "0.5rem",
+      "link-color" = LATTE$sapphire,
+      "link-hover-color" = LATTE$sky
     )
-  ),
-  theme = bs_theme(
-    preset = "shiny",
-    primary = "#6366f1",
-    "border-radius" = "0.5rem"
-  ),
+    bs_add_rules(serapeum_theme, catppuccin_dark_css())
+  },
   tags$head(
     tags$link(rel = "shortcut icon", href = "favicon.ico"),
     tags$link(rel = "icon", type = "image/png", sizes = "32x32", href = "favicon-32x32.png"),
@@ -130,18 +132,7 @@ ui <- page_sidebar(
       min-width: 120px;
       max-width: 250px;
     }
-    /* Dark theme support for frozen column */
-    [data-bs-theme='dark'] .lit-review-scroll {
-      border-color: #495057;
-    }
-    [data-bs-theme='dark'] .lit-review-scroll th:first-child,
-    [data-bs-theme='dark'] .lit-review-scroll td:first-child {
-      background-color: #343a40;
-      border-right-color: #6c757d;
-    }
-    [data-bs-theme='dark'] .lit-review-scroll th:first-child {
-      background-color: #2b3035;
-    }
+    /* Dark theme support for frozen column — handled by catppuccin_dark_css() */
     ")),
     tags$script(HTML("
     // Startup wizard localStorage support
@@ -152,6 +143,18 @@ ui <- page_sidebar(
 
     Shiny.addCustomMessageHandler('setWizardPreference', function(value) {
       localStorage.setItem('serapeum_skip_wizard', 'true');
+    });
+
+    Shiny.addCustomMessageHandler('set-theme-storage', function(message) {
+      localStorage.setItem('theme', message.theme);
+    });
+
+    // Restore theme on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+      }
     });
   "))),
   sidebar = sidebar(
@@ -209,17 +212,6 @@ ui <- page_sidebar(
                    class = "text-muted small")
       )
     ),
-    # Script to restore theme preference on load
-    tags$script(HTML("
-      document.addEventListener('DOMContentLoaded', function() {
-        const saved = localStorage.getItem('theme');
-        if (saved) {
-          document.documentElement.setAttribute('data-bs-theme', saved);
-          const btn = document.getElementById('dark_mode_toggle');
-          if (btn) btn.innerHTML = saved === 'dark' ? '<i class=\"fa fa-sun\"></i>' : '<i class=\"fa fa-moon\"></i>';
-        }
-      });
-    "))
   ),
   # Main content
   uiOutput("main_content")
@@ -227,6 +219,16 @@ ui <- page_sidebar(
 
 # Server
 server <- function(input, output, session) {
+  # Enable thematic auto-theming for all renderPlot outputs (Phase 31-03)
+  thematic::thematic_shiny()
+
+  # Persist theme preference to localStorage
+  observeEvent(input$dark_mode, {
+    session$sendCustomMessage(
+      type = "set-theme-storage",
+      message = list(theme = if (input$dark_mode == "dark") "dark" else "light")
+    )
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
   # Database connection - create fresh for this session
   con <- get_db_connection(db_path)
@@ -929,7 +931,7 @@ server <- function(input, output, session) {
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
-          class = "border-0",
+          class = "border-0 bg-transparent",
           card_body(
             class = "text-center py-5",
             icon("book-open", class = "fa-4x text-primary mb-4"),

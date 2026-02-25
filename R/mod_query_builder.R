@@ -157,7 +157,7 @@ OUTPUT (valid JSON only, no markdown, no code fences):
       if (is.null(query)) return(NULL)
 
       div(
-        class = "border rounded p-3 bg-light",
+        class = "border rounded p-3 bg-body-secondary",
         h6("Generated Query"),
         p(class = "mb-2", query$explanation),
         div(

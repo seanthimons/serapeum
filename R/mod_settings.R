@@ -86,9 +86,8 @@ mod_settings_ui <- function(id) {
             ),
             actionButton(ns("refresh_chat_models"), NULL,
                          icon = icon("refresh"),
-                         class = "btn-outline-secondary btn-sm",
-                         title = "Refresh model list",
-                         style = "margin-bottom: 15px;")
+                         class = "btn-outline-secondary btn-sm mb-3",
+                         title = "Refresh model list")
           ),
           uiOutput(ns("model_info")),
           div(
@@ -106,9 +105,8 @@ mod_settings_ui <- function(id) {
             ),
             actionButton(ns("refresh_embed_models"), NULL,
                          icon = icon("refresh"),
-                         class = "btn-outline-secondary btn-sm",
-                         title = "Refresh model list",
-                         style = "margin-bottom: 15px;")
+                         class = "btn-outline-secondary btn-sm mb-3",
+                         title = "Refresh model list")
           ),
           hr(),
           h5(icon("shield-halved"), " Quality Data"),
@@ -381,8 +379,8 @@ mod_settings_server <- function(id, con, config_rv) {
       )
 
       div(
-        class = icon_info$class,
-        style = "margin-bottom: 15px; font-size: 1.2em; cursor: help;",
+        class = paste(icon_info$class, "mb-3"),
+        style = "font-size: 1.2em; cursor: help;",
         title = icon_info$title,
         icon(icon_info$icon, class = if (status == "validating") "fa-spin" else NULL)
       )
@@ -431,7 +429,7 @@ mod_settings_server <- function(id, con, config_rv) {
       tier_badge <- switch(row$tier,
         "budget" = span(class = "badge bg-success", "Budget"),
         "mid" = span(class = "badge bg-primary", "Mid-tier"),
-        "premium" = span(class = "badge bg-warning text-dark", "Premium"),
+        "premium" = span(class = "badge bg-warning text-body", "Premium"),
         span(class = "badge bg-secondary", row$tier)
       )
 
@@ -442,7 +440,7 @@ mod_settings_server <- function(id, con, config_rv) {
       }
 
       div(
-        class = "card card-body bg-light py-2 px-3 mt-2 small",
+        class = "card card-body bg-body-secondary py-2 px-3 mt-2 small",
         div(class = "d-flex justify-content-between align-items-center mb-1",
           span(class = "fw-semibold", row$name),
           tier_badge
@@ -473,7 +471,7 @@ mod_settings_server <- function(id, con, config_rv) {
       div(
         class = "small",
         span(class = "badge bg-success me-2", paste(status$has_doi, "with DOI")),
-        span(class = "badge bg-warning text-dark", paste(status$missing_doi, "missing DOI"))
+        span(class = "badge bg-warning text-body", paste(status$missing_doi, "missing DOI"))
       )
     })
 

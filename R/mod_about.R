@@ -4,8 +4,10 @@ mod_about_ui <- function(id) {
   ns <- NS(id)
 
   card(
+    fill = FALSE,
     class = "border-0",
     card_body(
+      fillable = FALSE,
       class = "py-4",
 
       # Header
@@ -183,7 +185,7 @@ mod_about_ui <- function(id) {
           tags$a(
             href = "https://github.com/seanthimons/serapeum",
             target = "_blank",
-            class = "btn btn-outline-dark",
+            class = "btn btn-outline-secondary",
             icon("github"), " View on GitHub"
           )
         ),

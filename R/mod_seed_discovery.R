@@ -185,7 +185,7 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
       }
 
       div(
-        class = "border rounded p-3 bg-light",
+        class = "border rounded p-3 bg-body-secondary",
         h5(class = "mb-2", paper$title),
         p(class = "text-muted small mb-1", authors_display),
         p(class = "text-muted small mb-2",

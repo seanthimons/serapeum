@@ -69,28 +69,28 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Legacy RAG code removed: cosine similarity, dual codepaths, digest (LEGC-01..04) — v3.0
 - ✓ Integration tests with mock embeddings (TEST-01) — v3.0
 - ✓ Connection lifecycle with on.exit cleanup (TEST-02) — v3.0
+- ✓ Fix seed paper not showing in abstract search #110 — v4.0
+- ✓ Fix modal repeats multiple times on remove #111 — v4.0
+- ✓ Fix cost tracking table not being updated #116 — v4.0
+- ✓ Fix refresh button adding papers after removing #86 — v4.0
+- ✓ Land PR #112: Fix duplicate toast notifications — v4.0
+- ✓ Land PR #115: Make keywords panel collapsible — v4.0
+- ✓ Unified Overview preset merging Summarize + Key Points #98 — v4.0
+- ✓ Research Question Generator preset #102 — v4.0
+- ✓ Literature Review Table — structured comparison matrix #99 — v4.0
+- ✓ Fix ragnar embed closure serialization bug — v5.0
+- ✓ Chat send button spinner — v5.0
+- ✓ Catppuccin dark mode palette with WCAG AA contrast (DARK-01..05) — v6.0
+- ✓ visNetwork dark canvas with rgba borders (COMP-02) — v6.0
+- ✓ All components render correctly in dark mode (COMP-01, COMP-04) — v6.0
+- ✓ Custom CSS uses Bootstrap variables, not hardcoded hex (COMP-03, COMP-05) — v6.0
+- ✓ UI polish: spacing, typography, about page harmonization (UIPX-01..05) — v6.0
+- ✓ bslib::input_dark_mode() replaces custom JS toggle — v6.0
+- ✓ Cross-module dark mode validation passed (Phase 32) — v6.0
 
 ### Active
 
-<!-- v4.0 Stability + Synthesis -->
-
-**Phase 1 — Stabilize:**
-- [ ] Fix seed paper not showing in abstract search (#110)
-- [ ] Fix modal repeats multiple times on remove (#111)
-- [ ] Fix cost tracking table not being updated (#116)
-- [ ] Fix refresh button adding papers after removing (#86)
-- [ ] Fix connection leak in search_chunks_hybrid (#117)
-- [ ] Encode section_hint in PDF ragnar origins (#118)
-- [ ] Remove dead code: with_ragnar_store, register_ragnar_cleanup (#119)
-- [ ] Land PR #112: Fix duplicate toast notifications
-- [ ] Land PR #115: Make keywords panel collapsible
-- [ ] Fix tooltip overflow + citation network background color (#79, #89)
-- [ ] Rebalance settings page two-column layout
-
-**Phase 2 — Synthesis:**
-- [ ] Merge Summarize + Key Points into unified Overview (#98)
-- [ ] Literature Review Table — structured comparison matrix (#99)
-- [x] Research Question Generator preset (#102) — Phase 27
+(No active milestone — define next with /gsd:new-milestone)
 
 ### Out of Scope
 
@@ -101,18 +101,18 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - Audio overview (#22) — experimental, low priority
 - Bulk DOI/.bib import (#24) — deferred, needs UX design
 - Rich output preview (#50) — deferred, consider for next milestone
-- Additional synthesis outputs (#63) — deferred, consider for next milestone
 - Cross-notebook search — contradicts per-notebook isolation goal
 
 ## Context
 
-Shipped v3.0 with ~14,000 LOC R across 13 modified production files (+2,009 / -692 from v2.1).
-Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar.
+Shipped v6.0 with ~14,500 LOC R across 14 production files. 9 milestones shipped (v1.0–v6.0), 32 phases, 53 plans.
+Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
+Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle.
 7 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint).
 Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds and ragnar re-indexing with file-based interrupt flags.
 RAG: ragnar is the sole backend — per-notebook DuckDB vector stores (`data/ragnar/{notebook_id}.duckdb`), hybrid VSS+BM25 retrieval, OpenRouter embedding. Section-targeted retrieval via keyword heuristics.
-Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, section_hint not encoded in PDF ragnar origins, dead code (with_ragnar_store, register_ragnar_cleanup).
+Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (#117), section_hint not encoded in PDF ragnar origins (#118), dead code (#119), secondary ragnar leak in ensure_ragnar_store(), 13 pre-existing test fixture failures.
 
 ## Constraints
 
@@ -120,8 +120,9 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 - **API**: OpenRouter for LLM, OpenAlex for academic data — no new external services
 - **Architecture**: Shiny module pattern (`mod_*.R`) — new features follow existing conventions
 - **Local-first**: No server infrastructure; everything runs on user's machine
-- **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0) — ragnar is a hard requirement
+- **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0), thematic (v6.0) — ragnar is a hard requirement
 - **RAG**: ragnar is the sole retrieval backend — no legacy cosine similarity fallback
+- **Theme**: Catppuccin palette only — no custom color schemes or multiple theme variants
 
 ## Key Decisions
 
@@ -168,16 +169,24 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 | DBI::dbDisconnect(store@con) for S7 objects (v3.0) | S7 DuckDBRagnarStore has no DBI method registered | ✓ Good — caught by integration tests |
 | Standalone generate_research_questions() (v4.0) | Separate function, not added to generate_preset() — different prompt structure, paper metadata enrichment | ✓ Good — clean separation |
 | %in% set membership for disclaimer check (v4.0) | Extensible for future preset types vs chained identical() | ✓ Good — Literature Review Table will benefit |
+| Catppuccin Latte/Mocha palette (v6.0) | Official palette with proven WCAG contrast ratios, not ad-hoc colors | ✓ Good — 11.8:1 contrast ratio |
+| Centralized dark CSS via bs_add_rules() (v6.0) | Single function generates all dark overrides, avoids scatter | ✓ Good — DARK-05 satisfied |
+| Inline block expression for bs_theme (v6.0) | Keeps theme creation + augmentation together in page_sidebar() | ✓ Good — readable, no separate variable |
+| rgba borders for viridis node visibility (v6.0) | Semi-transparent borders work on both light and dark canvas | ✓ Good — all viridis scales visible |
+| bslib::input_dark_mode() over custom JS (v6.0) | Native thematic integration, fewer moving parts | ✓ Good — eliminated 13 lines of custom JS |
+| bg-body-secondary for panels, bg-body-tertiary for badges (v6.0) | Bootstrap semantic classes adapt to both themes automatically | ✓ Good — zero dark mode overrides needed |
+| thematic_shiny() for auto-themed R plots (v6.0) | Plot backgrounds adapt to theme without manual CSS | ✓ Good — future-proofed for any R plots added |
+| CSS !important for Sass-compiled value box text (v6.0) | Sass compilation bakes colors at build time, runtime override needed | ✓ Good — Mocha Crust text visible in dark mode |
 
 ---
 ## Current State
 
-**Latest shipped:** v4.0 Stability + Synthesis (2026-02-22)
-**Active milestone:** v5.0 Fix Document Embeddings
-**Total milestones:** 7 shipped (v1.0–v4.0), 1 active (v5.0)
-**Total phases:** 29 across 48 plans
+**Latest shipped:** v6.0 Dark Mode + UI Polish (2026-02-25)
+**Active milestone:** None — ready for /gsd:new-milestone
+**Total milestones:** 9 shipped (v1.0–v6.0)
+**Total phases:** 32 across 53 plans
 
-**v5.0 goal:** Fix the critical ragnar embed closure serialization bug — the embed function is serialized to disk by ragnar but loses its closure environment on deserialization, breaking all document and abstract embedding. Fix: set embed function via S7 `@embed` property at runtime after every store create/connect.
+**v6.0 shipped:** Full Catppuccin dark mode palette with WCAG AA contrast, centralized dark CSS, theme-aware Bootstrap classes replacing all hardcoded colors, visNetwork dark canvas, and bslib::input_dark_mode() toggle.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -185,6 +194,8 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid, 
 - Connection leak in search_chunks_hybrid (#117)
 - Section_hint not encoded in PDF ragnar origins (#118)
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
+- Tooltip overflow (#79)
+- Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-02-22 — v5.0 milestone created*
+*Last updated: 2026-02-25 after v6.0 milestone*

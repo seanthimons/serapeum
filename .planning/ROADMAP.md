@@ -9,6 +9,8 @@
 - ✅ **v2.1 Polish & Analysis** - Phases 16-19 (shipped 2026-02-13)
 - ✅ **v3.0 Ragnar RAG Overhaul** - Phases 20-24 (shipped 2026-02-17)
 - ✅ **v4.0 Stability + Synthesis** - Phases 25-28 (shipped 2026-02-22)
+- ✅ **v5.0 Fix Document Embeddings** - Phase 29 (shipped 2026-02-22)
+- ✅ **v6.0 Dark Mode + UI Polish** - Phases 30-32 (shipped 2026-02-25)
 
 ## Phases
 
@@ -85,6 +87,26 @@ See [v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md) for full details.
 
 </details>
 
+<details>
+<summary>✅ v5.0 Fix Document Embeddings (Phase 29) - SHIPPED 2026-02-22</summary>
+
+- [x] Phase 29: Fix Ragnar Embed Closure Bug (1/1 plan) - completed 2026-02-22
+
+See [v5.0-ROADMAP.md](milestones/v5.0-ROADMAP.md) for full details.
+
+</details>
+
+<details>
+<summary>✅ v6.0 Dark Mode + UI Polish (Phases 30-32) - SHIPPED 2026-02-25</summary>
+
+- [x] Phase 30: Core Dark Mode Palette (2/2 plans) - completed 2026-02-22
+- [x] Phase 31: Component Styling & Visual Consistency (5/5 plans) - completed 2026-02-22
+- [x] Phase 32: Testing & Polish (1/1 plan) - completed 2026-02-22
+
+See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
+
+</details>
+
 ## Progress
 
 | Milestone | Phases | Plans | Status | Shipped |
@@ -96,8 +118,10 @@ See [v4.0-ROADMAP.md](milestones/v4.0-ROADMAP.md) for full details.
 | v2.1 | 16-19 | 7 | Complete | 2026-02-13 |
 | v3.0 | 20-24 | 9 | Complete | 2026-02-17 |
 | v4.0 | 25-28 | 6 | Complete | 2026-02-22 |
+| v5.0 | 29 | 1 | Complete | 2026-02-22 |
+| v6.0 | 30-32 | 8 | Complete | 2026-02-25 |
 
-**Total: 47 plans complete across 28 phases (7 milestones shipped)**
+**Total: 53 plans complete across 32 phases (9 milestones shipped)**
 
 ---
-*Updated: 2026-02-22 — v4.0 archived*
+*Updated: 2026-02-25 — v6.0 milestone archived*

@@ -25,7 +25,7 @@ mod_citation_network_ui <- function(id) {
 
     # Top controls bar
     div(
-      class = "citation-network-controls mb-3 p-3 bg-light rounded",
+      class = "citation-network-controls mb-3 p-3 bg-body-secondary rounded",
       layout_columns(
         col_widths = c(2, 2, 2, 3, 3),
 
@@ -58,13 +58,19 @@ mod_citation_network_ui <- function(id) {
           )
         ),
 
-        # Build button
+        # Build button and physics toggle
         div(
           actionButton(
             ns("build_network"),
             "Build Network",
             class = "btn-primary",
             icon = icon("diagram-project")
+          ),
+          # #TODO: auto-set physics default based on network size (off for large graphs)
+          checkboxInput(
+            ns("physics_enabled"),
+            tags$span("Physics", title = "Keep force simulation running so the graph can rebalance. Disable to freeze node positions."),
+            value = TRUE
           )
         ),
 
@@ -579,19 +585,17 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             ),
             stabilization = list(iterations = stab_iters)
           ) |>
-          visNetwork::visLayout(randomSeed = 42) |>
-          visNetwork::visEvents(
-            stabilizationIterationsDone = "function() {
-              this.setOptions({ physics: false });
-            }"
-          )
+          visNetwork::visLayout(randomSeed = 42)
       }
 
       # Configure appearance
       vn <- vn |>
         visNetwork::visEdges(
           arrows = "to",
-          color = list(color = "#cccccc", highlight = "#666666"),
+          color = list(
+            color = "rgba(140, 143, 161, 0.35)",
+            highlight = "rgba(140, 143, 161, 0.7)"
+          ),
           smooth = list(type = "continuous")
         ) |>
         visNetwork::visNodes(
@@ -700,7 +704,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       nodes <- net_data$nodes
 
       # Recompute colors with new palette
-      nodes$color <- map_year_to_color(nodes$year, palette)
+      new_colors <- map_year_to_color(nodes$year, palette)
+      nodes$color.background <- new_colors
+      nodes$color.highlight.background <- new_colors
 
       # Update stored data
       net_data$nodes <- nodes
@@ -710,7 +716,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       # Also update unfiltered snapshot so next Apply uses new colors
       uf_data <- unfiltered_network_data()
       if (!is.null(uf_data)) {
-        uf_data$nodes$color <- map_year_to_color(uf_data$nodes$year, palette)
+        uf_colors <- map_year_to_color(uf_data$nodes$year, palette)
+        uf_data$nodes$color.background <- uf_colors
+        uf_data$nodes$color.highlight.background <- uf_colors
         uf_data$metadata$palette <- palette
         unfiltered_network_data(uf_data)
       }
@@ -723,8 +731,18 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Update via proxy (no full re-render)
       visNetwork::visNetworkProxy("network_graph") |>
-        visNetwork::visUpdateNodes(nodes[, c("id", "color", "value", "shape",
-                                              "borderWidth", "color.border")])
+        visNetwork::visUpdateNodes(nodes[, c("id", "color.background",
+                                              "color.highlight.background",
+                                              "value", "shape", "borderWidth",
+                                              "color.border",
+                                              "color.highlight.border")])
+    }, ignoreInit = TRUE)
+
+    # Toggle physics simulation on/off
+    observeEvent(input$physics_enabled, {
+      req(current_network_data())
+      visNetwork::visNetworkProxy("network_graph") |>
+        visNetwork::visPhysics(enabled = input$physics_enabled)
     }, ignoreInit = TRUE)
 
     # Handle node click

@@ -4,8 +4,10 @@ mod_cost_tracker_ui <- function(id) {
   ns <- NS(id)
 
   card(
+    fill = FALSE,
     card_header("Cost Tracker"),
     card_body(
+      fillable = FALSE,
       # OpenRouter balance
       uiOutput(ns("openrouter_balance")),
       # Session summary value box
@@ -80,7 +82,7 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
           showcase = icon("wallet"),
           showcase_layout = "left center",
           theme = theme,
-          p(class = "small text-muted mb-0",
+          p(class = "small mb-0",
             sprintf("$%.2f used of $%.2f", creds$total_usage, creds$total_credits))
         ),
         hr()
@@ -183,7 +185,7 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
       barplot(
         height = history$total_cost,
         names.arg = format(as.Date(history$date), "%m/%d"),
-        col = "#6366f1",
+        col = LATTE$lavender,
         border = NA,
         las = 2,
         ylab = "Cost (USD)",
