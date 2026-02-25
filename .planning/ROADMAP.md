@@ -133,10 +133,10 @@ See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
   2. System normalizes all DOI formats to bare format (10.xxxx/yyyy)
   3. System validates DOI structure and rejects malformed entries with clear error messages
   4. Utility functions are tested with edge cases (mixed formats, whitespace, invalid prefixes)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 33-01: TBD
+- [ ] 33-01-PLAN.md — TDD: Batch DOI parsing with categorized errors
 
 ### Phase 34: OpenAlex Batch API Support
 **Goal**: Enable efficient batch fetching of papers from OpenAlex with proper rate limiting
