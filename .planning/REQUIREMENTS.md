@@ -10,12 +10,12 @@ Requirements for v7.0 Citation Audit + Quick Wins. Each maps to roadmap phases.
 ### Citation Audit
 
 - [ ] **AUDIT-01**: User can trigger citation gap analysis on a search notebook
-- [ ] **AUDIT-02**: System analyzes backward references (papers cited BY collection) using referenced_works
-- [ ] **AUDIT-03**: System analyzes forward citations (papers that CITE the collection) via OpenAlex cited_by
-- [ ] **AUDIT-04**: Missing papers are ranked by citation frequency (threshold: 2+ references)
+- [x] **AUDIT-02**: System analyzes backward references (papers cited BY collection) using referenced_works
+- [x] **AUDIT-03**: System analyzes forward citations (papers that CITE the collection) via OpenAlex cited_by
+- [x] **AUDIT-04**: Missing papers are ranked by citation frequency (threshold: 2+ references)
 - [ ] **AUDIT-05**: User sees ranked list with title, author, year, and citation count
-- [ ] **AUDIT-06**: User can import individual missing papers with one click
-- [ ] **AUDIT-07**: Analysis runs async with progress indicator and cancellation
+- [x] **AUDIT-06**: User can import individual missing papers with one click
+- [x] **AUDIT-07**: Analysis runs async with progress indicator and cancellation
 
 ### Bulk Import
 
@@ -75,12 +75,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | AUDIT-01 | Phase 37 | Pending |
-| AUDIT-02 | Phase 37 | Pending |
-| AUDIT-03 | Phase 37 | Pending |
-| AUDIT-04 | Phase 37 | Pending |
+| AUDIT-02 | Phase 37 | Complete |
+| AUDIT-03 | Phase 37 | Complete |
+| AUDIT-04 | Phase 37 | Complete |
 | AUDIT-05 | Phase 37 | Pending |
-| AUDIT-06 | Phase 37 | Pending |
-| AUDIT-07 | Phase 37 | Pending |
+| AUDIT-06 | Phase 37 | Complete |
+| AUDIT-07 | Phase 37 | Complete |
 | BULK-01 | Phase 35 | Pending |
 | BULK-02 | Phase 35 | Pending |
 | BULK-03 | Phase 36 | Complete |
