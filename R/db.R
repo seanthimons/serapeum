@@ -203,7 +203,7 @@ init_schema <- function(con) {
     )
   ")
 
-  # Import runs table (Phase 35: Bulk DOI Import)
+  # Import runs table (Phase 35: Bulk DOI Import, Phase 36: BibTeX Import)
   dbExecute(con, "
     CREATE TABLE IF NOT EXISTS import_runs (
       id VARCHAR PRIMARY KEY,
@@ -214,6 +214,7 @@ init_schema <- function(con) {
       imported_count INTEGER NOT NULL DEFAULT 0,
       failed_count INTEGER NOT NULL DEFAULT 0,
       skipped_count INTEGER NOT NULL DEFAULT 0,
+      source VARCHAR DEFAULT 'doi_bulk',
       FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
     )
   ")
@@ -1630,12 +1631,12 @@ get_year_bounds <- function(con, notebook_id) {
 #' @param name User-provided or auto-generated run name
 #' @param total_count Total number of DOIs in this run
 #' @return Import run ID (UUID string)
-create_import_run <- function(con, notebook_id, name, total_count) {
+create_import_run <- function(con, notebook_id, name, total_count, source = "doi_bulk") {
   id <- uuid::UUIDgenerate()
   dbExecute(con, "
-    INSERT INTO import_runs (id, notebook_id, name, total_count)
-    VALUES (?, ?, ?, ?)
-  ", list(id, notebook_id, name, as.integer(total_count)))
+    INSERT INTO import_runs (id, notebook_id, name, total_count, source)
+    VALUES (?, ?, ?, ?, ?)
+  ", list(id, notebook_id, name, as.integer(total_count), source))
   id
 }
 

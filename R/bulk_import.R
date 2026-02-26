@@ -155,7 +155,8 @@ read_import_progress <- function(progress_file) {
 #' @param progress_file Optional path to progress file
 #' @return List with run_id, imported_count, failed_count, cancelled flag
 run_bulk_import <- function(dois, notebook_id, email, api_key, db_path,
-                            run_id, interrupt_flag = NULL, progress_file = NULL) {
+                            run_id, interrupt_flag = NULL, progress_file = NULL,
+                            bib_metadata = NULL, source = "doi_bulk") {
   # Open worker's own DB connection
   con <- get_db_connection(path = db_path)
   on.exit(close_db_connection(con), add = TRUE)
@@ -192,6 +193,19 @@ run_bulk_import <- function(dois, notebook_id, email, api_key, db_path,
       list(doi = d, reason = "api_error", details = conditionMessage(e))
     }))
   })
+
+  # Merge BibTeX metadata if available (Phase 36)
+  if (!is.null(bib_metadata) && is.data.frame(bib_metadata) && nrow(bib_metadata) > 0) {
+    for (i in seq_along(result$papers)) {
+      paper_doi <- tolower(result$papers[[i]]$doi %||% "")
+      if (nchar(paper_doi) > 0 && "DOI" %in% names(bib_metadata)) {
+        bib_match <- bib_metadata[tolower(bib_metadata$DOI) == paper_doi, , drop = FALSE]
+        if (nrow(bib_match) > 0) {
+          result$papers[[i]] <- merge_bibtex_openalex(result$papers[[i]], bib_match[1, , drop = FALSE])
+        }
+      }
+    }
+  }
 
   # Store successful papers
   for (paper in result$papers) {
@@ -256,4 +270,96 @@ run_bulk_import <- function(dois, notebook_id, email, api_key, db_path,
     failed_count = failed_count,
     cancelled = cancelled
   )
+}
+
+#' Parse BibTeX file into structured metadata using bib2df
+#'
+#' Reads a .bib file and extracts entry metadata including DOI, title, abstract,
+#' author, and year. Uses bib2df for robust parsing with graceful error handling
+#' for malformed files.
+#'
+#' @param bib_file_path Path to a .bib file
+#' @return List with:
+#'   \describe{
+#'     \item{data}{Tibble with UPPERCASE columns (DOI, TITLE, ABSTRACT, AUTHOR, YEAR, etc.)}
+#'     \item{diagnostics}{List with total_entries, entries_with_doi, entries_without_doi}
+#'   }
+parse_bibtex_metadata <- function(bib_file_path) {
+  empty_result <- list(
+    data = data.frame(
+      DOI = character(0), TITLE = character(0), ABSTRACT = character(0),
+      AUTHOR = character(0), YEAR = character(0),
+      stringsAsFactors = FALSE
+    ),
+    diagnostics = list(
+      total_entries = 0L,
+      entries_with_doi = 0L,
+      entries_without_doi = 0L
+    )
+  )
+
+  # Handle nonexistent files gracefully
+
+  if (!file.exists(bib_file_path)) {
+    return(empty_result)
+  }
+
+  # Parse with bib2df, catching malformed files
+  parsed <- tryCatch({
+    bib2df::bib2df(bib_file_path, separate_names = FALSE)
+  }, error = function(e) {
+    message("[bibtex] Error parsing .bib file: ", conditionMessage(e))
+    NULL
+  }, warning = function(w) {
+    # bib2df may warn about malformed entries but still return partial results
+    suppressWarnings(bib2df::bib2df(bib_file_path, separate_names = FALSE))
+  })
+
+  if (is.null(parsed) || !is.data.frame(parsed) || nrow(parsed) == 0) {
+    return(empty_result)
+  }
+
+  # Ensure expected columns exist (bib2df uses UPPERCASE)
+  for (col in c("DOI", "TITLE", "ABSTRACT", "AUTHOR", "YEAR")) {
+    if (!col %in% names(parsed)) {
+      parsed[[col]] <- NA_character_
+    }
+  }
+
+  total <- nrow(parsed)
+  with_doi <- sum(!is.na(parsed$DOI) & nchar(trimws(as.character(parsed$DOI))) > 0)
+  without_doi <- total - with_doi
+
+  list(
+    data = parsed,
+    diagnostics = list(
+      total_entries = as.integer(total),
+      entries_with_doi = as.integer(with_doi),
+      entries_without_doi = as.integer(without_doi)
+    )
+  )
+}
+
+#' Merge BibTeX metadata into OpenAlex paper record
+#'
+#' Fills abstract from BibTeX when OpenAlex enrichment lacks one.
+#' OpenAlex data takes priority for all fields; BibTeX only fills gaps.
+#'
+#' @param openalex_paper List with paper fields (from batch_fetch_papers)
+#' @param bibtex_row Single-row data.frame from bib2df (UPPERCASE columns)
+#' @return Modified openalex_paper with abstract filled from BibTeX if needed
+merge_bibtex_openalex <- function(openalex_paper, bibtex_row) {
+  # Check if OpenAlex abstract is missing
+  oa_abstract <- openalex_paper$abstract
+  has_oa_abstract <- !is.null(oa_abstract) && !is.na(oa_abstract) && nchar(trimws(oa_abstract)) > 0
+
+  if (!has_oa_abstract) {
+    # Try to fill from BibTeX
+    bib_abstract <- bibtex_row$ABSTRACT
+    if (length(bib_abstract) > 0 && !is.na(bib_abstract[1]) && nchar(trimws(bib_abstract[1])) > 0) {
+      openalex_paper$abstract <- bib_abstract[1]
+    }
+  }
+
+  openalex_paper
 }
