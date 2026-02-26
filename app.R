@@ -1007,7 +1007,7 @@ server <- function(input, output, session) {
   mod_document_notebook_server("doc_notebook", con_r, current_notebook, effective_config)
 
   # Search notebook module
-  search_seed_request <- mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh)
+  search_seed_request <- mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh, db_path = db_path)
 
   # Seed discovery module
   discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r, pre_fill_doi)

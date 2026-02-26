@@ -68,6 +68,10 @@ mod_search_notebook_ui <- function(id) {
           span("Papers"),
           div(
             class = "d-flex gap-2",
+            actionButton(ns("open_bulk_import"), NULL,
+                         class = "btn-sm btn-outline-success",
+                         icon = icon("file-import"),
+                         title = "Import DOIs"),
             div(
               class = "btn-group btn-group-sm",
               tags$button(
@@ -307,7 +311,10 @@ mod_search_notebook_ui <- function(id) {
         }
         if (msg) msg.textContent = data.message;
       });
-    "))
+    ")),
+
+    # Phase 35: Bulk DOI import module UI (modals + history)
+    mod_bulk_import_ui(ns("bulk_import"))
   )
 }
 
@@ -316,7 +323,7 @@ mod_search_notebook_ui <- function(id) {
 #' @param con Database connection (reactive)
 #' @param notebook_id Reactive notebook ID
 #' @param config App config (reactive)
-mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_refresh = NULL) {
+mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_refresh = NULL, db_path = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -338,6 +345,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
     reindex_poller <- reactiveVal(NULL)
+
+    # Phase 35: Bulk DOI import module
+    # db_path can be a reactive or a plain value — wrap in reactive for the module
+    db_path_r <- if (is.function(db_path)) db_path else reactive(db_path)
+    bulk_import_api <- mod_bulk_import_server("bulk_import", con, notebook_id, config,
+                                              paper_refresh, db_path_r)
+
+    # Phase 35: Open bulk import modal
+    observeEvent(input$open_bulk_import, {
+      bulk_import_api$show_import_modal()
+    })
 
     # Phase 22: rag_available = store exists and is healthy
     rag_available <- reactive({
