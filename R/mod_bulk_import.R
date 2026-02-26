@@ -33,6 +33,8 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
     duplicate_dois <- reactiveVal(character())  # DOIs already in notebook
     malformed_dois <- reactiveVal(NULL)   # data.frame of invalid DOIs
     bib_entries_without_doi <- reactiveVal(0L)
+    bib_metadata_store <- reactiveVal(NULL)  # Tibble from parse_bibtex_metadata for metadata merge
+    bib_diagnostics <- reactiveVal(NULL)     # Diagnostics from parse_bibtex_metadata
     current_run_id <- reactiveVal(NULL)
     last_result <- reactiveVal(NULL)      # Result from run_bulk_import
 
@@ -46,7 +48,8 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
 
     # ExtendedTask for async import
     import_task <- ExtendedTask$new(function(dois, notebook_id, email, api_key, db_path,
-                                             run_id, interrupt_flag, progress_file, app_dir) {
+                                             run_id, interrupt_flag, progress_file, app_dir,
+                                             bib_metadata = NULL, source = "doi_bulk") {
       mirai::mirai({
         setwd(app_dir)
         source("R/db_migrations.R")
@@ -56,10 +59,12 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         source("R/bulk_import.R")
         source("R/interrupt.R")
         run_bulk_import(dois, notebook_id, email, api_key, db_path,
-                        run_id, interrupt_flag, progress_file)
+                        run_id, interrupt_flag, progress_file,
+                        bib_metadata = bib_metadata, source = source)
       }, dois = dois, notebook_id = notebook_id, email = email, api_key = api_key,
          db_path = db_path, run_id = run_id, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         progress_file = progress_file, app_dir = app_dir,
+         bib_metadata = bib_metadata, source = source)
     })
 
     # --- Show Import Modal ---
@@ -70,6 +75,8 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       duplicate_dois(character())
       malformed_dois(NULL)
       bib_entries_without_doi(0L)
+      bib_metadata_store(NULL)
+      bib_diagnostics(NULL)
 
       showModal(modalDialog(
         title = tagList(icon("file-import"), "Bulk DOI Import"),
@@ -107,10 +114,18 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       req(input$doi_file)
       file <- input$doi_file
       ext <- tolower(tools::file_ext(file$name))
-      tags$div(
-        class = "text-muted small mt-1",
-        sprintf("File: %s (%s, %s bytes)", file$name, ext, file$size)
-      )
+      if (ext == "bib") {
+        tags$div(
+          class = "text-muted small mt-1",
+          sprintf("BibTeX file: %s (%s bytes) -- DOIs will be extracted and enriched via OpenAlex",
+                  file$name, file$size)
+        )
+      } else {
+        tags$div(
+          class = "text-muted small mt-1",
+          sprintf("File: %s (%s, %s bytes)", file$name, ext, file$size)
+        )
+      }
     })
 
     # --- Preview Logic ---
@@ -135,10 +150,20 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         )
 
         if (ext == "bib") {
-          bib_result <- extract_dois_from_bib(file_content)
-          doi_input <- bib_result$dois
+          # Use bib2df for full metadata parsing (Phase 36)
+          bib_result <- parse_bibtex_metadata(file$datapath)
+          bib_metadata_store(bib_result$data)
+          bib_diagnostics(bib_result$diagnostics)
+
+          # Extract DOIs from parsed data
+          if (nrow(bib_result$data) > 0 && "DOI" %in% names(bib_result$data)) {
+            doi_input <- bib_result$data$DOI[!is.na(bib_result$data$DOI) &
+                                              nchar(trimws(as.character(bib_result$data$DOI))) > 0]
+          } else {
+            doi_input <- character(0)
+          }
           is_bib <- TRUE
-          bib_no_doi_count <- bib_result$entries_without_doi
+          bib_no_doi_count <- bib_result$diagnostics$entries_without_doi
         } else {
           # CSV or text file — treat each line as potential DOI
           doi_input <- file_content
@@ -255,9 +280,28 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         )
       }
 
+      # BibTeX diagnostics summary (Phase 36)
+      diag <- bib_diagnostics()
+      if (!is.null(diag)) {
+        items[[length(items) + 1]] <- tags$div(
+          class = "text-info small",
+          icon("file-lines"),
+          sprintf("BibTeX: %d entries parsed, %d with DOIs, %d without DOIs",
+                  diag$total_entries, diag$entries_with_doi, diag$entries_without_doi)
+        )
+      }
+
       # Large import warning
       warning_ui <- NULL
-      if (length(new) >= 200) {
+      if (!is.null(diag) && diag$total_entries >= 200) {
+        warning_ui <- tags$div(
+          class = "alert alert-warning mt-2 mb-0",
+          icon("triangle-exclamation"),
+          sprintf("Large BibTeX file: %d entries. Import may take a while.", diag$total_entries),
+          tags$strong(estimate_import_time(length(new))),
+          "You can cancel mid-import."
+        )
+      } else if (length(new) >= 200) {
         warning_ui <- tags$div(
           class = "alert alert-warning mt-2 mb-0",
           icon("triangle-exclamation"),
@@ -297,7 +341,8 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       # Create import run in main session (before mirai)
       total_count <- length(dois_to_fetch) + length(duplicate_dois()) +
         (if (!is.null(malformed_dois())) nrow(malformed_dois()) else 0L)
-      run_id <- create_import_run(con(), nb_id, run_name, total_count)
+      import_source <- if (!is.null(bib_metadata_store())) "bibtex" else "doi_bulk"
+      run_id <- create_import_run(con(), nb_id, run_name, total_count, source = import_source)
       current_run_id(run_id)
 
       # Record duplicate items immediately (no API call needed)
@@ -351,6 +396,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       ))
 
       # Invoke async import
+      bib_meta <- bib_metadata_store()
       import_task$invoke(
         dois = dois_to_fetch,
         notebook_id = nb_id,
@@ -360,7 +406,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         run_id = run_id,
         interrupt_flag = flag_file,
         progress_file = prog_file,
-        app_dir = getwd()
+        app_dir = getwd(),
+        bib_metadata = bib_meta,
+        source = import_source
       )
 
       # Start polling observer
@@ -515,6 +563,34 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         )
       }
 
+      # Seed Citation Network button for BibTeX imports (Phase 36)
+      bib_meta <- bib_metadata_store()
+      if (result$imported_count > 0 && !is.null(bib_meta)) {
+        footer_buttons <- c(
+          list(actionButton(ns("seed_network"), "Seed Citation Network",
+                            class = "btn-outline-primary",
+                            icon = icon("share-nodes"))),
+          footer_buttons
+        )
+      }
+
+      # BibTeX-specific results breakdown (Phase 36)
+      bib_detail_ui <- NULL
+      diag <- bib_diagnostics()
+      if (!is.null(diag)) {
+        bib_detail_ui <- tags$div(
+          class = "border rounded p-2 mb-3",
+          tags$h6(class = "mb-2", icon("file-lines"), "BibTeX Details"),
+          tags$div(
+            class = "small",
+            tags$div(sprintf("%d entries parsed from .bib file", diag$total_entries)),
+            tags$div(sprintf("%d entries had DOI fields", diag$entries_with_doi)),
+            tags$div(class = "text-muted",
+                     sprintf("%d entries skipped (no DOI)", diag$entries_without_doi))
+          )
+        )
+      }
+
       showModal(modalDialog(
         title = title,
         tags$div(
@@ -536,6 +612,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
             tags$small(class = "text-muted", "skipped")
           )
         ),
+        bib_detail_ui,
         error_ui,
         footer = do.call(tagList, footer_buttons),
         size = "m",
@@ -567,7 +644,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       run_name <- paste0("Retry - ", Sys.Date())
 
       total_count <- length(retry_dois)
-      new_run_id <- create_import_run(con(), nb_id, run_name, total_count)
+      new_run_id <- create_import_run(con(), nb_id, run_name, total_count, source = "doi_bulk")
       current_run_id(new_run_id)
 
       flag_file <- create_interrupt_flag(session$token)
@@ -599,7 +676,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         run_id = new_run_id,
         interrupt_flag = flag_file,
         progress_file = prog_file,
-        app_dir = getwd()
+        app_dir = getwd(),
+        bib_metadata = NULL,
+        source = "doi_bulk"
       )
 
       poller <- observe({
@@ -614,6 +693,16 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         ))
       })
       progress_poller(poller)
+    })
+
+    # --- Seed Citation Network Handler (Phase 36) ---
+    observeEvent(input$seed_network, {
+      showNotification(
+        "Citation network seeding will be available after importing. Papers are ready for citation audit.",
+        type = "message",
+        duration = 5
+      )
+      removeModal()
     })
 
     # --- Import History ---
