@@ -180,7 +180,10 @@ ui <- page_sidebar(
                    icon = icon("compass")),
       actionButton("new_network", "Citation Network",
                    class = "btn-outline-danger",
-                   icon = icon("diagram-project"))
+                   icon = icon("diagram-project")),
+      actionButton("citation_audit", "Citation Audit",
+                   class = "btn-outline-secondary",
+                   icon = icon("magnifying-glass-chart"))
     ),
     # Notebook list
     div(
@@ -598,6 +601,12 @@ server <- function(input, output, session) {
     current_view("topic_explorer")
   })
 
+  # Citation audit button
+  observeEvent(input$citation_audit, {
+    current_notebook(NULL)
+    current_view("citation_audit")
+  })
+
   # New citation network button - show seed paper search modal
   observeEvent(input$new_network, {
     showModal(modalDialog(
@@ -928,6 +937,10 @@ server <- function(input, output, session) {
       return(mod_citation_network_ui("citation_network"))
     }
 
+    if (view == "citation_audit") {
+      return(mod_citation_audit_ui("citation_audit"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
       return(
         card(
@@ -1020,6 +1033,15 @@ server <- function(input, output, session) {
 
   # Citation network module
   mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
+
+  # Citation audit module
+  mod_citation_audit_server("citation_audit", con, config_r = effective_config,
+    db_path = db_path,
+    navigate_to_notebook = function(notebook_id) {
+      current_notebook(notebook_id)
+      current_view("notebook")
+    }
+  )
 
   # Wire "Use as Seed" from search notebook to seed discovery
   observeEvent(search_seed_request(), {
