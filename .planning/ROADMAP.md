@@ -119,7 +119,7 @@ See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
 - [x] **Phase 35: Bulk DOI Import UI** - Paste/upload DOI lists for batch import (completed 2026-02-26)
 - [x] **Phase 36: BibTeX Import** - Upload .bib files for library migration (completed 2026-02-26)
 - [x] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency (completed 2026-02-26)
-- [ ] **Phase 38: Select-All Import** - Batch select and import filtered abstracts
+- [x] **Phase 38: Select-All Import** - Batch select and import filtered abstracts (completed 2026-02-26)
 - [ ] **Phase 39: Slide Healing** - Prompt improvements and regeneration workflow
 
 ## Phase Details
@@ -247,7 +247,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | 35. Bulk DOI Import UI | 2/2 | Complete    | 2026-02-26 | - |
 | 36. BibTeX Import | 2/2 | Complete   | 2026-02-26 | - |
 | 37. Citation Audit | 2/2 | Complete    | 2026-02-26 | - |
-| 38. Select-All Import | v7.0 | 0/? | Not started | - |
+| 38. Select-All Import | 2/2 | Complete    | 2026-02-26 | - |
 | 39. Slide Healing | v7.0 | 0/? | Not started | - |
 
 ---
