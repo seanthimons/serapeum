@@ -214,10 +214,11 @@ Plans:
   3. Batch import shows progress bar for large selections (50+ papers)
   4. System warns user before importing 100+ papers and uses ExtendedTask for large batches
   5. Select-all state correctly merges with individual paper selections
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 38-01: TBD
+- [ ] 38-01-PLAN.md — Select-all checkbox UI with tri-state behavior and state management
+- [ ] 38-02-PLAN.md — Async batch import with ExtendedTask, confirmation modal, and results summary
 
 ### Phase 39: Slide Healing
 **Goal**: Improve slide generation reliability with better prompts and regeneration workflow
