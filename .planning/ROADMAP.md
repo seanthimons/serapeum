@@ -118,7 +118,7 @@ See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
 - [x] **Phase 34: OpenAlex Batch API** - Efficient batch fetching with rate limiting (completed 2026-02-26)
 - [x] **Phase 35: Bulk DOI Import UI** - Paste/upload DOI lists for batch import (completed 2026-02-26)
 - [x] **Phase 36: BibTeX Import** - Upload .bib files for library migration (completed 2026-02-26)
-- [ ] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency
+- [x] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency (completed 2026-02-26)
 - [ ] **Phase 38: Select-All Import** - Batch select and import filtered abstracts
 - [ ] **Phase 39: Slide Healing** - Prompt improvements and regeneration workflow
 
@@ -245,7 +245,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | 34. OpenAlex Batch API | 2/2 | Complete    | 2026-02-26 | - |
 | 35. Bulk DOI Import UI | 2/2 | Complete    | 2026-02-26 | - |
 | 36. BibTeX Import | 2/2 | Complete   | 2026-02-26 | - |
-| 37. Citation Audit | 1/2 | In Progress|  | - |
+| 37. Citation Audit | 2/2 | Complete   | 2026-02-26 | - |
 | 38. Select-All Import | v7.0 | 0/? | Not started | - |
 | 39. Slide Healing | v7.0 | 0/? | Not started | - |
 
