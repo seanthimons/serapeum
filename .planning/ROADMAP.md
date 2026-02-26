@@ -198,10 +198,11 @@ Plans:
   5. User can import individual missing papers with one click
   6. Analysis runs asynchronously with progress indicator and cancellation support
   7. System handles large collections (500+ papers, thousands of referenced works) with single-query SQL aggregation
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 37-01: TBD
+- [ ] 37-01-PLAN.md — DB schema for audit caching + citation audit business logic (backward refs, forward citations, ranking, import)
+- [ ] 37-02-PLAN.md — Shiny UI module (dedicated audit view, results table, progress modal, import workflow) + app.R integration
 
 ### Phase 38: Select-All Import
 **Goal**: Users can batch select and import all filtered abstracts into document notebooks
