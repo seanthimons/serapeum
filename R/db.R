@@ -203,6 +203,34 @@ init_schema <- function(con) {
     )
   ")
 
+  # Import runs table (Phase 35: Bulk DOI Import)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS import_runs (
+      id VARCHAR PRIMARY KEY,
+      notebook_id VARCHAR NOT NULL,
+      name VARCHAR NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      imported_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
+  # Import run items table (Phase 35: per-DOI results)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS import_run_items (
+      id VARCHAR PRIMARY KEY,
+      run_id VARCHAR NOT NULL,
+      doi VARCHAR NOT NULL,
+      status VARCHAR NOT NULL,
+      error_reason VARCHAR,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (run_id) REFERENCES import_runs(id)
+    )
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
@@ -1592,4 +1620,97 @@ get_year_bounds <- function(con, notebook_id) {
     min_year = result$min_year[1],
     max_year = result$max_year[1]
   )
+}
+
+# --- Phase 35: Bulk DOI Import Run Helpers ---
+
+#' Create a new import run record
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param name User-provided or auto-generated run name
+#' @param total_count Total number of DOIs in this run
+#' @return Import run ID (UUID string)
+create_import_run <- function(con, notebook_id, name, total_count) {
+  id <- uuid::UUIDgenerate()
+  dbExecute(con, "
+    INSERT INTO import_runs (id, notebook_id, name, total_count)
+    VALUES (?, ?, ?, ?)
+  ", list(id, notebook_id, name, as.integer(total_count)))
+  id
+}
+
+#' Update import run counts after completion
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @param imported_count Number of successfully imported papers
+#' @param failed_count Number of failed DOIs
+#' @param skipped_count Number of skipped duplicates
+update_import_run_counts <- function(con, run_id, imported_count, failed_count, skipped_count) {
+  dbExecute(con, "
+    UPDATE import_runs
+    SET imported_count = ?, failed_count = ?, skipped_count = ?
+    WHERE id = ?
+  ", list(as.integer(imported_count), as.integer(failed_count), as.integer(skipped_count), run_id))
+}
+
+#' Create a per-DOI import result item
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @param doi DOI string
+#' @param status One of: 'success', 'not_found', 'api_error', 'malformed', 'duplicate'
+#' @param error_reason Optional error reason string
+#' @return Item ID (UUID string)
+create_import_run_item <- function(con, run_id, doi, status, error_reason = NULL) {
+  id <- uuid::UUIDgenerate()
+  error_val <- if (is.null(error_reason) || (is.character(error_reason) && is.na(error_reason))) NA_character_ else error_reason
+  dbExecute(con, "
+    INSERT INTO import_run_items (id, run_id, doi, status, error_reason)
+    VALUES (?, ?, ?, ?, ?)
+  ", list(id, run_id, doi, status, error_val))
+  id
+}
+
+#' Get all import runs for a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame of import runs, ordered by created_at DESC
+get_import_runs <- function(con, notebook_id) {
+  dbGetQuery(con, "
+    SELECT * FROM import_runs
+    WHERE notebook_id = ?
+    ORDER BY created_at DESC
+  ", list(notebook_id))
+}
+
+#' Get all items for an import run
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @return Data frame of import run items
+get_import_run_items <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM import_run_items
+    WHERE run_id = ?
+    ORDER BY created_at ASC
+  ", list(run_id))
+}
+
+#' Delete an import run and its items
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+delete_import_run <- function(con, run_id) {
+  # Delete items first (FK relationship)
+  dbExecute(con, "DELETE FROM import_run_items WHERE run_id = ?", list(run_id))
+  dbExecute(con, "DELETE FROM import_runs WHERE id = ?", list(run_id))
+}
+
+#' Get failed import items for retry (not_found and api_error only)
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @return Data frame of retryable import items
+get_failed_import_items <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM import_run_items
+    WHERE run_id = ? AND status IN ('not_found', 'api_error')
+    ORDER BY created_at ASC
+  ", list(run_id))
 }
