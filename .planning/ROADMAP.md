@@ -148,10 +148,11 @@ Plans:
   3. System implements exponential backoff on 429 errors with graceful failure messaging
   4. System handles missing DOIs gracefully (some DOIs in batch may not exist in OpenAlex)
   5. Batch API operations are tested with realistic volumes (100+ DOIs, missing entries, rate limit scenarios)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 34-01: TBD
+- [ ] 34-01-PLAN.md — TDD: Extend parse_openalex_work with is_retracted, cited_by_percentile, topics
+- [ ] 34-02-PLAN.md — TDD: Implement batch_fetch_papers with batching, retries, error categorization
 
 ### Phase 35: Bulk DOI Import UI
 **Goal**: Users can paste or upload DOI lists for batch import into search notebooks
@@ -238,7 +239,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 33. DOI Parsing Utilities | 1/1 | Complete    | 2026-02-25 | - |
-| 34. OpenAlex Batch API | v7.0 | 0/? | Not started | - |
+| 34. OpenAlex Batch API | v7.0 | 0/2 | Planned | - |
 | 35. Bulk DOI Import UI | v7.0 | 0/? | Not started | - |
 | 36. BibTeX Import | v7.0 | 0/? | Not started | - |
 | 37. Citation Audit | v7.0 | 0/? | Not started | - |
