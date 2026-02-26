@@ -40,6 +40,8 @@ mod_search_notebook_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
+    # Phase 38: Select-all checkbox tri-state JS handler
+    tags$script(src = "js/select-all.js"),
     # JavaScript: show spinner on send button while chat is processing
     tags$script(HTML(sprintf("
       $(document).on('click', '#%s', function() {
@@ -145,16 +147,28 @@ mod_search_notebook_ui <- function(id) {
                 tagAppendAttributes(class = "text-muted small")
             )
           ),
+          # Phase 38: Select-all checkbox
+          div(
+            class = "d-flex align-items-center gap-2 mb-2",
+            tags$input(
+              type = "checkbox",
+              id = ns("select_all_cb"),
+              class = "form-check-input",
+              onclick = sprintf("Shiny.setInputValue('%s', this.checked, {priority: 'event'})", ns("select_all_click"))
+            ),
+            tags$label(
+              `for` = ns("select_all_cb"),
+              class = "form-check-label small text-muted",
+              "Select all"
+            )
+          ),
           div(
             id = ns("paper_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
             uiOutput(ns("paper_list"))
           ),
           hr(),
-          uiOutput(ns("selection_info")),
-          actionButton(ns("import_selected"), "Import Selected to Notebook",
-                       class = "btn-primary w-100",
-                       icon = icon("download"))
+          uiOutput(ns("import_button_ui"))
         )
       ),
       # Right: Keyword panel + Abstract detail view
@@ -330,6 +344,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     messages <- reactiveVal(list())
     selected_papers <- reactiveVal(character())
     viewed_paper <- reactiveVal(NULL)
+
+    # Phase 38: Select-all state management (flag + exception set)
+    # When all_selected=TRUE, effective selection = all filtered IDs minus exceptions
+    # When all_selected=FALSE, effective selection = exceptions (individually checked)
+    select_all_state <- reactiveVal(list(all_selected = FALSE, exceptions = character()))
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
     seed_request <- reactiveVal(NULL)
@@ -1194,7 +1213,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           ),
           div(
             class = "d-flex align-items-start gap-2 pe-4",
-            checkboxInput(ns(checkbox_id), label = NULL, width = "25px"),
+            # Phase 38: Raw checkbox with JS click handler for select-all integration
+            tags$div(
+              style = "width: 25px; flex-shrink: 0;",
+              tags$input(
+                type = "checkbox",
+                id = ns(checkbox_id),
+                class = "form-check-input",
+                checked = if (paper$id %in% selected_papers()) "checked" else NULL,
+                onclick = sprintf(
+                  "Shiny.setInputValue('%s', {id: '%s', checked: this.checked, nonce: Math.random()}, {priority: 'event'})",
+                  ns("paper_checkbox_click"), paper$id
+                )
+              )
+            ),
             # Warning icon for flagged papers
             if (is_flagged) {
               span(
@@ -1267,31 +1299,100 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
     })
 
-    # Track selected papers (for import)
-    observe({
-      papers <- filtered_papers()
-      if (nrow(papers) == 0) return()
-
-      selected <- character()
-      for (i in seq_len(nrow(papers))) {
-        paper <- papers[i, ]
-        checkbox_id <- paste0("select_", paper$id)
-        if (isTRUE(input[[checkbox_id]])) {
-          selected <- c(selected, paper$id)
-        }
+    # Phase 38: Compute effective selection from select-all state
+    effective_selected <- reactive({
+      state <- select_all_state()
+      all_ids <- filtered_papers()$id
+      if (state$all_selected) {
+        setdiff(all_ids, state$exceptions)
+      } else {
+        intersect(state$exceptions, all_ids)
       }
-      selected_papers(selected)
     })
 
-    # Selection info
-    output$selection_info <- renderUI({
-      n <- length(selected_papers())
-      if (n == 0) {
-        span(class = "text-muted small", "Select papers to import")
+    # Phase 38: Sync effective selection into selected_papers reactiveVal
+    observe({
+      selected_papers(effective_selected())
+    })
+
+    # Phase 38: Handle select-all checkbox click
+    observeEvent(input$select_all_click, {
+      if (isTRUE(input$select_all_click)) {
+        # Select all: set flag, clear exceptions
+        select_all_state(list(all_selected = TRUE, exceptions = character()))
       } else {
-        span(class = "text-primary small fw-semibold",
-             paste(n, "paper(s) selected"))
+        # Deselect all: clear flag, clear exceptions
+        select_all_state(list(all_selected = FALSE, exceptions = character()))
       }
+    }, ignoreInit = TRUE)
+
+    # Phase 38: Handle individual paper checkbox click
+    observeEvent(input$paper_checkbox_click, {
+      click <- input$paper_checkbox_click
+      req(click$id)
+      state <- select_all_state()
+
+      if (state$all_selected) {
+        # In select-all mode: toggle exception
+        if (isTRUE(click$checked)) {
+          # Re-checking a deselected paper: remove from exceptions
+          state$exceptions <- setdiff(state$exceptions, click$id)
+        } else {
+          # Unchecking a paper: add to exceptions
+          state$exceptions <- union(state$exceptions, click$id)
+        }
+      } else {
+        # In individual mode: toggle in exceptions set
+        if (isTRUE(click$checked)) {
+          state$exceptions <- union(state$exceptions, click$id)
+        } else {
+          state$exceptions <- setdiff(state$exceptions, click$id)
+        }
+      }
+      select_all_state(state)
+    }, ignoreInit = TRUE)
+
+    # Phase 38: Update select-all checkbox visual state
+    observe({
+      state <- select_all_state()
+      all_ids <- filtered_papers()$id
+      n_selected <- length(effective_selected())
+      n_total <- length(all_ids)
+
+      if (n_total == 0) {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = FALSE, indeterminate = FALSE
+        ))
+      } else if (n_selected == n_total) {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = TRUE, indeterminate = FALSE
+        ))
+      } else if (n_selected > 0) {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = FALSE, indeterminate = TRUE
+        ))
+      } else {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = FALSE, indeterminate = FALSE
+        ))
+      }
+    })
+
+    # Phase 38: Reset select-all when filters change
+    observeEvent(filtered_papers(), {
+      select_all_state(list(all_selected = FALSE, exceptions = character()))
+      session$sendCustomMessage("setCheckboxState", list(
+        id = ns("select_all_cb"), checked = FALSE, indeterminate = FALSE
+      ))
+    }, ignoreInit = TRUE)
+
+    # Phase 38: Dynamic import button with selection count
+    output$import_button_ui <- renderUI({
+      n <- length(selected_papers())
+      label <- if (n > 0) paste0("Import Selected (", n, ")") else "Import Selected"
+      actionButton(ns("import_selected"), label,
+                   class = "btn-primary w-100",
+                   icon = icon("download"))
     })
 
     # Abstract detail view
