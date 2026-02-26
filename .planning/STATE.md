@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
+milestone: v7.0
 milestone_name: Citation Audit + Quick Wins
-status: unknown
-last_updated: "2026-02-26T00:18:33.859Z"
+status: in_progress
+last_updated: "2026-02-26"
 progress:
-  total_phases: 32
-  completed_phases: 31
-  total_plans: 51
-  completed_plans: 50
+  total_phases: 39
+  completed_phases: 35
+  total_plans: 56
+  completed_plans: 55
 ---
 
 # Project State
@@ -18,35 +18,33 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 33 - DOI Parsing Utilities
+**Current focus:** Phase 36 - BibTeX Import (next)
 
 ## Current Position
 
-Phase: 33 of 39 (DOI Parsing Utilities)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-02-25 — Roadmap created for v7.0 milestone
+Phase: 35 of 39 (Bulk DOI Import UI) — COMPLETE
+Plan: 2 of 2 in Phase 35
+Status: Phase 35 complete, ready for Phase 36
+Last activity: 2026-02-26 — Phase 35 completed (2 plans)
 
-Progress: [████████████████████░░░░░░░░░░] 82% (32/39 phases complete across all milestones)
+Progress: [██████████████████████████░░░░] 87% (35/39 phases complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 53 (across v1.0-v6.0)
-- Total phases completed: 32 (across 9 milestones)
-- v7.0 plans completed: 0
+- Total plans completed: 55 (across v1.0-v7.0)
+- Total phases completed: 35 (across all milestones)
+- v7.0 plans completed: 5 (Phase 33: 1, Phase 34: 2, Phase 35: 2)
 
 **Recent Milestones:**
 - v6.0 (Phases 30-32): 8 plans, 3 days (2026-02-22 → 2026-02-25)
 - v5.0 (Phase 29): 1 plan, <1 day (2026-02-22)
 - v4.0 (Phases 25-28): 6 plans, 3 days (2026-02-18 → 2026-02-19)
 
-**Recent Trend:**
-- Velocity stable across recent milestones
-- Small milestones (v5.0) ship in <1 day
-- Medium milestones (v4.0, v6.0) ship in 2-3 days
-
-*Will update after first v7.0 plan completion*
+**v7.0 Progress:**
+- Phase 33 (DOI Parsing): 1 plan, completed 2026-02-25
+- Phase 34 (OpenAlex Batch): 2 plans, completed 2026-02-26
+- Phase 35 (Bulk DOI Import): 2 plans, completed 2026-02-26
 
 ## Accumulated Context
 
@@ -61,6 +59,8 @@ Recent decisions affecting v7.0 work:
 - **v2.1**: ExtendedTask + mirai for async builds — proven pattern for citation audit and bulk imports
 - **v2.1**: File-based interrupt flags — cross-process cancellation for async operations
 - **v3.0**: Per-notebook ragnar stores — clean isolation pattern continues in v7.0
+- **Phase 35**: Import run created in main session before mirai launch (avoids FK constraint issues)
+- **Phase 35**: db_path parameter added to mod_search_notebook_server for worker DB connections
 
 ### Pending Todos
 
@@ -77,19 +77,18 @@ Recent decisions affecting v7.0 work:
 - Tooltip overflow (#79)
 
 **v7.0-specific risks (from research):**
-- OpenAlex rate limiting (100 req/sec, $1/day budget) — Phase 34 must implement batching + delays
 - BibTeX parsing fragility with real-world files — Phase 36 needs tolerant parsers
 - SQL N+1 query explosion in citation audit — Phase 37 must use single-query aggregation
 - Memory explosion with large select-all batches — Phase 38 needs batch size warnings
 
 ## Session Continuity
 
-Last session: 2026-02-25 (roadmap creation)
-Stopped at: Roadmap and STATE.md written, ready for Phase 33 planning
+Last session: 2026-02-26 (Phase 35 execution)
+Stopped at: Phase 35 complete, ready for Phase 36 planning
 Resume file: None
 
 **Next steps:**
-1. Begin Phase 33 planning: `/gsd:plan-phase 33`
+1. Begin Phase 36 planning: `/gsd:plan-phase 36`
 
 ---
-*Updated: 2026-02-25 — v7.0 roadmap created*
+*Updated: 2026-02-26 — Phase 35 completed*
