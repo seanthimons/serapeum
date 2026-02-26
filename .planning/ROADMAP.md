@@ -115,7 +115,7 @@ See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
 **Overview:** v7.0 adds citation audit and bulk import capabilities to Serapeum's research workflow. Starting from foundational DOI parsing utilities (Phase 33), we build up to OpenAlex batch API support (Phase 34), then deliver three major user-facing features: bulk DOI/CSV/BibTeX import (Phases 35-36), citation gap detection (Phase 37), and select-all batch workflows (Phase 38). The milestone completes with slide generation prompt healing (Phase 39) for improved synthesis quality. This architecture-first approach ensures rate limiting and batch operations work reliably before exposing them to users, mitigating the highest risks (OpenAlex 429 errors, BibTeX parsing failures) at the infrastructure layer.
 
 - [x] **Phase 33: DOI Parsing Utilities** - Foundation for bulk import and citation workflows (completed 2026-02-25)
-- [ ] **Phase 34: OpenAlex Batch API** - Efficient batch fetching with rate limiting
+- [x] **Phase 34: OpenAlex Batch API** - Efficient batch fetching with rate limiting (completed 2026-02-26)
 - [ ] **Phase 35: Bulk DOI Import UI** - Paste/upload DOI lists for batch import
 - [ ] **Phase 36: BibTeX Import** - Upload .bib files for library migration
 - [ ] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency
@@ -239,7 +239,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 33. DOI Parsing Utilities | 1/1 | Complete    | 2026-02-25 | - |
-| 34. OpenAlex Batch API | v7.0 | 0/2 | Planned | - |
+| 34. OpenAlex Batch API | 2/2 | Complete    | 2026-02-26 | - |
 | 35. Bulk DOI Import UI | v7.0 | 0/? | Not started | - |
 | 36. BibTeX Import | v7.0 | 0/? | Not started | - |
 | 37. Citation Audit | v7.0 | 0/? | Not started | - |
