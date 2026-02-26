@@ -197,3 +197,79 @@ test_that("get_notebook_dois returns empty for notebook with no DOIs", {
   dois <- get_notebook_dois(con, nb_id)
   expect_equal(length(dois), 0)
 })
+
+# --- parse_bibtex_metadata tests (Phase 36) ---
+
+test_that("parse_bibtex_metadata returns tibble with expected columns", {
+  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  result <- parse_bibtex_metadata(fixture_path)
+  expect_true(is.data.frame(result$data))
+  expect_true("DOI" %in% names(result$data))
+  expect_true("TITLE" %in% names(result$data))
+  expect_true("ABSTRACT" %in% names(result$data))
+  expect_true("YEAR" %in% names(result$data))
+})
+
+test_that("parse_bibtex_metadata extracts correct DOI count", {
+  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  result <- parse_bibtex_metadata(fixture_path)
+  expect_equal(result$diagnostics$entries_with_doi, 4L)
+})
+
+test_that("parse_bibtex_metadata reports entries without DOIs", {
+  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  result <- parse_bibtex_metadata(fixture_path)
+  expect_true(result$diagnostics$entries_without_doi >= 1L)
+})
+
+test_that("parse_bibtex_metadata reports total entry count", {
+  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  result <- parse_bibtex_metadata(fixture_path)
+  expect_equal(result$diagnostics$total_entries, 5L)
+})
+
+test_that("parse_bibtex_metadata handles nonexistent file gracefully", {
+  result <- parse_bibtex_metadata("/nonexistent/path/fake.bib")
+  expect_true(is.data.frame(result$data))
+  expect_equal(nrow(result$data), 0)
+  expect_equal(result$diagnostics$total_entries, 0L)
+})
+
+test_that("parse_bibtex_metadata filters to entries with DOI only when requested", {
+  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  result <- parse_bibtex_metadata(fixture_path)
+  # Filter to DOI-only entries
+  doi_rows <- result$data[!is.na(result$data$DOI), ]
+  expect_equal(nrow(doi_rows), 4)
+  expect_true(all(!is.na(doi_rows$DOI)))
+})
+
+# --- merge_bibtex_openalex tests (Phase 36) ---
+
+test_that("merge_bibtex_openalex fills abstract from BibTeX when OpenAlex lacks it", {
+  openalex_paper <- list(abstract = NA_character_, title = "Some Paper")
+  bibtex_row <- data.frame(ABSTRACT = "BibTeX abstract text", DOI = "10.1234/test", stringsAsFactors = FALSE)
+  result <- merge_bibtex_openalex(openalex_paper, bibtex_row)
+  expect_equal(result$abstract, "BibTeX abstract text")
+})
+
+test_that("merge_bibtex_openalex preserves OpenAlex abstract when both exist", {
+  openalex_paper <- list(abstract = "OpenAlex abstract", title = "Some Paper")
+  bibtex_row <- data.frame(ABSTRACT = "BibTeX abstract", DOI = "10.1234/test", stringsAsFactors = FALSE)
+  result <- merge_bibtex_openalex(openalex_paper, bibtex_row)
+  expect_equal(result$abstract, "OpenAlex abstract")
+})
+
+test_that("merge_bibtex_openalex returns unchanged paper when BibTeX has no abstract", {
+  openalex_paper <- list(abstract = NA_character_, title = "Some Paper")
+  bibtex_row <- data.frame(ABSTRACT = NA_character_, DOI = "10.1234/test", stringsAsFactors = FALSE)
+  result <- merge_bibtex_openalex(openalex_paper, bibtex_row)
+  expect_true(is.na(result$abstract))
+})
+
+test_that("merge_bibtex_openalex handles NULL abstract fields", {
+  openalex_paper <- list(abstract = NULL, title = "Some Paper")
+  bibtex_row <- data.frame(ABSTRACT = "BibTeX abstract", DOI = "10.1234/test", stringsAsFactors = FALSE)
+  result <- merge_bibtex_openalex(openalex_paper, bibtex_row)
+  expect_equal(result$abstract, "BibTeX abstract")
+})
