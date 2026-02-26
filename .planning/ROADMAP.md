@@ -164,10 +164,11 @@ Plans:
   3. Import runs asynchronously with progress bar showing N/total papers fetched
   4. User sees import summary with counts (N imported, N failed, N duplicates skipped)
   5. Failed imports show specific error messages (malformed DOI, not found in OpenAlex, API error)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 35-01: TBD
+- [ ] 35-01-PLAN.md — DB schema for import runs + business logic (BibTeX extraction, duplicate detection, import orchestration)
+- [ ] 35-02-PLAN.md — Shiny UI module + search notebook integration (modals, progress, results, history)
 
 ### Phase 36: BibTeX Import
 **Goal**: Users can upload BibTeX files for library migration and citation network seeding
