@@ -241,7 +241,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 |-------|-----------|----------------|--------|-----------|
 | 33. DOI Parsing Utilities | 1/1 | Complete    | 2026-02-25 | - |
 | 34. OpenAlex Batch API | 2/2 | Complete    | 2026-02-26 | - |
-| 35. Bulk DOI Import UI | v7.0 | 0/? | Not started | - |
+| 35. Bulk DOI Import UI | 1/2 | In Progress|  | - |
 | 36. BibTeX Import | v7.0 | 0/? | Not started | - |
 | 37. Citation Audit | v7.0 | 0/? | Not started | - |
 | 38. Select-All Import | v7.0 | 0/? | Not started | - |
