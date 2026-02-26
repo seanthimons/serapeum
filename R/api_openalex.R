@@ -232,6 +232,27 @@ parse_openalex_work <- function(work) {
     fwci <- work$fwci
   }
 
+  # Extract retraction status (Phase 34)
+  is_retracted <- isTRUE(work$is_retracted)
+
+  # Extract cited-by percentile (Phase 34)
+  cited_by_percentile <- NA_real_
+  if (!is.null(work$cited_by_percentile_year) && !is.null(work$cited_by_percentile_year$min)) {
+    cited_by_percentile <- as.numeric(work$cited_by_percentile_year$min)
+  }
+
+  # Extract topics (Phase 34)
+  topics <- list()
+  if (!is.null(work$topics) && length(work$topics) > 0) {
+    topics <- lapply(work$topics, function(t) {
+      list(
+        id = gsub("https://openalex.org/", "", t$id %||% ""),
+        name = t$display_name %||% NA_character_,
+        score = t$score %||% NA_real_
+      )
+    })
+  }
+
   list(
     paper_id = paper_id,
     title = work$title %||% "Untitled",
@@ -250,7 +271,10 @@ parse_openalex_work <- function(work) {
     is_oa = is_oa,
     referenced_works_count = referenced_works_count,
     referenced_works = if (!is.null(work$referenced_works)) as.character(work$referenced_works) else character(),
-    fwci = fwci
+    fwci = fwci,
+    is_retracted = is_retracted,
+    cited_by_percentile = cited_by_percentile,
+    topics = topics
   )
 }
 
