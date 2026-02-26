@@ -21,12 +21,12 @@ Requirements for v7.0 Citation Audit + Quick Wins. Each maps to roadmap phases.
 
 - [ ] **BULK-01**: User can paste a list of DOIs (one per line, comma-separated, or URL format)
 - [ ] **BULK-02**: User can upload a CSV/text file of DOIs
-- [ ] **BULK-03**: User can upload a .bib file for DOI extraction and import
+- [x] **BULK-03**: User can upload a .bib file for DOI extraction and import
 - [ ] **BULK-04**: System batch-queries OpenAlex (50 DOIs per request) with rate limiting
 - [ ] **BULK-05**: Import runs async with progress bar showing N/total papers fetched
 - [ ] **BULK-06**: User sees import results (N imported, N failed, N duplicates skipped)
-- [ ] **BULK-07**: .bib metadata preserved when OpenAlex enrichment fails (merge-not-replace)
-- [ ] **BULK-08**: User can feed .bib file into citation network for seeding (#113)
+- [x] **BULK-07**: .bib metadata preserved when OpenAlex enrichment fails (merge-not-replace)
+- [x] **BULK-08**: User can feed .bib file into citation network for seeding (#113)
 
 ### Select-All Import
 
@@ -83,12 +83,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUDIT-07 | Phase 37 | Pending |
 | BULK-01 | Phase 35 | Pending |
 | BULK-02 | Phase 35 | Pending |
-| BULK-03 | Phase 36 | Pending |
+| BULK-03 | Phase 36 | Complete |
 | BULK-04 | Phase 35 | Pending |
 | BULK-05 | Phase 35 | Pending |
 | BULK-06 | Phase 35 | Pending |
-| BULK-07 | Phase 36 | Pending |
-| BULK-08 | Phase 36 | Pending |
+| BULK-07 | Phase 36 | Complete |
+| BULK-08 | Phase 36 | Complete |
 | SLCT-01 | Phase 38 | Pending |
 | SLCT-02 | Phase 38 | Pending |
 | SLCT-03 | Phase 38 | Pending |
