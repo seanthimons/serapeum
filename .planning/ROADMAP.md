@@ -180,10 +180,11 @@ Plans:
   3. Import shows diagnostics (N entries parsed, N with DOIs, N enriched from OpenAlex, N from .bib only)
   4. User can feed uploaded .bib file into citation network for seeding
   5. Malformed BibTeX entries are handled gracefully with per-entry error reporting
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 36-01: TBD
+- [ ] 36-01-PLAN.md — TDD: BibTeX parsing with bib2df + metadata merge logic
+- [ ] 36-02-PLAN.md — UI: Extend bulk import module for BibTeX + citation seeding button
 
 ### Phase 37: Citation Audit
 **Goal**: Users can identify frequently-cited papers missing from their search notebook collection
