@@ -120,7 +120,7 @@ See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
 - [x] **Phase 36: BibTeX Import** - Upload .bib files for library migration (completed 2026-02-26)
 - [x] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency (completed 2026-02-26)
 - [x] **Phase 38: Select-All Import** - Batch select and import filtered abstracts (completed 2026-02-26)
-- [ ] **Phase 39: Slide Healing** - Prompt improvements and regeneration workflow
+- [x] **Phase 39: Slide Healing** - Prompt improvements and regeneration workflow (completed 2026-02-27)
 
 ## Phase Details
 
@@ -249,7 +249,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | 36. BibTeX Import | 2/2 | Complete   | 2026-02-26 | - |
 | 37. Citation Audit | 2/2 | Complete    | 2026-02-26 | - |
 | 38. Select-All Import | 2/2 | Complete    | 2026-02-26 | - |
-| 39. Slide Healing | 1/2 | In Progress|  | - |
+| 39. Slide Healing | 2/2 | Complete   | 2026-02-27 | - |
 
 ---
 *Updated: 2026-02-26 — Phase 35 completed*
