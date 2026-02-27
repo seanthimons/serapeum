@@ -154,6 +154,8 @@ build_qmd_frontmatter <- function(title, theme = "default") {
     "format:\n",
     "  revealjs:\n",
     "    theme: ", theme_val, "\n",
+    "    smaller: true\n",
+    "    scrollable: true\n",
     "    reference-location: document\n",
     css_block,
     "---\n"
