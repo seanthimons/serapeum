@@ -1823,7 +1823,7 @@ update_audit_run <- function(con, run_id, status = NULL, backward_count = NULL,
     params <- c(params, list(as.integer(total_papers)))
   }
 
-  if (status %in% c("completed", "failed", "cancelled")) {
+  if (!is.null(status) && status %in% c("completed", "failed", "cancelled")) {
     updates <- c(updates, "completed_at = CURRENT_TIMESTAMP")
   }
 
