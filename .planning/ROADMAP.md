@@ -114,13 +114,13 @@ See [v6.0-ROADMAP.md](milestones/v6.0-ROADMAP.md) for full details.
 
 **Overview:** v7.0 adds citation audit and bulk import capabilities to Serapeum's research workflow. Starting from foundational DOI parsing utilities (Phase 33), we build up to OpenAlex batch API support (Phase 34), then deliver three major user-facing features: bulk DOI/CSV/BibTeX import (Phases 35-36), citation gap detection (Phase 37), and select-all batch workflows (Phase 38). The milestone completes with slide generation prompt healing (Phase 39) for improved synthesis quality. This architecture-first approach ensures rate limiting and batch operations work reliably before exposing them to users, mitigating the highest risks (OpenAlex 429 errors, BibTeX parsing failures) at the infrastructure layer.
 
-- [x] **Phase 33: DOI Parsing Utilities** - Foundation for bulk import and citation workflows (completed 2026-02-25)
-- [x] **Phase 34: OpenAlex Batch API** - Efficient batch fetching with rate limiting (completed 2026-02-26)
+- [x] **Phase 33: DOI Parsing Utilities** - Foundation for bulk import and citation workflows (completed 2026-02-25)
+- [x] **Phase 34: OpenAlex Batch API** - Efficient batch fetching with rate limiting (completed 2026-02-26)
 - [x] **Phase 35: Bulk DOI Import UI** - Paste/upload DOI lists for batch import (completed 2026-02-26)
-- [x] **Phase 36: BibTeX Import** - Upload .bib files for library migration (completed 2026-02-26)
-- [x] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency (completed 2026-02-26)
-- [x] **Phase 38: Select-All Import** - Batch select and import filtered abstracts (completed 2026-02-26)
-- [x] **Phase 39: Slide Healing** - Prompt improvements and regeneration workflow (completed 2026-02-27)
+- [x] **Phase 36: BibTeX Import** - Upload .bib files for library migration (completed 2026-02-26)
+- [x] **Phase 37: Citation Audit** - Find missing seminal papers by reference frequency (completed 2026-02-26)
+- [x] **Phase 38: Select-All Import** - Batch select and import filtered abstracts (completed 2026-02-26)
+- [x] **Phase 39: Slide Healing** - Prompt improvements and regeneration workflow (completed 2026-02-27)
 
 ## Phase Details
 
@@ -230,11 +230,13 @@ Plans:
   3. User can provide specific healing instructions (e.g., "fix YAML syntax", "fix CSS")
   4. System validates YAML programmatically and provides specific error feedback
   5. System limits healing to 2 retries maximum, then falls back to template YAML with title only
-**Plans**: 2 plans
+  6. Slide generation prompt includes sufficient formatting reference for RevealJS/Quarto constructs (footnotes, speaker notes, etc.)
+**Plans**: 3 plans
 
 Plans:
 - [ ] 39-01-PLAN.md — YAML validation, improved prompts, healing logic, and fallback template functions
 - [ ] 39-02-PLAN.md — Healing modal UI, updated results modal, retry tracking, and fallback behavior
+- [ ] 39-03-PLAN.md — Gap closure: Add Quarto/RevealJS format reference to system prompts
 
 ## Progress
 
@@ -249,7 +251,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | 36. BibTeX Import | 2/2 | Complete   | 2026-02-26 | - |
 | 37. Citation Audit | 2/2 | Complete    | 2026-02-26 | - |
 | 38. Select-All Import | 2/2 | Complete    | 2026-02-26 | - |
-| 39. Slide Healing | 2/2 | Complete    | 2026-02-27 | - |
+| 39. Slide Healing | 3/3 | Complete    | 2026-02-27 | - |
 
 ---
-*Updated: 2026-02-26 — Phase 35 completed*
+*Updated: 2026-02-27 — Phase 39 gap closure plan added*
