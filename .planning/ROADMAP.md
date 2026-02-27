@@ -234,9 +234,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 39-01-PLAN.md — YAML validation, improved prompts, healing logic, and fallback template functions
-- [ ] 39-02-PLAN.md — Healing modal UI, updated results modal, retry tracking, and fallback behavior
-- [ ] 39-03-PLAN.md — Gap closure: Add Quarto/RevealJS format reference to system prompts
+- [x] 39-01-PLAN.md — YAML validation, improved prompts, healing logic, and fallback template functions (completed 2026-02-27)
+- [x] 39-02-PLAN.md — Healing modal UI, updated results modal, retry tracking, and fallback behavior (completed 2026-02-27)
+- [x] 39-03-PLAN.md — Gap closure: Add Quarto/RevealJS format reference to system prompts (completed 2026-02-27)
 
 ## Progress
 
@@ -254,4 +254,4 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | 39. Slide Healing | 3/3 | Complete    | 2026-02-27 | - |
 
 ---
-*Updated: 2026-02-27 — Phase 39 gap closure plan added*
+*Updated: 2026-02-27 — Phase 39 plan 03 completed*

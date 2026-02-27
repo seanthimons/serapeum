@@ -36,10 +36,10 @@ Requirements for v7.0 Citation Audit + Quick Wins. Each maps to roadmap phases.
 
 ### Slide Healing
 
-- [ ] **SLIDE-01**: Slide generation prompt includes proper YAML template structure
-- [ ] **SLIDE-02**: User can click Regenerate to re-attempt failed slide generation
-- [ ] **SLIDE-03**: User can provide specific healing instructions (e.g., "fix YAML", "fix CSS")
-- [ ] **SLIDE-04**: System limits healing to 2 retries, then falls back to template YAML
+- [x] **SLIDE-01**: Slide generation prompt includes proper YAML template structure (completed Phase 39 Plan 03)
+- [x] **SLIDE-02**: User can click Regenerate to re-attempt failed slide generation (completed Phase 39)
+- [x] **SLIDE-03**: User can provide specific healing instructions (e.g., "fix YAML", "fix CSS") (completed Phase 39)
+- [x] **SLIDE-04**: System limits healing to 2 retries, then falls back to template YAML (completed Phase 39)
 
 ## v7.x Requirements
 
@@ -89,13 +89,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BULK-06 | Phase 35 | Pending |
 | BULK-07 | Phase 36 | Complete |
 | BULK-08 | Phase 36 | Complete |
-| SLCT-01 | Phase 38 | Pending |
-| SLCT-02 | Phase 38 | Pending |
-| SLCT-03 | Phase 38 | Pending |
-| SLIDE-01 | Phase 39 | Pending |
-| SLIDE-02 | Phase 39 | Pending |
-| SLIDE-03 | Phase 39 | Pending |
-| SLIDE-04 | Phase 39 | Pending |
+| SLCT-01 | Phase 38 | Complete |
+| SLCT-02 | Phase 38 | Complete |
+| SLCT-03 | Phase 38 | Complete |
+| SLIDE-01 | Phase 39 | Complete |
+| SLIDE-02 | Phase 39 | Complete |
+| SLIDE-03 | Phase 39 | Complete |
+| SLIDE-04 | Phase 39 | Complete |
 
 **Coverage:**
 - v7.0 requirements: 22 total
