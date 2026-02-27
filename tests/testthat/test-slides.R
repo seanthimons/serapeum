@@ -163,8 +163,8 @@ test_that("build_slides_prompt includes Quarto syntax reference", {
   expect_true(grepl("do NOT use", prompt$system, ignore.case = TRUE))  # Negative instruction
   expect_true(grepl("::: \\{.notes\\}", prompt$system))  # Speaker notes syntax
   expect_true(grepl("\\| Method \\|", prompt$system))  # Table syntax
-  # Should NOT inject theme/css
-  expect_true(grepl("Do NOT add theme, css", prompt$system))
+  # LLM should not output YAML
+  expect_true(grepl("Do NOT output YAML frontmatter", prompt$system))
 
   # Check citation instructions use inline footnote syntax
   expect_true(grepl("\\^\\[", prompt$user))  # Shows ^[text] example
@@ -186,6 +186,35 @@ test_that("build_healing_prompt includes Quarto syntax reference", {
   expect_true(grepl("\\| Method \\|", prompt$system))  # Table syntax
   # Should preserve existing YAML
   expect_true(grepl("Preserve the existing YAML", prompt$system))
+})
+
+test_that("build_qmd_frontmatter produces valid YAML with theme and CSS", {
+  fm <- build_qmd_frontmatter("My Talk", "moon")
+
+  expect_true(grepl("^---\\n", fm))
+  expect_true(grepl("title: \"My Talk\"", fm))
+  expect_true(grepl("theme: moon", fm))
+  expect_true(grepl("\\.reveal .slides section .footnotes", fm))
+  expect_true(grepl("---\\n$", fm))
+
+  # Default theme
+  fm_default <- build_qmd_frontmatter("Default Talk")
+  expect_true(grepl("theme: default", fm_default))
+})
+
+test_that("strip_llm_yaml removes YAML and extracts title", {
+  # LLM included YAML despite instructions
+  with_yaml <- "---\ntitle: \"LLM Title\"\nformat:\n  revealjs: default\n---\n\n## Slide 1\n\nContent"
+  result <- strip_llm_yaml(with_yaml)
+  expect_equal(result$title, "LLM Title")
+  expect_true(grepl("^## Slide 1", result$content))
+  expect_false(grepl("---", result$content))
+
+  # LLM correctly omitted YAML
+  without_yaml <- "## Slide 1\n\nContent here"
+  result2 <- strip_llm_yaml(without_yaml)
+  expect_null(result2$title)
+  expect_equal(result2$content, "## Slide 1\n\nContent here")
 })
 
 test_that("validate_qmd_yaml validates correct YAML", {

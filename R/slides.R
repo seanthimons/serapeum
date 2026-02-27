@@ -60,16 +60,11 @@ build_slides_prompt <- function(chunks, options) {
   }, character(1))
   context <- paste(context_parts, collapse = "\n\n---\n\n")
 
-  # System prompt with explicit YAML template structure (SLIDE-01)
+  # System prompt — LLM generates slide CONTENT only, no YAML frontmatter
   system_prompt <- paste0(
-    "You are an expert presentation designer. Generate a Quarto RevealJS presentation in valid .qmd format.\n\n",
-    "CRITICAL: Your output must start with this YAML frontmatter exactly:\n",
-    "---\n",
-    "title: \"Your Title Here\"\n",
-    "format:\n",
-    "  revealjs: default\n",
-    "---\n",
-    "Do NOT add theme, css, or any other options under format. The app injects those after generation.\n\n",
+    "You are an expert presentation designer. Generate Quarto RevealJS slide content.\n\n",
+    "CRITICAL: Do NOT output YAML frontmatter (no --- block). Start directly with your first slide using ##.\n",
+    "The app builds the YAML frontmatter separately.\n\n",
     "Quarto Syntax Reference:\n\n",
     "Footnotes (use inline syntax):\n",
     "  Correct: 'Machine learning improves accuracy.^[WHO AMR Report, 2024, p.12]'\n",
@@ -88,9 +83,8 @@ build_slides_prompt <- function(chunks, options) {
     "- Use # for section titles (creates section dividers)\n",
     "- Keep slides concise - max 5-7 bullet points per slide\n",
     if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
-    "- Output ONLY valid Quarto markdown, no explanations or code fences around the output\n",
-    "- Ensure all YAML is properly indented with spaces (not tabs)\n",
-    "- Do not include any content before the opening ---"
+    "- Output ONLY valid Quarto markdown slide content, no explanations or code fences\n",
+    "- Do NOT include any YAML frontmatter, --- delimiters, title:, format:, theme:, or css:"
   )
 
   # Citation instructions
@@ -113,6 +107,72 @@ build_slides_prompt <- function(chunks, options) {
   )
 
   list(system = system_prompt, user = user_prompt)
+}
+
+#' Build complete QMD frontmatter programmatically
+#' @param title Presentation title
+#' @param theme RevealJS theme name (default "default")
+#' @return YAML frontmatter string including --- delimiters
+build_qmd_frontmatter <- function(title, theme = "default") {
+  # Citation CSS for proper footnote sizing
+  css_block <- paste0(
+    "    css:\n",
+    "      - |\n",
+    "        .reveal .slides section .footnotes {\n",
+    "          font-size: 0.5em !important;\n",
+    "          line-height: 1.3;\n",
+    "          max-height: 15vh;\n",
+    "          overflow-y: auto;\n",
+    "        }\n",
+    "        .reveal .slides section .footnote-ref {\n",
+    "          font-size: 0.7em;\n",
+    "          vertical-align: super;\n",
+    "        }\n",
+    "        .reveal .slides section sup {\n",
+    "          font-size: 0.6em;\n",
+    "        }\n",
+    "        .reveal .slides section .references {\n",
+    "          font-size: 0.45em !important;\n",
+    "          line-height: 1.2;\n",
+    "        }\n"
+  )
+
+  theme_val <- if (is.null(theme) || theme == "default") "default" else theme
+
+  paste0(
+    "---\n",
+    "title: \"", gsub('"', '\\\\"', title), "\"\n",
+    "format:\n",
+    "  revealjs:\n",
+    "    theme: ", theme_val, "\n",
+    css_block,
+    "---\n"
+  )
+}
+
+#' Strip YAML frontmatter from QMD content if LLM included it despite instructions
+#' @param qmd_content Raw QMD string from LLM
+#' @return Slide content without YAML frontmatter, and extracted title if found
+strip_llm_yaml <- function(qmd_content) {
+  title <- NULL
+  content <- qmd_content
+
+  # Check if LLM included YAML despite instructions
+  if (grepl("^---\\s*\\n", qmd_content)) {
+    yaml_match <- regmatches(qmd_content, regexpr("(?s)^---\\n(.*?)\\n---", qmd_content, perl = TRUE))
+    if (length(yaml_match) > 0 && nchar(yaml_match) > 0) {
+      # Extract title if present
+      title_match <- regmatches(yaml_match, regexpr('title:\\s*"?([^"\\n]+)"?', yaml_match, perl = TRUE))
+      if (length(title_match) > 0 && nchar(title_match) > 0) {
+        title <- sub('title:\\s*"?([^"\\n]+)"?', "\\1", title_match, perl = TRUE)
+        title <- trimws(title)
+      }
+      # Remove the YAML block
+      content <- sub("(?s)^---\\n.*?\\n---\\s*\\n?", "", qmd_content, perl = TRUE)
+    }
+  }
+
+  list(content = trimws(content), title = title)
 }
 
 #' Inject theme into QMD frontmatter
@@ -328,17 +388,21 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   qmd_content <- gsub("\\n?```$", "", qmd_content)
   qmd_content <- trimws(qmd_content)
 
-  # Validate YAML before proceeding
-  validation <- validate_qmd_yaml(qmd_content)
+  # Strip any YAML the LLM included despite instructions, extract title if present
+  stripped <- strip_llm_yaml(qmd_content)
+  slide_content <- stripped$content
+  llm_title <- stripped$title
 
-  # Inject theme if specified
+  # Build YAML frontmatter programmatically (no regex injection)
+  title <- llm_title %||% notebook_name
   theme <- options$theme %||% "default"
-  if (theme != "default") {
-    qmd_content <- inject_theme_to_qmd(qmd_content, theme)
-  }
+  frontmatter <- build_qmd_frontmatter(title, theme)
 
-  # Inject citation CSS
-  qmd_content <- inject_citation_css(qmd_content)
+  # Combine: clean YAML + LLM slide content
+  qmd_content <- paste0(frontmatter, "\n", slide_content)
+
+  # Validate the assembled QMD
+  validation <- validate_qmd_yaml(qmd_content)
 
   # Save to temp file
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))

@@ -1,4 +1,5 @@
 # Test script: Generate slides with current prompt and evaluate output quality
+# Tests the full pipeline: LLM output -> strip YAML -> build frontmatter -> assemble
 # Usage: Rscript tests/test_slide_prompt.R <api_key> [model_id]
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -48,58 +49,83 @@ messages <- list(
 
 cat("=== CALLING MODEL:", model_id, "===\n\n")
 result <- chat_completion(api_key, model_id, messages)
-qmd_output <- result$content
+raw_output <- result$content
 
-cat("=== LLM RESPONSE ===\n")
-cat(qmd_output, "\n\n")
+cat("=== RAW LLM RESPONSE ===\n")
+cat(raw_output, "\n\n")
 
-# Evaluate output
+# Simulate the full generate_slides pipeline
+# 1. Clean code fences
+raw_output <- gsub("^```(qmd|markdown|yaml)?\\n?", "", raw_output)
+raw_output <- gsub("\\n?```$", "", raw_output)
+raw_output <- trimws(raw_output)
+
+# 2. Strip any YAML the LLM included
+stripped <- strip_llm_yaml(raw_output)
+slide_content <- stripped$content
+llm_title <- stripped$title
+
+# 3. Build frontmatter programmatically
+title <- llm_title %||% "Test Presentation"
+frontmatter <- build_qmd_frontmatter(title, theme = "moon")
+
+# 4. Assemble
+qmd_output <- paste0(frontmatter, "\n", slide_content)
+
+cat("=== ASSEMBLED QMD (first 30 lines) ===\n")
+lines <- strsplit(qmd_output, "\n")[[1]]
+cat(paste(head(lines, 30), collapse = "\n"), "\n\n")
+
+# Evaluate
 cat("=== EVALUATION ===\n\n")
-
 checks <- list()
 
 # 1. Valid YAML frontmatter
-has_yaml <- grepl("^---\\s*\\n", qmd_output)
-checks$yaml_present <- has_yaml
-cat("YAML frontmatter present:", has_yaml, "\n")
-
-# 2. Check footnote style - should use ^[text] inline syntax
-has_inline_footnote <- grepl("\\^\\[", qmd_output)
-has_bracket_caret <- grepl("\\[\\^[0-9]+\\]", qmd_output)
-has_bare_caret <- grepl("\\^[0-9]+[^\\[]", qmd_output)
-checks$correct_footnotes <- has_inline_footnote && !has_bracket_caret && !has_bare_caret
-cat("Uses ^[text] inline footnotes (CORRECT):", has_inline_footnote, "\n")
-cat("Uses [^N] reference-style (WRONG):", has_bracket_caret, "\n")
-cat("Uses bare ^N (WRONG):", has_bare_caret, "\n")
-
-# 3. Speaker notes
-has_notes <- grepl(":::\\s*\\{.notes\\}", qmd_output)
-checks$speaker_notes <- has_notes
-cat("Has ::: {.notes} blocks:", has_notes, "\n")
-
-# 4. Slide separators (check for ## at start of any line)
-has_slides <- grepl("(^|\\n)## ", qmd_output)
-checks$slide_headers <- has_slides
-cat("Has ## slide headers:", has_slides, "\n")
-
-# 5. No custom theme/css in YAML (app injects these)
-has_theme_in_yaml <- grepl("theme:", qmd_output) && grepl("---[\\s\\S]*theme:[\\s\\S]*---", qmd_output, perl = TRUE)
-has_css_in_yaml <- grepl("---[\\s\\S]*css:[\\s\\S]*---", qmd_output, perl = TRUE)
-checks$no_custom_styling <- !has_theme_in_yaml && !has_css_in_yaml
-cat("No custom theme/css in YAML:", !has_theme_in_yaml && !has_css_in_yaml, "\n")
-
-# 6. No code fences wrapping entire output
-starts_with_fence <- grepl("^```", qmd_output)
-checks$no_code_fence <- !starts_with_fence
-cat("No wrapping code fence:", !starts_with_fence, "\n")
-
-# 7. YAML validation
 validation <- validate_qmd_yaml(qmd_output)
 checks$yaml_valid <- validation$valid
 cat("YAML validates:", validation$valid, "\n")
 if (!validation$valid) {
   cat("YAML errors:", paste(validation$errors, collapse = "; "), "\n")
 }
+
+# 2. Theme is correct
+has_correct_theme <- grepl("theme: moon", qmd_output)
+checks$correct_theme <- has_correct_theme
+cat("Theme is 'moon':", has_correct_theme, "\n")
+
+# 3. CSS present in frontmatter
+has_css <- grepl("\\.reveal .slides section", qmd_output)
+checks$has_citation_css <- has_css
+cat("Citation CSS present:", has_css, "\n")
+
+# 4. Check footnote style - should use ^[text] inline syntax
+has_inline_footnote <- grepl("\\^\\[", slide_content)
+has_bracket_caret <- grepl("\\[\\^[0-9]+\\]", slide_content)
+has_bare_caret <- grepl("\\^[0-9]+[^\\[]", slide_content)
+checks$correct_footnotes <- has_inline_footnote && !has_bracket_caret && !has_bare_caret
+cat("Uses ^[text] inline footnotes (CORRECT):", has_inline_footnote, "\n")
+cat("Uses [^N] reference-style (WRONG):", has_bracket_caret, "\n")
+cat("Uses bare ^N (WRONG):", has_bare_caret, "\n")
+
+# 5. Speaker notes
+has_notes <- grepl(":::\\s*\\{.notes\\}", slide_content)
+checks$speaker_notes <- has_notes
+cat("Has ::: {.notes} blocks:", has_notes, "\n")
+
+# 6. Slide separators
+has_slides <- grepl("(^|\\n)## ", slide_content)
+checks$slide_headers <- has_slides
+cat("Has ## slide headers:", has_slides, "\n")
+
+# 7. No code fences wrapping
+starts_with_fence <- grepl("^```", slide_content)
+checks$no_code_fence <- !starts_with_fence
+cat("No wrapping code fence:", !starts_with_fence, "\n")
+
+# 8. LLM did NOT output YAML (followed instructions)
+llm_had_yaml <- !is.null(stripped$title)
+checks$llm_no_yaml <- !llm_had_yaml
+cat("LLM omitted YAML (followed instruction):", !llm_had_yaml, "\n")
 
 # Summary
 passed <- sum(unlist(checks))
@@ -108,15 +134,14 @@ cat("\n=== SCORE:", passed, "/", total, "===\n")
 
 if (!checks$correct_footnotes) {
   cat("\nFAILED: Footnote style.\n")
-  # Extract footnote patterns found
-  inline_matches <- regmatches(qmd_output, gregexpr("\\^\\[[^]]+\\]", qmd_output))[[1]]
-  bracket_caret_matches <- regmatches(qmd_output, gregexpr("\\[\\^[0-9]+\\]", qmd_output))[[1]]
-  bare_caret_matches <- regmatches(qmd_output, gregexpr("\\^[0-9]+", qmd_output))[[1]]
+  inline_matches <- regmatches(slide_content, gregexpr("\\^\\[[^]]+\\]", slide_content))[[1]]
+  bracket_caret_matches <- regmatches(slide_content, gregexpr("\\[\\^[0-9]+\\]", slide_content))[[1]]
+  bare_caret_matches <- regmatches(slide_content, gregexpr("\\^[0-9]+", slide_content))[[1]]
   if (length(inline_matches) > 0) cat("  ^[text] (correct):", length(inline_matches), "instances\n")
   if (length(bracket_caret_matches) > 0) cat("  [^N] (wrong):", paste(bracket_caret_matches, collapse = ", "), "\n")
   if (length(bare_caret_matches) > 0) cat("  ^N (wrong):", paste(bare_caret_matches, collapse = ", "), "\n")
 }
 
-if (!checks$no_custom_styling) {
-  cat("\nFAILED: LLM added custom theme/css to YAML (app injects these post-generation).\n")
+if (llm_had_yaml) {
+  cat("\nNOTE: LLM included YAML despite instructions — stripped and rebuilt. Title extracted:", llm_title, "\n")
 }

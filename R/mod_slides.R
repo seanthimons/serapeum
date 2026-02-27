@@ -611,19 +611,19 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         return()
       }
 
-      # Validation passed - inject theme and CSS, then render
+      # Validation passed - rebuild with clean frontmatter, then render
       generation_state$validation_errors <- NULL
       generation_state$error <- NULL
 
+      # Strip whatever YAML the LLM produced and rebuild with known-good frontmatter
+      stripped <- strip_llm_yaml(heal_result$qmd)
+      title <- stripped$title %||% generation_state$title %||% "Presentation"
       theme <- generation_state$last_options$theme %||% "default"
-      qmd_content <- heal_result$qmd
-      if (theme != "default") {
-        qmd_content <- inject_theme_to_qmd(qmd_content, theme)
-      }
-      qmd_content <- inject_citation_css(qmd_content)
+      frontmatter <- build_qmd_frontmatter(title, theme)
+      qmd_content <- paste0(frontmatter, "\n", stripped$content)
       generation_state$qmd_content <- qmd_content
 
-      # Re-save with injected theme/CSS
+      # Re-save with clean frontmatter
       writeLines(qmd_content, heal_result$qmd_path)
 
       showNotification("Rendering healed preview...", id = "slides_progress", duration = NULL, type = "message")
