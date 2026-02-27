@@ -147,7 +147,7 @@ test_that("build_slides_prompt includes YAML template in system prompt", {
   expect_true(grepl("---", prompt$system))
 })
 
-test_that("build_slides_prompt includes format reference in slides prompt", {
+test_that("build_slides_prompt includes Quarto syntax reference", {
   chunks <- data.frame(
     content = "Test content",
     doc_name = "test.pdf",
@@ -157,28 +157,35 @@ test_that("build_slides_prompt includes format reference in slides prompt", {
 
   prompt <- build_slides_prompt(chunks, list(citation_style = "footnotes"))
 
-  # Check for format reference section
-  expect_true(grepl("Format Reference", prompt$system))
-  expect_true(grepl("\\^1", prompt$system))  # Footnote syntax example
+  # Check for syntax reference section with correct Quarto footnote syntax
+  expect_true(grepl("Syntax Reference", prompt$system))
+  expect_true(grepl("\\^\\[", prompt$system))  # Inline footnote syntax ^[text]
+  expect_true(grepl("do NOT use", prompt$system, ignore.case = TRUE))  # Negative instruction
   expect_true(grepl("::: \\{.notes\\}", prompt$system))  # Speaker notes syntax
   expect_true(grepl("\\| Method \\|", prompt$system))  # Table syntax
+  # Should NOT inject theme/css
+  expect_true(grepl("Do NOT add theme, css", prompt$system))
 
-  # Check updated citation instructions
-  expect_true(grepl("\\^1 superscript numbers", prompt$user))
+  # Check citation instructions use inline footnote syntax
+  expect_true(grepl("\\^\\[", prompt$user))  # Shows ^[text] example
+  expect_false(grepl("\\^1 superscript", prompt$user))  # Old syntax gone
 })
 
-test_that("build_healing_prompt includes format reference in healing prompt", {
+test_that("build_healing_prompt includes Quarto syntax reference", {
   previous_qmd <- "---\ntitle: Test\n---\n\n## Slide"
   errors <- character(0)
   instructions <- "Fix footnotes"
 
   prompt <- build_healing_prompt(previous_qmd, errors, instructions)
 
-  # Check for format reference section
-  expect_true(grepl("Format Reference", prompt$system))
-  expect_true(grepl("\\^1", prompt$system))  # Footnote syntax example
+  # Check for syntax reference with correct Quarto footnote syntax
+  expect_true(grepl("Syntax Reference", prompt$system))
+  expect_true(grepl("\\^\\[", prompt$system))  # Inline footnote syntax ^[text]
+  expect_true(grepl("do NOT use", prompt$system, ignore.case = TRUE))  # Negative instruction
   expect_true(grepl("::: \\{.notes\\}", prompt$system))  # Speaker notes syntax
   expect_true(grepl("\\| Method \\|", prompt$system))  # Table syntax
+  # Should preserve existing YAML
+  expect_true(grepl("Preserve the existing YAML", prompt$system))
 })
 
 test_that("validate_qmd_yaml validates correct YAML", {
