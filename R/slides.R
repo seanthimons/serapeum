@@ -339,7 +339,9 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
 #' @return List with valid (logical), errors (character vector), parsed (list or NULL)
 validate_qmd_yaml <- function(qmd_content) {
   # Extract YAML frontmatter between --- delimiters
-  yaml_match <- regmatches(qmd_content, regexpr("^---\\n(.*?)\\n---", qmd_content, perl = TRUE))
+  # Use (?s) flag so . matches newlines for non-greedy match
+  # Allow empty content between delimiters (---\n---) for empty detection
+  yaml_match <- regmatches(qmd_content, regexpr("(?s)^---\n(.*?)(\n---|\n?---)", qmd_content, perl = TRUE))
 
   if (length(yaml_match) == 0 || nchar(yaml_match) == 0) {
     return(list(
@@ -350,8 +352,8 @@ validate_qmd_yaml <- function(qmd_content) {
   }
 
   # Extract just the YAML content between delimiters
-  yaml_text <- sub("^---\\n", "", yaml_match)
-  yaml_text <- sub("\\n---$", "", yaml_text)
+  yaml_text <- sub("^---\n", "", yaml_match)
+  yaml_text <- sub("\n?---$", "", yaml_text)
 
   # Check for empty frontmatter
   if (nchar(trimws(yaml_text)) == 0) {

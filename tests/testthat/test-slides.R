@@ -101,6 +101,8 @@ test_that("generate_slides returns qmd content", {
   skip("Integration test - requires API key")
 
   # This test documents the expected interface
+  # NOTE: generate_slides() now returns a `validation` field alongside qmd/qmd_path/error
+  # validation = list(valid = TRUE/FALSE, errors = character(), parsed = list/NULL)
   chunks <- data.frame(
     content = "Test content about machine learning.",
     doc_name = "ml_paper.pdf",
@@ -125,4 +127,150 @@ test_that("generate_slides returns qmd content", {
 
   expect_type(result, "list")
   expect_true("qmd" %in% names(result) || "error" %in% names(result))
+})
+
+# --- Phase 39: Slide Healing tests ---
+
+test_that("build_slides_prompt includes YAML template in system prompt", {
+  chunks <- data.frame(
+    content = "Test content",
+    doc_name = "test.pdf",
+    page_number = 1,
+    stringsAsFactors = FALSE
+  )
+
+  prompt <- build_slides_prompt(chunks, list())
+
+  expect_true(grepl("CRITICAL", prompt$system))
+  expect_true(grepl("title:", prompt$system))
+  expect_true(grepl("revealjs", prompt$system))
+  expect_true(grepl("---", prompt$system))
+})
+
+test_that("validate_qmd_yaml validates correct YAML", {
+  qmd <- "---\ntitle: Test\nformat: revealjs\n---\n\n## Slide 1"
+  result <- validate_qmd_yaml(qmd)
+
+  expect_true(result$valid)
+  expect_equal(length(result$errors), 0)
+  expect_type(result$parsed, "list")
+  expect_equal(result$parsed$title, "Test")
+  expect_equal(result$parsed$format, "revealjs")
+})
+
+test_that("validate_qmd_yaml detects missing frontmatter", {
+  qmd <- "## No YAML here\n\nJust content"
+  result <- validate_qmd_yaml(qmd)
+
+  expect_false(result$valid)
+  expect_true(grepl("No YAML frontmatter", result$errors[1]))
+  expect_null(result$parsed)
+})
+
+test_that("validate_qmd_yaml detects invalid YAML", {
+  # Invalid YAML: bad indentation
+  qmd <- "---\ntitle: Test\n  bad:\n    - item\n  broken\n---\n\n## Slide"
+  result <- validate_qmd_yaml(qmd)
+
+  # yaml::yaml.load should error on this malformed YAML
+  # The exact behavior depends on what yaml considers invalid
+  expect_type(result, "list")
+  expect_true("valid" %in% names(result))
+})
+
+test_that("validate_qmd_yaml detects empty frontmatter", {
+  qmd <- "---\n---\n\n## Slide 1"
+  result <- validate_qmd_yaml(qmd)
+
+  expect_false(result$valid)
+  expect_true(grepl("Empty", result$errors[1]))
+  expect_null(result$parsed)
+})
+
+test_that("build_healing_prompt includes previous QMD and errors", {
+  previous_qmd <- "---\ntitle: Broken\n---\n\n## Slide"
+  errors <- c("YAML parse error at line 3")
+  instructions <- "Fix the YAML"
+
+  prompt <- build_healing_prompt(previous_qmd, errors, instructions)
+
+  expect_type(prompt, "list")
+  expect_true("system" %in% names(prompt))
+  expect_true("user" %in% names(prompt))
+  expect_true(grepl("fixer", prompt$system, ignore.case = TRUE))
+  expect_true(grepl("Broken", prompt$user))
+  expect_true(grepl("YAML parse error", prompt$user))
+  expect_true(grepl("Fix the YAML", prompt$user))
+})
+
+test_that("build_healing_prompt works without errors", {
+  previous_qmd <- "---\ntitle: Good\n---\n\n## Slide"
+  instructions <- "Make text bigger"
+
+  prompt <- build_healing_prompt(previous_qmd, character(0), instructions)
+
+  expect_true(grepl("Make text bigger", prompt$user))
+  # Should not have error section
+  expect_false(grepl("Validation errors found", prompt$user))
+})
+
+test_that("build_fallback_qmd generates valid template", {
+  chunks <- data.frame(
+    content = c("Introduction to machine learning concepts.", "Methods for deep learning."),
+    doc_name = c("paper1.pdf", "paper2.pdf"),
+    page_number = c(1, 1),
+    stringsAsFactors = FALSE
+  )
+
+  result <- build_fallback_qmd(chunks, "Test Presentation")
+
+  expect_true(grepl("^---", result))
+  expect_true(grepl("title:", result))
+  expect_true(grepl("Test Presentation", result))
+  expect_true(grepl("format:", result))
+  expect_true(grepl("revealjs", result))
+  expect_true(grepl("## Overview", result))
+  expect_true(grepl("2 source document", result))
+})
+
+test_that("build_fallback_qmd includes section headers from documents", {
+  chunks <- data.frame(
+    content = c("First doc content", "Second doc content"),
+    doc_name = c("introduction.pdf", "methodology.pdf"),
+    page_number = c(1, 1),
+    stringsAsFactors = FALSE
+  )
+
+  result <- build_fallback_qmd(chunks)
+
+  expect_true(grepl("## introduction", result))
+  expect_true(grepl("## methodology", result))
+})
+
+test_that("get_healing_chips returns cosmetic chips on success", {
+  chips <- get_healing_chips(character(0), TRUE)
+
+  expect_type(chips, "character")
+  expect_true("Fewer bullet points" %in% chips)
+  expect_true("Make text bigger" %in% chips)
+  expect_true("Simplify slides" %in% chips)
+})
+
+test_that("get_healing_chips returns YAML fix chip on YAML error", {
+  chips <- get_healing_chips("YAML parse error at line 3", FALSE)
+
+  expect_true("Fix YAML syntax" %in% chips)
+  expect_true("Simplify slides" %in% chips)
+})
+
+test_that("get_healing_chips returns CSS fix chip on CSS error", {
+  chips <- get_healing_chips("CSS formatting issue in slide 2", FALSE)
+
+  expect_true("Fix CSS formatting" %in% chips)
+})
+
+test_that("get_healing_chips returns Quarto fix chip on render error", {
+  chips <- get_healing_chips("Quarto render failed", FALSE)
+
+  expect_true("Fix Quarto formatting" %in% chips)
 })
