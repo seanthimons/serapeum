@@ -87,17 +87,17 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ UI polish: spacing, typography, about page harmonization (UIPX-01..05) — v6.0
 - ✓ bslib::input_dark_mode() replaces custom JS toggle — v6.0
 - ✓ Cross-module dark mode validation passed (Phase 32) — v6.0
+- ✓ Batch DOI parsing with multi-format support (BULK-01, BULK-02) — v7.0
+- ✓ OpenAlex batch API with rate limiting and backoff (BULK-04) — v7.0
+- ✓ Bulk DOI import UI with async progress (BULK-05, BULK-06) — v7.0
+- ✓ BibTeX import with merge-not-replace enrichment (BULK-03, BULK-07, BULK-08) — v7.0
+- ✓ Citation audit: backward refs + forward citations gap analysis (AUDIT-01..07) — v7.0
+- ✓ Select-all batch import with tri-state checkbox (SLCT-01..03) — v7.0
+- ✓ Slide healing: programmatic YAML, correct Quarto syntax, healing modal (SLIDE-01..04) — v7.0
 
 ### Active
 
-## Current Milestone: v7.0 Citation Audit + Quick Wins
-
-**Goal:** Add citation audit to surface missing seminal papers, plus select-all import and slide prompt healing.
-
-**Target features:**
-- Citation Audit — find missing seminal papers by reference frequency (#103)
-- Select all abstracts for import into document notebook (#85)
-- Slide generation prompt tweak / healing (#124)
+(No active milestone — planning next)
 
 ### Out of Scope
 
@@ -106,19 +106,20 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - Local model support (#8) — significant architecture change, future
 - ~~Conclusion synthesis (#27)~~ — shipped in v2.1
 - Audio overview (#22) — experimental, low priority
-- Bulk DOI/.bib import (#24) — deferred, needs UX design
+- ~~Bulk DOI/.bib import (#24)~~ — shipped in v7.0
 - Rich output preview (#50) — deferred, consider for next milestone
 - Cross-notebook search — contradicts per-notebook isolation goal
 
 ## Context
 
-Shipped v6.0 with ~14,500 LOC R across 14 production files. 9 milestones shipped (v1.0–v6.0), 32 phases, 53 plans.
-Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic.
+Shipped v7.0 with ~20,000 LOC R across 18 production files. 10 milestones shipped (v1.0–v7.0), 39 phases, 67 plans.
+Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic + bib2df.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle.
-7 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint).
-Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds and ragnar re-indexing with file-based interrupt flags.
+9 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint, import_runs, citation_audit_cache).
+Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds, ragnar re-indexing, bulk imports, and citation audit with file-based interrupt flags.
 RAG: ragnar is the sole backend — per-notebook DuckDB vector stores (`data/ragnar/{notebook_id}.duckdb`), hybrid VSS+BM25 retrieval, OpenRouter embedding. Section-targeted retrieval via keyword heuristics.
+Slide generation: Programmatic YAML frontmatter via build_qmd_frontmatter(), LLM outputs content only, strip_llm_yaml() handles non-compliant models.
 Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (#117), section_hint not encoded in PDF ragnar origins (#118), dead code (#119), secondary ragnar leak in ensure_ragnar_store(), 13 pre-existing test fixture failures.
 
 ## Constraints
@@ -127,7 +128,7 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - **API**: OpenRouter for LLM, OpenAlex for academic data — no new external services
 - **Architecture**: Shiny module pattern (`mod_*.R`) — new features follow existing conventions
 - **Local-first**: No server infrastructure; everything runs on user's machine
-- **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0), thematic (v6.0) — ragnar is a hard requirement
+- **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0), thematic (v6.0), bib2df (v7.0) — ragnar is a hard requirement
 - **RAG**: ragnar is the sole retrieval backend — no legacy cosine similarity fallback
 - **Theme**: Catppuccin palette only — no custom color schemes or multiple theme variants
 
@@ -184,16 +185,25 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 | bg-body-secondary for panels, bg-body-tertiary for badges (v6.0) | Bootstrap semantic classes adapt to both themes automatically | ✓ Good — zero dark mode overrides needed |
 | thematic_shiny() for auto-themed R plots (v6.0) | Plot backgrounds adapt to theme without manual CSS | ✓ Good — future-proofed for any R plots added |
 | CSS !important for Sass-compiled value box text (v6.0) | Sass compilation bakes colors at build time, runtime override needed | ✓ Good — Mocha Crust text visible in dark mode |
+| Pipe-separated batch DOI filter syntax (v7.0) | OpenAlex supports OR via pipe in filter values | ✓ Good — 50 DOIs per request |
+| Import run created in main session before mirai (v7.0) | Avoids FK constraint issues in worker process | ✓ Good — clean async pattern |
+| db_path parameter for worker DB connections (v7.0) | Mirai workers need independent DuckDB connections | ✓ Good — no cross-process sharing |
+| Merge-not-replace for BibTeX enrichment (v7.0) | Preserve .bib metadata when OpenAlex has partial data | ✓ Good — no data loss |
+| Single-query SQL aggregation for citation audit (v7.0) | Avoids N+1 query explosion with large collections | ✓ Good — handles 500+ papers |
+| Programmatic YAML frontmatter for slides (v7.0) | LLM-generated YAML was fragile; regex injection mangled themes | ✓ Good — eliminated entire class of bugs |
+| LLM outputs content only, no YAML (v7.0) | Separation of concerns: app handles config, LLM handles content | ✓ Good — consistent across models |
+| Quarto ^[text] inline footnotes (v7.0) | Correct Quarto syntax; ^1 and [^1] were wrong for RevealJS | ✓ Good — validated against Quarto docs via Context7 |
+| Concrete syntax examples in prompts (v7.0) | Correct/wrong examples work better than abstract instructions | ✓ Good — 8/8 pass rate across Claude Sonnet 4 and Gemini Flash |
 
 ---
 ## Current State
 
-**Latest shipped:** v6.0 Dark Mode + UI Polish (2026-02-25)
-**Active milestone:** v7.0 Citation Audit + Quick Wins
-**Total milestones:** 9 shipped (v1.0–v6.0)
-**Total phases:** 32 across 53 plans
+**Latest shipped:** v7.0 Citation Audit + Quick Wins (2026-02-27)
+**Active milestone:** None (planning next)
+**Total milestones:** 10 shipped (v1.0–v7.0)
+**Total phases:** 39 across 67 plans
 
-**v6.0 shipped:** Full Catppuccin dark mode palette with WCAG AA contrast, centralized dark CSS, theme-aware Bootstrap classes replacing all hardcoded colors, visNetwork dark canvas, and bslib::input_dark_mode() toggle.
+**v7.0 shipped:** Bulk DOI/BibTeX import, citation gap audit, select-all batch import, and slide healing with programmatic YAML and correct Quarto syntax.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -205,4 +215,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-02-25 after v7.0 milestone started*
+*Last updated: 2026-02-27 after v7.0 milestone completed*

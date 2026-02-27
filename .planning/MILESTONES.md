@@ -164,3 +164,24 @@
 
 ---
 
+
+## v7.0 Citation Audit + Quick Wins (Shipped: 2026-02-27)
+
+**Phases completed:** 7 phases (33-39), 14 plans
+
+**Key accomplishments:**
+- Robust batch DOI parsing with multi-format support (URLs, bare, comma/newline-separated) and categorized error reporting
+- OpenAlex batch API with 50-DOI batching, rate limiting, and exponential backoff on 429 errors
+- Full bulk DOI import UI — modal workflow with paste/upload, async ExtendedTask execution, progress bars, retry, and import history
+- BibTeX import via bib2df with merge-not-replace metadata enrichment and citation network seeding
+- Citation audit — one-click gap analysis finding frequently-cited missing papers via backward references + forward citations, with ranked results and single-click import
+- Select-all batch import with tri-state checkbox, confirmation for large selections, and async progress
+- Slide healing overhaul — programmatic YAML frontmatter (eliminated regex injection), correct Quarto ^[text] footnote syntax, healing modal with quick-pick chips, 2-retry fallback to template
+
+**Stats:** 21 files changed, +5,696 / -199 lines, 83 commits
+**Timeline:** 3 days (2026-02-25 → 2026-02-27)
+**Git range:** gsd/v1.0-citation-audit-quick-wins branch
+**Known gaps:** BULK-01/02/04/05/06 checkboxes were not updated in REQUIREMENTS.md during execution (phases completed, bookkeeping only)
+
+---
+

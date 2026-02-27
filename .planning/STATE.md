@@ -1,94 +1,59 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Citation Audit + Quick Wins
-status: unknown
-last_updated: "2026-02-27T17:26:06.312Z"
-progress:
-  total_phases: 37
-  completed_phases: 36
-  total_plans: 62
-  completed_plans: 61
----
-
----
-gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Citation Audit + Quick Wins
-status: unknown
-last_updated: "2026-02-27T16:21:29.901Z"
-progress:
-  total_phases: 37
-  completed_phases: 36
-  total_plans: 61
-  completed_plans: 60
----
-
----
-gsd_state_version: 1.0
 milestone: v7.0
 milestone_name: Citation Audit + Quick Wins
-status: in_progress
-last_updated: "2026-02-26"
+status: completed
+last_updated: "2026-02-27"
 progress:
   total_phases: 39
-  completed_phases: 35
-  total_plans: 56
-  completed_plans: 55
+  completed_phases: 39
+  total_plans: 67
+  completed_plans: 67
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-25)
+See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 36 - BibTeX Import (next)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 39 of 39 (Slide Healing) — IN PROGRESS
+Phase: 39 of 39 (Slide Healing) — COMPLETE
 Plan: 3 of 3 in Phase 39
-Status: Phase 39 plan 03 complete, phase complete
-Last activity: 2026-02-27 — Phase 39 plan 03 completed (format reference addition)
+Status: v7.0 milestone archived
+Last activity: 2026-02-27 — v7.0 milestone completed
 
 Progress: [████████████████████████████████] 100% (39/39 phases complete across all milestones)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 61 (across v1.0-v7.0)
+- Total plans completed: 67 (across v1.0-v7.0)
 - Total phases completed: 39 (across all milestones)
-- v7.0 plans completed: 11 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 39: 3)
+- v7.0 plans completed: 14 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 36: 2, Phase 37: 2, Phase 38: 2, Phase 39: 3)
 
 **Recent Milestones:**
+- v7.0 (Phases 33-39): 14 plans, 3 days (2026-02-25 → 2026-02-27)
 - v6.0 (Phases 30-32): 8 plans, 3 days (2026-02-22 → 2026-02-25)
 - v5.0 (Phase 29): 1 plan, <1 day (2026-02-22)
 - v4.0 (Phases 25-28): 6 plans, 3 days (2026-02-18 → 2026-02-19)
-
-**v7.0 Progress:**
-- Phase 33 (DOI Parsing): 1 plan, completed 2026-02-25
-- Phase 34 (OpenAlex Batch): 2 plans, completed 2026-02-26
-- Phase 35 (Bulk DOI Import): 2 plans, completed 2026-02-26
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting v7.0 work:
+Recent decisions affecting future work:
 
-- **v2.0**: Bare DOI storage format (10.xxxx/yyyy, not URL) — citation managers expect this
-- **v2.0**: Store layout positions in DB to avoid recomputation — will apply to citation audit caching
-- **v2.0**: BFS frontier pruning at 100 — prevents exponential API explosion, applies to citation audit
-- **v2.1**: ExtendedTask + mirai for async builds — proven pattern for citation audit and bulk imports
-- **v2.1**: File-based interrupt flags — cross-process cancellation for async operations
-- **v3.0**: Per-notebook ragnar stores — clean isolation pattern continues in v7.0
-- **Phase 35**: Import run created in main session before mirai launch (avoids FK constraint issues)
-- **Phase 35**: db_path parameter added to mod_search_notebook_server for worker DB connections
-- **Phase 39 Plan 03**: Add concrete syntax examples to prompts instead of abstract instructions (enables LLM self-correction)
-- **Phase 39 Plan 03**: Include same format reference in both generation and healing prompts for consistency
+- **v7.0**: Programmatic YAML frontmatter for slides (eliminated regex injection fragility)
+- **v7.0**: LLM outputs content only, no YAML — separation of concerns
+- **v7.0**: Concrete syntax examples in prompts > abstract instructions
+- **v7.0**: Import run created in main session before mirai (avoids FK constraint issues)
+- **v7.0**: Single-query SQL aggregation for citation audit (handles 500+ papers)
 
 ### Pending Todos
 
@@ -98,27 +63,20 @@ Recent decisions affecting v7.0 work:
 
 ### Blockers/Concerns
 
-**Known tech debt entering v7.0:**
+**Known tech debt:**
 - Connection leak in search_chunks_hybrid (#117)
 - Section_hint not encoded in PDF ragnar origins (#118)
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 - Tooltip overflow (#79)
 
-**v7.0-specific risks (from research):**
-- BibTeX parsing fragility with real-world files — Phase 36 needs tolerant parsers
-- SQL N+1 query explosion in citation audit — Phase 37 must use single-query aggregation
-- Memory explosion with large select-all batches — Phase 38 needs batch size warnings
-
 ## Session Continuity
 
-Last session: 2026-02-27 (Phase 39 execution)
-Stopped at: Phase 39 plan 03 complete - format reference addition
+Last session: 2026-02-27 (v7.0 milestone completion)
+Stopped at: Milestone archived, ready for next milestone
 Resume file: None
 
 **Next steps:**
-1. Phase 39 complete - all 3 plans executed
-2. Review SUMMARY files and verify gap closure
-3. Consider next milestone planning
+1. `/gsd:new-milestone` — start next milestone (questioning → research → requirements → roadmap)
 
 ---
-*Updated: 2026-02-27 — Phase 39 plan 03 completed*
+*Updated: 2026-02-27 — v7.0 milestone completed*
