@@ -1,9 +1,9 @@
 ---
 status: complete
 phase: 39-slide-healing
-source: 39-01-SUMMARY.md, 39-02-SUMMARY.md
-started: 2026-02-27T12:00:00Z
-updated: 2026-02-27T12:30:00Z
+source: 39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md
+started: 2026-02-27T14:00:00Z
+updated: 2026-02-27T14:30:00Z
 ---
 
 ## Current Test
@@ -44,40 +44,44 @@ result: pass
 expected: When slide generation produces invalid YAML, the results modal shows an error panel (replacing the preview area) with specific error details. A "Show raw output" toggle reveals the generated QMD in a scrollable code block.
 result: pass
 
-### 9. Improved generation prompt reduces bad YAML
-expected: Generate slides normally. The generated QMD should have valid YAML frontmatter (proper --- delimiters, valid format/revealjs structure). The prompt improvement makes well-formed output more likely than before.
+### 9. Format reference improves LLM output quality
+expected: Generate slides with citation style set to "footnotes". The LLM should produce footnotes using ^1 superscript syntax (not bracketed [1] or parenthetical). Speaker notes should use ::: {.notes} blocks. The LLM should get this right on first generation without you needing to teach it the syntax.
 result: issue
-reported: "Model doesn't improve response from chip prompts + errors alone. It revised footnotes only when given proper format explicitly. Prompt needs distilled RevealJS/Quarto formatting reference (footnotes, speaker notes, etc.) so the LLM produces correct output without user teaching it."
+reported: "fail. footnotes are still being generated in the wrong style. Address this in a gap fixing session."
+severity: major
+
+### 10. Healing with format reference enables self-correction
+expected: If slides have formatting issues (e.g., wrong footnote syntax), use Heal with a chip like "Fix citations" or custom instruction. The healed output should correct to proper ^1 syntax and ::: {.notes} structure without you providing explicit format examples.
+result: issue
+reported: "fail. CSS injection + proper YAML structure still very hard for most models. Could be related to context not being sent to the model properly. Address this in a gap fixing session; we'll need to find a good way of injecting a proper YAML block + any custom CSS."
 severity: major
 
 ## Summary
 
-total: 9
+total: 10
 passed: 8
-issues: 1
+issues: 2
 pending: 0
 skipped: 0
 
-## Deferred Ideas
-
-- Model selector in healing modal — let user pick a different model for healing attempts
-- Regenerate with cached chunks — skip re-fetching documents to save context/cost
-
 ## Gaps
 
-- truth: "Slide generation prompt includes sufficient formatting reference for RevealJS/Quarto constructs (footnotes, speaker notes, etc.) so LLM produces correct output"
+- truth: "Slide generation prompt includes sufficient formatting reference for footnotes so LLM produces ^1 superscript syntax on first generation"
   status: failed
-  reason: "User reported: Model doesn't improve response from chip prompts + errors alone. It revised footnotes only when given proper format explicitly. Prompt needs distilled RevealJS/Quarto formatting reference (footnotes, speaker notes, etc.) so the LLM produces correct output without user teaching it."
+  reason: "User reported: footnotes are still being generated in the wrong style. Address this in a gap fixing session."
   severity: major
   test: 9
-  root_cause: "System prompts in build_slides_prompt() and build_healing_prompt() provide abstract formatting instructions without concrete syntax examples. Citation instructions say 'add superscript numbers' but don't show ^1 syntax. Speaker notes mention ::: {.notes} blocks but don't show complete structure. No working examples of any Quarto/RevealJS constructs."
-  artifacts:
-    - path: "R/slides.R"
-      issue: "build_slides_prompt() lines 64-90: system prompt and citation_instructions lack syntax examples"
-    - path: "R/slides.R"
-      issue: "build_healing_prompt() lines 382-394: system prompt has no format reference"
-  missing:
-    - "Add footnote syntax examples to citation_instructions (^1 notation, reference list format)"
-    - "Add Quarto/RevealJS format reference section to both prompts (footnotes, speaker notes, tables)"
-    - "Update build_healing_prompt() with same format reference so healing can self-correct"
-  debug_session: ".planning/debug/insufficient-format-reference.md"
+  root_cause: ""
+  artifacts: []
+  missing: []
+  debug_session: ""
+
+- truth: "Healing with format reference enables LLM to self-correct CSS injection and YAML structure issues"
+  status: failed
+  reason: "User reported: CSS injection + proper YAML structure still very hard for most models. Could be related to context not being sent to the model properly. Need a good way of injecting a proper YAML block + any custom CSS."
+  severity: major
+  test: 10
+  root_cause: ""
+  artifacts: []
+  missing: []
+  debug_session: ""
