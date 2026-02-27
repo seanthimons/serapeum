@@ -70,7 +70,14 @@ skipped: 0
   reason: "User reported: Model doesn't improve response from chip prompts + errors alone. It revised footnotes only when given proper format explicitly. Prompt needs distilled RevealJS/Quarto formatting reference (footnotes, speaker notes, etc.) so the LLM produces correct output without user teaching it."
   severity: major
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "System prompts in build_slides_prompt() and build_healing_prompt() provide abstract formatting instructions without concrete syntax examples. Citation instructions say 'add superscript numbers' but don't show ^1 syntax. Speaker notes mention ::: {.notes} blocks but don't show complete structure. No working examples of any Quarto/RevealJS constructs."
+  artifacts:
+    - path: "R/slides.R"
+      issue: "build_slides_prompt() lines 64-90: system prompt and citation_instructions lack syntax examples"
+    - path: "R/slides.R"
+      issue: "build_healing_prompt() lines 382-394: system prompt has no format reference"
+  missing:
+    - "Add footnote syntax examples to citation_instructions (^1 notation, reference list format)"
+    - "Add Quarto/RevealJS format reference section to both prompts (footnotes, speaker notes, tables)"
+    - "Update build_healing_prompt() with same format reference so healing can self-correct"
+  debug_session: ".planning/debug/insufficient-format-reference.md"
