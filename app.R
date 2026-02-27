@@ -1053,7 +1053,8 @@ server <- function(input, output, session) {
     navigate_to_notebook = function(notebook_id) {
       current_notebook(notebook_id)
       current_view("notebook")
-    }
+    },
+    notebook_refresh = notebook_refresh
   )
 
   # Sidebar bulk import module

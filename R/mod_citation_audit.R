@@ -60,7 +60,8 @@ mod_citation_audit_ui <- function(id) {
 #' @param db_path DB file path string
 #' @param navigate_to_notebook Callback function(notebook_id) to navigate to notebook
 mod_citation_audit_server <- function(id, con, config_r, db_path,
-                                       navigate_to_notebook = NULL) {
+                                       navigate_to_notebook = NULL,
+                                       notebook_refresh = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -73,6 +74,8 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
 
     # --- Notebook list ---
     notebooks <- reactive({
+      # Re-query when notebooks change (e.g., new notebook created via bulk import)
+      if (!is.null(notebook_refresh)) notebook_refresh()
       nbs <- list_notebooks(con)
       if (nrow(nbs) == 0) return(nbs)
       nbs[nbs$type == "search", , drop = FALSE]
