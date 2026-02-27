@@ -176,29 +176,30 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       )
     })
 
-    # --- ExtendedTask for async audit ---
-    audit_task <- ExtendedTask$new(function(notebook_id, email, api_key,
-                                             interrupt_flag, progress_file,
-                                             db_path_val, app_dir) {
+    # --- ExtendedTask for async audit (API-only — no DB access) ---
+    audit_task <- ExtendedTask$new(function(paper_ids, email, api_key,
+                                             interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         setwd(app_dir)
-        source("R/config.R")
         source("R/utils_doi.R")
-        source("R/db_migrations.R")
-        source("R/db.R")
         source("R/api_openalex.R")
         source("R/interrupt.R")
         source("R/citation_audit.R")
-        run_citation_audit(notebook_id, email, api_key, db_path_val,
-                           interrupt_flag, progress_file)
-      }, notebook_id = notebook_id, email = email, api_key = api_key,
+        fetch_citation_audit(paper_ids, email, api_key,
+                             interrupt_flag, progress_file)
+      }, paper_ids = paper_ids, email = email, api_key = api_key,
          interrupt_flag = interrupt_flag, progress_file = progress_file,
-         db_path_val = db_path_val, app_dir = app_dir)
+         app_dir = app_dir)
     })
+
+    # Track the audit's notebook_id and run_id for the result handler
+    audit_notebook_id <- reactiveVal(NULL)
+    audit_run_id <- reactiveVal(NULL)
 
     # --- Run audit handler ---
     observeEvent(input$run_audit, {
       req(input$notebook_id, nchar(input$notebook_id) > 0)
+      nb_id <- input$notebook_id
 
       # Get config
       cfg <- config_r()
@@ -210,6 +211,23 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
                          type = "error")
         return()
       }
+
+      # Pre-fetch paper_ids in main process (avoids DB access in worker)
+      papers <- DBI::dbGetQuery(con, "
+        SELECT paper_id FROM abstracts WHERE notebook_id = ? AND paper_id IS NOT NULL
+      ", list(nb_id))
+      paper_ids <- papers$paper_id
+
+      if (length(paper_ids) == 0) {
+        showNotification("No papers in this notebook to audit.", type = "warning")
+        return()
+      }
+
+      # Create audit run in main process
+      run_id <- create_audit_run(con, nb_id)
+      update_audit_run(con, run_id, total_papers = length(paper_ids))
+      audit_notebook_id(nb_id)
+      audit_run_id(run_id)
 
       # Create interrupt flag and progress file
       flag <- create_interrupt_flag(session$token)
@@ -242,14 +260,13 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         easyClose = FALSE
       ))
 
-      # Invoke task
+      # Invoke task (API-only — no DB access in worker)
       audit_task$invoke(
-        notebook_id = input$notebook_id,
+        paper_ids = paper_ids,
         email = email,
         api_key = api_key,
         interrupt_flag = flag,
         progress_file = pf,
-        db_path_val = db_path,
         app_dir = getwd()
       )
     })
@@ -303,37 +320,79 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       ))
     })
 
+    # Guard: track last processed audit result to prevent re-entry
+    last_processed_audit <- reactiveVal(NULL)
+
     # --- Task completion handler ---
     observe({
       result <- audit_task$result()
       req(result)
 
-      removeModal()
-      current_progress_file(NULL)
-      current_interrupt_flag(NULL)
+      # Prevent infinite re-fire
+      if (identical(result, isolate(last_processed_audit()))) return()
+      last_processed_audit(result)
 
-      if (!is.null(result$error)) {
-        showNotification(paste("Audit failed:", result$error), type = "error", duration = 10)
-      } else if (result$status == "cancelled") {
-        showNotification("Analysis cancelled. Partial results shown.", type = "warning")
-      } else {
-        showNotification(
-          paste0("Found ", result$missing_found, " missing papers"),
-          type = "message"
-        )
-      }
+      isolate({
+        removeModal()
+        current_progress_file(NULL)
+        current_interrupt_flag(NULL)
 
-      # Reload results from DB
-      if (!is.null(result$run_id)) {
-        latest <- get_latest_audit_run(con, input$notebook_id)
-        if (!is.null(latest)) {
-          check_audit_imports(con, latest$id, input$notebook_id)
-          results <- get_audit_results(con, latest$id)
-          audit_run(latest)
-          audit_results(results)
+        run_id <- audit_run_id()
+        nb_id <- audit_notebook_id()
+
+        if (!is.null(result$error)) {
+          # Mark run as failed
+          if (!is.null(run_id)) {
+            tryCatch(update_audit_run(con, run_id, status = "failed"),
+                     error = function(e) NULL)
+          }
+          showNotification(paste("Audit failed:", result$error), type = "error", duration = 10)
+        } else {
+          # Write results to DB in main process
+          if (!is.null(run_id) && !is.null(nb_id)) {
+            if (is.data.frame(result$ranked) && nrow(result$ranked) > 0) {
+              tryCatch(
+                save_audit_results(con, run_id, nb_id, result$ranked),
+                error = function(e) {
+                  message("[citation_audit] Error saving results: ", e$message)
+                }
+              )
+            }
+
+            tryCatch(
+              update_audit_run(con, run_id,
+                               status = result$status,
+                               backward_count = result$backward_count,
+                               forward_count = result$forward_count,
+                               missing_found = result$missing_found),
+              error = function(e) {
+                message("[citation_audit] Error updating run: ", e$message)
+              }
+            )
+          }
+
+          if (result$status == "cancelled") {
+            showNotification("Analysis cancelled. Partial results shown.", type = "warning")
+          } else {
+            showNotification(
+              paste0("Found ", result$missing_found, " missing papers"),
+              type = "message"
+            )
+          }
         }
-      }
-      selected_ids(character(0))
+
+        # Reload results from DB
+        if (!is.null(run_id) && !is.null(nb_id)) {
+          latest <- get_latest_audit_run(con, nb_id)
+          if (!is.null(latest)) {
+            check_audit_imports(con, latest$id, nb_id)
+            results <- get_audit_results(con, latest$id)
+            audit_run(latest)
+            audit_results(results)
+          }
+        }
+        selected_ids(character(0))
+      })
     })
 
     # --- Cancel handler ---
@@ -516,7 +575,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
               notebook_id = input$notebook_id,
               email = email,
               api_key = api_key,
-              db_path = db_path
+              con = con
             )
 
             if (result$imported_count > 0) {
@@ -567,7 +626,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
           notebook_id = input$notebook_id,
           email = email,
           api_key = api_key,
-          db_path = db_path
+          con = con
         )
       })
 

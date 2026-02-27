@@ -294,10 +294,84 @@ fetch_missing_paper_metadata <- function(work_ids, email, api_key = NULL,
   all_papers
 }
 
+#' Fetch citation audit data from OpenAlex (API-only, no DB access)
+#'
+#' Designed for mirai worker execution. Does all OpenAlex API calls,
+#' ranking, and metadata enrichment, then returns results for the main
+#' process to write to DB. Avoids DuckDB cross-process file locking on Windows.
+#'
+#' @param paper_ids Character vector of OpenAlex paper IDs (W-prefixed)
+#' @param email Email for OpenAlex polite pool
+#' @param api_key Optional OpenAlex API key
+#' @param interrupt_flag Path to interrupt flag file (optional)
+#' @param progress_file Path to progress file (optional)
+#' @return List with ranked (data frame), backward_count, forward_count,
+#'   missing_found, status, cancelled
+fetch_citation_audit <- function(paper_ids, email, api_key,
+                                  interrupt_flag = NULL, progress_file = NULL) {
+  tryCatch({
+    # Step 1: Backward references
+    write_audit_progress(progress_file, 1, 3, "Fetching backward references...")
+    backward_refs <- aggregate_backward_refs(paper_ids, email, api_key,
+                                              interrupt_flag, progress_file)
+
+    # Check interrupt
+    if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+      return(list(
+        ranked = data.frame(),
+        backward_count = length(backward_refs),
+        forward_count = 0, missing_found = 0,
+        status = "cancelled", cancelled = TRUE
+      ))
+    }
+
+    # Step 2: Forward citations
+    write_audit_progress(progress_file, 2, 3, "Fetching forward citations...")
+    forward_refs <- fetch_forward_citations(paper_ids, email, api_key,
+                                             interrupt_flag, progress_file)
+
+    # Check interrupt — still rank partial results
+    cancelled <- !is.null(interrupt_flag) && check_interrupt(interrupt_flag)
+
+    # Step 3: Rank
+    write_audit_progress(progress_file, 3, 3, "Ranking results...")
+    ranked <- rank_missing_papers(backward_refs, forward_refs, threshold = 2)
+
+    if (nrow(ranked) > 0) {
+      top_ids <- head(ranked$work_id, 200)
+      metadata <- fetch_missing_paper_metadata(top_ids, email, api_key,
+                                                interrupt_flag, progress_file)
+      ranked <- enrich_ranked_with_metadata(ranked, metadata)
+    }
+
+    write_audit_progress(progress_file, 3, 3,
+                         if (cancelled) "Cancelled — partial results" else "Complete!")
+
+    list(
+      ranked = ranked,
+      backward_count = length(backward_refs),
+      forward_count = length(forward_refs),
+      missing_found = nrow(ranked),
+      status = if (cancelled) "cancelled" else "completed",
+      cancelled = cancelled
+    )
+  }, error = function(e) {
+    message("[citation_audit] Error: ", e$message)
+    list(
+      ranked = data.frame(),
+      backward_count = 0, forward_count = 0,
+      missing_found = 0, status = "failed",
+      cancelled = FALSE,
+      error = e$message
+    )
+  })
+}
+
 #' Run a complete citation audit for a notebook
 #'
-#' Main orchestrator function designed for mirai worker execution.
-#' Opens its own DB connection from db_path.
+#' Legacy orchestrator that opens its own DB connection.
+#' NOTE: On Windows, this will fail in mirai workers due to DuckDB file locking.
+#' Use fetch_citation_audit() for workers and handle DB writes in the main process.
 #'
 #' @param notebook_id Notebook ID
 #' @param email Email for OpenAlex polite pool
@@ -336,84 +410,30 @@ run_citation_audit <- function(notebook_id, email, api_key, db_path,
     run_id <- create_audit_run(con, notebook_id)
     update_audit_run(con, run_id, total_papers = length(paper_ids))
 
-    # Step 1: Backward references
-    write_audit_progress(progress_file, 1, 3, "Fetching backward references...")
-    backward_refs <- aggregate_backward_refs(paper_ids, email, api_key,
-                                              interrupt_flag, progress_file)
+    # Delegate to API-only function
+    result <- fetch_citation_audit(paper_ids, email, api_key,
+                                    interrupt_flag, progress_file)
 
-    # Check interrupt
-    if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
-      update_audit_run(con, run_id, status = "cancelled",
-                       backward_count = length(backward_refs))
-      close_db_connection(con)
-      return(list(
-        run_id = run_id,
-        backward_count = length(backward_refs),
-        forward_count = 0, missing_found = 0,
-        status = "cancelled", cancelled = TRUE
-      ))
+    # Write results to DB
+    if (nrow(result$ranked) > 0) {
+      save_audit_results(con, run_id, notebook_id, result$ranked)
     }
 
-    # Step 2: Forward citations
-    write_audit_progress(progress_file, 2, 3, "Fetching forward citations...")
-    forward_refs <- fetch_forward_citations(paper_ids, email, api_key,
-                                             interrupt_flag, progress_file)
-
-    # Check interrupt
-    if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
-      # Save partial results
-      ranked <- rank_missing_papers(backward_refs, forward_refs, threshold = 2)
-      if (nrow(ranked) > 0) {
-        # Fetch metadata for top results
-        top_ids <- head(ranked$work_id, 200)
-        metadata <- fetch_missing_paper_metadata(top_ids, email, api_key)
-        ranked <- enrich_ranked_with_metadata(ranked, metadata)
-        save_audit_results(con, run_id, notebook_id, ranked)
-      }
-      update_audit_run(con, run_id, status = "cancelled",
-                       backward_count = length(backward_refs),
-                       forward_count = length(forward_refs),
-                       missing_found = nrow(ranked))
-      close_db_connection(con)
-      return(list(
-        run_id = run_id,
-        backward_count = length(backward_refs),
-        forward_count = length(forward_refs),
-        missing_found = nrow(ranked),
-        status = "cancelled", cancelled = TRUE
-      ))
-    }
-
-    # Step 3: Rank and save results
-    write_audit_progress(progress_file, 3, 3, "Ranking results...")
-    ranked <- rank_missing_papers(backward_refs, forward_refs, threshold = 2)
-
-    if (nrow(ranked) > 0) {
-      # Fetch metadata for top 200
-      top_ids <- head(ranked$work_id, 200)
-      metadata <- fetch_missing_paper_metadata(top_ids, email, api_key,
-                                                interrupt_flag, progress_file)
-      ranked <- enrich_ranked_with_metadata(ranked, metadata)
-      save_audit_results(con, run_id, notebook_id, ranked)
-    }
-
-    # Complete
-    update_audit_run(con, run_id, status = "completed",
-                     backward_count = length(backward_refs),
-                     forward_count = length(forward_refs),
-                     missing_found = nrow(ranked))
-
-    write_audit_progress(progress_file, 3, 3, "Complete!")
+    update_audit_run(con, run_id,
+                     status = result$status,
+                     backward_count = result$backward_count,
+                     forward_count = result$forward_count,
+                     missing_found = result$missing_found)
 
     close_db_connection(con)
 
     list(
       run_id = run_id,
-      backward_count = length(backward_refs),
-      forward_count = length(forward_refs),
-      missing_found = nrow(ranked),
-      status = "completed",
-      cancelled = FALSE
+      backward_count = result$backward_count,
+      forward_count = result$forward_count,
+      missing_found = result$missing_found,
+      status = result$status,
+      cancelled = result$cancelled
     )
   }, error = function(e) {
     message("[citation_audit] Error: ", e$message)
@@ -497,29 +517,25 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
 #' @param notebook_id Notebook ID
 #' @param email Email for OpenAlex polite pool
 #' @param api_key Optional OpenAlex API key
-#' @param db_path Path to DuckDB database file
+#' @param con DuckDB connection (uses existing connection from main process)
 #' @param interrupt_flag Path to interrupt flag file (optional)
 #' @param progress_file Path to progress file (optional)
 #' @return List with imported_count, failed_count
-import_audit_papers <- function(work_ids, notebook_id, email, api_key, db_path,
+import_audit_papers <- function(work_ids, notebook_id, email, api_key, con,
                                  interrupt_flag = NULL, progress_file = NULL) {
   if (length(work_ids) == 0) {
     return(list(imported_count = 0L, failed_count = 0L))
   }
 
-  con <- NULL
   tryCatch({
-    con <- get_db_connection(db_path)
-
     # Get existing paper_ids to avoid duplicates
-    existing <- dbGetQuery(con, "
+    existing <- DBI::dbGetQuery(con, "
       SELECT paper_id FROM abstracts WHERE notebook_id = ?
     ", list(notebook_id))$paper_id
 
     # Filter out already-imported
     new_ids <- setdiff(work_ids, existing)
     if (length(new_ids) == 0) {
-      close_db_connection(con)
       return(list(imported_count = 0L, failed_count = 0L))
     }
 
@@ -532,12 +548,6 @@ import_audit_papers <- function(work_ids, notebook_id, email, api_key, db_path,
 
     for (paper in metadata) {
       tryCatch({
-        authors_str <- if (length(paper$authors) > 0) {
-          paste(unlist(paper$authors), collapse = ", ")
-        } else {
-          NULL
-        }
-
         create_abstract(
           con = con,
           notebook_id = notebook_id,
@@ -566,18 +576,14 @@ import_audit_papers <- function(work_ids, notebook_id, email, api_key, db_path,
     }
 
     # Mark imported results in audit table
-    # Get the latest run for this notebook to update imported flags
     latest_run <- get_latest_audit_run(con, notebook_id)
     if (!is.null(latest_run)) {
       check_audit_imports(con, latest_run$id, notebook_id)
     }
 
-    close_db_connection(con)
-
     list(imported_count = imported, failed_count = failed)
   }, error = function(e) {
     message("[citation_audit] Import error: ", e$message)
-    if (!is.null(con)) tryCatch(close_db_connection(con), error = function(e2) NULL)
     list(imported_count = 0L, failed_count = 0L, error = e$message)
   })
 }
