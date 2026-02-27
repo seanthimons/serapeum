@@ -24,8 +24,7 @@ mod_citation_audit_ui <- function(id) {
           class = "card-body",
           layout_columns(
             col_widths = c(5, 4, 3),
-            selectInput(ns("notebook_id"), "Search Notebook",
-                        choices = NULL, width = "100%"),
+            uiOutput(ns("notebook_selector")),
             div(
               class = "d-flex align-items-end gap-2 h-100",
               actionButton(ns("run_audit"), "Run Analysis",
@@ -81,14 +80,15 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       nbs[nbs$type == "search", , drop = FALSE]
     })
 
-    observe({
+    output$notebook_selector <- renderUI({
       nbs <- notebooks()
       choices <- if (nrow(nbs) > 0) {
         setNames(nbs$id, nbs$name)
       } else {
         c("No search notebooks" = "")
       }
-      updateSelectInput(session, "notebook_id", choices = choices)
+      selectInput(ns("notebook_id"), "Search Notebook",
+                  choices = choices, width = "100%")
     })
 
     # --- Paper count badge ---
