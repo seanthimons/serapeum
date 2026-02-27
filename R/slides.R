@@ -397,6 +397,14 @@ build_healing_prompt <- function(previous_qmd, errors, instructions) {
     "  revealjs:\n",
     "    theme: default\n",
     "---\n\n",
+    "Quarto/RevealJS Format Reference:\n",
+    "Footnotes: Add superscript citation numbers with ^1 syntax, then list references at end\n",
+    "  Example: 'Machine learning improves accuracy^1'\n",
+    "  Reference list: '## References\\n\\n1. Author et al., Journal, 2023'\n\n",
+    "Speaker notes: Use fenced div with .notes class\n",
+    "  Example: '## Slide Title\\n\\nContent here\\n\\n::: {.notes}\\nPresenter note text\\n:::'\n\n",
+    "Tables: Use markdown pipe syntax with alignment\n",
+    "  Example: '| Method | Accuracy |\\n|:-------|:--------:|\\n| CNN | 95% |'\n\n",
     "Output ONLY the complete fixed .qmd content. No explanations, no code fences.\n",
     "Ensure YAML frontmatter is valid (proper --- delimiters, correct indentation with spaces)."
   )
