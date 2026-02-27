@@ -203,6 +203,70 @@ init_schema <- function(con) {
     )
   ")
 
+  # Import runs table (Phase 35: Bulk DOI Import, Phase 36: BibTeX Import)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS import_runs (
+      id VARCHAR PRIMARY KEY,
+      notebook_id VARCHAR NOT NULL,
+      name VARCHAR NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      imported_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      source VARCHAR DEFAULT 'doi_bulk',
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
+  # Import run items table (Phase 35: per-DOI results)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS import_run_items (
+      id VARCHAR PRIMARY KEY,
+      run_id VARCHAR NOT NULL,
+      doi VARCHAR NOT NULL,
+      status VARCHAR NOT NULL,
+      error_reason VARCHAR,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (run_id) REFERENCES import_runs(id)
+    )
+  ")
+
+  # Citation audit tables (Phase 37: Citation Audit)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS citation_audit_runs (
+      id VARCHAR PRIMARY KEY,
+      notebook_id VARCHAR NOT NULL,
+      status VARCHAR DEFAULT 'running',
+      total_papers INTEGER DEFAULT 0,
+      backward_count INTEGER DEFAULT 0,
+      forward_count INTEGER DEFAULT 0,
+      missing_found INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP,
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS citation_audit_results (
+      id VARCHAR PRIMARY KEY,
+      run_id VARCHAR NOT NULL,
+      notebook_id VARCHAR NOT NULL,
+      work_id VARCHAR NOT NULL,
+      title VARCHAR,
+      authors VARCHAR,
+      year INTEGER,
+      doi VARCHAR,
+      cited_by_count INTEGER DEFAULT 0,
+      backward_count INTEGER DEFAULT 0,
+      forward_count INTEGER DEFAULT 0,
+      collection_frequency INTEGER DEFAULT 0,
+      imported BOOLEAN DEFAULT FALSE,
+      FOREIGN KEY (run_id) REFERENCES citation_audit_runs(id)
+    )
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
@@ -1592,4 +1656,254 @@ get_year_bounds <- function(con, notebook_id) {
     min_year = result$min_year[1],
     max_year = result$max_year[1]
   )
+}
+
+# --- Phase 35: Bulk DOI Import Run Helpers ---
+
+#' Create a new import run record
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param name User-provided or auto-generated run name
+#' @param total_count Total number of DOIs in this run
+#' @return Import run ID (UUID string)
+create_import_run <- function(con, notebook_id, name, total_count, source = "doi_bulk") {
+  id <- uuid::UUIDgenerate()
+  dbExecute(con, "
+    INSERT INTO import_runs (id, notebook_id, name, total_count, source)
+    VALUES (?, ?, ?, ?, ?)
+  ", list(id, notebook_id, name, as.integer(total_count), source))
+  id
+}
+
+#' Update import run counts after completion
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @param imported_count Number of successfully imported papers
+#' @param failed_count Number of failed DOIs
+#' @param skipped_count Number of skipped duplicates
+update_import_run_counts <- function(con, run_id, imported_count, failed_count, skipped_count) {
+  dbExecute(con, "
+    UPDATE import_runs
+    SET imported_count = ?, failed_count = ?, skipped_count = ?
+    WHERE id = ?
+  ", list(as.integer(imported_count), as.integer(failed_count), as.integer(skipped_count), run_id))
+}
+
+#' Create a per-DOI import result item
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @param doi DOI string
+#' @param status One of: 'success', 'not_found', 'api_error', 'malformed', 'duplicate'
+#' @param error_reason Optional error reason string
+#' @return Item ID (UUID string)
+create_import_run_item <- function(con, run_id, doi, status, error_reason = NULL) {
+  id <- uuid::UUIDgenerate()
+  error_val <- if (is.null(error_reason) || (is.character(error_reason) && is.na(error_reason))) NA_character_ else error_reason
+  dbExecute(con, "
+    INSERT INTO import_run_items (id, run_id, doi, status, error_reason)
+    VALUES (?, ?, ?, ?, ?)
+  ", list(id, run_id, doi, status, error_val))
+  id
+}
+
+#' Get all import runs for a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame of import runs, ordered by created_at DESC
+get_import_runs <- function(con, notebook_id) {
+  dbGetQuery(con, "
+    SELECT * FROM import_runs
+    WHERE notebook_id = ?
+    ORDER BY created_at DESC
+  ", list(notebook_id))
+}
+
+#' Get all items for an import run
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @return Data frame of import run items
+get_import_run_items <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM import_run_items
+    WHERE run_id = ?
+    ORDER BY created_at ASC
+  ", list(run_id))
+}
+
+#' Delete an import run and its items
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+delete_import_run <- function(con, run_id) {
+  # Delete items first (FK relationship)
+  dbExecute(con, "DELETE FROM import_run_items WHERE run_id = ?", list(run_id))
+  dbExecute(con, "DELETE FROM import_runs WHERE id = ?", list(run_id))
+}
+
+#' Get failed import items for retry (not_found and api_error only)
+#' @param con DuckDB connection
+#' @param run_id Import run ID
+#' @return Data frame of retryable import items
+get_failed_import_items <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM import_run_items
+    WHERE run_id = ? AND status IN ('not_found', 'api_error')
+    ORDER BY created_at ASC
+  ", list(run_id))
+}
+
+# ============================================================================
+# Citation Audit Functions (Phase 37)
+# ============================================================================
+
+#' Create a new citation audit run
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Run ID (UUID string)
+create_audit_run <- function(con, notebook_id) {
+  id <- uuid::UUIDgenerate()
+  dbExecute(con, "
+    INSERT INTO citation_audit_runs (id, notebook_id)
+    VALUES (?, ?)
+  ", list(id, notebook_id))
+  id
+}
+
+#' Update a citation audit run
+#' @param con DuckDB connection
+#' @param run_id Audit run ID
+#' @param status Run status ('running', 'completed', 'failed', 'cancelled')
+#' @param backward_count Number of backward references found (optional)
+#' @param forward_count Number of forward citations found (optional)
+#' @param missing_found Number of missing papers found (optional)
+#' @param total_papers Total papers analyzed (optional)
+update_audit_run <- function(con, run_id, status = NULL, backward_count = NULL,
+                              forward_count = NULL, missing_found = NULL,
+                              total_papers = NULL) {
+  updates <- c()
+  params <- list()
+
+  if (!is.null(status)) {
+    updates <- c(updates, "status = ?")
+    params <- c(params, list(status))
+  }
+  if (!is.null(backward_count)) {
+    updates <- c(updates, "backward_count = ?")
+    params <- c(params, list(as.integer(backward_count)))
+  }
+  if (!is.null(forward_count)) {
+    updates <- c(updates, "forward_count = ?")
+    params <- c(params, list(as.integer(forward_count)))
+  }
+  if (!is.null(missing_found)) {
+    updates <- c(updates, "missing_found = ?")
+    params <- c(params, list(as.integer(missing_found)))
+  }
+  if (!is.null(total_papers)) {
+    updates <- c(updates, "total_papers = ?")
+    params <- c(params, list(as.integer(total_papers)))
+  }
+
+  if (status %in% c("completed", "failed", "cancelled")) {
+    updates <- c(updates, "completed_at = CURRENT_TIMESTAMP")
+  }
+
+  if (length(updates) == 0) return(invisible(NULL))
+
+  sql <- paste0("UPDATE citation_audit_runs SET ", paste(updates, collapse = ", "), " WHERE id = ?")
+  params <- c(params, list(run_id))
+  dbExecute(con, sql, params)
+  invisible(NULL)
+}
+
+#' Save citation audit results (bulk insert)
+#' @param con DuckDB connection
+#' @param run_id Audit run ID
+#' @param notebook_id Notebook ID
+#' @param results_df Data frame with columns: work_id, title, authors, year, doi,
+#'   cited_by_count, backward_count, forward_count, collection_frequency
+save_audit_results <- function(con, run_id, notebook_id, results_df) {
+  if (is.null(results_df) || nrow(results_df) == 0) return(invisible(0L))
+
+  # Generate UUIDs for each row
+  ids <- vapply(seq_len(nrow(results_df)), function(i) uuid::UUIDgenerate(), character(1))
+
+  insert_df <- data.frame(
+    id = ids,
+    run_id = run_id,
+    notebook_id = notebook_id,
+    work_id = as.character(results_df$work_id),
+    title = as.character(results_df$title %||% NA_character_),
+    authors = as.character(results_df$authors %||% NA_character_),
+    year = as.integer(results_df$year %||% NA_integer_),
+    doi = as.character(results_df$doi %||% NA_character_),
+    cited_by_count = as.integer(results_df$cited_by_count %||% 0L),
+    backward_count = as.integer(results_df$backward_count %||% 0L),
+    forward_count = as.integer(results_df$forward_count %||% 0L),
+    collection_frequency = as.integer(results_df$collection_frequency %||% 0L),
+    imported = FALSE,
+    stringsAsFactors = FALSE
+  )
+
+  dbWriteTable(con, "citation_audit_results", insert_df, append = TRUE)
+  invisible(nrow(insert_df))
+}
+
+#' Get the latest audit run for a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Single-row data frame or NULL
+get_latest_audit_run <- function(con, notebook_id) {
+  result <- dbGetQuery(con, "
+    SELECT * FROM citation_audit_runs
+    WHERE notebook_id = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  ", list(notebook_id))
+  if (nrow(result) == 0) return(NULL)
+  result
+}
+
+#' Get audit results for a run
+#' @param con DuckDB connection
+#' @param run_id Audit run ID
+#' @return Data frame of results ordered by collection_frequency DESC
+get_audit_results <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM citation_audit_results
+    WHERE run_id = ?
+    ORDER BY collection_frequency DESC
+  ", list(run_id))
+}
+
+#' Mark a single audit result as imported
+#' @param con DuckDB connection
+#' @param result_id Audit result ID
+mark_audit_result_imported <- function(con, result_id) {
+  dbExecute(con, "
+    UPDATE citation_audit_results SET imported = TRUE WHERE id = ?
+  ", list(result_id))
+  invisible(TRUE)
+}
+
+#' Delete an audit run and its results
+#' @param con DuckDB connection
+#' @param run_id Audit run ID
+delete_audit_run <- function(con, run_id) {
+  dbExecute(con, "DELETE FROM citation_audit_results WHERE run_id = ?", list(run_id))
+  dbExecute(con, "DELETE FROM citation_audit_runs WHERE id = ?", list(run_id))
+  invisible(TRUE)
+}
+
+#' Update imported flags for audit results matching papers in notebook
+#' @param con DuckDB connection
+#' @param run_id Audit run ID
+#' @param notebook_id Notebook ID
+check_audit_imports <- function(con, run_id, notebook_id) {
+  dbExecute(con, "
+    UPDATE citation_audit_results
+    SET imported = TRUE
+    WHERE run_id = ?
+      AND work_id IN (SELECT paper_id FROM abstracts WHERE notebook_id = ?)
+  ", list(run_id, notebook_id))
+  invisible(TRUE)
 }

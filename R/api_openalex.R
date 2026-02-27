@@ -232,6 +232,27 @@ parse_openalex_work <- function(work) {
     fwci <- work$fwci
   }
 
+  # Extract retraction status (Phase 34)
+  is_retracted <- isTRUE(work$is_retracted)
+
+  # Extract cited-by percentile (Phase 34)
+  cited_by_percentile <- NA_real_
+  if (!is.null(work$cited_by_percentile_year) && !is.null(work$cited_by_percentile_year$min)) {
+    cited_by_percentile <- as.numeric(work$cited_by_percentile_year$min)
+  }
+
+  # Extract topics (Phase 34)
+  topics <- list()
+  if (!is.null(work$topics) && length(work$topics) > 0) {
+    topics <- lapply(work$topics, function(t) {
+      list(
+        id = gsub("https://openalex.org/", "", t$id %||% ""),
+        name = t$display_name %||% NA_character_,
+        score = t$score %||% NA_real_
+      )
+    })
+  }
+
   list(
     paper_id = paper_id,
     title = work$title %||% "Untitled",
@@ -250,7 +271,10 @@ parse_openalex_work <- function(work) {
     is_oa = is_oa,
     referenced_works_count = referenced_works_count,
     referenced_works = if (!is.null(work$referenced_works)) as.character(work$referenced_works) else character(),
-    fwci = fwci
+    fwci = fwci,
+    is_retracted = is_retracted,
+    cited_by_percentile = cited_by_percentile,
+    topics = topics
   )
 }
 
@@ -766,4 +790,191 @@ fetch_all_topics <- function(email, api_key = NULL, per_page = 100) {
 
   message("[openalex] Successfully fetched ", nrow(topics_df), " topics.")
   topics_df
+}
+
+# --- Phase 34: Batch DOI Fetch ---
+
+#' Split a DOI vector into chunks of a given batch size
+#' @param dois Character vector of bare DOIs
+#' @param batch_size Maximum DOIs per chunk (default 50)
+#' @return List of character vectors
+chunk_dois <- function(dois, batch_size = 50) {
+  if (length(dois) == 0) return(list())
+  split(dois, ceiling(seq_along(dois) / batch_size))
+}
+
+#' Build pipe-separated DOI filter string for OpenAlex API
+#' @param dois Character vector of bare DOIs (10.xxxx/yyyy format)
+#' @return Filter string like "doi:10.aaa/x|10.bbb/y"
+build_batch_filter <- function(dois) {
+  paste0("doi:", paste(dois, collapse = "|"))
+}
+
+#' Match returned works back to input DOIs, identify not_found
+#' @param works List of parsed work objects (each with $doi field)
+#' @param input_dois Character vector of bare DOIs that were queried
+#' @return List with $found (works) and $not_found (error entries)
+match_results_to_dois <- function(works, input_dois) {
+  # Extract bare DOIs from returned works (OpenAlex returns https://doi.org/ prefix)
+  found_dois <- vapply(works, function(w) {
+    tolower(gsub("^https://doi.org/", "", w$doi %||% ""))
+  }, character(1))
+
+  input_lower <- tolower(input_dois)
+  matched <- input_lower %in% found_dois
+
+  not_found <- lapply(input_dois[!matched], function(d) {
+    list(doi = d, reason = "not_found", details = "DOI not found in OpenAlex")
+  })
+
+  list(found = works, not_found = not_found)
+}
+
+#' Fetch a single batch of DOIs from OpenAlex with retry logic
+#' @param dois Character vector of bare DOIs (max 50)
+#' @param email User email for polite pool
+#' @param api_key Optional API key
+#' @param parse If TRUE, return parsed work objects; if FALSE, return raw
+#' @return List with $found (works) and $not_found (error entries)
+fetch_single_batch <- function(dois, email, api_key = NULL, parse = TRUE) {
+  filter_str <- build_batch_filter(dois)
+
+  req <- build_openalex_request("works", email, api_key) |>
+    httr2::req_url_query(filter = filter_str, per_page = length(dois)) |>
+    httr2::req_retry(
+      max_tries = 3,
+      is_transient = function(resp) httr2::resp_status(resp) == 429,
+      backoff = function(tries) 2^(tries - 1)  # 1s, 2s, 4s
+    )
+
+  resp <- httr2::req_perform(req)
+  body <- httr2::resp_body_json(resp)
+
+  if (is.null(body$results)) {
+    return(match_results_to_dois(list(), dois))
+  }
+
+  works <- if (parse) {
+    lapply(body$results, parse_openalex_work)
+  } else {
+    body$results
+  }
+
+  match_results_to_dois(works, dois)
+}
+
+#' Batch fetch papers from OpenAlex by DOI
+#'
+#' Queries OpenAlex in batches of up to 50 DOIs using pipe-separated filter
+#' syntax. Handles rate limiting with exponential backoff, categorizes errors,
+#' and reports progress via optional callback.
+#'
+#' @param dois Character vector of bare DOIs (10.xxxx/yyyy format)
+#' @param email User email for polite pool
+#' @param api_key Optional API key
+#' @param batch_size DOIs per batch (1-50, default 50)
+#' @param delay Seconds between batches (default 0.1)
+#' @param parse If TRUE, return normalized objects; if FALSE, return raw
+#' @param progress_callback Optional function(batch_current, batch_total, found_so_far, not_found_so_far)
+#' @param log_file Optional path for persistent log file
+#' @return List with $papers (list of work objects) and $errors (list of error entries)
+batch_fetch_papers <- function(dois, email, api_key = NULL,
+                                batch_size = 50, delay = 0.1,
+                                parse = TRUE, progress_callback = NULL,
+                                log_file = NULL) {
+  stopifnot(is.character(dois), length(dois) > 0)
+  stopifnot(batch_size > 0, batch_size <= 50)
+
+  # Initialize log file if requested
+  if (!is.null(log_file)) {
+    dir.create(dirname(log_file), recursive = TRUE, showWarnings = FALSE)
+    cat(paste0("[", Sys.time(), "] batch_fetch_papers started: ", length(dois), " DOIs in ",
+               ceiling(length(dois) / batch_size), " batches\n"),
+        file = log_file, append = TRUE)
+  }
+
+  # Initialize collectors
+  all_papers <- list()
+  all_errors <- list()
+
+  # Chunk DOIs
+  chunks <- chunk_dois(dois, batch_size)
+
+  for (i in seq_along(chunks)) {
+    batch_dois <- chunks[[i]]
+
+    batch_msg <- paste0("[batch ", i, "/", length(chunks), "] Fetching ", length(batch_dois), " DOIs...")
+    message(batch_msg)
+    if (!is.null(log_file)) {
+      cat(paste0("[", Sys.time(), "] ", batch_msg, "\n"), file = log_file, append = TRUE)
+    }
+
+    batch_result <- tryCatch({
+      fetch_single_batch(batch_dois, email, api_key, parse)
+    }, error = function(e) {
+      err_msg <- conditionMessage(e)
+
+      # Determine error category
+      reason <- if (grepl("429|rate.limit", err_msg, ignore.case = TRUE)) {
+        "rate_limited"
+      } else {
+        "api_error"
+      }
+
+      error_entries <- lapply(batch_dois, function(d) {
+        list(doi = d, reason = reason, details = err_msg)
+      })
+
+      list(found = list(), not_found = error_entries)
+    })
+
+    all_papers <- c(all_papers, batch_result$found)
+    all_errors <- c(all_errors, batch_result$not_found)
+
+    # Log result
+    if (!is.null(log_file)) {
+      cat(paste0("[", Sys.time(), "] Batch ", i, ": found=", length(batch_result$found),
+                 " not_found=", length(batch_result$not_found), "\n"),
+          file = log_file, append = TRUE)
+    }
+
+    # Progress callback
+    if (!is.null(progress_callback)) {
+      found_count <- length(all_papers)
+      not_found_count <- sum(vapply(all_errors, function(e) e$reason == "not_found", logical(1)))
+      progress_callback(
+        batch_current = i,
+        batch_total = length(chunks),
+        found_so_far = found_count,
+        not_found_so_far = not_found_count
+      )
+    }
+
+    # Inter-batch delay
+    if (i < length(chunks)) {
+      Sys.sleep(delay)
+    }
+  }
+
+  # Deduplicate by paper_id (only for parsed results)
+  if (parse && length(all_papers) > 0) {
+    seen_ids <- character()
+    unique_papers <- list()
+    for (paper in all_papers) {
+      if (!is.null(paper$paper_id) && !(paper$paper_id %in% seen_ids)) {
+        seen_ids <- c(seen_ids, paper$paper_id)
+        unique_papers <- c(unique_papers, list(paper))
+      }
+    }
+    all_papers <- unique_papers
+  }
+
+  # Final log
+  if (!is.null(log_file)) {
+    cat(paste0("[", Sys.time(), "] batch_fetch_papers complete: ",
+               length(all_papers), " papers, ", length(all_errors), " errors\n"),
+        file = log_file, append = TRUE)
+  }
+
+  list(papers = all_papers, errors = all_errors)
 }

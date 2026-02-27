@@ -289,6 +289,38 @@
       "NeedsCompilation": "yes",
       "Repository": "CRAN"
     },
+    "bib2df": {
+      "Package": "bib2df",
+      "Version": "1.1.2.0",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Parse a BibTeX File to a Data Frame",
+      "Authors@R": "c(person(\"Philipp\", \"Ottolinger\", email = \"philipp@ottolinger.de\", role = \"aut\"), person(\"Thomas\", \"Leeper\", email = \"thosjleeper@gmail.com\", role = \"ctb\"), person(\"Maëlle\", \"Salmon\", email = \"maelle.salmon@yahoo.se\", role = \"ctb\"), person(\"Paul\", \"Egeler\", email = \"paulegeler@gmail.com\", role = \"ctb\"), person(\"Emilio Xavier\", \"Esposito\", email = \"emilio.esposito@gmail.com\", role = \"ctb\"), person(\"Gianluca\", \"Baio\", email = \"g.baio@ucl.ac.uk\", role = c(\"ctb\",\"cre\")))",
+      "Description": "Parse a BibTeX file to a data.frame to make it accessible for further analysis and visualization.",
+      "URL": "https://docs.ropensci.org/bib2df/, https://github.com/ropensci/bib2df/",
+      "BugReports": "https://github.com/ropensci/bib2df/issues/",
+      "License": "GPL-3",
+      "Imports": [
+        "dplyr",
+        "stringr",
+        "humaniformat",
+        "httr"
+      ],
+      "Suggests": [
+        "testthat",
+        "knitr",
+        "rmarkdown",
+        "ggplot2",
+        "tidyr"
+      ],
+      "RoxygenNote": "7.3.1",
+      "VignetteBuilder": "knitr",
+      "Encoding": "UTF-8",
+      "NeedsCompilation": "no",
+      "Author": "Philipp Ottolinger [aut], Thomas Leeper [ctb], Maëlle Salmon [ctb], Paul Egeler [ctb], Emilio Xavier Esposito [ctb], Gianluca Baio [ctb, cre]",
+      "Maintainer": "Gianluca Baio <g.baio@ucl.ac.uk>",
+      "Repository": "CRAN"
+    },
     "blob": {
       "Package": "blob",
       "Version": "1.2.4",
@@ -538,39 +570,6 @@
       "NeedsCompilation": "yes",
       "Author": "Jeroen Ooms [aut, cre] (ORCID: <https://orcid.org/0000-0002-4035-0289>), John MacFarlane [cph] (Author of cmark)",
       "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
-      "Repository": "CRAN"
-    },
-    "connections": {
-      "Package": "connections",
-      "Version": "0.2.1",
-      "Source": "Repository",
-      "Title": "Integrates with the 'RStudio' Connections Pane and 'pins'",
-      "Authors@R": "c( person(\"Edgar\", \"Ruiz\", email = \"edgar@posit.co\", role = c(\"aut\", \"cre\")), person(given = \"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
-      "Description": "Enables 'DBI' compliant packages to integrate with the 'RStudio' connections  pane, and the 'pins' package. It automates the display of schemata, tables, views, as well  as the preview of the table's top 1000 records.",
-      "License": "MIT + file LICENSE",
-      "Imports": [
-        "DBI",
-        "methods",
-        "pins",
-        "dplyr",
-        "dbplyr",
-        "uuid",
-        "rscontract"
-      ],
-      "Suggests": [
-        "RSQLite",
-        "testthat (>= 3.0.0)",
-        "covr"
-      ],
-      "Encoding": "UTF-8",
-      "RoxygenNote": "7.3.3",
-      "URL": "https://github.com/rstudio/connections, https://rstudio.github.io/connections/",
-      "BugReports": "https://github.com/rstudio/connections/issues",
-      "Config/testthat/edition": "3",
-      "Config/Needs/website": "tidyverse/tidytemplate",
-      "NeedsCompilation": "no",
-      "Author": "Edgar Ruiz [aut, cre], Posit Software, PBC [cph, fnd]",
-      "Maintainer": "Edgar Ruiz <edgar@posit.co>",
       "Repository": "CRAN"
     },
     "cpp11": {
@@ -1575,6 +1574,35 @@
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
       "Repository": "CRAN"
     },
+    "humaniformat": {
+      "Package": "humaniformat",
+      "Version": "0.6.0",
+      "Source": "Repository",
+      "Title": "A Parser for Human Names",
+      "Date": "2016-04-24",
+      "Author": "Oliver Keyes [aut, cre]",
+      "Maintainer": "Oliver Keyes <ironholds@gmail.com>",
+      "Description": "Human names are complicated and nonstandard things. Humaniformat, which is based on Anthony Ettinger's 'humanparser' project (https://github.com/ chovy/humanparser) provides functions for parsing human names, making a best- guess attempt to distinguish sub-components such as prefixes, suffixes, middle names and salutations.",
+      "License": "MIT + file LICENSE",
+      "LazyData": "true",
+      "URL": "https://github.com/ironholds/humaniformat/",
+      "BugReports": "https://github.com/ironholds/humaniformat/issues",
+      "Suggests": [
+        "testthat",
+        "knitr"
+      ],
+      "LinkingTo": [
+        "Rcpp"
+      ],
+      "Imports": [
+        "Rcpp",
+        "methods"
+      ],
+      "VignetteBuilder": "knitr",
+      "RoxygenNote": "5.0.1",
+      "NeedsCompilation": "yes",
+      "Repository": "CRAN"
+    },
     "igraph": {
       "Package": "igraph",
       "Version": "2.2.2",
@@ -2059,12 +2087,12 @@
     },
     "mirai": {
       "Package": "mirai",
-      "Version": "2.5.3",
+      "Version": "2.6.0",
       "Source": "Repository",
       "Type": "Package",
       "Title": "Minimalist Async Evaluation Framework for R",
       "Authors@R": "c( person(\"Charlie\", \"Gao\", , \"charlie.gao@posit.co\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0002-0750-061X\")), person(\"Joe\", \"Cheng\", , \"joe@posit.co\", role = \"ctb\"), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"), comment = c(ROR = \"03wc8by49\")), person(\"Hibiki AI Limited\", role = \"cph\") )",
-      "Description": "Designed for simplicity, a 'mirai' evaluates an R expression asynchronously, locally or distributed over the network. Built on 'nanonext' and 'NNG' for modern networking and concurrency, scales efficiently to millions of tasks over thousands of parallel processes. Provides optimal scheduling over fast 'IPC', TCP, and TLS connections, integrating with SSH or cluster managers. Implements event-driven promises for reactive programming, and supports custom serialization for cross-language data types.",
+      "Description": "Evaluates R expressions asynchronously and in parallel, locally or distributed across networks. An official parallel cluster type for R. Built on 'nanonext' and 'NNG', its non-polling, event-driven architecture scales from a laptop to thousands of processes across high-performance computing clusters and cloud platforms.  Features FIFO scheduling with task cancellation, promises for reactive programming, 'OpenTelemetry' distributed tracing, and custom serialization for cross-language data types.",
       "License": "MIT + file LICENSE",
       "URL": "https://mirai.r-lib.org, https://github.com/r-lib/mirai",
       "BugReports": "https://github.com/r-lib/mirai/issues",
@@ -2072,13 +2100,14 @@
         "R (>= 3.6)"
       ],
       "Imports": [
-        "nanonext (>= 1.7.2)"
+        "nanonext (>= 1.8.0)"
       ],
       "Suggests": [
         "cli",
         "litedown",
         "otel",
-        "otelsdk"
+        "otelsdk",
+        "secretbase"
       ],
       "Enhances": [
         "parallel",
@@ -2093,16 +2122,16 @@
       "NeedsCompilation": "no",
       "Author": "Charlie Gao [aut, cre] (ORCID: <https://orcid.org/0000-0002-0750-061X>), Joe Cheng [ctb], Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>), Hibiki AI Limited [cph]",
       "Maintainer": "Charlie Gao <charlie.gao@posit.co>",
-      "Repository": "CRAN"
+      "Repository": "RSPM"
     },
     "nanonext": {
       "Package": "nanonext",
-      "Version": "1.7.2",
+      "Version": "1.8.0",
       "Source": "Repository",
       "Type": "Package",
-      "Title": "NNG (Nanomsg Next Gen) Lightweight Messaging Library",
+      "Title": "Lightweight Toolkit for Messaging, Concurrency and the Web",
       "Authors@R": "c( person(\"Charlie\", \"Gao\", , \"charlie.gao@posit.co\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0002-0750-061X\")), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"), comment = c(ROR = \"03wc8by49\")), person(\"Hibiki AI Limited\", role = \"cph\"), person(\"R Consortium\", role = \"fnd\") )",
-      "Description": "R binding for NNG (Nanomsg Next Gen), a successor to ZeroMQ. NNG is a socket library for reliable, high-performance messaging over in-process, IPC, TCP, WebSocket and secure TLS transports. Implements 'Scalability Protocols', a standard for common communications patterns including publish/subscribe, request/reply and service discovery. As its own threaded concurrency framework, provides a toolkit for asynchronous programming and distributed computing. Intuitive 'aio' objects resolve automatically when asynchronous operations complete, and synchronisation primitives allow R to wait upon events signalled by concurrent threads.",
+      "Description": "R binding for NNG (Nanomsg Next Gen), a successor to ZeroMQ. A toolkit for messaging, concurrency and the web. High-performance socket messaging over in-process, IPC, TCP, WebSocket and secure TLS transports implements 'Scalability Protocols', a standard for common communications patterns including publish/subscribe, request/reply and survey. A threaded concurrency framework with intuitive 'aio' objects that resolve automatically upon completion of asynchronous operations, and synchronisation primitives that allow R to wait on events signalled by concurrent threads. A unified HTTP server hosting REST endpoints, WebSocket connections and streaming on a single port, with a built-in HTTP client.",
       "License": "MIT + file LICENSE",
       "URL": "https://nanonext.r-lib.org, https://github.com/r-lib/nanonext",
       "BugReports": "https://github.com/r-lib/nanonext/issues",
@@ -2123,11 +2152,11 @@
       "Config/usethis/last-upkeep": "2025-04-23",
       "Encoding": "UTF-8",
       "RoxygenNote": "7.3.3",
-      "SystemRequirements": "'libnng' >= 1.9 and 'libmbedtls' >= 2.5, or 'cmake' and 'xz' to compile NNG and/or Mbed TLS included in package sources",
+      "SystemRequirements": "'libnng' >= 1.9 and 'libmbedtls' >= 2.5, or 'cmake' to compile NNG and/or Mbed TLS included in package sources",
       "NeedsCompilation": "yes",
       "Author": "Charlie Gao [aut, cre] (ORCID: <https://orcid.org/0000-0002-0750-061X>), Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>), Hibiki AI Limited [cph], R Consortium [fnd]",
       "Maintainer": "Charlie Gao <charlie.gao@posit.co>",
-      "Repository": "CRAN"
+      "Repository": "RSPM"
     },
     "openssl": {
       "Package": "openssl",
@@ -2249,79 +2278,6 @@
       "NeedsCompilation": "no",
       "Author": "Kirill Müller [aut, cre] (ORCID: <https://orcid.org/0000-0002-1416-3412>), Hadley Wickham [aut], RStudio [cph]",
       "Maintainer": "Kirill Müller <kirill@cynkra.com>",
-      "Repository": "CRAN"
-    },
-    "pins": {
-      "Package": "pins",
-      "Version": "1.4.1",
-      "Source": "Repository",
-      "Type": "Package",
-      "Title": "Pin, Discover, and Share Resources",
-      "Authors@R": "c( person(\"Julia\", \"Silge\", , \"julia.silge@posit.co\", role = c(\"cre\", \"aut\"), comment = c(ORCID = \"0000-0002-3671-836X\")), person(\"Hadley\", \"Wickham\", , \"hadley@posit.co\", role = \"aut\", comment = c(ORCID = \"0000-0003-4757-117X\")), person(\"Javier\", \"Luraschi\", , \"jluraschi@gmail.com\", role = \"aut\"), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
-      "Description": "Publish data sets, models, and other R objects, making it easy to share them across projects and with your colleagues. You can pin objects to a variety of \"boards\", including local folders (to share on a networked drive or with 'DropBox'), 'Posit Connect', 'AWS S3', and more.",
-      "License": "Apache License (>= 2)",
-      "URL": "https://pins.rstudio.com/, https://github.com/rstudio/pins-r",
-      "BugReports": "https://github.com/rstudio/pins-r/issues",
-      "Depends": [
-        "R (>= 3.6)"
-      ],
-      "Imports": [
-        "cli",
-        "digest",
-        "fs",
-        "generics",
-        "glue",
-        "httr",
-        "jsonlite",
-        "lifecycle",
-        "magrittr",
-        "purrr (>= 1.0.0)",
-        "rappdirs",
-        "rlang (>= 1.1.0)",
-        "tibble",
-        "whisker",
-        "withr (>= 2.4.3)",
-        "yaml"
-      ],
-      "Suggests": [
-        "archive",
-        "arrow",
-        "AzureStor",
-        "covr",
-        "data.table",
-        "datasets",
-        "filelock",
-        "gitcreds",
-        "googleCloudStorageR",
-        "googledrive",
-        "httr2",
-        "ids",
-        "knitr",
-        "Microsoft365R",
-        "mime",
-        "mockery",
-        "nanoparquet",
-        "openssl",
-        "paws.storage",
-        "qs",
-        "R.utils",
-        "rmarkdown",
-        "rsconnect",
-        "shiny",
-        "sodium",
-        "testthat (>= 3.1.7)",
-        "webfakes (>= 1.2.0)",
-        "xml2",
-        "zip"
-      ],
-      "VignetteBuilder": "knitr",
-      "Config/Needs/website": "tidyverse/tidytemplate",
-      "Config/testthat/edition": "3",
-      "Encoding": "UTF-8",
-      "RoxygenNote": "7.3.2",
-      "NeedsCompilation": "no",
-      "Author": "Julia Silge [cre, aut] (<https://orcid.org/0000-0002-3671-836X>), Hadley Wickham [aut] (<https://orcid.org/0000-0003-4757-117X>), Javier Luraschi [aut], Posit Software, PBC [cph, fnd]",
-      "Maintainer": "Julia Silge <julia.silge@posit.co>",
       "Repository": "CRAN"
     },
     "pkgbuild": {
@@ -3015,27 +2971,32 @@
       "Maintainer": "Kirill Müller <kirill@cynkra.com>",
       "Repository": "CRAN"
     },
-    "rscontract": {
-      "Package": "rscontract",
-      "Version": "0.1.2",
+    "rstudioapi": {
+      "Package": "rstudioapi",
+      "Version": "0.18.0",
       "Source": "Repository",
-      "Title": "Generic implementation of the 'RStudio' connections contract",
-      "Authors@R": "c( person(\"Nathan\", \"Stephens\", email = \"nathan@rstudio.com\", role = c(\"aut\", \"cre\")), person(\"Edgar\", \"Ruiz\", email = \"edgararuiz@gmail.com\", role = c(\"aut\")) )",
-      "Description": "Provides a generic implementation of the 'RStudio' connection contract to  make it easier for database connections, and other type of connections, opened  via R packages integrate with the connections pane inside the 'RStudio' interactive development environment (IDE).",
-      "License": "GPL-3",
+      "Title": "Safely Access the RStudio API",
+      "Description": "Access the RStudio API (if available) and provide informative error messages when it's not.",
+      "Authors@R": "c( person(\"Kevin\", \"Ushey\", role = c(\"aut\", \"cre\"), email = \"kevin@rstudio.com\"), person(\"JJ\", \"Allaire\", role = c(\"aut\"), email = \"jj@posit.co\"), person(\"Hadley\", \"Wickham\", role = c(\"aut\"), email = \"hadley@posit.co\"), person(\"Gary\", \"Ritchie\", role = c(\"aut\"), email = \"gary@posit.co\"), person(family = \"RStudio\", role = \"cph\") )",
+      "Maintainer": "Kevin Ushey <kevin@rstudio.com>",
+      "License": "MIT + file LICENSE",
+      "URL": "https://rstudio.github.io/rstudioapi/, https://github.com/rstudio/rstudioapi",
+      "BugReports": "https://github.com/rstudio/rstudioapi/issues",
+      "RoxygenNote": "7.3.3",
       "Suggests": [
-        "testthat (>= 2.1.0)",
-        "covr"
+        "testthat",
+        "knitr",
+        "rmarkdown",
+        "clipr",
+        "covr",
+        "curl",
+        "jsonlite",
+        "withr"
       ],
+      "VignetteBuilder": "knitr",
       "Encoding": "UTF-8",
-      "LazyData": "true",
-      "RoxygenNote": "7.0.2",
-      "URL": "https://github.com/rstudio/rscontract",
-      "BugReports": "https://github.com/rstudio/rscontract/issues",
-      "Language": "en-US",
       "NeedsCompilation": "no",
-      "Author": "Nathan Stephens [aut, cre], Edgar Ruiz [aut]",
-      "Maintainer": "Nathan Stephens <nathan@rstudio.com>",
+      "Author": "Kevin Ushey [aut, cre], JJ Allaire [aut], Hadley Wickham [aut], Gary Ritchie [aut], RStudio [cph]",
       "Repository": "CRAN"
     },
     "rvest": {
@@ -3448,6 +3409,65 @@
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
       "Repository": "CRAN"
     },
+    "thematic": {
+      "Package": "thematic",
+      "Version": "0.1.8",
+      "Source": "Repository",
+      "Title": "Unified and Automatic 'Theming' of 'ggplot2', 'lattice', and 'base' R Graphics",
+      "Authors@R": "c( person(\"Carson\", \"Sievert\", , \"carson@posit.co\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0002-4958-2844\")), person(\"Barret\", \"Schloerke\", , \"barret@posit.co\", role = \"aut\", comment = c(ORCID = \"0000-0001-9986-114X\")), person(\"Joe\", \"Cheng\", , \"joe@posit.co\", role = \"aut\"), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
+      "Description": "Theme 'ggplot2', 'lattice', and 'base' graphics based on a few choices, including foreground color, background color, accent color, and font family. Fonts that aren't available on the system, but are available via download on 'Google Fonts', can be automatically downloaded, cached, and registered for use with the 'showtext' and 'ragg' packages.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://rstudio.github.io/thematic/, https://github.com/rstudio/thematic",
+      "BugReports": "https://github.com/rstudio/thematic/issues",
+      "Depends": [
+        "R (>= 3.0.0)"
+      ],
+      "Imports": [
+        "farver",
+        "ggplot2 (>= 3.5.2)",
+        "graphics",
+        "grDevices",
+        "grid",
+        "rappdirs",
+        "rlang",
+        "rstudioapi (>= 0.8)",
+        "scales",
+        "utils"
+      ],
+      "Suggests": [
+        "bslib",
+        "Cairo",
+        "curl",
+        "gganimate",
+        "ggiraph",
+        "htmltools",
+        "jsonlite",
+        "knitr",
+        "lattice",
+        "ragg",
+        "rmarkdown",
+        "shiny (>= 1.5.0)",
+        "showtext",
+        "stats",
+        "svglite",
+        "sysfonts",
+        "systemfonts",
+        "testthat",
+        "vdiffr (>= 1.0.0)",
+        "withr"
+      ],
+      "Config/Needs/check": "shinytest2, callr, sf, ggthemes, patchwork, gridExtra, tinytex, devtools, rversions",
+      "Config/Needs/routine": "ggrepel, r-lib/evaluate",
+      "Config/Needs/website": "GGally, RColorBrewer, patchwork, apreshill/quillt, r-lib/evaluate",
+      "Config/testthat/edition": "3",
+      "Encoding": "UTF-8",
+      "RoxygenNote": "7.3.3",
+      "Collate": "'auto.R' 'base.R' 'cache.R' 'gfonts.R' 'ggplot.R' 'globals.R' 'hooks.R' 'knitr.R' 'lattice.R' 'onLoad.R' 'thematic-package.R' 'thematic-save-plot.R' 'thematic.R' 'utils.R'",
+      "NeedsCompilation": "no",
+      "Author": "Carson Sievert [aut, cre] (ORCID: <https://orcid.org/0000-0002-4958-2844>), Barret Schloerke [aut] (ORCID: <https://orcid.org/0000-0001-9986-114X>), Joe Cheng [aut], Posit Software, PBC [cph, fnd]",
+      "Maintainer": "Carson Sievert <carson@posit.co>",
+      "Repository": "CRAN"
+    },
     "tibble": {
       "Package": "tibble",
       "Version": "3.3.0",
@@ -3837,25 +3857,6 @@
       "NeedsCompilation": "no",
       "Author": "Hadley Wickham [aut, cre], Posit Software, PBC [cph, fnd]",
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
-      "Repository": "CRAN"
-    },
-    "whisker": {
-      "Package": "whisker",
-      "Version": "0.4.1",
-      "Source": "Repository",
-      "Maintainer": "Edwin de Jonge <edwindjonge@gmail.com>",
-      "License": "GPL-3",
-      "Title": "{{mustache}} for R, Logicless Templating",
-      "Type": "Package",
-      "LazyLoad": "yes",
-      "Author": "Edwin de Jonge",
-      "Description": "Implements 'Mustache' logicless templating.",
-      "URL": "https://github.com/edwindj/whisker",
-      "Suggests": [
-        "markdown"
-      ],
-      "RoxygenNote": "6.1.1",
-      "NeedsCompilation": "no",
       "Repository": "CRAN"
     },
     "withr": {

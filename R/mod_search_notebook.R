@@ -40,6 +40,8 @@ mod_search_notebook_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
+    # Phase 38: Select-all checkbox tri-state JS handler
+    tags$script(src = "js/select-all.js"),
     # JavaScript: show spinner on send button while chat is processing
     tags$script(HTML(sprintf("
       $(document).on('click', '#%s', function() {
@@ -68,6 +70,10 @@ mod_search_notebook_ui <- function(id) {
           span("Papers"),
           div(
             class = "d-flex gap-2",
+            actionButton(ns("open_bulk_import"), NULL,
+                         class = "btn-sm btn-outline-success",
+                         icon = icon("file-import"),
+                         title = "Import DOIs"),
             div(
               class = "btn-group btn-group-sm",
               tags$button(
@@ -141,16 +147,28 @@ mod_search_notebook_ui <- function(id) {
                 tagAppendAttributes(class = "text-muted small")
             )
           ),
+          # Phase 38: Select-all checkbox
+          div(
+            class = "d-flex align-items-center gap-2 mb-2",
+            tags$input(
+              type = "checkbox",
+              id = ns("select_all_cb"),
+              class = "form-check-input",
+              onclick = sprintf("Shiny.setInputValue('%s', this.checked, {priority: 'event'})", ns("select_all_click"))
+            ),
+            tags$label(
+              `for` = ns("select_all_cb"),
+              class = "form-check-label small text-muted",
+              "Select all"
+            )
+          ),
           div(
             id = ns("paper_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
             uiOutput(ns("paper_list"))
           ),
           hr(),
-          uiOutput(ns("selection_info")),
-          actionButton(ns("import_selected"), "Import Selected to Notebook",
-                       class = "btn-primary w-100",
-                       icon = icon("download"))
+          uiOutput(ns("import_button_ui"))
         )
       ),
       # Right: Keyword panel + Abstract detail view
@@ -307,7 +325,10 @@ mod_search_notebook_ui <- function(id) {
         }
         if (msg) msg.textContent = data.message;
       });
-    "))
+    ")),
+
+    # Phase 35: Bulk DOI import module UI (modals + history)
+    mod_bulk_import_ui(ns("bulk_import"))
   )
 }
 
@@ -316,13 +337,18 @@ mod_search_notebook_ui <- function(id) {
 #' @param con Database connection (reactive)
 #' @param notebook_id Reactive notebook ID
 #' @param config App config (reactive)
-mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_refresh = NULL) {
+mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_refresh = NULL, db_path = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     messages <- reactiveVal(list())
     selected_papers <- reactiveVal(character())
     viewed_paper <- reactiveVal(NULL)
+
+    # Phase 38: Select-all state management (flag + exception set)
+    # When all_selected=TRUE, effective selection = all filtered IDs minus exceptions
+    # When all_selected=FALSE, effective selection = exceptions (individually checked)
+    select_all_state <- reactiveVal(list(all_selected = FALSE, exceptions = character()))
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
     seed_request <- reactiveVal(NULL)
@@ -332,12 +358,28 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     block_journal_observers <- reactiveValues()
     unblock_journal_observers <- reactiveValues()
 
+    # Phase 38: Batch import state
+    batch_import_interrupt <- reactiveVal(NULL)
+    batch_import_progress <- reactiveVal(NULL)
+    batch_import_poller <- reactiveVal(NULL)
+
     # Phase 22: Per-notebook store migration state
     rag_ready <- reactiveVal(TRUE)
     store_healthy <- reactiveVal(NULL)
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
     reindex_poller <- reactiveVal(NULL)
+
+    # Phase 35: Bulk DOI import module
+    # db_path can be a reactive or a plain value — wrap in reactive for the module
+    db_path_r <- if (is.function(db_path)) db_path else reactive(db_path)
+    bulk_import_api <- mod_bulk_import_server("bulk_import", con, notebook_id, config,
+                                              paper_refresh, db_path_r)
+
+    # Phase 35: Open bulk import modal
+    observeEvent(input$open_bulk_import, {
+      bulk_import_api$show_import_modal()
+    })
 
     # Phase 22: rag_available = store exists and is healthy
     rag_available <- reactive({
@@ -366,6 +408,103 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         result
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
          api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
+         progress_file = progress_file, app_dir = app_dir)
+    })
+
+    # Phase 38: ExtendedTask for batch abstract import (50+ papers)
+    batch_import_task <- ExtendedTask$new(function(abstract_ids, target_notebook_id,
+                                                    db_path, interrupt_flag, progress_file, app_dir) {
+      mirai::mirai({
+        setwd(app_dir)
+        source("R/db_migrations.R")
+        source("R/db.R")
+        source("R/interrupt.R")
+        source("R/bulk_import.R")  # For write_import_progress / read_import_progress
+
+        # Open own DB connection (mirai workers can't share)
+        con <- get_connection(db_path)
+        on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+
+        # Check which abstracts are already in the target notebook (duplicates)
+        existing_docs <- DBI::dbGetQuery(con, sprintf(
+          "SELECT abstract_id FROM documents WHERE notebook_id = '%s' AND abstract_id IS NOT NULL",
+          target_notebook_id
+        ))
+        existing_abstract_ids <- existing_docs$abstract_id
+
+        to_import <- setdiff(abstract_ids, existing_abstract_ids)
+        duplicates <- intersect(abstract_ids, existing_abstract_ids)
+
+        imported <- 0L
+        failed <- 0L
+        failed_details <- list()
+        total <- length(to_import)
+
+        for (i in seq_along(to_import)) {
+          # Check for interrupt
+          if (check_interrupt(interrupt_flag)) {
+            break
+          }
+
+          aid <- to_import[i]
+
+          tryCatch({
+            abs <- DBI::dbGetQuery(con, sprintf("SELECT * FROM abstracts WHERE id = '%s'", aid))
+            if (nrow(abs) == 0) {
+              failed <- failed + 1L
+              failed_details[[length(failed_details) + 1]] <- list(id = aid, reason = "Abstract not found")
+              next
+            }
+            abs <- abs[1, ]
+
+            if (is.na(abs$abstract) || nchar(abs$abstract) == 0) {
+              failed <- failed + 1L
+              failed_details[[length(failed_details) + 1]] <- list(id = aid, reason = "No abstract text")
+              next
+            }
+
+            doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
+            doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
+            doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
+
+            doc_id <- create_document(
+              con, target_notebook_id,
+              paste0(abs$title, ".txt"),
+              "",
+              abs$abstract,
+              1,
+              title = abs$title,
+              authors = doc_authors,
+              year = doc_year,
+              doi = doc_doi,
+              abstract_id = abs$id
+            )
+
+            create_chunk(con, doc_id, "document", 0, abs$abstract, page_number = 1)
+            imported <- imported + 1L
+          }, error = function(e) {
+            failed <<- failed + 1L
+            failed_details[[length(failed_details) + 1]] <<- list(id = aid, reason = conditionMessage(e))
+          })
+
+          # Write progress
+          pct_msg <- sprintf("Importing paper %d of %d...", i, total)
+          write_import_progress(progress_file, i, total, imported, failed, pct_msg)
+        }
+
+        cancelled <- check_interrupt(interrupt_flag)
+
+        list(
+          imported = imported,
+          failed = failed,
+          duplicates = length(duplicates),
+          duplicate_ids = duplicates,
+          failed_details = failed_details,
+          cancelled = cancelled,
+          total_requested = length(abstract_ids)
+        )
+      }, abstract_ids = abstract_ids, target_notebook_id = target_notebook_id,
+         db_path = db_path, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir)
     })
 
@@ -1176,7 +1315,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           ),
           div(
             class = "d-flex align-items-start gap-2 pe-4",
-            checkboxInput(ns(checkbox_id), label = NULL, width = "25px"),
+            # Phase 38: Raw checkbox with JS click handler for select-all integration
+            tags$div(
+              style = "width: 25px; flex-shrink: 0;",
+              tags$input(
+                type = "checkbox",
+                id = ns(checkbox_id),
+                class = "form-check-input",
+                checked = if (paper$id %in% selected_papers()) "checked" else NULL,
+                onclick = sprintf(
+                  "Shiny.setInputValue('%s', {id: '%s', checked: this.checked, nonce: Math.random()}, {priority: 'event'})",
+                  ns("paper_checkbox_click"), paper$id
+                )
+              )
+            ),
             # Warning icon for flagged papers
             if (is_flagged) {
               span(
@@ -1249,31 +1401,100 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
     })
 
-    # Track selected papers (for import)
-    observe({
-      papers <- filtered_papers()
-      if (nrow(papers) == 0) return()
-
-      selected <- character()
-      for (i in seq_len(nrow(papers))) {
-        paper <- papers[i, ]
-        checkbox_id <- paste0("select_", paper$id)
-        if (isTRUE(input[[checkbox_id]])) {
-          selected <- c(selected, paper$id)
-        }
+    # Phase 38: Compute effective selection from select-all state
+    effective_selected <- reactive({
+      state <- select_all_state()
+      all_ids <- filtered_papers()$id
+      if (state$all_selected) {
+        setdiff(all_ids, state$exceptions)
+      } else {
+        intersect(state$exceptions, all_ids)
       }
-      selected_papers(selected)
     })
 
-    # Selection info
-    output$selection_info <- renderUI({
-      n <- length(selected_papers())
-      if (n == 0) {
-        span(class = "text-muted small", "Select papers to import")
+    # Phase 38: Sync effective selection into selected_papers reactiveVal
+    observe({
+      selected_papers(effective_selected())
+    })
+
+    # Phase 38: Handle select-all checkbox click
+    observeEvent(input$select_all_click, {
+      if (isTRUE(input$select_all_click)) {
+        # Select all: set flag, clear exceptions
+        select_all_state(list(all_selected = TRUE, exceptions = character()))
       } else {
-        span(class = "text-primary small fw-semibold",
-             paste(n, "paper(s) selected"))
+        # Deselect all: clear flag, clear exceptions
+        select_all_state(list(all_selected = FALSE, exceptions = character()))
       }
+    }, ignoreInit = TRUE)
+
+    # Phase 38: Handle individual paper checkbox click
+    observeEvent(input$paper_checkbox_click, {
+      click <- input$paper_checkbox_click
+      req(click$id)
+      state <- select_all_state()
+
+      if (state$all_selected) {
+        # In select-all mode: toggle exception
+        if (isTRUE(click$checked)) {
+          # Re-checking a deselected paper: remove from exceptions
+          state$exceptions <- setdiff(state$exceptions, click$id)
+        } else {
+          # Unchecking a paper: add to exceptions
+          state$exceptions <- union(state$exceptions, click$id)
+        }
+      } else {
+        # In individual mode: toggle in exceptions set
+        if (isTRUE(click$checked)) {
+          state$exceptions <- union(state$exceptions, click$id)
+        } else {
+          state$exceptions <- setdiff(state$exceptions, click$id)
+        }
+      }
+      select_all_state(state)
+    }, ignoreInit = TRUE)
+
+    # Phase 38: Update select-all checkbox visual state
+    observe({
+      state <- select_all_state()
+      all_ids <- filtered_papers()$id
+      n_selected <- length(effective_selected())
+      n_total <- length(all_ids)
+
+      if (n_total == 0) {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = FALSE, indeterminate = FALSE
+        ))
+      } else if (n_selected == n_total) {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = TRUE, indeterminate = FALSE
+        ))
+      } else if (n_selected > 0) {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = FALSE, indeterminate = TRUE
+        ))
+      } else {
+        session$sendCustomMessage("setCheckboxState", list(
+          id = ns("select_all_cb"), checked = FALSE, indeterminate = FALSE
+        ))
+      }
+    })
+
+    # Phase 38: Reset select-all when filters change
+    observeEvent(filtered_papers(), {
+      select_all_state(list(all_selected = FALSE, exceptions = character()))
+      session$sendCustomMessage("setCheckboxState", list(
+        id = ns("select_all_cb"), checked = FALSE, indeterminate = FALSE
+      ))
+    }, ignoreInit = TRUE)
+
+    # Phase 38: Dynamic import button with selection count
+    output$import_button_ui <- renderUI({
+      n <- length(selected_papers())
+      label <- if (n > 0) paste0("Import Selected (", n, ")") else "Import Selected"
+      actionButton(ns("import_selected"), label,
+                   class = "btn-primary w-100",
+                   icon = icon("download"))
     })
 
     # Abstract detail view
@@ -2202,12 +2423,37 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       paper_refresh(paper_refresh() + 1)
     })
 
-    # Import selected to document notebook
+    # Phase 38: Import selected papers to document notebook (async for 50+, confirm for 100+)
     observeEvent(input$import_selected, {
       selected <- selected_papers()
       req(length(selected) > 0)
 
-      # Show modal to select target notebook
+      if (length(selected) >= 100) {
+        # Show confirmation modal for large imports
+        showModal(modalDialog(
+          title = tagList(icon("triangle-exclamation", class = "text-warning"), "Large Import"),
+          p(sprintf("You're about to import %d papers. This may take a few minutes.", length(selected))),
+          p(class = "text-muted small", "You can cancel the import at any time. Papers already imported will be kept."),
+          footer = tagList(
+            modalButton("Cancel"),
+            actionButton(ns("confirm_large_import"), "Continue", class = "btn-primary")
+          )
+        ))
+      } else {
+        # Show notebook selector directly
+        show_import_notebook_modal()
+      }
+    })
+
+    # Phase 38: Confirm large import -> show notebook selector
+    observeEvent(input$confirm_large_import, {
+      removeModal()
+      show_import_notebook_modal()
+    })
+
+    # Phase 38: Helper to show the notebook selector modal
+    show_import_notebook_modal <- function() {
+      selected <- selected_papers()
       showModal(modalDialog(
         title = "Import Papers",
         p(paste("Import", length(selected), "paper(s) to a document notebook.")),
@@ -2234,9 +2480,46 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         choices <- c(choices, nb_choices)
       }
       updateSelectInput(session, "target_notebook", choices = choices)
-    })
+    }
 
-    # Do import
+    # Phase 38: Results modal helper
+    show_import_results <- function(imported, duplicates, failed, cancelled = FALSE) {
+      title <- if (cancelled) {
+        tagList(icon("circle-pause", class = "text-warning"), "Import Cancelled")
+      } else {
+        tagList(icon("circle-check", class = "text-success"), "Import Complete")
+      }
+
+      showModal(modalDialog(
+        title = title,
+        tags$div(
+          class = "d-flex gap-4 mb-3",
+          tags$div(
+            class = "text-center",
+            tags$h3(class = "text-success mb-0", imported),
+            tags$small(class = "text-muted", "imported")
+          ),
+          tags$div(
+            class = "text-center",
+            tags$h3(class = if (duplicates > 0) "text-warning mb-0" else "text-muted mb-0", duplicates),
+            tags$small(class = "text-muted", "duplicates skipped")
+          ),
+          tags$div(
+            class = "text-center",
+            tags$h3(class = if (failed > 0) "text-danger mb-0" else "text-muted mb-0", failed),
+            tags$small(class = "text-muted", "failed")
+          )
+        ),
+        if (cancelled) {
+          p(class = "text-muted small", "Import was cancelled. Papers already imported have been kept.")
+        },
+        footer = modalButton("Close"),
+        size = "m",
+        easyClose = TRUE
+      ))
+    }
+
+    # Phase 38: Do import (synchronous for < 50, async for >= 50)
     observeEvent(input$do_import, {
       selected <- selected_papers()
       req(length(selected) > 0)
@@ -2252,47 +2535,155 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
       }
 
-      # Get selected abstracts
-      abstracts <- dbGetQuery(con(), sprintf("
-        SELECT * FROM abstracts WHERE id IN (%s)
-      ", paste(sprintf("'%s'", selected), collapse = ",")))
+      removeModal()
 
-      imported <- 0
-      for (i in seq_len(nrow(abstracts))) {
-        abs <- abstracts[i, ]
+      if (length(selected) < 50) {
+        # Synchronous import for small batches
+        abstracts <- dbGetQuery(con(), sprintf("
+          SELECT * FROM abstracts WHERE id IN (%s)
+        ", paste(sprintf("'%s'", selected), collapse = ",")))
 
-        # For now, just create a document record with the abstract as content
-        # Full PDF download would require additional logic
-        if (!is.na(abs$abstract) && nchar(abs$abstract) > 0) {
-          # Extract DOI (may be NA)
-          doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
+        # Check for duplicates
+        existing <- tryCatch(
+          dbGetQuery(con(), sprintf(
+            "SELECT abstract_id FROM documents WHERE notebook_id = '%s' AND abstract_id IN (%s)",
+            target, paste(sprintf("'%s'", selected), collapse = ",")
+          )),
+          error = function(e) data.frame(abstract_id = character(0))
+        )
+        dup_ids <- existing$abstract_id
+        abstracts <- abstracts[!abstracts$id %in% dup_ids, ]
 
-          # Extract authors (already JSON string in abstracts table)
-          doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
+        imported <- 0
+        for (i in seq_len(nrow(abstracts))) {
+          abs <- abstracts[i, ]
+          if (!is.na(abs$abstract) && nchar(abs$abstract) > 0) {
+            doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
+            doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
+            doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
 
-          # Extract year (may be NA)
-          doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
-
-          doc_id <- create_document(
-            con(), target,
-            paste0(abs$title, ".txt"),
-            "",
-            abs$abstract,
-            1,
-            title = abs$title,
-            authors = doc_authors,
-            year = doc_year,
-            doi = doc_doi,
-            abstract_id = abs$id
-          )
-
-          create_chunk(con(), doc_id, "document", 0, abs$abstract, page_number = 1)
-          imported <- imported + 1
+            doc_id <- create_document(
+              con(), target, paste0(abs$title, ".txt"), "",
+              abs$abstract, 1,
+              title = abs$title, authors = doc_authors,
+              year = doc_year, doi = doc_doi, abstract_id = abs$id
+            )
+            create_chunk(con(), doc_id, "document", 0, abs$abstract, page_number = 1)
+            imported <- imported + 1
+          }
         }
+
+        dups <- length(dup_ids)
+        failed <- length(selected) - imported - dups
+        show_import_results(imported, dups, failed, cancelled = FALSE)
+        paper_refresh(paper_refresh() + 1)
+      } else {
+        # Async import for large batches (50+ papers)
+        flag_file <- create_interrupt_flag(session$token)
+        batch_import_interrupt(flag_file)
+        prog_file <- create_progress_file(session$token)
+        batch_import_progress(prog_file)
+
+        db_path_val <- if (is.function(db_path)) db_path() else db_path
+
+        # Show progress modal (matches bulk import modal pattern)
+        showModal(modalDialog(
+          title = tagList(icon("spinner", class = "fa-spin"), "Importing Papers"),
+          tags$div(
+            class = "progress",
+            style = "height: 25px;",
+            tags$div(
+              id = ns("batch_progress_bar"),
+              class = "progress-bar progress-bar-striped progress-bar-animated",
+              role = "progressbar",
+              style = "width: 5%;",
+              `aria-valuenow` = "5",
+              `aria-valuemin` = "0",
+              `aria-valuemax` = "100",
+              "5%"
+            )
+          ),
+          tags$div(
+            id = ns("batch_progress_message"),
+            class = "text-muted mt-2",
+            sprintf("Importing %d papers...", length(selected))
+          ),
+          footer = actionButton(ns("cancel_batch_import"), "Cancel",
+                                 class = "btn-warning", icon = icon("stop")),
+          easyClose = FALSE
+        ))
+
+        # Launch async import
+        batch_import_task$invoke(
+          abstract_ids = selected,
+          target_notebook_id = target,
+          db_path = db_path_val,
+          interrupt_flag = flag_file,
+          progress_file = prog_file,
+          app_dir = getwd()
+        )
+
+        # Start progress polling
+        poller <- observe({
+          invalidateLater(1000)
+          pf <- isolate(batch_import_progress())
+          prog <- read_import_progress(pf)
+          session$sendCustomMessage("updateImportProgress", list(
+            bar_id = ns("batch_progress_bar"),
+            msg_id = ns("batch_progress_message"),
+            percent = max(prog$pct, 5),
+            message = prog$message
+          ))
+        })
+        batch_import_poller(poller)
+      }
+    })
+
+    # Phase 38: Cancel batch import handler
+    observeEvent(input$cancel_batch_import, {
+      flag_file <- batch_import_interrupt()
+      if (!is.null(flag_file)) {
+        signal_interrupt(flag_file)
+      }
+      poller <- batch_import_poller()
+      if (!is.null(poller)) {
+        poller$destroy()
+        batch_import_poller(NULL)
+      }
+      session$sendCustomMessage("updateImportProgress", list(
+        bar_id = ns("batch_progress_bar"),
+        msg_id = ns("batch_progress_message"),
+        percent = 100,
+        message = "Stopping... keeping partial results"
+      ))
+    })
+
+    # Phase 38: Handle async batch import result
+    observe({
+      result <- batch_import_task$result()
+      req(result)
+
+      # Destroy poller
+      poller <- batch_import_poller()
+      if (!is.null(poller)) {
+        poller$destroy()
+        batch_import_poller(NULL)
       }
 
       removeModal()
-      showNotification(paste("Imported", imported, "paper(s)"), type = "message")
+
+      # Clean up temp files
+      clear_interrupt_flag(batch_import_interrupt())
+      batch_import_interrupt(NULL)
+      clear_progress_file(batch_import_progress())
+      batch_import_progress(NULL)
+
+      # Show results
+      show_import_results(result$imported, result$duplicates, result$failed,
+                          cancelled = isTRUE(result$cancelled))
+
+      # Refresh paper list
+      paper_refresh(paper_refresh() + 1)
     })
 
     # Messages
