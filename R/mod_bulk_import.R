@@ -118,8 +118,8 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         uiOutput(ns("preview_panel")),
         footer = tagList(
           modalButton("Cancel"),
-          actionButton(ns("preview_btn"), "Preview",
-                       class = "btn-outline-primary", icon = icon("magnifying-glass")),
+          actionButton(ns("preview_btn"), "Validate",
+                       class = "btn-outline-primary", icon = icon("check-double")),
           actionButton(ns("start_import"), "Import",
                        class = "btn-primary", icon = icon("file-import"),
                        disabled = "disabled")
@@ -350,7 +350,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
 
       tags$div(
         class = "border rounded p-3 mt-3",
-        tags$h6("Preview"),
+        tags$h6("Validation"),
         do.call(tagList, items),
         warning_ui
       )
