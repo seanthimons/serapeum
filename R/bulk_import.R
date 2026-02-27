@@ -140,10 +140,80 @@ read_import_progress <- function(progress_file) {
        failed = failed, message = message, pct = pct)
 }
 
+#' Fetch papers from OpenAlex without DB access (for mirai workers)
+#'
+#' API-only function that fetches papers and merges BibTeX metadata.
+#' Returns results for the main process to write to DB, avoiding
+#' DuckDB cross-process file locking issues on Windows.
+#'
+#' @param dois Character vector of bare DOIs to fetch
+#' @param email OpenAlex polite pool email
+#' @param api_key Optional API key
+#' @param interrupt_flag Optional path to interrupt flag file
+#' @param progress_file Optional path to progress file
+#' @param bib_metadata Optional BibTeX metadata data frame for merging
+#' @return List with papers, errors, and cancelled flag
+fetch_bulk_papers <- function(dois, email, api_key,
+                              interrupt_flag = NULL, progress_file = NULL,
+                              bib_metadata = NULL) {
+  cancelled <- FALSE
+
+  progress_cb <- function(batch_current, batch_total, found_so_far, not_found_so_far) {
+    if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+      cancelled <<- TRUE
+    }
+    msg <- sprintf("Batch %d/%d: %d found, %d not found",
+                   batch_current, batch_total, found_so_far, not_found_so_far)
+    write_import_progress(progress_file, batch_current, batch_total,
+                          found_so_far, not_found_so_far, msg)
+  }
+
+  result <- tryCatch({
+    batch_fetch_papers(
+      dois = dois,
+      email = email,
+      api_key = api_key,
+      progress_callback = progress_cb
+    )
+  }, error = function(e) {
+    message("[bulk_import] Fatal error in batch_fetch_papers: ", conditionMessage(e))
+    list(papers = list(), errors = lapply(dois, function(d) {
+      list(doi = d, reason = "api_error", details = conditionMessage(e))
+    }))
+  })
+
+  # Merge BibTeX metadata if available
+  if (!is.null(bib_metadata) && is.data.frame(bib_metadata) && nrow(bib_metadata) > 0) {
+    for (i in seq_along(result$papers)) {
+      paper_doi <- tolower(result$papers[[i]]$doi %||% "")
+      if (nchar(paper_doi) > 0 && "DOI" %in% names(bib_metadata)) {
+        bib_match <- bib_metadata[tolower(bib_metadata$DOI) == paper_doi, , drop = FALSE]
+        if (nrow(bib_match) > 0) {
+          result$papers[[i]] <- merge_bibtex_openalex(result$papers[[i]], bib_match[1, , drop = FALSE])
+        }
+      }
+    }
+  }
+
+  total <- length(result$papers) + length(result$errors)
+  write_import_progress(progress_file, total, total,
+                        length(result$papers), length(result$errors),
+                        if (cancelled) "Import cancelled" else "Fetching complete")
+
+  list(
+    papers = result$papers,
+    errors = result$errors,
+    cancelled = cancelled
+  )
+}
+
 #' Run bulk DOI import (designed for mirai worker execution)
 #'
 #' Main orchestration function for bulk imports. Opens its own DB connection
 #' (mirai workers cannot share connections with the main Shiny session).
+#' NOTE: On Windows, this may fail due to DuckDB file locking. Use
+#' fetch_bulk_papers() instead for the mirai worker, and write to DB
+#' in the main process.
 #'
 #' @param dois Character vector of bare DOIs to fetch from OpenAlex
 #' @param notebook_id Notebook ID to import papers into
