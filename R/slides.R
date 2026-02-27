@@ -60,16 +60,24 @@ build_slides_prompt <- function(chunks, options) {
   }, character(1))
   context <- paste(context_parts, collapse = "\n\n---\n\n")
 
-  # System prompt
+  # System prompt with explicit YAML template structure (SLIDE-01)
   system_prompt <- paste0(
     "You are an expert presentation designer. Generate a Quarto RevealJS presentation in valid .qmd format.\n\n",
-    "Output format requirements:\n",
-    "- Start with YAML frontmatter (title, format: revealjs)\n",
-    "- Use # for section titles (creates horizontal slide breaks)\n",
-    "- Use ## for individual slide titles\n",
+    "CRITICAL: Your output must start with valid YAML frontmatter using this exact structure:\n",
+    "---\n",
+    "title: \"Your Title Here\"\n",
+    "format:\n",
+    "  revealjs:\n",
+    "    theme: default\n",
+    "---\n\n",
+    "Content rules:\n",
+    "- Use ## for individual slide titles (each ## starts a new slide)\n",
+    "- Use # for section titles (creates section dividers)\n",
     "- Keep slides concise - max 5-7 bullet points per slide\n",
     if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
-    "- Output ONLY valid Quarto markdown, no explanations or code fences around the output"
+    "- Output ONLY valid Quarto markdown, no explanations or code fences around the output\n",
+    "- Ensure all YAML is properly indented with spaces (not tabs)\n",
+    "- Do not include any content before the opening ---"
   )
 
   # Citation instructions
@@ -307,6 +315,9 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   qmd_content <- gsub("\\n?```$", "", qmd_content)
   qmd_content <- trimws(qmd_content)
 
+  # Validate YAML before proceeding
+  validation <- validate_qmd_yaml(qmd_content)
+
   # Inject theme if specified
   theme <- options$theme %||% "default"
   if (theme != "default") {
@@ -320,5 +331,197 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
   writeLines(qmd_content, qmd_path)
 
+  list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation)
+}
+
+#' Validate YAML frontmatter in QMD content
+#' @param qmd_content Raw QMD string
+#' @return List with valid (logical), errors (character vector), parsed (list or NULL)
+validate_qmd_yaml <- function(qmd_content) {
+  # Extract YAML frontmatter between --- delimiters
+  yaml_match <- regmatches(qmd_content, regexpr("^---\\n(.*?)\\n---", qmd_content, perl = TRUE))
+
+  if (length(yaml_match) == 0 || nchar(yaml_match) == 0) {
+    return(list(
+      valid = FALSE,
+      errors = "No YAML frontmatter found (missing --- delimiters)",
+      parsed = NULL
+    ))
+  }
+
+  # Extract just the YAML content between delimiters
+  yaml_text <- sub("^---\\n", "", yaml_match)
+  yaml_text <- sub("\\n---$", "", yaml_text)
+
+  # Check for empty frontmatter
+  if (nchar(trimws(yaml_text)) == 0) {
+    return(list(
+      valid = FALSE,
+      errors = "Empty YAML frontmatter",
+      parsed = NULL
+    ))
+  }
+
+  # Parse with yaml package
+  tryCatch({
+    parsed <- yaml::yaml.load(yaml_text)
+    list(valid = TRUE, errors = character(0), parsed = parsed)
+  }, error = function(e) {
+    list(valid = FALSE, errors = e$message, parsed = NULL)
+  })
+}
+
+#' Build prompt for targeted slide healing
+#' @param previous_qmd Previous QMD content to fix
+#' @param errors Character vector of validation/render errors
+#' @param instructions User's healing instructions
+#' @return List with system and user prompt strings
+build_healing_prompt <- function(previous_qmd, errors, instructions) {
+  system_prompt <- paste0(
+    "You are an expert Quarto presentation fixer. You receive a broken or imperfect .qmd file ",
+    "and specific instructions on what to fix. Make targeted changes while preserving the parts that work.\n\n",
+    "CRITICAL: Your output must start with valid YAML frontmatter:\n",
+    "---\n",
+    "title: \"...\"\n",
+    "format:\n",
+    "  revealjs:\n",
+    "    theme: default\n",
+    "---\n\n",
+    "Output ONLY the complete fixed .qmd content. No explanations, no code fences.\n",
+    "Ensure YAML frontmatter is valid (proper --- delimiters, correct indentation with spaces)."
+  )
+
+  error_section <- if (length(errors) > 0 && nchar(paste(errors, collapse = "")) > 0) {
+    paste0("\n\nValidation errors found:\n", paste(errors, collapse = "\n"))
+  } else {
+    ""
+  }
+
+  user_prompt <- sprintf(
+    "Here is the current .qmd file:\n\n```\n%s\n```\n%s\n\nUser instructions: %s\n\nFix the issues and return the complete corrected .qmd file.",
+    previous_qmd,
+    error_section,
+    instructions
+  )
+
+  list(system = system_prompt, user = user_prompt)
+}
+
+#' Heal slides using LLM with targeted instructions
+#' @param api_key OpenRouter API key
+#' @param model Model ID to use
+#' @param previous_qmd Previous QMD content to fix
+#' @param errors Character vector of validation/render errors
+#' @param instructions User's healing instructions
+#' @param con Optional database connection for cost logging
+#' @param session_id Optional Shiny session ID for cost logging
+#' @return List with qmd (content string), qmd_path (temp file), or error
+heal_slides <- function(api_key, model, previous_qmd, errors, instructions,
+                        con = NULL, session_id = NULL) {
+  # Build healing prompt
+  prompt <- build_healing_prompt(previous_qmd, errors, instructions)
+
+  # Call LLM
+  messages <- format_chat_messages(prompt$system, prompt$user)
+
+  qmd_content <- tryCatch({
+    result <- chat_completion(api_key, model, messages)
+
+    # Log cost if con and session_id provided
+    if (!is.null(con) && !is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(model,
+                            result$usage$prompt_tokens %||% 0,
+                            result$usage$completion_tokens %||% 0)
+      log_cost(con, "slide_healing", model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    result$content
+  }, error = function(e) {
+    return(list(qmd = NULL, error = paste("LLM error:", e$message)))
+  })
+
+  if (is.list(qmd_content) && !is.null(qmd_content$error)) {
+    return(qmd_content)
+  }
+
+  # Clean up response - remove markdown code fences if present
+  qmd_content <- gsub("^```(qmd|markdown|yaml)?\\n?", "", qmd_content)
+  qmd_content <- gsub("\\n?```$", "", qmd_content)
+  qmd_content <- trimws(qmd_content)
+
+  # Save to temp file
+  qmd_path <- file.path(tempdir(), "healed-slides.qmd")
+  writeLines(qmd_content, qmd_path)
+
   list(qmd = qmd_content, qmd_path = qmd_path, error = NULL)
+}
+
+#' Build fallback QMD template from source chunks
+#' @param chunks Data frame with content, doc_name, page_number
+#' @param notebook_name Name of notebook (for title)
+#' @return QMD content string
+build_fallback_qmd <- function(chunks, notebook_name = "Presentation") {
+  # Extract unique document names for section headers
+  sections <- unique(chunks$doc_name)
+
+  # Build minimal valid QMD
+  qmd <- paste0(
+    "---\n",
+    "title: \"", notebook_name, "\"\n",
+    "format:\n",
+    "  revealjs:\n",
+    "    theme: default\n",
+    "---\n\n",
+    "## Overview\n\n",
+    "- Presentation generated from ", length(sections), " source document(s)\n\n"
+  )
+
+  # Add section slides from document names
+  for (doc in sections) {
+    doc_chunks <- chunks[chunks$doc_name == doc, ]
+    doc_label <- tools::file_path_sans_ext(doc)
+    qmd <- paste0(qmd, "## ", doc_label, "\n\n")
+    # Extract first line of first chunk as a summary point
+    first_content <- trimws(strsplit(doc_chunks$content[1], "\n")[[1]][1])
+    if (nchar(first_content) > 0) {
+      qmd <- paste0(qmd, "- ", substr(first_content, 1, 100), "\n\n")
+    }
+  }
+
+  qmd
+}
+
+#' Get context-aware healing chip labels
+#' @param errors Character vector of validation/render errors
+#' @param is_success Logical - TRUE if generation was successful
+#' @return Character vector of chip labels
+get_healing_chips <- function(errors, is_success) {
+  if (is_success) {
+    # Cosmetic chips for successful generation
+    return(c("Fewer bullet points", "Make text bigger", "Add more detail",
+             "Shorten content", "Simplify slides"))
+  }
+
+  # Start with error-specific chips
+  chips <- character(0)
+
+  errors_text <- paste(errors, collapse = " ")
+  if (grepl("YAML|parse|syntax", errors_text, ignore.case = TRUE)) {
+    chips <- c(chips, "Fix YAML syntax")
+  }
+  if (grepl("CSS|style|format", errors_text, ignore.case = TRUE)) {
+    chips <- c(chips, "Fix CSS formatting")
+  }
+  if (grepl("render|quarto", errors_text, ignore.case = TRUE)) {
+    chips <- c(chips, "Fix Quarto formatting")
+  }
+
+  # Append baseline chips
+  chips <- c(chips, "Simplify slides", "Fewer bullet points")
+
+  chips
 }
