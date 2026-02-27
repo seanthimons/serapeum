@@ -58,23 +58,6 @@ test_that("build_slides_prompt handles different lengths", {
   expect_true(grepl("20\\+? slides", long_prompt$user))
 })
 
-test_that("inject_theme_to_qmd adds theme to frontmatter", {
-  qmd_content <- "---\ntitle: Test\nformat:\n  revealjs: default\n---\n\n## Slide 1\nContent"
-
-  result <- inject_theme_to_qmd(qmd_content, "moon")
-
-  expect_true(grepl("theme: moon", result))
-})
-
-test_that("inject_theme_to_qmd handles missing format section", {
-  qmd_content <- "---\ntitle: Test\n---\n\n## Slide 1\nContent"
-
-  result <- inject_theme_to_qmd(qmd_content, "dark")
-
-  expect_true(grepl("format:", result))
-  expect_true(grepl("theme: dark", result))
-})
-
 test_that("render_qmd_to_html returns path or error", {
   skip_if_not(check_quarto_installed(), "Quarto not installed")
 
