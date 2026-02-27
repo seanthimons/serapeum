@@ -113,7 +113,10 @@ aggregate_backward_refs <- function(paper_ids, email, api_key = NULL,
   # Filter out papers already in the notebook
   ref_counts <- ref_counts[!names(ref_counts) %in% paper_id_set]
 
-  as.integer(ref_counts)  # named integer vector
+  # Convert to named integer vector (as.integer strips names)
+  result <- as.integer(ref_counts)
+  names(result) <- names(ref_counts)
+  result
 }
 
 #' Fetch forward citations for papers in a notebook
@@ -176,7 +179,10 @@ fetch_forward_citations <- function(paper_ids, email, api_key = NULL,
   # Filter out papers already in the notebook
   cite_counts <- cite_counts[!names(cite_counts) %in% paper_id_set]
 
-  as.integer(cite_counts)  # named integer vector
+  # Convert to named integer vector (as.integer strips names)
+  result <- as.integer(cite_counts)
+  names(result) <- names(cite_counts)
+  result
 }
 
 #' Rank missing papers by combined backward + forward frequency
