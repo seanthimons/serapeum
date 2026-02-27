@@ -482,118 +482,129 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       ))
     })
 
+    # Guard: track the last processed result to prevent re-entry
+    last_processed_result <- reactiveVal(NULL)
+
     # --- Result Handler ---
     observe({
       result <- import_task$result()
       req(result)
 
-      # Destroy progress poller
-      poller <- progress_poller()
-      if (!is.null(poller)) {
-        poller$destroy()
-        progress_poller(NULL)
-      }
+      # Prevent infinite re-fire: skip if we already processed this result
+      if (identical(result, isolate(last_processed_result()))) return()
+      last_processed_result(result)
 
-      # Close progress modal
-      removeModal()
-
-      # Clean up files
-      flag_file <- current_interrupt_flag()
-      clear_interrupt_flag(flag_file)
-      current_interrupt_flag(NULL)
-      clear_progress_file(current_progress_file())
-      current_progress_file(NULL)
-
-      # Write fetched papers to DB in main process (avoids DuckDB cross-process file lock)
-      nb_id <- notebook_id()
-      run_id <- current_run_id()
-      imported_count <- 0L
-      failed_count <- 0L
-
-      for (paper in result$papers) {
-        tryCatch({
-          create_abstract(
-            con = con(),
-            notebook_id = nb_id,
-            paper_id = paper$paper_id,
-            title = paper$title,
-            authors = paper$authors,
-            abstract = paper$abstract,
-            year = paper$year,
-            venue = paper$venue,
-            pdf_url = paper$pdf_url,
-            keywords = paper$keywords,
-            work_type = paper$work_type,
-            work_type_crossref = paper$work_type_crossref,
-            oa_status = paper$oa_status,
-            is_oa = paper$is_oa,
-            cited_by_count = paper$cited_by_count,
-            referenced_works_count = paper$referenced_works_count,
-            fwci = paper$fwci,
-            doi = paper$doi
-          )
-          if (!is.null(run_id)) {
-            create_import_run_item(con(), run_id, paper$doi %||% "unknown", "success")
-          }
-          imported_count <- imported_count + 1L
-        }, error = function(e) {
-          message("[bulk_import] Error storing paper: ", conditionMessage(e))
-          if (!is.null(run_id)) {
-            tryCatch(
-              create_import_run_item(con(), run_id, paper$doi %||% "unknown", "api_error",
-                                     paste("Storage error:", conditionMessage(e))),
-              error = function(e2) NULL
-            )
-          }
-          failed_count <<- failed_count + 1L
-        })
-      }
-
-      for (err in result$errors) {
-        tryCatch({
-          if (!is.null(run_id)) {
-            create_import_run_item(con(), run_id, err$doi, err$reason,
-                                   err$details %||% NA_character_)
-          }
-          failed_count <- failed_count + 1L
-        }, error = function(e) {
-          message("[bulk_import] Error storing error item: ", conditionMessage(e))
-        })
-      }
-
-      # Build final result for UI
-      final_result <- list(
-        run_id = run_id,
-        imported_count = imported_count,
-        failed_count = failed_count,
-        cancelled = isTRUE(result$cancelled)
-      )
-      last_result(final_result)
-
-      # Update run counts
-      if (!is.null(run_id)) {
-        skipped <- length(duplicate_dois()) + (if (!is.null(malformed_dois())) nrow(malformed_dois()) else 0L)
-        tryCatch({
-          update_import_run_counts(con(), run_id, imported_count, failed_count, skipped)
-        }, error = function(e) {
-          message("[bulk_import] Error updating final counts: ", conditionMessage(e))
-        })
-      }
-
-      # Refresh paper list
-      paper_refresh(paper_refresh() + 1)
-      history_refresh(history_refresh() + 1)
-
-      # Navigate to notebook after standalone import
-      if (standalone && !is.null(navigate_to_notebook)) {
-        nb_id_val <- notebook_id()
-        if (!is.null(nb_id_val)) {
-          navigate_to_notebook(nb_id_val)
+      # Everything below uses isolate() to avoid creating reactive dependencies
+      # that would re-trigger this observer
+      isolate({
+        # Destroy progress poller
+        poller <- progress_poller()
+        if (!is.null(poller)) {
+          poller$destroy()
+          progress_poller(NULL)
         }
-      }
 
-      # Show results modal
-      show_results_modal(final_result, run_id)
+        # Close progress modal
+        removeModal()
+
+        # Clean up files
+        flag_file <- current_interrupt_flag()
+        clear_interrupt_flag(flag_file)
+        current_interrupt_flag(NULL)
+        clear_progress_file(current_progress_file())
+        current_progress_file(NULL)
+
+        # Write fetched papers to DB in main process (avoids DuckDB cross-process file lock)
+        nb_id <- notebook_id()
+        run_id <- current_run_id()
+        imported_count <- 0L
+        failed_count <- 0L
+
+        for (paper in result$papers) {
+          tryCatch({
+            create_abstract(
+              con = con(),
+              notebook_id = nb_id,
+              paper_id = paper$paper_id,
+              title = paper$title,
+              authors = paper$authors,
+              abstract = paper$abstract,
+              year = paper$year,
+              venue = paper$venue,
+              pdf_url = paper$pdf_url,
+              keywords = paper$keywords,
+              work_type = paper$work_type,
+              work_type_crossref = paper$work_type_crossref,
+              oa_status = paper$oa_status,
+              is_oa = paper$is_oa,
+              cited_by_count = paper$cited_by_count,
+              referenced_works_count = paper$referenced_works_count,
+              fwci = paper$fwci,
+              doi = paper$doi
+            )
+            if (!is.null(run_id)) {
+              create_import_run_item(con(), run_id, paper$doi %||% "unknown", "success")
+            }
+            imported_count <- imported_count + 1L
+          }, error = function(e) {
+            message("[bulk_import] Error storing paper: ", conditionMessage(e))
+            if (!is.null(run_id)) {
+              tryCatch(
+                create_import_run_item(con(), run_id, paper$doi %||% "unknown", "api_error",
+                                       paste("Storage error:", conditionMessage(e))),
+                error = function(e2) NULL
+              )
+            }
+            failed_count <<- failed_count + 1L
+          })
+        }
+
+        for (err in result$errors) {
+          tryCatch({
+            if (!is.null(run_id)) {
+              create_import_run_item(con(), run_id, err$doi, err$reason,
+                                     err$details %||% NA_character_)
+            }
+            failed_count <- failed_count + 1L
+          }, error = function(e) {
+            message("[bulk_import] Error storing error item: ", conditionMessage(e))
+          })
+        }
+
+        # Build final result for UI
+        final_result <- list(
+          run_id = run_id,
+          imported_count = imported_count,
+          failed_count = failed_count,
+          cancelled = isTRUE(result$cancelled)
+        )
+        last_result(final_result)
+
+        # Update run counts
+        if (!is.null(run_id)) {
+          skipped <- length(duplicate_dois()) + (if (!is.null(malformed_dois())) nrow(malformed_dois()) else 0L)
+          tryCatch({
+            update_import_run_counts(con(), run_id, imported_count, failed_count, skipped)
+          }, error = function(e) {
+            message("[bulk_import] Error updating final counts: ", conditionMessage(e))
+          })
+        }
+
+        # Refresh paper list
+        paper_refresh(paper_refresh() + 1)
+        history_refresh(history_refresh() + 1)
+
+        # Navigate to notebook after standalone import
+        if (standalone && !is.null(navigate_to_notebook)) {
+          nb_id_val <- notebook_id()
+          if (!is.null(nb_id_val)) {
+            navigate_to_notebook(nb_id_val)
+          }
+        }
+
+        # Show results modal
+        show_results_modal(final_result, run_id)
+      })
     })
 
     # --- Results Modal ---
