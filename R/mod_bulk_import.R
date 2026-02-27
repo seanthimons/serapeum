@@ -23,7 +23,8 @@ mod_bulk_import_ui <- function(id) {
 #' @param paper_refresh ReactiveVal to increment for paper list refresh
 #' @param db_path_r Reactive DB file path for mirai worker
 #' @return List with show_import_modal function
-mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, db_path_r) {
+mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, db_path_r,
+                                    standalone = FALSE, navigate_to_notebook = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -78,8 +79,29 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       bib_metadata_store(NULL)
       bib_diagnostics(NULL)
 
+      # Build notebook selector UI for standalone mode
+      notebook_selector_ui <- NULL
+      if (standalone) {
+        notebooks <- list_notebooks(con())
+        search_nbs <- notebooks[notebooks$type == "search", ]
+        choices <- c(
+          stats::setNames(search_nbs$id, search_nbs$name),
+          "+ New Notebook" = "__new__"
+        )
+        notebook_selector_ui <- tagList(
+          selectInput(ns("target_notebook"), "Target Notebook", choices = choices),
+          conditionalPanel(
+            condition = sprintf("input['%s'] === '__new__'", ns("target_notebook")),
+            textInput(ns("new_nb_name"), "New Notebook Name",
+                      placeholder = "e.g., Imported Papers")
+          ),
+          hr()
+        )
+      }
+
       showModal(modalDialog(
         title = tagList(icon("file-import"), "Bulk DOI Import"),
+        notebook_selector_ui,
         tabsetPanel(
           id = ns("import_method"),
           tabPanel("Paste DOIs",
@@ -130,6 +152,23 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
 
     # --- Preview Logic ---
     observeEvent(input$preview_btn, {
+      # Standalone mode: resolve notebook from selector
+      if (standalone) {
+        target <- input$target_notebook
+        req(target)
+        if (target == "__new__") {
+          name <- trimws(input$new_nb_name %||% "")
+          if (nchar(name) == 0) {
+            showNotification("Please enter a notebook name.", type = "warning")
+            return()
+          }
+          new_id <- create_notebook(con(), name, "search")
+          notebook_id(new_id)
+        } else {
+          notebook_id(target)
+        }
+      }
+
       nb_id <- notebook_id()
       req(nb_id)
 
@@ -487,6 +526,14 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       # Refresh paper list
       paper_refresh(paper_refresh() + 1)
       history_refresh(history_refresh() + 1)
+
+      # Navigate to notebook after standalone import
+      if (standalone && !is.null(navigate_to_notebook)) {
+        nb_id <- notebook_id()
+        if (!is.null(nb_id)) {
+          navigate_to_notebook(nb_id)
+        }
+      }
 
       # Show results modal
       show_results_modal(result, run_id)

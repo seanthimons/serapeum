@@ -183,7 +183,10 @@ ui <- page_sidebar(
                    icon = icon("diagram-project")),
       actionButton("citation_audit", "Citation Audit",
                    class = "btn-outline-secondary",
-                   icon = icon("magnifying-glass-chart"))
+                   icon = icon("magnifying-glass-chart")),
+      actionButton("import_papers", "Import Papers",
+                   class = "btn-outline-primary",
+                   icon = icon("file-import"))
     ),
     # Notebook list
     div(
@@ -216,6 +219,8 @@ ui <- page_sidebar(
       )
     ),
   ),
+  # Hidden module UIs
+  mod_bulk_import_ui("sidebar_import"),
   # Main content
   uiOutput("main_content")
 )
@@ -294,6 +299,9 @@ server <- function(input, output, session) {
 
   # Reactive: current network ID
   current_network <- reactiveVal(NULL)
+
+  # Reactive: notebook ID for sidebar bulk import
+  sidebar_import_nb_id <- reactiveVal(NULL)
 
   # Reactive: trigger network list refresh
   network_refresh <- reactiveVal(0)
@@ -605,6 +613,11 @@ server <- function(input, output, session) {
   observeEvent(input$citation_audit, {
     current_notebook(NULL)
     current_view("citation_audit")
+  })
+
+  # Import papers button (sidebar)
+  observeEvent(input$import_papers, {
+    sidebar_import_api$show_import_modal()
   })
 
   # New citation network button - show seed paper search modal
@@ -1040,6 +1053,21 @@ server <- function(input, output, session) {
     navigate_to_notebook = function(notebook_id) {
       current_notebook(notebook_id)
       current_view("notebook")
+    }
+  )
+
+  # Sidebar bulk import module
+  sidebar_import_api <- mod_bulk_import_server(
+    "sidebar_import", con_r,
+    notebook_id = sidebar_import_nb_id,
+    config = effective_config,
+    paper_refresh = reactiveVal(0),
+    db_path_r = reactive(db_path),
+    standalone = TRUE,
+    navigate_to_notebook = function(nb_id) {
+      current_notebook(nb_id)
+      current_view("notebook")
+      notebook_refresh(notebook_refresh() + 1)
     }
   )
 
