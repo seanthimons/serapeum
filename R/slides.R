@@ -70,6 +70,14 @@ build_slides_prompt <- function(chunks, options) {
     "  revealjs:\n",
     "    theme: default\n",
     "---\n\n",
+    "Quarto/RevealJS Format Reference:\n",
+    "Footnotes: Add superscript citation numbers with ^1 syntax, then list references at end\n",
+    "  Example: 'Machine learning improves accuracy^1'\n",
+    "  Reference list: '## References\\n\\n1. Author et al., Journal, 2023'\n\n",
+    "Speaker notes: Use fenced div with .notes class\n",
+    "  Example: '## Slide Title\\n\\nContent here\\n\\n::: {.notes}\\nPresenter note text\\n:::'\n\n",
+    "Tables: Use markdown pipe syntax with alignment\n",
+    "  Example: '| Method | Accuracy |\\n|:-------|:--------:|\\n| CNN | 95% |'\n\n",
     "Content rules:\n",
     "- Use ## for individual slide titles (each ## starts a new slide)\n",
     "- Use # for section titles (creates section dividers)\n",
@@ -82,7 +90,7 @@ build_slides_prompt <- function(chunks, options) {
 
   # Citation instructions
   citation_instructions <- switch(citation_style,
-    "footnotes" = "Use footnote-style citations: add superscript numbers after key points and list references at the end.",
+    "footnotes" = "Use footnote-style citations: add ^1 superscript numbers after key points (e.g., 'key finding^1'), then add '## References' slide with numbered list at the end.",
     "inline" = "Use inline parenthetical citations like (Author, p.X) after relevant content.",
     "notes_only" = "Put all citations in speaker notes only, keeping slides clean.",
     "none" = "Do not include citations.",
