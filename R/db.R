@@ -338,6 +338,26 @@ get_notebook <- function(con, id) {
 #' @param con DuckDB connection
 #' @param id Notebook ID
 delete_notebook <- function(con, id) {
+  # Delete import run items for runs in this notebook
+  dbExecute(con, "
+    DELETE FROM import_run_items WHERE run_id IN (
+      SELECT id FROM import_runs WHERE notebook_id = ?
+    )
+  ", list(id))
+
+  # Delete import runs
+  dbExecute(con, "DELETE FROM import_runs WHERE notebook_id = ?", list(id))
+
+  # Delete citation audit results for runs in this notebook
+  dbExecute(con, "
+    DELETE FROM citation_audit_results WHERE run_id IN (
+      SELECT id FROM citation_audit_runs WHERE notebook_id = ?
+    )
+  ", list(id))
+
+  # Delete citation audit runs
+  dbExecute(con, "DELETE FROM citation_audit_runs WHERE notebook_id = ?", list(id))
+
   # Delete chunks for documents in this notebook
   dbExecute(con, "
     DELETE FROM chunks WHERE source_id IN (
