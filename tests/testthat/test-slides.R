@@ -147,6 +147,40 @@ test_that("build_slides_prompt includes YAML template in system prompt", {
   expect_true(grepl("---", prompt$system))
 })
 
+test_that("build_slides_prompt includes format reference in slides prompt", {
+  chunks <- data.frame(
+    content = "Test content",
+    doc_name = "test.pdf",
+    page_number = 1,
+    stringsAsFactors = FALSE
+  )
+
+  prompt <- build_slides_prompt(chunks, list(citation_style = "footnotes"))
+
+  # Check for format reference section
+  expect_true(grepl("Format Reference", prompt$system))
+  expect_true(grepl("\\^1", prompt$system))  # Footnote syntax example
+  expect_true(grepl("::: \\{.notes\\}", prompt$system))  # Speaker notes syntax
+  expect_true(grepl("\\| Method \\|", prompt$system))  # Table syntax
+
+  # Check updated citation instructions
+  expect_true(grepl("\\^1 superscript numbers", prompt$user))
+})
+
+test_that("build_healing_prompt includes format reference in healing prompt", {
+  previous_qmd <- "---\ntitle: Test\n---\n\n## Slide"
+  errors <- character(0)
+  instructions <- "Fix footnotes"
+
+  prompt <- build_healing_prompt(previous_qmd, errors, instructions)
+
+  # Check for format reference section
+  expect_true(grepl("Format Reference", prompt$system))
+  expect_true(grepl("\\^1", prompt$system))  # Footnote syntax example
+  expect_true(grepl("::: \\{.notes\\}", prompt$system))  # Speaker notes syntax
+  expect_true(grepl("\\| Method \\|", prompt$system))  # Table syntax
+})
+
 test_that("validate_qmd_yaml validates correct YAML", {
   qmd <- "---\ntitle: Test\nformat: revealjs\n---\n\n## Slide 1"
   result <- validate_qmd_yaml(qmd)
