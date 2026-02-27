@@ -78,10 +78,20 @@ build_slides_prompt <- function(chunks, options) {
     "  | Method | Accuracy |\n",
     "  |:-------|:--------:|\n",
     "  | CNN    | 95%      |\n\n",
+    "Bullet lists (IMPORTANT — blank line required before first item):\n",
+    "  Correct:\n",
+    "    ## Slide Title\n\n",
+    "    - First item\n",
+    "    - Second item\n\n",
+    "  WRONG (renders as inline text, not bullets):\n",
+    "    ## Slide Title\n",
+    "    - First item\n\n",
     "Content rules:\n",
     "- Use ## for individual slide titles (each ## starts a new slide)\n",
     "- Use # for section titles (creates section dividers)\n",
     "- Keep slides concise - max 5-7 bullet points per slide\n",
+    "- Always leave a blank line between a heading and the first bullet point\n",
+    "- Each bullet point must be on its own line starting with - (not inline)\n",
     if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
     "- Output ONLY valid Quarto markdown slide content, no explanations or code fences\n",
     "- Do NOT include any YAML frontmatter, --- delimiters, title:, format:, theme:, or css:"
@@ -114,26 +124,25 @@ build_slides_prompt <- function(chunks, options) {
 #' @param theme RevealJS theme name (default "default")
 #' @return YAML frontmatter string including --- delimiters
 build_qmd_frontmatter <- function(title, theme = "default") {
-  # Citation CSS for proper footnote sizing
+  # CSS for footnote sizing — smaller, positioned at bottom
   css_block <- paste0(
     "    css:\n",
     "      - |\n",
+    "        .reveal .slides section aside {\n",
+    "          font-size: 0.4em !important;\n",
+    "          line-height: 1.2;\n",
+    "          color: rgba(255, 255, 255, 0.6);\n",
+    "        }\n",
     "        .reveal .slides section .footnotes {\n",
-    "          font-size: 0.5em !important;\n",
-    "          line-height: 1.3;\n",
-    "          max-height: 15vh;\n",
-    "          overflow-y: auto;\n",
+    "          font-size: 0.4em !important;\n",
+    "          line-height: 1.2;\n",
     "        }\n",
     "        .reveal .slides section .footnote-ref {\n",
-    "          font-size: 0.7em;\n",
+    "          font-size: 0.65em;\n",
     "          vertical-align: super;\n",
     "        }\n",
     "        .reveal .slides section sup {\n",
-    "          font-size: 0.6em;\n",
-    "        }\n",
-    "        .reveal .slides section .references {\n",
-    "          font-size: 0.45em !important;\n",
-    "          line-height: 1.2;\n",
+    "          font-size: 0.55em;\n",
     "        }\n"
   )
 
@@ -145,6 +154,7 @@ build_qmd_frontmatter <- function(title, theme = "default") {
     "format:\n",
     "  revealjs:\n",
     "    theme: ", theme_val, "\n",
+    "    reference-location: document\n",
     css_block,
     "---\n"
   )
