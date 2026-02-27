@@ -153,6 +153,7 @@ build_qmd_frontmatter <- function(title, theme = "default") {
     "title: \"", gsub('"', '\\\\"', title), "\"\n",
     "format:\n",
     "  revealjs:\n",
+		"    embed-resources: true\n",
     "    theme: ", theme_val, "\n",
     "    smaller: true\n",
     "    scrollable: true\n",
