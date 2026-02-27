@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 39-slide-healing
 source: 39-01-SUMMARY.md, 39-02-SUMMARY.md, 39-03-SUMMARY.md
 started: 2026-02-27T14:00:00Z
-updated: 2026-02-27T14:30:00Z
+updated: 2026-02-27T14:45:00Z
 ---
 
 ## Current Test
@@ -68,20 +68,35 @@ skipped: 0
 
 - truth: "Slide generation prompt includes sufficient formatting reference for footnotes so LLM produces ^1 superscript syntax on first generation"
   status: failed
-  reason: "User reported: footnotes are still being generated in the wrong style. Address this in a gap fixing session."
+  reason: "User reported: footnotes are still being generated in the wrong style."
   severity: major
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Format reference added in 39-03 uses plain descriptive language without emphasis. No negative instruction warning against [^1], [1], or (1) styles. LLMs default to Quarto's native [^1] syntax from training data. Format reference is one paragraph among many, easy for LLMs to deprioritize."
+  artifacts:
+    - path: "R/slides.R"
+      issue: "build_slides_prompt() format reference line 74: descriptive, not emphatic"
+    - path: "R/slides.R"
+      issue: "citation_instructions line 93: mentions ^1 but no negative instruction"
+  missing:
+    - "Add emphasis markers (CRITICAL) and negative instruction (Do NOT use [^1] or [1])"
+    - "Add explicit contrast showing wrong vs right styles"
+  debug_session: ".planning/debug/footnote-style-still-wrong.md"
 
 - truth: "Healing with format reference enables LLM to self-correct CSS injection and YAML structure issues"
   status: failed
-  reason: "User reported: CSS injection + proper YAML structure still very hard for most models. Could be related to context not being sent to the model properly. Need a good way of injecting a proper YAML block + any custom CSS."
+  reason: "User reported: CSS injection + proper YAML structure still very hard for most models. Context may not be reaching model properly. Need better way of injecting YAML block + custom CSS."
   severity: major
   test: 10
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "build_healing_prompt() hardcodes theme: default in YAML template (line 398) while previous_qmd has custom theme + CSS. Creates conflicting instructions — LLM follows explicit CRITICAL template and strips CSS. heal_slides() doesn't pass theme parameter. Post-healing CSS injection in mod_slides.R only works after validation passes."
+  artifacts:
+    - path: "R/slides.R"
+      issue: "build_healing_prompt() lines 389-426: hardcoded YAML with theme: default, no CSS example"
+    - path: "R/slides.R"
+      issue: "heal_slides() lines 437-479: doesn't pass theme or inject post-LLM"
+    - path: "R/mod_slides.R"
+      issue: "healing observer lines 614-627: post-healing injection only after validation"
+  missing:
+    - "Make build_healing_prompt() use dynamic YAML template with actual theme instead of hardcoded default"
+    - "Instruct LLM to preserve existing YAML frontmatter structure unless specifically asked to change it"
+    - "Pass theme parameter through heal_slides() pipeline"
+  debug_session: ".planning/debug/css-yaml-healing-broken.md"
