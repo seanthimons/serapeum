@@ -230,10 +230,11 @@ Plans:
   3. User can provide specific healing instructions (e.g., "fix YAML syntax", "fix CSS")
   4. System validates YAML programmatically and provides specific error feedback
   5. System limits healing to 2 retries maximum, then falls back to template YAML with title only
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 39-01: TBD
+- [ ] 39-01-PLAN.md — YAML validation, improved prompts, healing logic, and fallback template functions
+- [ ] 39-02-PLAN.md — Healing modal UI, updated results modal, retry tracking, and fallback behavior
 
 ## Progress
 
@@ -248,7 +249,7 @@ Phases execute in numeric order: 33 → 34 → 35 → 36 → 37 → 38 → 39
 | 36. BibTeX Import | 2/2 | Complete   | 2026-02-26 | - |
 | 37. Citation Audit | 2/2 | Complete    | 2026-02-26 | - |
 | 38. Select-All Import | 2/2 | Complete    | 2026-02-26 | - |
-| 39. Slide Healing | v7.0 | 0/? | Not started | - |
+| 39. Slide Healing | v7.0 | 0/2 | Not started | - |
 
 ---
 *Updated: 2026-02-26 — Phase 35 completed*
