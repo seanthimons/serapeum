@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 01 (Multi-Seeded Citation Network)
-Plan: 2 of 3 in Phase 01
+Plan: 3 of 3 in Phase 01
 Status: In progress
-Last activity: 2026-03-01 — Plan 01-01 completed
+Last activity: 2026-03-01 — Plan 01-02 completed
 
-Progress: [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 33% (1/3 plans complete in Phase 01)
+Progress: [██████████░░░░░░░░░░░░░░░░░░░░] 67% (2/3 plans complete in Phase 01)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 68 (67 from v1.0-v7.0 + 1 from v1.0-milestone)
+- Total plans completed: 69 (67 from v1.0-v7.0 + 2 from v1.0-milestone)
 - Total phases completed: 39 (across all milestones)
-- v1.0-milestone plans completed: 1 (Phase 01: 1)
+- v1.0-milestone plans completed: 2 (Phase 01: 2)
 - v7.0 plans completed: 14 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 36: 2, Phase 37: 2, Phase 38: 2, Phase 39: 3)
 
 **Recent Milestones:**
@@ -54,6 +54,9 @@ Progress: [█░░░░░░░░░░░░░░░░░░░░░░
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting future work:
 
+- **Phase 01-02**: Use separate network_seed_request reactive to avoid conflict with seed_request (which goes to seed discovery)
+- **Phase 01-02**: Auto-switch to network view on seed button click (user then clicks Build Network)
+- **Phase 01-02**: Return list from search notebook module instead of single reactive (backward compat)
 - **Phase 01-01**: Per-seed BFS loop rather than unified traversal (simpler deduplication)
 - **Phase 01-01**: Store seed_paper_ids as JSON array for flexibility
 - **Phase 01-01**: Encode overlap via shape (diamond) rather than color (preserves year gradient)
@@ -79,13 +82,12 @@ Recent decisions affecting future work:
 
 ## Session Continuity
 
-Last session: 2026-03-01 (Phase 01 Plan 01 execution)
-Stopped at: Completed 01-01-PLAN.md (multi-seed BFS engine)
+Last session: 2026-03-01 (Phase 01 Plan 02 execution)
+Stopped at: Completed 01-02-PLAN.md (multi-seed network creation UI)
 Resume file: None
 
 **Next steps:**
-1. Execute Phase 01 Plan 02 (multi-seed network creation UI)
-2. Execute Phase 01 Plan 03 (multi-seed network loading UI)
+1. Execute Phase 01 Plan 03 (multi-seed network loading UI)
 
 ---
-*Updated: 2026-03-01 — Phase 01 Plan 01 completed*
+*Updated: 2026-03-01 — Phase 01 Plan 02 completed*
