@@ -762,10 +762,50 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       selected_node_id(input$node_clicked)
     })
 
-    # Render side panel
+    # Render side panel with tabs
     output$side_panel <- renderUI({
+      net_data <- current_network_data()
+      if (is.null(net_data)) return(NULL)
+
+      ns <- session$ns
+      notebook_id <- source_notebook_id()
+
+      div(
+        class = "citation-network-side-panel",
+        navset_card_tab(
+          id = ns("side_panel_tabs"),
+
+          nav_panel(
+            title = "Paper Details",
+            value = "details",
+            uiOutput(ns("paper_details_content"))
+          ),
+
+          # Only show Missing Papers tab when there's a source notebook
+          if (!is.null(notebook_id)) {
+            nav_panel(
+              title = tagList("Missing Papers ", uiOutput(ns("missing_count_badge"), inline = TRUE)),
+              value = "missing",
+              uiOutput(ns("missing_papers_content"))
+            )
+          }
+        )
+      )
+    })
+
+    # Render paper details content
+    output$paper_details_content <- renderUI({
       node_id <- selected_node_id()
-      if (is.null(node_id)) return(NULL)
+      ns <- session$ns
+
+      if (is.null(node_id)) {
+        return(div(
+          class = "text-muted p-3 text-center",
+          icon("mouse-pointer"),
+          br(), br(),
+          "Click a node to see paper details"
+        ))
+      }
 
       net_data <- current_network_data()
       req(net_data)
@@ -774,90 +814,230 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       node <- net_data$nodes[net_data$nodes$id == node_id, ]
       if (nrow(node) == 0) return(NULL)
 
-      ns <- session$ns
+      tagList(
+        div(
+          class = "d-flex justify-content-between align-items-center mb-3",
+          h5(class = "mb-0", icon("file-alt"), " Paper Details"),
+          actionLink(ns("close_panel"), icon("times"))
+        ),
 
-      div(
-        class = "citation-network-side-panel",
-        card(
-          card_header(
-            class = "d-flex justify-content-between align-items-center",
-            span(icon("file-alt"), " Paper Details"),
-            actionLink(ns("close_panel"), icon("times"))
-          ),
-          card_body(
-            h5(node$paper_title),
+        h5(node$paper_title),
 
-            # Authors
-            div(
-              class = "mb-2",
-              strong("Authors: "),
-              node$authors
-            ),
+        # Authors
+        div(
+          class = "mb-2",
+          strong("Authors: "),
+          node$authors
+        ),
 
-            # Year
-            div(
-              class = "mb-2",
-              strong("Year: "),
-              if (is.na(node$year)) "N/A" else node$year
-            ),
+        # Year
+        div(
+          class = "mb-2",
+          strong("Year: "),
+          if (is.na(node$year)) "N/A" else node$year
+        ),
 
-            # Venue
-            if (!is.na(node$venue)) {
-              div(
-                class = "mb-2",
-                strong("Venue: "),
-                node$venue
-              )
-            },
+        # Venue
+        if (!is.na(node$venue)) {
+          div(
+            class = "mb-2",
+            strong("Venue: "),
+            node$venue
+          )
+        },
 
-            # Citation count
-            div(
-              class = "mb-2",
-              strong("Citations: "),
-              node$cited_by_count
-            ),
+        # Citation count
+        div(
+          class = "mb-2",
+          strong("Citations: "),
+          node$cited_by_count
+        ),
 
-            # DOI link
-            if (!is.na(node$doi)) {
-              div(
-                class = "mb-3",
-                strong("DOI: "),
-                tags$a(
-                  href = paste0("https://doi.org/", node$doi),
-                  target = "_blank",
-                  node$doi,
-                  icon("external-link-alt", class = "ms-1 small")
-                )
-              )
-            },
-
-            hr(),
-
-            # Abstract (fetch on demand)
-            div(
-              class = "mb-3",
-              strong("Abstract:"),
-              div(
-                class = "mt-2 small",
-                uiOutput(ns("node_abstract"))
-              )
-            ),
-
-            hr(),
-
-            # Actions
-            div(
-              class = "d-grid gap-2",
-              actionButton(
-                ns("explore_from_node"),
-                "Explore from here",
-                class = "btn-primary",
-                icon = icon("diagram-project")
-              )
+        # DOI link
+        if (!is.na(node$doi)) {
+          div(
+            class = "mb-3",
+            strong("DOI: "),
+            tags$a(
+              href = paste0("https://doi.org/", node$doi),
+              target = "_blank",
+              node$doi,
+              icon("external-link-alt", class = "ms-1 small")
             )
+          )
+        },
+
+        hr(),
+
+        # Abstract (fetch on demand)
+        div(
+          class = "mb-3",
+          strong("Abstract:"),
+          div(
+            class = "mt-2 small",
+            uiOutput(ns("node_abstract"))
+          )
+        ),
+
+        hr(),
+
+        # Actions
+        div(
+          class = "d-grid gap-2",
+          actionButton(
+            ns("explore_from_node"),
+            "Explore from here",
+            class = "btn-primary",
+            icon = icon("diagram-project")
           )
         )
       )
+    })
+
+    # Compute missing papers reactively
+    missing_papers_data <- reactive({
+      net_data <- current_network_data()
+      req(net_data)
+      notebook_id <- source_notebook_id()
+      if (is.null(notebook_id)) return(NULL)
+
+      # Get all paper_ids in the network (exclude seed papers — they're already in notebook)
+      network_paper_ids <- net_data$nodes$paper_id[!net_data$nodes$is_seed]
+
+      if (length(network_paper_ids) == 0) return(data.frame())
+
+      # Set-difference query: network papers NOT in notebook
+      con <- con_r()
+      notebook_paper_ids <- dbGetQuery(con,
+        "SELECT paper_id FROM abstracts WHERE notebook_id = ?",
+        list(notebook_id)
+      )$paper_id
+
+      missing_ids <- setdiff(network_paper_ids, notebook_paper_ids)
+      if (length(missing_ids) == 0) return(data.frame())
+
+      # Get details from network nodes data (already have title, authors, year, citations)
+      missing_nodes <- net_data$nodes[net_data$nodes$paper_id %in% missing_ids,
+                   c("paper_id", "paper_title", "authors", "year", "cited_by_count", "doi", "is_overlap"),
+                   drop = FALSE]
+
+      # Sort: overlap papers first (more interesting), then by citation count
+      missing_nodes <- missing_nodes[order(-as.integer(missing_nodes$is_overlap), -missing_nodes$cited_by_count), ]
+
+      missing_nodes
+    })
+
+    # Badge showing missing paper count
+    output$missing_count_badge <- renderUI({
+      mp <- missing_papers_data()
+      if (is.null(mp) || nrow(mp) == 0) return(NULL)
+      span(class = "badge bg-info", nrow(mp))
+    })
+
+    # Render missing papers content
+    output$missing_papers_content <- renderUI({
+      ns <- session$ns
+      notebook_id <- source_notebook_id()
+
+      if (is.null(notebook_id)) {
+        return(div(class = "text-muted p-3",
+          "No source notebook — network was built from sidebar seed search.",
+          br(), br(),
+          "To see missing papers, seed the network from a search notebook or BibTeX import."
+        ))
+      }
+
+      mp <- missing_papers_data()
+      if (is.null(mp) || nrow(mp) == 0) {
+        return(div(class = "text-muted p-3",
+          icon("circle-check", class = "text-success"),
+          " All network papers are already in your notebook."
+        ))
+      }
+
+      tagList(
+        div(class = "p-2 small text-muted",
+          paste(nrow(mp), "papers found in the network but not in your notebook.")
+        ),
+        div(
+          style = "max-height: 550px; overflow-y: auto;",
+          lapply(seq_len(nrow(mp)), function(i) {
+            paper <- mp[i, ]
+            div(
+              class = "border-bottom p-2",
+              div(
+                class = "d-flex justify-content-between align-items-start",
+                div(
+                  strong(class = "small", paper$paper_title),
+                  if (isTRUE(paper$is_overlap)) {
+                    span(class = "badge bg-info ms-1", "overlap")
+                  }
+                ),
+                tags$button(
+                  class = "btn btn-sm btn-outline-primary ms-2 flex-shrink-0",
+                  onclick = sprintf(
+                    "Shiny.setInputValue('%s', '%s', {priority: 'event'});",
+                    ns("import_missing_paper"), paper$paper_id
+                  ),
+                  icon("plus"), " Import"
+                )
+              ),
+              div(class = "small text-muted", paper$authors),
+              div(class = "small text-muted",
+                paste0(
+                  if (!is.na(paper$year)) paste("Year:", paper$year) else "",
+                  if (!is.na(paper$cited_by_count)) paste(" | Citations:", paper$cited_by_count) else ""
+                )
+              )
+            )
+          })
+        )
+      )
+    })
+
+    # Import missing paper handler
+    observeEvent(input$import_missing_paper, {
+      paper_id <- input$import_missing_paper
+      notebook_id <- source_notebook_id()
+      req(paper_id, notebook_id)
+
+      config <- config_r()
+      email <- config$openalex$email
+
+      tryCatch({
+        # Fetch full paper details from OpenAlex
+        paper <- get_paper(paper_id, email, api_key = NULL)
+        if (is.null(paper)) {
+          showNotification("Could not fetch paper details", type = "error")
+          return()
+        }
+
+        # Add to notebook
+        create_abstract(
+          con_r(), notebook_id, paper$paper_id, paper$title,
+          paper$authors, paper$abstract,
+          paper$year, paper$venue, paper$pdf_url,
+          keywords = paper$keywords,
+          work_type = paper$work_type,
+          work_type_crossref = paper$work_type_crossref,
+          oa_status = paper$oa_status,
+          is_oa = paper$is_oa,
+          cited_by_count = paper$cited_by_count,
+          referenced_works_count = paper$referenced_works_count,
+          fwci = paper$fwci,
+          doi = paper$doi
+        )
+
+        showNotification(
+          paste("Imported:", substr(paper$title, 1, 60), "..."),
+          type = "message"
+        )
+
+        # Refresh missing papers list by invalidating reactive
+        # The missing_papers_data reactive will re-query and the imported paper will be excluded
+      }, error = function(e) {
+        showNotification(paste("Import failed:", e$message), type = "error")
+      })
     })
 
     # Fetch abstract for selected node
