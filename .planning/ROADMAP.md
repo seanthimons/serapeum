@@ -123,5 +123,17 @@ See [v7.0-ROADMAP.md](milestones/v7.0-ROADMAP.md) for full details.
 
 </details>
 
+### Phase 1: multi-seeded citation network
+
+**Goal:** Users can seed citation networks from all papers in a notebook or BibTeX import, build combined multi-seed networks with overlap visualization, and discover/import missing papers
+**Requirements**: MSEED-01 (multi-seed BFS), MSEED-02 (shape-based overlap), MSEED-03 (module refactor), MSEED-04 (entry points), MSEED-05 (save/load multi-seed), MSEED-06 (legend update), MSEED-07 (discovery + import workflow)
+**Depends on:** Phase 0
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Multi-seed BFS engine, visualization shapes, DB schema updates
+- [ ] 01-02-PLAN.md — Citation network module refactor + entry points (search notebook, BibTeX import)
+- [ ] 01-03-PLAN.md — Discovery panel (Missing Papers tab) + import workflow + user verification
+
 ---
 *Updated: 2026-02-27 — v7.0 milestone completed*
