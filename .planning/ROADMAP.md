@@ -129,12 +129,12 @@ See [v7.0-ROADMAP.md](milestones/v7.0-ROADMAP.md) for full details.
 **Requirements**: MSEED-01 (multi-seed BFS), MSEED-02 (shape-based overlap), MSEED-03 (module refactor), MSEED-04 (entry points), MSEED-05 (save/load multi-seed), MSEED-06 (legend update), MSEED-07 (discovery + import workflow)
 **Depends on:** Phase 0
 **Plans:** 3 plans
-**Progress:** 1/3 plans complete
+**Progress:** 3/3 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Multi-seed BFS engine, visualization shapes, DB schema updates (completed 2026-03-01)
-- [ ] 01-02-PLAN.md — Citation network module refactor + entry points (search notebook, BibTeX import)
-- [ ] 01-03-PLAN.md — Discovery panel (Missing Papers tab) + import workflow + user verification
+- [x] 01-02-PLAN.md — Citation network module refactor + entry points (completed 2026-03-01)
+- [x] 01-03-PLAN.md — Discovery panel (Missing Papers tab) + import workflow (completed 2026-03-01)
 
 ---
-*Updated: 2026-03-01 — Phase 01 Plan 01 completed*
+*Updated: 2026-03-01 — Phase 01 COMPLETE (all plans executed and verified)*
