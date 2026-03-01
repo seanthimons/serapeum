@@ -357,6 +357,154 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
   list(nodes = nodes_df, edges = edges_df, partial = FALSE)
 }
 
+#' Fetch multi-seed citation network using BFS traversal
+#'
+#' Builds citation graphs from multiple seed papers, running BFS independently
+#' per seed then merging and deduplicating the results. Detects overlap papers
+#' (reachable from 2+ seeds) for visual encoding.
+#'
+#' @param seed_paper_ids Character vector of OpenAlex Work IDs
+#' @param email User email for OpenAlex API
+#' @param api_key Optional OpenAlex API key
+#' @param direction "forward", "backward", or "both"
+#' @param depth Number of hops from each seed (1-3)
+#' @param node_limit_per_seed Maximum nodes per seed (25-200)
+#' @param interrupt_flag Optional path to interrupt flag file
+#' @param progress_file Optional path to progress file
+#' @return List with nodes (data.frame with is_overlap column) and edges (data.frame)
+fetch_multi_seed_citation_network <- function(seed_paper_ids, email, api_key = NULL,
+                                               direction = "both", depth = 2,
+                                               node_limit_per_seed = 100,
+                                               interrupt_flag = NULL,
+                                               progress_file = NULL) {
+  # Handle single-seed case: delegate to existing function for backward compatibility
+  if (length(seed_paper_ids) == 1) {
+    result <- fetch_citation_network(
+      seed_paper_id = seed_paper_ids[1],
+      email = email,
+      api_key = api_key,
+      direction = direction,
+      depth = depth,
+      node_limit = node_limit_per_seed,
+      progress_callback = NULL,
+      interrupt_flag = interrupt_flag,
+      progress_file = progress_file
+    )
+
+    # Add is_overlap column (all FALSE for single seed)
+    result$nodes$is_overlap <- FALSE
+    return(result)
+  }
+
+  # Multi-seed case: run BFS per seed and merge
+  total_seeds <- length(seed_paper_ids)
+  per_seed_results <- list()
+  any_partial <- FALSE
+
+  for (seed_idx in seq_along(seed_paper_ids)) {
+    seed_id <- seed_paper_ids[seed_idx]
+
+    # Write seed-level progress
+    write_progress(
+      progress_file,
+      seed_idx,
+      total_seeds,
+      0,
+      1,
+      sprintf("Processing seed %d of %d...", seed_idx, total_seeds)
+    )
+
+    # Check for interrupt between seeds
+    if (!is.null(interrupt_flag) && check_interrupt(interrupt_flag)) {
+      any_partial <- TRUE
+      break
+    }
+
+    # Fetch citation network for this seed
+    result <- fetch_citation_network(
+      seed_paper_id = seed_id,
+      email = email,
+      api_key = api_key,
+      direction = direction,
+      depth = depth,
+      node_limit = node_limit_per_seed,
+      progress_callback = NULL,
+      interrupt_flag = interrupt_flag,
+      progress_file = progress_file
+    )
+
+    per_seed_results[[seed_id]] <- result
+
+    if (result$partial) {
+      any_partial <- TRUE
+    }
+  }
+
+  # If interrupted before completing any seeds
+  if (length(per_seed_results) == 0) {
+    return(list(
+      nodes = data.frame(
+        paper_id = character(),
+        title = character(),
+        authors = character(),
+        year = integer(),
+        venue = character(),
+        doi = character(),
+        cited_by_count = integer(),
+        is_seed = logical(),
+        is_overlap = logical(),
+        stringsAsFactors = FALSE
+      ),
+      edges = data.frame(
+        from_paper_id = character(),
+        to_paper_id = character(),
+        stringsAsFactors = FALSE
+      ),
+      partial = TRUE
+    ))
+  }
+
+  # Merge all node dataframes
+  all_nodes <- do.call(rbind, lapply(per_seed_results, function(r) r$nodes))
+
+  # Merge all edge dataframes
+  all_edges <- do.call(rbind, lapply(per_seed_results, function(r) r$edges))
+
+  # Track which papers appear in which seed's result set (for overlap detection)
+  paper_seed_map <- list()
+  for (seed_id in names(per_seed_results)) {
+    paper_ids <- per_seed_results[[seed_id]]$nodes$paper_id
+    for (pid in paper_ids) {
+      if (is.null(paper_seed_map[[pid]])) {
+        paper_seed_map[[pid]] <- character()
+      }
+      paper_seed_map[[pid]] <- c(paper_seed_map[[pid]], seed_id)
+    }
+  }
+
+  # Deduplicate nodes by paper_id (keep first occurrence)
+  merged_nodes <- all_nodes[!duplicated(all_nodes$paper_id), ]
+
+  # Deduplicate edges by from->to pair
+  merged_edges <- all_edges[!duplicated(paste(all_edges$from_paper_id, all_edges$to_paper_id, sep = "->")), ]
+
+  # Re-mark seeds (prevents lost seed markers as noted in Pitfall 3)
+  merged_nodes$is_seed <- merged_nodes$paper_id %in% seed_paper_ids
+
+  # Compute overlap: papers from 2+ seeds (excluding seeds themselves)
+  overlap_counts <- sapply(merged_nodes$paper_id, function(pid) {
+    length(unique(paper_seed_map[[pid]]))
+  })
+
+  merged_nodes$is_overlap <- (overlap_counts >= 2) & !merged_nodes$is_seed
+
+  list(
+    nodes = merged_nodes,
+    edges = merged_edges,
+    partial = any_partial
+  )
+}
+
 #' Map publication years to color palette
 #'
 #' @param years Numeric vector of publication years
@@ -453,13 +601,32 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
     return(list(nodes = nodes_df, edges = edges_df))
   }
 
+  # Update is_seed markers if seed_paper_id is provided
+  # (handles both single ID and vector)
+  if (!is.null(seed_paper_id)) {
+    nodes_df$is_seed <- nodes_df$paper_id %in% seed_paper_id
+  }
+
   # Add visNetwork columns
   nodes_df$id <- nodes_df$paper_id
   nodes_df$label <- NA  # No labels by default (show on hover)
   nodes_df$value <- compute_node_sizes(nodes_df$cited_by_count)
 
-  # Shape: star for seed, dot for others
-  nodes_df$shape <- ifelse(nodes_df$is_seed, "star", "dot")
+  # Handle missing is_overlap column (old saved networks)
+  if (is.null(nodes_df$is_overlap)) {
+    nodes_df$is_overlap <- FALSE
+  }
+
+  # Shape: star for seeds, diamond for overlap papers, dot for regular
+  nodes_df$shape <- ifelse(
+    nodes_df$is_seed,
+    "star",
+    ifelse(
+      isTRUE(nodes_df$is_overlap) | (!is.null(nodes_df$is_overlap) & nodes_df$is_overlap),
+      "diamond",
+      "dot"
+    )
+  )
 
   # Node colors: use color.background so visNetwork builds a nested color object.
   # Setting flat `color` + `color.border` crashes vis.js dataframeToD3 because
