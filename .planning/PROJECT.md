@@ -94,10 +94,17 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Citation audit: backward refs + forward citations gap analysis (AUDIT-01..07) — v7.0
 - ✓ Select-all batch import with tri-state checkbox (SLCT-01..03) — v7.0
 - ✓ Slide healing: programmatic YAML, correct Quarto syntax, healing modal (SLIDE-01..04) — v7.0
+- ✓ Multi-seed BFS engine with per-seed node cap and overlap detection (MSEED-01) — v1.0-milestone Phase 01
+- ✓ Shape-based overlap visualization: star/diamond/dot (MSEED-02) — v1.0-milestone Phase 01
+- ✓ Citation network module refactored for multi-seed state (MSEED-03) — v1.0-milestone Phase 01
+- ✓ Entry points: search notebook + BibTeX import seed buttons (MSEED-04) — v1.0-milestone Phase 01
+- ✓ Save/load multi-seed metadata as JSON array (MSEED-05) — v1.0-milestone Phase 01
+- ✓ Legend updated with star/diamond/dot shapes (MSEED-06) — v1.0-milestone Phase 01
+- ✓ Discovery + import workflow: missing papers tab with one-click import (MSEED-07) — v1.0-milestone Phase 01
 
 ### Active
 
-(No active milestone — planning next)
+(Remaining phases in v1.0-milestone TBD)
 
 ### Out of Scope
 
@@ -112,7 +119,7 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ## Context
 
-Shipped v7.0 with ~20,000 LOC R across 18 production files. 10 milestones shipped (v1.0–v7.0), 39 phases, 67 plans.
+Shipped v7.0 with ~20,000 LOC R across 18 production files. 10 milestones shipped (v1.0–v7.0), 40 phases, 70 plans. v1.0-milestone in progress — Phase 01 shipped multi-seed citation networks.
 Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic + bib2df.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle.
@@ -194,16 +201,20 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 | LLM outputs content only, no YAML (v7.0) | Separation of concerns: app handles config, LLM handles content | ✓ Good — consistent across models |
 | Quarto ^[text] inline footnotes (v7.0) | Correct Quarto syntax; ^1 and [^1] were wrong for RevealJS | ✓ Good — validated against Quarto docs via Context7 |
 | Concrete syntax examples in prompts (v7.0) | Correct/wrong examples work better than abstract instructions | ✓ Good — 8/8 pass rate across Claude Sonnet 4 and Gemini Flash |
+| Per-seed BFS loop (v1.0-milestone) | Simpler deduplication than unified traversal | ✓ Good — clean merge + overlap detection |
+| seed_paper_ids as JSON array (v1.0-milestone) | Flexible storage for variable seed counts | ✓ Good — backward compat with single-seed |
+| Shape encoding for overlap (v1.0-milestone) | Diamond for overlap preserves year color gradient | ✓ Good — three-shape system works |
+| navset_card_tab for side panel (v1.0-milestone) | Tabbed Paper Details + Missing Papers | ✓ Good — clean discovery workflow |
 
 ---
 ## Current State
 
 **Latest shipped:** v7.0 Citation Audit + Quick Wins (2026-02-27)
-**Active milestone:** None (planning next)
-**Total milestones:** 10 shipped (v1.0–v7.0)
-**Total phases:** 39 across 67 plans
+**Active milestone:** v1.0-milestone (Phase 01 complete, Phase 02 next)
+**Total milestones:** 10 shipped (v1.0–v7.0), 1 in progress
+**Total phases:** 40 complete across 70 plans
 
-**v7.0 shipped:** Bulk DOI/BibTeX import, citation gap audit, select-all batch import, and slide healing with programmatic YAML and correct Quarto syntax.
+**v1.0-milestone Phase 01 shipped:** Multi-seed citation networks — BFS engine with overlap detection, star/diamond/dot shapes, search notebook + BibTeX import entry points, missing papers discovery + import workflow.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -215,4 +226,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-02-27 after v7.0 milestone completed*
+*Last updated: 2026-03-01 after Phase 01 (Multi-Seeded Citation Network)*
