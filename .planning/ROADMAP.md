@@ -12,6 +12,7 @@
 - ✅ **v5.0 Fix Document Embeddings** - Phase 29 (shipped 2026-02-22)
 - ✅ **v6.0 Dark Mode + UI Polish** - Phases 30-32 (shipped 2026-02-25)
 - ✅ **v7.0 Citation Audit + Quick Wins** - Phases 33-39 (shipped 2026-02-27)
+- 🔄 **v8.0 Multi-Seeded Citation Network** - Phase 40 (in progress)
 
 ## Phases
 
@@ -123,18 +124,20 @@ See [v7.0-ROADMAP.md](milestones/v7.0-ROADMAP.md) for full details.
 
 </details>
 
-### Phase 1: multi-seeded citation network
+### v8.0 Multi-Seeded Citation Network
+
+- [x] Phase 40: Multi-Seeded Citation Network (3/3 plans) - completed 2026-03-01
 
 **Goal:** Users can seed citation networks from all papers in a notebook or BibTeX import, build combined multi-seed networks with overlap visualization, and discover/import missing papers
 **Requirements**: MSEED-01 (multi-seed BFS), MSEED-02 (shape-based overlap), MSEED-03 (module refactor), MSEED-04 (entry points), MSEED-05 (save/load multi-seed), MSEED-06 (legend update), MSEED-07 (discovery + import workflow)
-**Depends on:** Phase 0
+**Depends on:** v7.0
 **Plans:** 3 plans
 **Progress:** 3/3 plans complete
 
 Plans:
-- [x] 01-01-PLAN.md — Multi-seed BFS engine, visualization shapes, DB schema updates (completed 2026-03-01)
-- [x] 01-02-PLAN.md — Citation network module refactor + entry points (completed 2026-03-01)
-- [x] 01-03-PLAN.md — Discovery panel (Missing Papers tab) + import workflow (completed 2026-03-01)
+- [x] 40-01-PLAN.md — Multi-seed BFS engine, visualization shapes, DB schema updates (completed 2026-03-01)
+- [x] 40-02-PLAN.md — Citation network module refactor + entry points (completed 2026-03-01)
+- [x] 40-03-PLAN.md — Discovery panel (Missing Papers tab) + import workflow (completed 2026-03-01)
 
 ---
-*Updated: 2026-03-01 — Phase 01 COMPLETE (all plans executed and verified)*
+*Updated: 2026-03-01 — Phase 40 COMPLETE (all plans executed and verified)*
