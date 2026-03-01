@@ -152,7 +152,9 @@ mod_citation_network_ui <- function(id) {
             ),
             div(
               class = "mt-2",
-              icon("star", class = "text-warning"), " = Seed Paper"
+              icon("star", class = "text-warning"), " = Seed Paper", br(),
+              icon("diamond", class = "text-info"), " = Multi-Seed Overlap", br(),
+              icon("circle", class = "text-muted"), " = Regular Paper"
             )
           )
         )
@@ -177,7 +179,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     current_network_data <- reactiveVal(NULL)
     # Unfiltered snapshot — set when network is built/loaded, never mutated by filters
     unfiltered_network_data <- reactiveVal(NULL)
-    current_seed_id <- reactiveVal(NULL)
+    current_seed_ids <- reactiveVal(character())
+    source_notebook_id <- reactiveVal(NULL)
     selected_node_id <- reactiveVal(NULL)
 
     # Progressive loading state
@@ -190,7 +193,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     progress_poller <- reactiveVal(NULL)
 
     # Create ExtendedTask for async network building
-    network_task <- ExtendedTask$new(function(seed_id, email, direction, depth, node_limit, interrupt_flag, progress_file, app_dir) {
+    network_task <- ExtendedTask$new(function(seed_ids, email, direction, depth, node_limit_per_seed, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         # Source required files in isolated process
         source(file.path(app_dir, "R", "interrupt.R"))
@@ -198,11 +201,10 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         source(file.path(app_dir, "R", "citation_network.R"))
 
         # Build network with interrupt and progress support
-        result <- fetch_citation_network(
-          seed_id, email, api_key = NULL,
+        result <- fetch_multi_seed_citation_network(
+          seed_ids, email, api_key = NULL,
           direction = direction, depth = depth,
-          node_limit = node_limit,
-          progress_callback = NULL,
+          node_limit_per_seed = node_limit_per_seed,
           interrupt_flag = interrupt_flag,
           progress_file = progress_file
         )
@@ -213,8 +215,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         }
 
         result
-      }, seed_id = seed_id, email = email, direction = direction,
-         depth = depth, node_limit = node_limit,
+      }, seed_ids = seed_ids, email = email, direction = direction,
+         depth = depth, node_limit_per_seed = node_limit_per_seed,
          interrupt_flag = interrupt_flag, progress_file = progress_file, app_dir = app_dir)
     })
 
@@ -358,7 +360,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
     # Build network button handler
     observeEvent(input$build_network, {
-      req(current_seed_id())
+      req(length(current_seed_ids()) > 0)
 
       # Create interrupt and progress files
       flag_file <- create_interrupt_flag(session$token)
@@ -366,9 +368,16 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       prog_file <- create_progress_file(session$token)
       current_progress_file(prog_file)
 
+      # Determine modal title based on number of seeds
+      modal_title <- if (length(current_seed_ids()) > 1) {
+        "Building Multi-Seed Citation Network"
+      } else {
+        "Building Citation Network"
+      }
+
       # Show progress modal
       showModal(modalDialog(
-        title = tagList(icon("spinner", class = "fa-spin"), "Building Citation Network"),
+        title = tagList(icon("spinner", class = "fa-spin"), modal_title),
         tags$div(
           class = "progress",
           style = "height: 25px;",
@@ -395,11 +404,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Invoke async task
       network_task$invoke(
-        seed_id = current_seed_id(),
+        seed_ids = current_seed_ids(),
         email = config_r()$openalex$email,
         direction = input$direction,
         depth = input$depth,
-        node_limit = input$node_limit,
+        node_limit_per_seed = input$node_limit,
         interrupt_flag = flag_file,
         progress_file = prog_file,
         app_dir = getwd()
@@ -484,16 +493,18 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Build visualization data — reuse exact same pattern as current code
       palette <- input$palette %||% "viridis"
-      seed_id <- current_seed_id()
-      viz_data <- build_network_data(result$nodes, result$edges, palette, seed_id)
+      seed_ids <- current_seed_ids()
+      viz_data <- build_network_data(result$nodes, result$edges, palette, seed_ids)
 
       # Store network — same pattern as current code
       net_list <- list(
         nodes = viz_data$nodes,
         edges = viz_data$edges,
         metadata = list(
-          seed_paper_id = seed_id,
+          seed_paper_id = seed_ids[1],  # backward compat
+          seed_paper_ids = seed_ids,
           seed_paper_title = viz_data$nodes$paper_title[viz_data$nodes$is_seed][1],
+          source_notebook_id = source_notebook_id(),
           direction = input$direction,
           depth = input$depth,
           node_limit = input$node_limit,
@@ -513,8 +524,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         )
       } else {
         showNotification(
-          sprintf("Network built: %d nodes, %d edges",
-                  nrow(viz_data$nodes), nrow(viz_data$edges)),
+          sprintf("Network built: %d papers from %d seed%s",
+                  nrow(viz_data$nodes), length(seed_ids),
+                  if (length(seed_ids) == 1) "" else "s"),
           type = "message"
         )
       }
@@ -878,8 +890,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       node_id <- selected_node_id()
       req(node_id)
 
-      # Update seed and rebuild
-      current_seed_id(node_id)
+      # Update seed and rebuild (single-seed mode, no notebook association)
+      current_seed_ids(c(node_id))
+      source_notebook_id(NULL)
       selected_node_id(NULL)  # Close panel
 
       # Trigger build
@@ -933,7 +946,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           node_limit = net_data$metadata$node_limit,
           palette = net_data$metadata$palette,
           nodes_df = net_data$nodes,
-          edges_df = net_data$edges
+          edges_df = net_data$edges,
+          seed_paper_ids = net_data$metadata$seed_paper_ids,
+          source_notebook_id = net_data$metadata$source_notebook_id
         )
 
         removeModal()
@@ -957,7 +972,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       # Check if this is a paper_id (starts with W) or network UUID
       if (grepl("^W\\d+", network_id)) {
         # This is a paper_id for a new network - just set as seed
-        current_seed_id(network_id)
+        current_seed_ids(c(network_id))
+        source_notebook_id(NULL)
         # Don't auto-build - let user click "Build Network"
       } else {
         # This is a saved network UUID - load from database
@@ -975,12 +991,19 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         # Sync palette selector to loaded network's palette
         updateSelectInput(session, "palette", selected = palette)
 
+        # Get seed IDs (use new field if available, fall back to old single-seed field)
+        loaded_seed_ids <- if (!is.null(loaded$metadata$seed_paper_ids)) {
+          loaded$metadata$seed_paper_ids
+        } else {
+          c(loaded$metadata$seed_paper_id)
+        }
+
         # Build visualization data
         viz_data <- build_network_data(
           loaded$nodes,
           loaded$edges,
           palette,
-          loaded$metadata$seed_paper_id
+          loaded_seed_ids
         )
 
         # Set current network and unfiltered snapshot
@@ -997,8 +1020,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         updateSliderInput(session, "depth", value = loaded$metadata$depth)
         updateSliderInput(session, "node_limit", value = loaded$metadata$node_limit)
 
-        # Set seed ID
-        current_seed_id(loaded$metadata$seed_paper_id)
+        # Set seed IDs and notebook ID
+        current_seed_ids(loaded_seed_ids)
+        source_notebook_id(loaded$metadata$source_notebook_id)
       }
     })
 
@@ -1009,8 +1033,13 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
     # Return network state for external use
     list(
+      set_seeds = function(seed_ids, notebook_id = NULL) {
+        current_seed_ids(seed_ids)
+        source_notebook_id(notebook_id)
+      },
       set_seed = function(paper_id) {
-        current_seed_id(paper_id)
+        current_seed_ids(c(paper_id))
+        source_notebook_id(NULL)
       }
     )
   })
