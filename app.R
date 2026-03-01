@@ -1033,7 +1033,7 @@ server <- function(input, output, session) {
   mod_document_notebook_server("doc_notebook", con_r, current_notebook, effective_config)
 
   # Search notebook module
-  search_seed_request <- mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh, db_path = db_path)
+  search_nb_result <- mod_search_notebook_server("search_notebook", con_r, current_notebook, effective_config, notebook_refresh, db_path = db_path)
 
   # Seed discovery module
   discovery_request <- mod_seed_discovery_server("seed_discovery", reactive(con), config_file_r, pre_fill_doi)
@@ -1045,7 +1045,7 @@ server <- function(input, output, session) {
   topic_request <- mod_topic_explorer_server("topic_explorer", reactive(con), config_file_r)
 
   # Citation network module
-  mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
+  network_api <- mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
 
   # Citation audit module
   mod_citation_audit_server("citation_audit", con, config_r = effective_config,
@@ -1073,8 +1073,8 @@ server <- function(input, output, session) {
   )
 
   # Wire "Use as Seed" from search notebook to seed discovery
-  observeEvent(search_seed_request(), {
-    req <- search_seed_request()
+  observeEvent(search_nb_result$seed_request(), {
+    req <- search_nb_result$seed_request()
     if (is.null(req)) return()
 
     # Navigate to seed discovery view
@@ -1083,6 +1083,22 @@ server <- function(input, output, session) {
 
     # Pre-fill DOI in seed discovery module
     pre_fill_doi(req$doi)
+  }, ignoreInit = TRUE)
+
+  # Wire "Seed Citation Network" from search notebook to citation network
+  observeEvent(search_nb_result$network_seed_request(), {
+    req_data <- search_nb_result$network_seed_request()
+    req(req_data)
+    network_api$set_seeds(req_data$seed_ids, req_data$source_notebook_id)
+    current_view("network")
+  }, ignoreInit = TRUE)
+
+  # Wire "Seed Citation Network" from bulk import to citation network
+  observeEvent(sidebar_import_api$network_seed_request(), {
+    req_data <- sidebar_import_api$network_seed_request()
+    req(req_data)
+    network_api$set_seeds(req_data$seed_ids, req_data$source_notebook_id)
+    current_view("network")
   }, ignoreInit = TRUE)
 
   # Consume discovery request to create search notebook

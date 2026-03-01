@@ -47,6 +47,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
     # History refresh trigger
     history_refresh <- reactiveVal(0)
 
+    # Network seed request
+    network_seed_request <- reactiveVal(NULL)
+
     # ExtendedTask for async import (API-only — no DB access to avoid Windows file locks)
     import_task <- ExtendedTask$new(function(dois, email, api_key,
                                              interrupt_flag, progress_file, app_dir,
@@ -808,12 +811,22 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
 
     # --- Seed Citation Network Handler (Phase 36) ---
     observeEvent(input$seed_network, {
-      showNotification(
-        "Citation network seeding will be available after importing. Papers are ready for citation audit.",
-        type = "message",
-        duration = 5
-      )
+      run_id <- current_run_id()
+      req(run_id)
+      con_val <- con()
+      run_meta <- dbGetQuery(con_val, "SELECT notebook_id FROM import_runs WHERE id = ?", list(run_id))
+      imported <- dbGetQuery(con_val, "SELECT work_id FROM import_items WHERE import_run_id = ? AND status = 'imported'", list(run_id))
+      if (nrow(imported) == 0) {
+        showNotification("No papers imported yet", type = "warning")
+        return()
+      }
+      network_seed_request(list(
+        seed_ids = imported$work_id,
+        source_notebook_id = run_meta$notebook_id[1],
+        timestamp = Sys.time()
+      ))
       removeModal()
+      showNotification(paste("Seeding network with", nrow(imported), "imported papers"), type = "message")
     })
 
     # --- Import History ---
@@ -879,7 +892,8 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
 
     # Return API for parent module
     list(
-      show_import_modal = show_import_modal
+      show_import_modal = show_import_modal,
+      network_seed_request = network_seed_request
     )
   })
 }

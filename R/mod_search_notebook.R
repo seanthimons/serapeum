@@ -87,6 +87,10 @@ mod_search_notebook_ui <- function(id) {
                 tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon("file-csv"), " CSV (.csv)"))
               )
             ),
+            actionButton(ns("seed_citation_network"), NULL,
+                         class = "btn-sm btn-outline-info",
+                         icon = icon("share-nodes"),
+                         title = "Seed Citation Network"),
             actionButton(ns("edit_search"), NULL,
                          class = "btn-sm btn-outline-secondary",
                          icon = icon("pen-to-square"),
@@ -352,6 +356,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
     seed_request <- reactiveVal(NULL)
+    network_seed_request <- reactiveVal(NULL)
     # Track which paper IDs already have delete observers to prevent duplicates
     delete_observers <- reactiveValues()
     # Track block/unblock journal observers to prevent duplicates
@@ -2322,6 +2327,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       do_search_refresh()
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
+    # Seed citation network button
+    observeEvent(input$seed_citation_network, {
+      nb_id <- notebook_id()
+      req(nb_id)
+      con_val <- con()
+      papers <- dbGetQuery(con_val, "SELECT paper_id FROM abstracts WHERE notebook_id = ?", list(nb_id))
+      if (nrow(papers) == 0) {
+        showNotification("No papers in notebook to seed network", type = "warning")
+        return()
+      }
+      network_seed_request(list(
+        seed_ids = papers$paper_id,
+        source_notebook_id = nb_id,
+        timestamp = Sys.time()
+      ))
+      showNotification(paste("Seeding network with", nrow(papers), "papers"), type = "message")
+    })
+
     # Programmatic refresh (from save_search)
     observeEvent(search_refresh_trigger(), {
       do_search_refresh()
@@ -2939,7 +2962,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       is_processing(FALSE)
     })
 
-    # Return seed_request reactive for app.R to consume
-    return(seed_request)
+    # Return reactives for app.R to consume
+    list(
+      seed_request = seed_request,
+      network_seed_request = network_seed_request
+    )
   })
 }
