@@ -1480,20 +1480,30 @@ get_blocked_journals_set <- function(con) {
 #' @param palette Color palette name
 #' @param nodes_df Data frame with columns: paper_id, is_seed, title, authors, year, venue, doi, cited_by_count, x_position, y_position
 #' @param edges_df Data frame with columns: from_paper_id, to_paper_id
+#' @param seed_paper_ids Optional character vector of seed paper IDs (for multi-seed networks)
+#' @param source_notebook_id Optional notebook ID that created this network
 #' @return Network ID
 save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
-                          direction, depth, node_limit, palette, nodes_df, edges_df) {
+                          direction, depth, node_limit, palette, nodes_df, edges_df,
+                          seed_paper_ids = NULL, source_notebook_id = NULL) {
   # Generate ID if not provided
   if (is.null(id)) {
     id <- uuid::UUIDgenerate()
   }
 
+  # Handle seed_paper_ids: if provided, use it; otherwise wrap single seed_paper_id
+  if (!is.null(seed_paper_ids)) {
+    seed_ids_json <- jsonlite::toJSON(seed_paper_ids, auto_unbox = FALSE)
+  } else {
+    seed_ids_json <- jsonlite::toJSON(seed_paper_id, auto_unbox = FALSE)
+  }
+
   # Insert network metadata
   dbExecute(con, "
-    INSERT INTO citation_networks (id, name, seed_paper_id, seed_paper_title, direction, depth, node_limit, palette)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO citation_networks (id, name, seed_paper_id, seed_paper_title, direction, depth, node_limit, palette, seed_paper_ids, source_notebook_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ", list(id, name, seed_paper_id, seed_paper_title, direction,
-          as.integer(depth), as.integer(node_limit), palette))
+          as.integer(depth), as.integer(node_limit), palette, seed_ids_json, source_notebook_id))
 
   # Prepare nodes for bulk insert
   if (nrow(nodes_df) > 0) {
@@ -1509,6 +1519,7 @@ save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
       cited_by_count = as.integer(nodes_df$cited_by_count),
       x_position = as.numeric(nodes_df$x),
       y_position = as.numeric(nodes_df$y),
+      is_overlap = as.logical(nodes_df$is_overlap %||% FALSE),
       stringsAsFactors = FALSE
     )
 
@@ -1547,10 +1558,23 @@ load_network <- function(con, network_id) {
     return(NULL)
   }
 
+  # Parse seed_paper_ids from JSON if present
+  if (!is.null(metadata$seed_paper_ids) && !is.na(metadata$seed_paper_ids)) {
+    metadata$seed_paper_ids <- jsonlite::fromJSON(metadata$seed_paper_ids)
+  } else {
+    # Fallback: derive from single seed_paper_id for old networks
+    metadata$seed_paper_ids <- metadata$seed_paper_id
+  }
+
   # Load nodes
   nodes <- dbGetQuery(con, "
     SELECT * FROM network_nodes WHERE network_id = ?
   ", list(network_id))
+
+  # Handle missing is_overlap column (old networks created before migration)
+  if (!"is_overlap" %in% colnames(nodes)) {
+    nodes$is_overlap <- FALSE
+  }
 
   # Load edges
   edges <- dbGetQuery(con, "
