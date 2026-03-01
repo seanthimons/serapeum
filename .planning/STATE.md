@@ -22,18 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 39 of 39 (Slide Healing) — COMPLETE
-Plan: 3 of 3 in Phase 39
-Status: v7.0 milestone archived
-Last activity: 2026-02-27 — v7.0 milestone completed
+Phase: 01 (Multi-Seeded Citation Network)
+Plan: 2 of 3 in Phase 01
+Status: In progress
+Last activity: 2026-03-01 — Plan 01-01 completed
 
-Progress: [████████████████████████████████] 100% (39/39 phases complete across all milestones)
+Progress: [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 33% (1/3 plans complete in Phase 01)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 67 (across v1.0-v7.0)
+- Total plans completed: 68 (67 from v1.0-v7.0 + 1 from v1.0-milestone)
 - Total phases completed: 39 (across all milestones)
+- v1.0-milestone plans completed: 1 (Phase 01: 1)
 - v7.0 plans completed: 14 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 36: 2, Phase 37: 2, Phase 38: 2, Phase 39: 3)
 
 **Recent Milestones:**
@@ -44,11 +45,18 @@ Progress: [███████████████████████
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 1 added: multi-seeded citation network
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting future work:
 
+- **Phase 01-01**: Per-seed BFS loop rather than unified traversal (simpler deduplication)
+- **Phase 01-01**: Store seed_paper_ids as JSON array for flexibility
+- **Phase 01-01**: Encode overlap via shape (diamond) rather than color (preserves year gradient)
 - **v7.0**: Programmatic YAML frontmatter for slides (eliminated regex injection fragility)
 - **v7.0**: LLM outputs content only, no YAML — separation of concerns
 - **v7.0**: Concrete syntax examples in prompts > abstract instructions
@@ -71,12 +79,13 @@ Recent decisions affecting future work:
 
 ## Session Continuity
 
-Last session: 2026-02-27 (v7.0 milestone completion)
-Stopped at: Milestone archived, ready for next milestone
+Last session: 2026-03-01 (Phase 01 Plan 01 execution)
+Stopped at: Completed 01-01-PLAN.md (multi-seed BFS engine)
 Resume file: None
 
 **Next steps:**
-1. `/gsd:new-milestone` — start next milestone (questioning → research → requirements → roadmap)
+1. Execute Phase 01 Plan 02 (multi-seed network creation UI)
+2. Execute Phase 01 Plan 03 (multi-seed network loading UI)
 
 ---
-*Updated: 2026-02-27 — v7.0 milestone completed*
+*Updated: 2026-03-01 — Phase 01 Plan 01 completed*
