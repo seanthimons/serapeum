@@ -815,13 +815,18 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       req(run_id)
       con_val <- con()
       run_meta <- dbGetQuery(con_val, "SELECT notebook_id FROM import_runs WHERE id = ?", list(run_id))
-      imported <- dbGetQuery(con_val, "SELECT work_id FROM import_items WHERE import_run_id = ? AND status = 'imported'", list(run_id))
+      imported <- dbGetQuery(con_val, "
+  SELECT a.paper_id
+  FROM import_run_items i
+  JOIN abstracts a ON i.doi = a.doi
+  WHERE i.run_id = ? AND i.status = 'imported'
+", list(run_id))
       if (nrow(imported) == 0) {
         showNotification("No papers imported yet", type = "warning")
         return()
       }
       network_seed_request(list(
-        seed_ids = imported$work_id,
+        seed_ids = imported$paper_id,
         source_notebook_id = run_meta$notebook_id[1],
         timestamp = Sys.time()
       ))
