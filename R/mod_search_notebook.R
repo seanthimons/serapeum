@@ -2342,7 +2342,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         source_notebook_id = nb_id,
         timestamp = Sys.time()
       ))
-      showNotification(paste("Seeding network with", nrow(papers), "papers"), type = "message")
+      # Note: No notification here - switching to network view is sufficient feedback
     })
 
     # Programmatic refresh (from save_search)

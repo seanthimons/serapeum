@@ -58,28 +58,26 @@ mod_citation_network_ui <- function(id) {
           )
         ),
 
-        # Build button and physics toggle
+        # Build button
         div(
+          class = "d-flex align-items-center",
           actionButton(
             ns("build_network"),
             "Build Network",
             class = "btn-primary",
             icon = icon("diagram-project")
-          ),
-          # #TODO: auto-set physics default based on network size (off for large graphs)
-          checkboxInput(
-            ns("physics_enabled"),
-            tags$span("Physics", title = "Keep force simulation running so the graph can rebalance. Disable to freeze node positions."),
-            value = TRUE
           )
         ),
 
         # Save button
-        actionButton(
-          ns("save_network"),
-          "Save Network",
-          class = "btn-outline-success",
-          icon = icon("save")
+        div(
+          class = "d-flex align-items-center",
+          actionButton(
+            ns("save_network"),
+            "Save Network",
+            class = "btn-outline-success",
+            icon = icon("save")
+          )
         )
       ),
 
@@ -155,6 +153,12 @@ mod_citation_network_ui <- function(id) {
               icon("star", class = "text-warning"), " = Seed Paper", br(),
               icon("diamond", class = "text-info"), " = Multi-Seed Overlap", br(),
               icon("circle", class = "text-muted"), " = Regular Paper"
+            ),
+            tags$hr(),
+            bslib::input_switch(
+              ns("physics_enabled"),
+              "Physics Simulation",
+              value = TRUE
             )
           )
         )
@@ -742,7 +746,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       )
 
       # Update via proxy (no full re-render)
-      visNetwork::visNetworkProxy("network_graph") |>
+      visNetwork::visNetworkProxy(session$ns("network_graph")) |>
         visNetwork::visUpdateNodes(nodes[, c("id", "color.background",
                                               "color.highlight.background",
                                               "value", "shape", "borderWidth",
@@ -753,7 +757,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     # Toggle physics simulation on/off
     observeEvent(input$physics_enabled, {
       req(current_network_data())
-      visNetwork::visNetworkProxy("network_graph") |>
+      visNetwork::visNetworkProxy(session$ns("network_graph")) |>
         visNetwork::visPhysics(enabled = input$physics_enabled)
     }, ignoreInit = TRUE)
 

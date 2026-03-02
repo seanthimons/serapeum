@@ -126,6 +126,12 @@ read_import_progress <- function(progress_file) {
 
   line <- tryCatch(readLines(progress_file, n = 1, warn = FALSE),
                    error = function(e) "0|1|0|0|Waiting...")
+
+  # Guard against empty file (race condition with mirai worker)
+  if (length(line) == 0 || nchar(line[1]) == 0) {
+    return(default)
+  }
+
   parts <- strsplit(line, "\\|", fixed = FALSE)[[1]]
   if (length(parts) < 5) return(default)
 

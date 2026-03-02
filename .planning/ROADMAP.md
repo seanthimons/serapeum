@@ -12,7 +12,7 @@
 - ✅ **v5.0 Fix Document Embeddings** - Phase 29 (shipped 2026-02-22)
 - ✅ **v6.0 Dark Mode + UI Polish** - Phases 30-32 (shipped 2026-02-25)
 - ✅ **v7.0 Citation Audit + Quick Wins** - Phases 33-39 (shipped 2026-02-27)
-- 🔄 **v8.0 Multi-Seeded Citation Network** - Phase 40 (in progress)
+- ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 
 ## Phases
 
@@ -146,7 +146,11 @@ Plans:
 **Requirements**: HOTFIX
 **Depends on:** Phase 40
 **Plans:** 2 plans
+**Progress:** 1/2 plans complete
 
 Plans:
-- [ ] 40.1-01-PLAN.md — Fix crash bugs: seed network SQL, progress race condition, DOI-to-Work-ID fallback
+- [x] 40.1-01-PLAN.md — Fix crash bugs: seed network SQL, progress race condition, DOI-to-Work-ID fallback (completed 2026-03-02)
 - [ ] 40.1-02-PLAN.md — UI fixes: physics toggle relocation to legend panel, imported papers deduplication
+
+---
+*Updated: 2026-03-02 — Plan 01 complete (critical bug fixes shipped)*
