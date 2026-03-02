@@ -145,7 +145,7 @@ Plans:
 **Goal:** Fix crashes and broken functionality: seed network SQL typo, bulk import progress race condition, DOI lookup failures, physics toggle layout/functionality, imported papers UI duplication
 **Requirements**: HOTFIX
 **Depends on:** Phase 40
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 **Progress:** 2/3 plans complete
 
 Plans:

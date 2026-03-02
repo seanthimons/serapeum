@@ -16,12 +16,12 @@ gsd_state_version: 1.0
 milestone: v8.0
 milestone_name: Multi-Seeded Citation Network
 status: in-progress
-last_updated: "2026-03-02T03:43:00Z"
+last_updated: "2026-03-02T20:02:23Z"
 progress:
   total_phases: 41
   completed_phases: 40
-  total_plans: 71
-  completed_plans: 71
+  total_plans: 72
+  completed_plans: 72
 ---
 
 # Project State
@@ -36,22 +36,22 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 40.1 (App Crashing - HOTFIX)
-Plan: 2/2 complete
+Plan: 3/3 complete
 Status: Phase complete
-Last activity: 2026-03-02 — Phase 40.1 Plan 02 complete: UI cleanup (physics toggle, button layout, notification deduplication)
+Last activity: 2026-03-02 — Phase 40.1 Plan 03 complete: UAT gap closure (SQL status, DOI normalization, button layout, silent auto-lookup)
 
-Progress: [████████████████████] 72/72 plans (100%)
+Progress: [████████████████████] 73/73 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 72 (67 from v1.0-v7.0 + 5 from v8.0)
+- Total plans completed: 73 (67 from v1.0-v7.0 + 6 from v8.0)
 - Total phases completed: 41 (across all milestones)
-- v8.0 plans completed: 5 (Phase 40: 3, Phase 40.1: 2 — COMPLETE)
+- v8.0 plans completed: 6 (Phase 40: 3, Phase 40.1: 3 — COMPLETE)
 - v7.0 plans completed: 14 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 36: 2, Phase 37: 2, Phase 38: 2, Phase 39: 3)
 
 **Recent Milestones:**
-- v8.0 (Phases 40, 40.1): 4 plans, 1 day (2026-03-01 → 2026-03-02)
+- v8.0 (Phases 40, 40.1): 6 plans, 1 day (2026-03-01 → 2026-03-02)
 - v7.0 (Phases 33-39): 14 plans, 3 days (2026-02-25 → 2026-02-27)
 - v6.0 (Phases 30-32): 8 plans, 3 days (2026-02-22 → 2026-02-25)
 - v5.0 (Phase 29): 1 plan, <1 day (2026-02-22)
@@ -69,6 +69,10 @@ Progress: [████████████████████] 72/72 p
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting future work:
 
+- **Phase 40.1-03**: Use 'success' status value consistently across import workflow (not 'imported')
+- **Phase 40.1-03**: Always normalize DOI to bare format for DB queries (URL format causes lookup misses)
+- **Phase 40.1-03**: Remove withProgress from auto-triggered flows (silent UX, no duplicate notifications)
+- **Phase 40.1-03**: Add h-100 to flex container divs for proper vertical centering in Bootstrap grid
 - **Phase 40.1-02**: visNetworkProxy calls in Shiny modules must use session$ns() for output IDs
 - **Phase 40.1-02**: Auto-triggered flows (pre_fill_doi, network_seed_request) should be silent - UI state change is sufficient feedback
 - **Phase 40.1-02**: Physics toggle belongs in legend panel for logical grouping with other graph controls
@@ -105,12 +109,13 @@ Recent decisions affecting future work:
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 40.1-02-PLAN.md (UI cleanup: physics toggle, button layout, notification deduplication)
+Stopped at: Completed 40.1-03-PLAN.md (UAT gap closure: SQL status, DOI normalization, button layout, silent auto-lookup)
 Resume file: None
 
 **Next steps:**
-1. Continue v8.0 milestone or define v9.0
-2. Address remaining tech debt (connection leaks, dead code)
+1. Run full UAT again to verify all 4 gaps resolved
+2. Continue v8.0 milestone or define v9.0
+3. Address remaining tech debt (connection leaks, dead code)
 
 ---
-*Updated: 2026-03-02 — Phase 40.1 complete: fixed crashes, UI cleanup, notification deduplication*
+*Updated: 2026-03-02 — Phase 40.1 complete: fixed crashes, UI cleanup, UAT gap closure*
