@@ -831,7 +831,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         timestamp = Sys.time()
       ))
       removeModal()
-      showNotification(paste("Seeding network with", nrow(imported), "imported papers"), type = "message")
+      # Note: No notification here - switching to network view is sufficient feedback
     })
 
     # --- Import History ---
