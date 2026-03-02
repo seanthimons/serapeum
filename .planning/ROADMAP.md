@@ -140,17 +140,18 @@ Plans:
 ---
 *Updated: 2026-03-01 — Phase 40 COMPLETE (all plans executed and verified)*
 
-### Phase 40.1: app crashing (INSERTED) ✅
+### Phase 40.1: app crashing (INSERTED)
 
 **Goal:** Fix crashes and broken functionality: seed network SQL typo, bulk import progress race condition, DOI lookup failures, physics toggle layout/functionality, imported papers UI duplication
 **Requirements**: HOTFIX
 **Depends on:** Phase 40
-**Plans:** 2/2 plans complete
-**Progress:** 2/2 plans complete (PHASE COMPLETE)
+**Plans:** 3 plans
+**Progress:** 2/3 plans complete
 
 Plans:
 - [x] 40.1-01-PLAN.md — Fix crash bugs: seed network SQL, progress race condition, DOI-to-Work-ID fallback (completed 2026-03-02)
 - [x] 40.1-02-PLAN.md — UI fixes: physics toggle relocation to legend panel, button layout, notification deduplication (completed 2026-03-02)
+- [ ] 40.1-03-PLAN.md — Gap closure: SQL status mismatch, DOI format normalization, button alignment, notification dedup
 
 ---
-*Updated: 2026-03-02 — Phase 40.1 COMPLETE: All crash fixes and UI cleanup shipped*
+*Updated: 2026-03-01 — Phase 40.1 gap closure plan added (40.1-03)*
