@@ -58,19 +58,13 @@ mod_citation_network_ui <- function(id) {
           )
         ),
 
-        # Build button and physics toggle
+        # Build button
         div(
           actionButton(
             ns("build_network"),
             "Build Network",
             class = "btn-primary",
             icon = icon("diagram-project")
-          ),
-          # #TODO: auto-set physics default based on network size (off for large graphs)
-          checkboxInput(
-            ns("physics_enabled"),
-            tags$span("Physics", title = "Keep force simulation running so the graph can rebalance. Disable to freeze node positions."),
-            value = TRUE
           )
         ),
 
@@ -155,6 +149,12 @@ mod_citation_network_ui <- function(id) {
               icon("star", class = "text-warning"), " = Seed Paper", br(),
               icon("diamond", class = "text-info"), " = Multi-Seed Overlap", br(),
               icon("circle", class = "text-muted"), " = Regular Paper"
+            ),
+            tags$hr(),
+            bslib::input_switch(
+              ns("physics_enabled"),
+              "Physics Simulation",
+              value = TRUE
             )
           )
         )
