@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 40.1 (App Crashing - HOTFIX)
-Plan: 1/1 complete
+Plan: 2/2 complete
 Status: Phase complete
-Last activity: 2026-03-02 — Phase 40.1 complete, critical bug fixes shipped
+Last activity: 2026-03-02 — Phase 40.1 Plan 02 complete: UI cleanup (physics toggle, button layout, notification deduplication)
 
-Progress: [████████████████████] 71/71 plans (100%)
+Progress: [████████████████████] 72/72 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 71 (67 from v1.0-v7.0 + 4 from v8.0)
+- Total plans completed: 72 (67 from v1.0-v7.0 + 5 from v8.0)
 - Total phases completed: 41 (across all milestones)
-- v8.0 plans completed: 4 (Phase 40: 3, Phase 40.1: 1 — COMPLETE)
+- v8.0 plans completed: 5 (Phase 40: 3, Phase 40.1: 2 — COMPLETE)
 - v7.0 plans completed: 14 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 36: 2, Phase 37: 2, Phase 38: 2, Phase 39: 3)
 
 **Recent Milestones:**
@@ -56,6 +56,9 @@ Progress: [████████████████████] 71/71 p
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting future work:
 
+- **Phase 40.1-02**: visNetworkProxy calls in Shiny modules must use session$ns() for output IDs
+- **Phase 40.1-02**: Auto-triggered flows (pre_fill_doi, network_seed_request) should be silent - UI state change is sufficient feedback
+- **Phase 40.1-02**: Physics toggle belongs in legend panel for logical grouping with other graph controls
 - **Phase 40.1-01**: Query DB for Work ID when DOI lookup fails (silent fallback pattern)
 - **Phase 40.1-01**: Fallback happens silently without user notification (better UX)
 - **Phase 40-02**: Use separate network_seed_request reactive to avoid conflict with seed_request (which goes to seed discovery)
@@ -89,7 +92,7 @@ Recent decisions affecting future work:
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 40.1-01-PLAN.md (critical bug fixes)
+Stopped at: Completed 40.1-02-PLAN.md (UI cleanup: physics toggle, button layout, notification deduplication)
 Resume file: None
 
 **Next steps:**
@@ -97,4 +100,4 @@ Resume file: None
 2. Address remaining tech debt (connection leaks, dead code)
 
 ---
-*Updated: 2026-03-02 — Phase 40.1 complete: fixed seed network crash, progress polling race condition, DOI lookup failures*
+*Updated: 2026-03-02 — Phase 40.1 complete: fixed crashes, UI cleanup, notification deduplication*
