@@ -89,7 +89,7 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
 
           if (!is.null(paper)) {
             seed_paper(paper)
-            showNotification("Seed paper loaded!", type = "message", duration = 3)
+            # Note: No notification here - auto-lookup is silent, user sees paper preview appear
           } else {
             showNotification("Paper not found for this DOI.", type = "error", duration = 5)
           }
