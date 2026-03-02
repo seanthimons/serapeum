@@ -60,7 +60,7 @@ mod_citation_network_ui <- function(id) {
 
         # Build button
         div(
-          class = "d-flex align-items-center",
+          class = "d-flex align-items-center h-100",
           actionButton(
             ns("build_network"),
             "Build Network",
@@ -71,7 +71,7 @@ mod_citation_network_ui <- function(id) {
 
         # Save button
         div(
-          class = "d-flex align-items-center",
+          class = "d-flex align-items-center h-100",
           actionButton(
             ns("save_network"),
             "Save Network",
