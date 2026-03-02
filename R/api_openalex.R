@@ -513,6 +513,39 @@ get_paper <- function(paper_id, email, api_key = NULL) {
   parse_openalex_work(body)
 }
 
+#' Fetch paper with DOI-to-Work-ID fallback
+#'
+#' Tries DOI lookup first. If it fails, silently retries with the
+#' OpenAlex Work ID. This handles cases where display DOIs differ
+#' from canonical DOIs in OpenAlex.
+#'
+#' @param doi Optional DOI string
+#' @param paper_id Optional OpenAlex Work ID (e.g., "W2626778328")
+#' @param email User email for OpenAlex API
+#' @param api_key Optional API key
+#' @return Parsed work list, or NULL if both fail
+fetch_paper_with_fallback <- function(doi = NULL, paper_id = NULL, email, api_key = NULL) {
+  # Try DOI first if provided
+  if (!is.null(doi) && nchar(doi) > 0) {
+    result <- tryCatch(
+      get_paper(doi, email, api_key),
+      error = function(e) NULL
+    )
+    if (!is.null(result)) return(result)
+  }
+
+  # Silently fallback to Work ID
+  if (!is.null(paper_id) && nchar(paper_id) > 0) {
+    result <- tryCatch(
+      get_paper(paper_id, email, api_key),
+      error = function(e) NULL
+    )
+    if (!is.null(result)) return(result)
+  }
+
+  NULL
+}
+
 #' Get papers that cite a given work
 #' @param paper_id OpenAlex Work ID (e.g., "W2741809807")
 #' @param email User email

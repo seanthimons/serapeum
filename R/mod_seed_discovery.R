@@ -70,8 +70,15 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
 
         # Fetch paper automatically
         withProgress(message = "Looking up seed paper...", {
+          # Try to find Work ID in DB for fallback
+          db_paper <- tryCatch(
+            DBI::dbGetQuery(con(), "SELECT paper_id FROM abstracts WHERE doi = ? LIMIT 1", list(doi)),
+            error = function(e) data.frame()
+          )
+          work_id <- if (nrow(db_paper) > 0) db_paper$paper_id[1] else NULL
+
           paper <- tryCatch({
-            get_paper(doi, email, api_key)
+            fetch_paper_with_fallback(doi = doi, paper_id = work_id, email = email, api_key = api_key)
           }, error = function(e) {
             showNotification(
               paste("Error fetching paper:", e$message),
@@ -126,8 +133,15 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
 
       # Fetch paper
       withProgress(message = "Looking up paper...", {
+        # Try to find Work ID in DB for fallback
+        db_paper <- tryCatch(
+          DBI::dbGetQuery(con(), "SELECT paper_id FROM abstracts WHERE doi = ? LIMIT 1", list(doi)),
+          error = function(e) data.frame()
+        )
+        work_id <- if (nrow(db_paper) > 0) db_paper$paper_id[1] else NULL
+
         paper <- tryCatch({
-          get_paper(doi, email, api_key)
+          fetch_paper_with_fallback(doi = doi, paper_id = work_id, email = email, api_key = api_key)
         }, error = function(e) {
           showNotification(
             paste("Error fetching paper:", e$message),
