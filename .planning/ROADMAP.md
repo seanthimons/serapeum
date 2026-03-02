@@ -124,9 +124,7 @@ See [v7.0-ROADMAP.md](milestones/v7.0-ROADMAP.md) for full details.
 
 </details>
 
-### v8.0 Multi-Seeded Citation Network
-
-- [x] Phase 40: Multi-Seeded Citation Network (3/3 plans) - completed 2026-03-01
+### Phase 40: Multi-Seeded Citation Network
 
 **Goal:** Users can seed citation networks from all papers in a notebook or BibTeX import, build combined multi-seed networks with overlap visualization, and discover/import missing papers
 **Requirements**: MSEED-01 (multi-seed BFS), MSEED-02 (shape-based overlap), MSEED-03 (module refactor), MSEED-04 (entry points), MSEED-05 (save/load multi-seed), MSEED-06 (legend update), MSEED-07 (discovery + import workflow)
@@ -141,3 +139,14 @@ Plans:
 
 ---
 *Updated: 2026-03-01 — Phase 40 COMPLETE (all plans executed and verified)*
+
+### Phase 40.1: app crashing (INSERTED)
+
+**Goal:** Fix crashes and broken functionality: seed network SQL typo, bulk import progress race condition, DOI lookup failures, physics toggle layout/functionality, imported papers UI duplication
+**Requirements**: HOTFIX
+**Depends on:** Phase 40
+**Plans:** 2 plans
+
+Plans:
+- [ ] 40.1-01-PLAN.md — Fix crash bugs: seed network SQL, progress race condition, DOI-to-Work-ID fallback
+- [ ] 40.1-02-PLAN.md — UI fixes: physics toggle relocation to legend panel, imported papers deduplication
