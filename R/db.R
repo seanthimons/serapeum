@@ -1559,11 +1559,12 @@ load_network <- function(con, network_id) {
   }
 
   # Parse seed_paper_ids from JSON if present
+  # Store as list-column to avoid data.frame dimension mismatch when vector length > 1
   if (!is.null(metadata$seed_paper_ids) && !is.na(metadata$seed_paper_ids)) {
-    metadata$seed_paper_ids <- jsonlite::fromJSON(metadata$seed_paper_ids)
+    metadata$seed_paper_ids <- list(jsonlite::fromJSON(metadata$seed_paper_ids))
   } else {
     # Fallback: derive from single seed_paper_id for old networks
-    metadata$seed_paper_ids <- metadata$seed_paper_id
+    metadata$seed_paper_ids <- list(metadata$seed_paper_id)
   }
 
   # Load nodes
