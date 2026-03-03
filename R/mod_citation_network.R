@@ -160,13 +160,6 @@ mod_citation_network_ui <- function(id) {
               "Physics Simulation",
               value = TRUE
             ),
-            tags$hr(),
-            bslib::input_switch(
-              ns("trim_enabled"),
-              "Trim to Influential",
-              value = FALSE
-            ),
-            uiOutput(ns("trim_label"))
           )
         )
       ),
@@ -380,6 +373,15 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                          class = "btn-outline-primary btn-sm", icon = icon("filter")),
             uiOutput(ns("year_filter_preview"))
           )
+        ),
+        div(
+          class = "mt-2 d-flex align-items-center gap-2",
+          bslib::input_switch(
+            ns("trim_enabled"),
+            "Trim to Influential",
+            value = FALSE
+          ),
+          uiOutput(ns("trim_label"))
         )
       )
     })
