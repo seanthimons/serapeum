@@ -770,72 +770,83 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         visNetwork::visOptions(
           highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
         ) |>
-        # UIPX-03: Tooltip smart repositioning — keep within graph container bounds
+        # Custom tooltip — renders HTML, handles containment & dark mode
         htmlwidgets::onRender("
           function(el, x) {
-            var container = el.closest('.citation-network-container');
-            if (!container) return;
+            var container = el.closest('.citation-network-container') || el;
+            var network = HTMLWidgets.getInstance(el).network;
+            if (!network) return;
 
-            var observer = new MutationObserver(function(mutations) {
-              mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                  if (node.classList && node.classList.contains('vis-tooltip')) {
-                    repositionTooltip(node, container);
-                  }
-                });
-                // Also handle attribute changes (tooltip moves with mouse)
-                if (mutation.type === 'attributes' && mutation.target.classList &&
-                    mutation.target.classList.contains('vis-tooltip')) {
-                  repositionTooltip(mutation.target, container);
-                }
-              });
-            });
+            // Hide vis.js default tooltips
+            var s = document.createElement('style');
+            s.textContent = '#' + el.id + ' .vis-tooltip { display: none !important; }';
+            el.appendChild(s);
 
-            observer.observe(el, {
-              childList: true,
-              subtree: true,
-              attributes: true,
-              attributeFilter: ['style']
-            });
+            // Create custom tooltip element inside the position:relative container
+            var tip = document.createElement('div');
+            tip.style.cssText = 'position:absolute;display:none;z-index:1000;max-width:300px;' +
+              'word-wrap:break-word;padding:8px 12px;border-radius:0.5rem;' +
+              'pointer-events:none;font-size:14px;line-height:1.4;';
+            container.appendChild(tip);
 
-            function repositionTooltip(tooltip, container) {
-              requestAnimationFrame(function() {
-                var tipRect = tooltip.getBoundingClientRect();
-                var cRect = container.getBoundingClientRect();
+            var mx = 0, my = 0;
 
-                var left = parseInt(tooltip.style.left, 10) || 0;
-                var top = parseInt(tooltip.style.top, 10) || 0;
-
-                // Tooltip viewport position = canvas origin + canvas-relative offset
-                var tipViewportLeft = cRect.left + left;
-                var tipViewportTop = cRect.top + top;
-
-                // Check right overflow
-                var rightOverflow = (tipViewportLeft + tipRect.width) - cRect.right;
-                if (rightOverflow > 0) {
-                  left = left - rightOverflow - 8;
-                }
-
-                // Check left overflow (recalculate after right adjustment)
-                if (cRect.left + left < cRect.left) {
-                  left = 8;
-                }
-
-                // Check bottom overflow
-                var bottomOverflow = (tipViewportTop + tipRect.height) - cRect.bottom;
-                if (bottomOverflow > 0) {
-                  top = top - tipRect.height - 20;
-                }
-
-                // Check top overflow (after bottom flip)
-                if (cRect.top + top < cRect.top) {
-                  top = 8;
-                }
-
-                tooltip.style.left = left + 'px';
-                tooltip.style.top = top + 'px';
-              });
+            function styleTip() {
+              var dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+              if (dark) {
+                tip.style.backgroundColor = '#313244';
+                tip.style.color = '#cdd6f4';
+                tip.style.border = '1px solid #6c7086';
+                tip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
+              } else {
+                tip.style.backgroundColor = '#f5f4ed';
+                tip.style.color = '#000';
+                tip.style.border = '1px solid #808074';
+                tip.style.boxShadow = '3px 3px 10px rgba(0,0,0,0.2)';
+              }
             }
+
+            function positionTip() {
+              var cW = container.clientWidth;
+              var cH = container.clientHeight;
+              var tW = tip.offsetWidth;
+              var tH = tip.offsetHeight;
+
+              var left = mx + 15;
+              var top = my + 15;
+
+              // Clamp right — flip to left of cursor
+              if (left + tW > cW - 8) left = mx - tW - 10;
+              if (left < 8) left = 8;
+
+              // Clamp bottom — flip above cursor
+              if (top + tH > cH - 8) top = my - tH - 10;
+              if (top < 8) top = 8;
+
+              tip.style.left = left + 'px';
+              tip.style.top = top + 'px';
+            }
+
+            // Track mouse position relative to container
+            el.addEventListener('mousemove', function(e) {
+              var r = container.getBoundingClientRect();
+              mx = e.clientX - r.left;
+              my = e.clientY - r.top;
+              if (tip.style.display !== 'none') positionTip();
+            });
+
+            network.on('hoverNode', function(params) {
+              var node = network.body.data.nodes.get(params.node);
+              if (!node || !node.title) return;
+              tip.innerHTML = node.title;
+              styleTip();
+              tip.style.display = 'block';
+              positionTip();
+            });
+
+            network.on('blurNode', function() { tip.style.display = 'none'; });
+            network.on('dragStart', function() { tip.style.display = 'none'; });
+            network.on('zoom', function() { tip.style.display = 'none'; });
           }
         ")
 
