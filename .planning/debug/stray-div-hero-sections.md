@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "stray div element bleeding through hero sections on splash/landing page after dark mode changes"
 created: 2026-02-23T00:00:00Z
 updated: 2026-02-23T00:00:00Z

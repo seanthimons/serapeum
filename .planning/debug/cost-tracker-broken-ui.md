@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "UI for Green element and purple element is broken. Critical feature reversion."
 created: 2026-02-23T00:00:00Z
 updated: 2026-02-23T00:00:00Z
