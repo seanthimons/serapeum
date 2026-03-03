@@ -777,11 +777,6 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             var network = HTMLWidgets.getInstance(el).network;
             if (!network) return;
 
-            // Hide vis.js default tooltips
-            var s = document.createElement('style');
-            s.textContent = '#' + el.id + ' .vis-tooltip { display: none !important; }';
-            el.appendChild(s);
-
             // Create custom tooltip element inside the position:relative container
             var tip = document.createElement('div');
             tip.style.cssText = 'position:absolute;display:none;z-index:1000;max-width:300px;' +
@@ -837,8 +832,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
             network.on('hoverNode', function(params) {
               var node = network.body.data.nodes.get(params.node);
-              if (!node || !node.title) return;
-              tip.innerHTML = node.title;
+              if (!node || !node.tooltip_html) return;
+              tip.innerHTML = node.tooltip_html;
               styleTip();
               tip.style.display = 'block';
               positionTip();

@@ -653,14 +653,18 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
     first_author
   )
 
-  # Tooltip with paper details (visNetwork uses 'title' for hover tooltip)
-  nodes_df$title <- sprintf(
-    "<div style='max-width: 300px; word-wrap: break-word;'><b>%s</b><br>%s<br>Year: %s<br>Citations: %s</div>",
+  # Tooltip HTML stored in custom column — our onRender JS reads this via innerHTML.
+  # NOT stored in 'title' because vis.js renders title as plain text, not HTML.
+  nodes_df$tooltip_html <- sprintf(
+    "<div style='max-width:300px;word-wrap:break-word'><b>%s</b><br>%s<br>Year: %s<br>Citations: %s</div>",
     htmltools::htmlEscape(nodes_df$paper_title),
     htmltools::htmlEscape(author_display),
     ifelse(is.na(nodes_df$year), "N/A", nodes_df$year),
     nodes_df$cited_by_count
   )
+
+  # Clear title so vis.js does NOT show its default (text-only) tooltip
+  nodes_df$title <- NA
 
   # Edges: visNetwork expects 'from' and 'to' columns
   if (nrow(edges_df) > 0) {
