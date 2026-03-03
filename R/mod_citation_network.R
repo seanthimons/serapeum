@@ -786,23 +786,41 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       req(net_data)
 
       if (enabled) {
-        # PHYS-01: Position validation prevents singularity collapse on re-enable
-        # Validate that nodes have positions before re-enabling physics
+        # PHYS-01: Re-enable physics with the same forceAtlas2Based solver used
+        # for fresh builds. Calling visPhysics(enabled = TRUE) alone uses vis.js
+        # defaults (barnesHut), whose gravity pulls all nodes to (0,0) — the
+        # singularity collapse bug. Passing explicit solver params ensures nodes
+        # maintain their spread and simulate naturally from current positions.
         nodes <- net_data$nodes
-        has_x <- !is.null(nodes$x) && any(!is.na(nodes$x))
-        has_y <- !is.null(nodes$y) && any(!is.na(nodes$y))
-        has_x_pos <- !is.null(nodes$x_position) && any(!is.na(nodes$x_position))
-        has_y_pos <- !is.null(nodes$y_position) && any(!is.na(nodes$y_position))
+        n_nodes <- nrow(nodes)
+        n_edges <- nrow(net_data$edges)
 
-        # If positions are missing or all NA, compute layout first
-        if ((!has_x && !has_x_pos) || (!has_y && !has_y_pos)) {
-          net_data$nodes <- compute_layout_positions(net_data$nodes, net_data$edges)
-          current_network_data(net_data)
+        # Same density-scaled params as renderVisNetwork (lines ~584-597)
+        gravity <- if (n_nodes <= 30) -120
+                   else if (n_nodes <= 100) -200
+                   else if (n_nodes <= 200) -350
+                   else -500
+        spring <- if (n_nodes <= 30) 350
+                  else if (n_nodes <= 100) 450
+                  else if (n_nodes <= 200) 600
+                  else 800
+        edge_ratio <- n_edges / max(n_nodes, 1)
+        if (edge_ratio > 3) {
+          gravity <- gravity * 1.5
+          spring <- spring * 1.3
         }
 
-        # Re-enable physics
         visNetwork::visNetworkProxy(session$ns("network_graph")) |>
-          visNetwork::visPhysics(enabled = TRUE)
+          visNetwork::visPhysics(
+            enabled = TRUE,
+            solver = "forceAtlas2Based",
+            forceAtlas2Based = list(
+              gravitationalConstant = gravity,
+              springLength = spring,
+              damping = 0.4
+            ),
+            stabilization = FALSE  # Don't re-stabilize — resume from current positions
+          )
       } else {
         # Instant freeze — nodes stop immediately where they are
         visNetwork::visNetworkProxy(session$ns("network_graph")) |>
