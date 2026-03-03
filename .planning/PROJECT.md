@@ -104,7 +104,17 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active requirements — define with `/gsd:new-milestone`)
+#### Physics
+- [ ] **PHYS-01**: Network does not collapse when toggling physics after returning to tab (#131)
+- [ ] **PHYS-02**: Small/single-seed networks retain ambient orbital rotation after stabilization (#130)
+
+#### Filtering
+- [ ] **FILT-01**: Year filter lower-bound reflects the actual minimum year in the network data (#128)
+- [ ] **FILT-02**: User can trim the network to only influential/high-citation papers (#129)
+
+#### Tooltips
+- [ ] **TOOL-01**: Tooltips remain within the graph container and do not overflow into the side panel (#79)
+- [ ] **TOOL-02**: Tooltips are readable on dark mode with correct contrast (#127)
 
 ### Out of Scope
 
@@ -207,12 +217,21 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 | navset_card_tab for side panel (v8.0) | Tabbed Paper Details + Missing Papers | ✓ Good — clean discovery workflow |
 
 ---
+## Current Milestone: v9.0 Network Graph Polish
+
+**Goal:** Fix network graph physics bugs, improve year filtering and network trimming, and resolve tooltip usability issues across both themes.
+
+**Target features:**
+- Physics singularity fix + ambient rotation for small networks
+- Year filter auto-bounds + trim to influential papers
+- Tooltip containment + dark mode readability
+
 ## Current State
 
 **Latest shipped:** v8.0 Multi-Seeded Citation Network (2026-03-02)
 **Total milestones:** 11 shipped (v1.0–v8.0)
 **Total phases:** 41 complete across 73 plans
-**Next:** Planning v9.0
+**Current:** v9.0 Network Graph Polish
 
 **v8.0 shipped:** Multi-seed citation networks — BFS engine with overlap detection, star/diamond/dot shapes, search notebook + BibTeX import entry points, missing papers discovery + import workflow. Hotfix phase (40.1) fixed seed network crash, DOI fallback, physics toggle, button alignment, load network crash.
 
@@ -226,4 +245,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-03 after v8.0 milestone completion*
+*Last updated: 2026-03-02 after v9.0 milestone initialization*
