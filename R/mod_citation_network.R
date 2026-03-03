@@ -186,6 +186,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     current_seed_ids <- reactiveVal(character())
     source_notebook_id <- reactiveVal(NULL)
     selected_node_id <- reactiveVal(NULL)
+    # Physics state tracking
+    ambient_drift_active <- reactiveVal(FALSE)
 
     # Progressive loading state
     progressive_nodes <- reactiveVal(NULL)
@@ -638,7 +640,16 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             if (params.nodes.length > 0) {
               Shiny.setInputValue('%s', params.nodes[0], {priority: 'event'});
             }
-          }", session$ns("node_clicked"))
+          }", session$ns("node_clicked")),
+          stabilizationIterationsDone = sprintf("function() {
+            Shiny.setInputValue('%s', Date.now(), {priority: 'event'});
+          }", session$ns("stabilization_done")),
+          dragStart = sprintf("function(params) {
+            Shiny.setInputValue('%s', true, {priority: 'event'});
+          }", session$ns("user_interacting")),
+          dragEnd = sprintf("function(params) {
+            Shiny.setInputValue('%s', false, {priority: 'event'});
+          }", session$ns("user_interacting"))
         ) |>
         visNetwork::visOptions(
           highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
@@ -754,12 +765,110 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                                               "color.highlight.border")])
     }, ignoreInit = TRUE)
 
-    # Toggle physics simulation on/off
-    observeEvent(input$physics_enabled, {
-      req(current_network_data())
-      visNetwork::visNetworkProxy(session$ns("network_graph")) |>
-        visNetwork::visPhysics(enabled = input$physics_enabled)
+    # Debounced physics toggle to prevent rapid-click glitches
+    physics_toggle_debounced <- reactive({
+      input$physics_enabled
+    }) |> debounce(300)  # NOTE: Debounce delay — tuneable. Prevents rapid toggle glitches
+
+    # PHYS-01: Debounced physics toggle with position validation (prevents singularity collapse)
+    observeEvent(physics_toggle_debounced(), {
+      enabled <- physics_toggle_debounced()
+      req(!is.null(enabled))
+      net_data <- current_network_data()
+      req(net_data)
+
+      if (enabled) {
+        # PHYS-01: Position validation prevents singularity collapse on re-enable
+        # Validate that nodes have positions before re-enabling physics
+        nodes <- net_data$nodes
+        has_x <- !is.null(nodes$x) && any(!is.na(nodes$x))
+        has_y <- !is.null(nodes$y) && any(!is.na(nodes$y))
+        has_x_pos <- !is.null(nodes$x_position) && any(!is.na(nodes$x_position))
+        has_y_pos <- !is.null(nodes$y_position) && any(!is.na(nodes$y_position))
+
+        # If positions are missing or all NA, compute layout first
+        if ((!has_x && !has_x_pos) || (!has_y && !has_y_pos)) {
+          net_data$nodes <- compute_layout_positions(net_data$nodes, net_data$edges)
+          current_network_data(net_data)
+        }
+
+        # Re-enable physics
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = TRUE)
+      } else {
+        # Instant freeze — nodes stop immediately where they are
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = FALSE)
+        ambient_drift_active(FALSE)
+      }
     }, ignoreInit = TRUE)
+
+    # PHYS-02: Stabilization handler — conditional freeze/drift based on network size
+    observeEvent(input$stabilization_done, {
+      net_data <- current_network_data()
+      req(net_data)
+
+      n_nodes <- nrow(net_data$nodes)
+
+      if (n_nodes <= 20) {  # NOTE: Ambient drift threshold — tuneable
+        # Enable gentle ambient drift for small networks
+        ambient_drift_active(TRUE)
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(
+            enabled = TRUE,
+            solver = "forceAtlas2Based",
+            forceAtlas2Based = list(
+              gravitationalConstant = -50,
+              centralGravity = 0.005,
+              damping = 0.25  # NOTE: Drift speed — tuneable. Lower damping = longer orbit (~30-60s). centralGravity keeps nodes loosely centered.
+            )
+          )
+      } else {
+        # Freeze large networks after stabilization
+        ambient_drift_active(FALSE)
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = FALSE)
+      }
+    }, ignoreInit = TRUE)
+
+    # Interaction-aware drift pausing
+    observeEvent(input$user_interacting, {
+      if (isTRUE(input$user_interacting) && ambient_drift_active()) {
+        # Temporarily disable physics during interaction
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = FALSE)
+      }
+    }, ignoreInit = TRUE)
+
+    # Debounced interaction end — resume drift after user stops interacting
+    interaction_ended_debounced <- reactive({
+      input$user_interacting
+    }) |> debounce(1000)  # NOTE: Resume delay after interaction — tuneable
+
+    observeEvent(interaction_ended_debounced(), {
+      if (isFALSE(interaction_ended_debounced()) &&
+          ambient_drift_active() &&
+          isTRUE(physics_toggle_debounced())) {
+        # Resume ambient drift after user interaction ends
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(
+            enabled = TRUE,
+            solver = "forceAtlas2Based",
+            forceAtlas2Based = list(
+              gravitationalConstant = -50,
+              centralGravity = 0.005,
+              damping = 0.25
+            )
+          )
+      }
+    }, ignoreInit = TRUE)
+
+    # Reset physics state when network data changes
+    observeEvent(current_network_data(), {
+      ambient_drift_active(FALSE)
+      # Reset physics toggle to ON when new data arrives
+      bslib::update_switch("physics_enabled", value = TRUE, session = session)
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Handle node click
     observeEvent(input$node_clicked, {
