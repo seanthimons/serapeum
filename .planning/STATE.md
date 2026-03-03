@@ -16,12 +16,12 @@ gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: Network Graph Polish
 status: planning
-last_updated: "2026-03-02T00:00:00Z"
+last_updated: "2026-03-03T21:22:04Z"
 progress:
   total_phases: 44
-  completed_phases: 41
-  total_plans: 74
-  completed_plans: 74
+  completed_phases: 42
+  total_plans: 75
+  completed_plans: 75
 ---
 
 # Project State
@@ -35,27 +35,34 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 
 ## Current Position
 
-Phase: 41 (physics-stabilization)
+Phase: 42 (year-filters-network-trimming)
 Plan: 01 (complete)
-Status: Plan 41-01 complete — awaiting next plan
-Last activity: 2026-03-03 — Completed 41-01 physics fixes
+Status: Plan 42-01 complete — awaiting next plan
+Last activity: 2026-03-03 — Completed 42-01 year filters and network trimming
 
-Progress: [████████████████████] 74/74 plans (100%)
+Progress: [████████████████████] 75/75 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 74 (across v1.0–v9.0 in-progress)
-- Total phases completed: 41 (across all milestones)
+- Total plans completed: 75 (across v1.0–v9.0 in-progress)
+- Total phases completed: 42 (across all milestones)
 
 **Recent Milestones:**
-- v9.0 (Phase 41 in-progress): 1 plan so far (2026-03-03)
+- v9.0 (Phases 41-42 in-progress): 2 plans so far (2026-03-03)
 - v8.0 (Phases 40, 40.1): 6 plans, 2 days (2026-03-01 → 2026-03-02)
 - v7.0 (Phases 33-39): 14 plans, 3 days (2026-02-25 → 2026-02-27)
 
 ## Accumulated Context
 
 ### Recent Decisions
+
+**Phase 42-01 (Year Filters + Network Trimming):**
+- Move trim toggle from legend panel to year filter area for better UX grouping
+- Convert 'unknown year' checkbox to switch for consistency with other toggles
+- Stack trim toggle and unknown year toggle vertically for cleaner layout
+- Use adaptive citation percentile threshold (50th for 20-49 nodes, 75th for 50+ nodes)
+- Skip bridge detection for networks > 500 nodes (performance optimization)
 
 **Phase 41-01 (Physics Stabilization):**
 - Always pass full solver config when re-enabling vis.js physics — calling `visPhysics(enabled=TRUE)` without config reverts to barnesHut solver
@@ -78,12 +85,12 @@ Progress: [████████████████████] 74/74 p
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 41-01-PLAN.md (physics stabilization)
+Stopped at: Completed 42-01-PLAN.md (year filters + network trimming)
 Resume file: None
 
 **Next steps:**
-1. Continue Phase 41 (if more plans) OR move to Phase 42 (year filters + network trimming)
+1. Phase 42 complete (1/1 plans done) — move to Phase 43 (tooltip overhaul)
 2. Feature branch per phase, test before merge
 
 ---
-*Updated: 2026-03-03 — Phase 41-01 complete (physics stabilization)*
+*Updated: 2026-03-03 — Phase 42-01 complete (year filters + network trimming)*

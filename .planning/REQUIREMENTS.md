@@ -14,8 +14,8 @@ Requirements for v9.0 Network Graph Polish. Each maps to roadmap phases.
 
 ### Filtering
 
-- [ ] **FILT-01**: Year filter lower-bound reflects the actual minimum year in the network data (#128)
-- [ ] **FILT-02**: User can trim the network to only influential/high-citation papers (#129)
+- [x] **FILT-01**: Year filter lower-bound reflects the actual minimum year in the network data (#128) — ✅ Completed 2026-03-03 (Phase 42-01)
+- [x] **FILT-02**: User can trim the network to only influential/high-citation papers (#129) — ✅ Completed 2026-03-03 (Phase 42-01)
 
 ### Tooltips
 
@@ -56,8 +56,8 @@ Deferred to future milestones.
 |-------------|-------|--------|
 | PHYS-01 | Phase 41 | ✅ Complete (2026-03-03) |
 | PHYS-02 | Phase 41 | ✅ Complete (2026-03-03) |
-| FILT-01 | Phase 42 | Pending |
-| FILT-02 | Phase 42 | Pending |
+| FILT-01 | Phase 42 | ✅ Complete (2026-03-03) |
+| FILT-02 | Phase 42 | ✅ Complete (2026-03-03) |
 | TOOL-01 | Phase 43 | Pending |
 | TOOL-02 | Phase 43 | Pending |
 
@@ -65,8 +65,8 @@ Deferred to future milestones.
 - v9.0 requirements: 6 total
 - Mapped to phases: 6
 - Unmapped: 0 ✓
-- Completed: 2 (33%)
+- Completed: 4 (67%)
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-03 — Phase 41-01 complete (PHYS-01, PHYS-02)*
+*Last updated: 2026-03-03 — Phase 42-01 complete (FILT-01, FILT-02)*
