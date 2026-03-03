@@ -124,34 +124,12 @@ See [v7.0-ROADMAP.md](milestones/v7.0-ROADMAP.md) for full details.
 
 </details>
 
-### Phase 40: Multi-Seeded Citation Network
+<details>
+<summary>✅ v8.0 Multi-Seeded Citation Network (Phases 40, 40.1) - SHIPPED 2026-03-02</summary>
 
-**Goal:** Users can seed citation networks from all papers in a notebook or BibTeX import, build combined multi-seed networks with overlap visualization, and discover/import missing papers
-**Requirements**: MSEED-01 (multi-seed BFS), MSEED-02 (shape-based overlap), MSEED-03 (module refactor), MSEED-04 (entry points), MSEED-05 (save/load multi-seed), MSEED-06 (legend update), MSEED-07 (discovery + import workflow)
-**Depends on:** v7.0
-**Plans:** 3 plans
-**Progress:** 3/3 plans complete
+- [x] Phase 40: Multi-Seeded Citation Network (3/3 plans) - completed 2026-03-01
+- [x] Phase 40.1: App Crashing HOTFIX (3/3 plans) - completed 2026-03-02
 
-Plans:
-- [x] 40-01-PLAN.md — Multi-seed BFS engine, visualization shapes, DB schema updates (completed 2026-03-01)
-- [x] 40-02-PLAN.md — Citation network module refactor + entry points (completed 2026-03-01)
-- [x] 40-03-PLAN.md — Discovery panel (Missing Papers tab) + import workflow (completed 2026-03-01)
+See [v8.0-ROADMAP.md](milestones/v8.0-ROADMAP.md) for full details.
 
----
-*Updated: 2026-03-01 — Phase 40 COMPLETE (all plans executed and verified)*
-
-### Phase 40.1: app crashing (INSERTED)
-
-**Goal:** Fix crashes and broken functionality: seed network SQL typo, bulk import progress race condition, DOI lookup failures, physics toggle layout/functionality, imported papers UI duplication
-**Requirements**: HOTFIX
-**Depends on:** Phase 40
-**Plans:** 3/3 plans complete
-**Progress:** 2/3 plans complete
-
-Plans:
-- [x] 40.1-01-PLAN.md — Fix crash bugs: seed network SQL, progress race condition, DOI-to-Work-ID fallback (completed 2026-03-02)
-- [x] 40.1-02-PLAN.md — UI fixes: physics toggle relocation to legend panel, button layout, notification deduplication (completed 2026-03-02)
-- [ ] 40.1-03-PLAN.md — Gap closure: SQL status mismatch, DOI format normalization, button alignment, notification dedup
-
----
-*Updated: 2026-03-01 — Phase 40.1 gap closure plan added (40.1-03)*
+</details>

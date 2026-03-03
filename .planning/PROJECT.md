@@ -104,7 +104,7 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(Remaining v8.0 phases TBD)
+(No active requirements — define with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -119,7 +119,7 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ## Context
 
-Shipped v7.0 with ~20,000 LOC R across 18 production files. 10 milestones shipped (v1.0–v7.0), 40 phases, 70 plans. v8.0 in progress — Phase 40 shipped multi-seed citation networks.
+Shipped v8.0 with ~20,000 LOC R across 18 production files. 11 milestones shipped (v1.0–v8.0), 41 phases, 73 plans.
 Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic + bib2df.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle.
@@ -209,12 +209,12 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 ---
 ## Current State
 
-**Latest shipped:** v7.0 Citation Audit + Quick Wins (2026-02-27)
-**Active milestone:** v8.0 Multi-Seeded Citation Network (Phase 40 complete)
-**Total milestones:** 10 shipped (v1.0–v7.0), 1 in progress
-**Total phases:** 40 complete across 70 plans
+**Latest shipped:** v8.0 Multi-Seeded Citation Network (2026-03-02)
+**Total milestones:** 11 shipped (v1.0–v8.0)
+**Total phases:** 41 complete across 73 plans
+**Next:** Planning v9.0
 
-**v8.0 Phase 40 shipped:** Multi-seed citation networks — BFS engine with overlap detection, star/diamond/dot shapes, search notebook + BibTeX import entry points, missing papers discovery + import workflow.
+**v8.0 shipped:** Multi-seed citation networks — BFS engine with overlap detection, star/diamond/dot shapes, search notebook + BibTeX import entry points, missing papers discovery + import workflow. Hotfix phase (40.1) fixed seed network crash, DOI fallback, physics toggle, button alignment, load network crash.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -226,4 +226,4 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-01 after Phase 40 (Multi-Seeded Citation Network) — v8.0 milestone rename*
+*Last updated: 2026-03-03 after v8.0 milestone completion*

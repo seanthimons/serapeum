@@ -1,57 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-last_updated: "2026-03-02T20:10:46.484Z"
-progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
----
-
----
-gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-last_updated: "2026-03-02T04:09:40.114Z"
-progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
----
-
----
-gsd_state_version: 1.0
 milestone: v8.0
 milestone_name: Multi-Seeded Citation Network
-status: in-progress
-last_updated: "2026-03-02T20:02:23Z"
+status: complete
+last_updated: "2026-03-03T01:30:00Z"
 progress:
   total_phases: 41
-  completed_phases: 40
-  total_plans: 72
-  completed_plans: 72
+  completed_phases: 41
+  total_plans: 73
+  completed_plans: 73
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-01)
+See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** v8.0 in progress — Phase 40.1 (HOTFIX) active
+**Current focus:** v8.0 complete — planning next milestone
 
 ## Current Position
 
-Phase: 40.1 (App Crashing - HOTFIX)
-Plan: 3/3 complete
-Status: Phase complete
-Last activity: 2026-03-02 — Phase 40.1 Plan 03 complete: UAT gap closure (SQL status, DOI normalization, button layout, silent auto-lookup)
+Phase: All complete
+Status: v8.0 milestone shipped
+Last activity: 2026-03-03 — v8.0 milestone archived, UAT 8/8 passed
 
 Progress: [████████████████████] 73/73 plans (100%)
 
@@ -60,11 +33,10 @@ Progress: [████████████████████] 73/73 p
 **Velocity:**
 - Total plans completed: 73 (67 from v1.0-v7.0 + 6 from v8.0)
 - Total phases completed: 41 (across all milestones)
-- v8.0 plans completed: 6 (Phase 40: 3, Phase 40.1: 3 — COMPLETE)
-- v7.0 plans completed: 14 (Phase 33: 1, Phase 34: 2, Phase 35: 2, Phase 36: 2, Phase 37: 2, Phase 38: 2, Phase 39: 3)
+- v8.0 plans completed: 6 (Phase 40: 3, Phase 40.1: 3)
 
 **Recent Milestones:**
-- v8.0 (Phases 40, 40.1): 6 plans, 1 day (2026-03-01 → 2026-03-02)
+- v8.0 (Phases 40, 40.1): 6 plans, 2 days (2026-03-01 → 2026-03-02)
 - v7.0 (Phases 33-39): 14 plans, 3 days (2026-02-25 → 2026-02-27)
 - v6.0 (Phases 30-32): 8 plans, 3 days (2026-02-22 → 2026-02-25)
 - v5.0 (Phase 29): 1 plan, <1 day (2026-02-22)
@@ -72,41 +44,9 @@ Progress: [████████████████████] 73/73 p
 
 ## Accumulated Context
 
-### Roadmap Evolution
-
-- Phase 40 added: multi-seeded citation network (renamed from Phase 01 during v8.0 milestone alignment)
-- Phase 40.1 inserted after Phase 40: app crashing (URGENT)
-
-### Decisions
-
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting future work:
-
-- **Phase 40.1-03**: Use 'success' status value consistently across import workflow (not 'imported')
-- **Phase 40.1-03**: Always normalize DOI to bare format for DB queries (URL format causes lookup misses)
-- **Phase 40.1-03**: Remove withProgress from auto-triggered flows (silent UX, no duplicate notifications)
-- **Phase 40.1-03**: Add h-100 to flex container divs for proper vertical centering in Bootstrap grid
-- **Phase 40.1-02**: visNetworkProxy calls in Shiny modules must use session$ns() for output IDs
-- **Phase 40.1-02**: Auto-triggered flows (pre_fill_doi, network_seed_request) should be silent - UI state change is sufficient feedback
-- **Phase 40.1-02**: Physics toggle belongs in legend panel for logical grouping with other graph controls
-- **Phase 40.1-01**: Query DB for Work ID when DOI lookup fails (silent fallback pattern)
-- **Phase 40.1-01**: Fallback happens silently without user notification (better UX)
-- **Phase 40-02**: Use separate network_seed_request reactive to avoid conflict with seed_request (which goes to seed discovery)
-- **Phase 40-02**: Auto-switch to network view on seed button click (user then clicks Build Network)
-- **Phase 40-02**: Return list from search notebook module instead of single reactive (backward compat)
-- **Phase 40-01**: Per-seed BFS loop rather than unified traversal (simpler deduplication)
-- **Phase 40-01**: Store seed_paper_ids as JSON array for flexibility
-- **Phase 40-01**: Encode overlap via shape (diamond) rather than color (preserves year gradient)
-- **v7.0**: Programmatic YAML frontmatter for slides (eliminated regex injection fragility)
-- **v7.0**: LLM outputs content only, no YAML — separation of concerns
-- **v7.0**: Concrete syntax examples in prompts > abstract instructions
-- **v7.0**: Import run created in main session before mirai (avoids FK constraint issues)
-- **v7.0**: Single-query SQL aggregation for citation audit (handles 500+ papers)
-- [Phase 40]: Use navset_card_tab for side panel (Paper Details + Missing Papers tabs)
-- [Phase 40]: Sort missing papers by overlap first, then citation count (overlap = more interesting)
-
 ### Pending Todos
 
+- Adjust network physics to restore rotation for smaller networks
 - Explore partial BFS graph as intentional visualization mode
 - Secondary ragnar leak: ensure_ragnar_store() in mod_search_notebook.R L2061
 - 13 pre-existing test fixture failures (missing schema columns: section_hint, doi)
@@ -121,14 +61,13 @@ Recent decisions affecting future work:
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 40.1-03-PLAN.md (UAT gap closure: SQL status, DOI normalization, button layout, silent auto-lookup)
+Last session: 2026-03-03
+Stopped at: v8.0 milestone completion
 Resume file: None
 
 **Next steps:**
-1. Run full UAT again to verify all 4 gaps resolved
-2. Continue v8.0 milestone or define v9.0
-3. Address remaining tech debt (connection leaks, dead code)
+1. `/gsd:new-milestone` to define v9.0
+2. Address remaining tech debt (connection leaks, dead code)
 
 ---
-*Updated: 2026-03-02 — Phase 40.1 complete: fixed crashes, UI cleanup, UAT gap closure*
+*Updated: 2026-03-03 — v8.0 Multi-Seeded Citation Network milestone complete*

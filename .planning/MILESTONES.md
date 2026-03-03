@@ -185,3 +185,22 @@
 
 ---
 
+
+## v8.0 Multi-Seeded Citation Network (Shipped: 2026-03-03)
+
+**Phases completed:** 2 phases (40, 40.1), 6 plans
+
+**Key accomplishments:**
+- Multi-seed BFS citation network engine with per-seed node caps, deduplication, and overlap detection for papers appearing in 2+ seed traversals
+- Shape-based overlap visualization: star (seed), diamond (overlap), dot (regular) — preserves year color gradient
+- Citation network module refactored for multi-seed state with search notebook + BibTeX import entry points
+- Missing papers discovery panel (navset_card_tab) with one-click import workflow for papers found in citations but not in notebook
+- Save/load multi-seed metadata as JSON array with backward compatibility for single-seed networks
+- Hotfix (Phase 40.1): seed network crash, progress file race condition, DOI-to-Work-ID fallback, physics toggle relocation, button alignment, load network crash fix
+
+**Stats:** 7 R files changed, +99 / -38 lines, ~20,000 R LOC total
+**Timeline:** 2 days (2026-03-01 → 2026-03-02)
+**Git range:** Phase 40 + Phase 40.1 on main
+
+---
+
