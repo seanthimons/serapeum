@@ -69,31 +69,29 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
         }
 
         # Fetch paper automatically
-        withProgress(message = "Looking up seed paper...", {
-          # Try to find Work ID in DB for fallback
-          db_paper <- tryCatch(
-            DBI::dbGetQuery(con(), "SELECT paper_id FROM abstracts WHERE doi = ? LIMIT 1", list(doi)),
-            error = function(e) data.frame()
+        # Try to find Work ID in DB for fallback
+        db_paper <- tryCatch(
+          DBI::dbGetQuery(con(), "SELECT paper_id FROM abstracts WHERE doi = ? LIMIT 1", list(normalize_doi_bare(doi))),
+          error = function(e) data.frame()
+        )
+        work_id <- if (nrow(db_paper) > 0) db_paper$paper_id[1] else NULL
+
+        paper <- tryCatch({
+          fetch_paper_with_fallback(doi = doi, paper_id = work_id, email = email, api_key = api_key)
+        }, error = function(e) {
+          showNotification(
+            paste("Error fetching paper:", e$message),
+            type = "error", duration = 5
           )
-          work_id <- if (nrow(db_paper) > 0) db_paper$paper_id[1] else NULL
-
-          paper <- tryCatch({
-            fetch_paper_with_fallback(doi = doi, paper_id = work_id, email = email, api_key = api_key)
-          }, error = function(e) {
-            showNotification(
-              paste("Error fetching paper:", e$message),
-              type = "error", duration = 5
-            )
-            NULL
-          })
-
-          if (!is.null(paper)) {
-            seed_paper(paper)
-            # Note: No notification here - auto-lookup is silent, user sees paper preview appear
-          } else {
-            showNotification("Paper not found for this DOI.", type = "error", duration = 5)
-          }
+          NULL
         })
+
+        if (!is.null(paper)) {
+          seed_paper(paper)
+          # Note: No notification here - auto-lookup is silent, user sees paper preview appear
+        } else {
+          showNotification("Paper not found for this DOI.", type = "error", duration = 5)
+        }
 
         # Clear pre_fill_doi to prevent re-trigger on navigation
         pre_fill_doi(NULL)
@@ -135,7 +133,7 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
       withProgress(message = "Looking up paper...", {
         # Try to find Work ID in DB for fallback
         db_paper <- tryCatch(
-          DBI::dbGetQuery(con(), "SELECT paper_id FROM abstracts WHERE doi = ? LIMIT 1", list(doi)),
+          DBI::dbGetQuery(con(), "SELECT paper_id FROM abstracts WHERE doi = ? LIMIT 1", list(normalize_doi_bare(doi))),
           error = function(e) data.frame()
         )
         work_id <- if (nrow(db_paper) > 0) db_paper$paper_id[1] else NULL

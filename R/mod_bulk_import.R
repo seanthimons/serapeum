@@ -819,7 +819,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
   SELECT a.paper_id
   FROM import_run_items i
   JOIN abstracts a ON i.doi = a.doi
-  WHERE i.run_id = ? AND i.status = 'imported'
+  WHERE i.run_id = ? AND i.status = 'success'
 ", list(run_id))
       if (nrow(imported) == 0) {
         showNotification("No papers imported yet", type = "warning")
