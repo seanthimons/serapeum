@@ -877,10 +877,17 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     # would re-enable physics via the debounced toggle observer, causing vis.js
     # to run a new simulation with default solver params → singularity collapse.
     # Instead, loaded graphs set the toggle to OFF to match their rendered state.
+    #
+    # NOTE: We check for positions directly on the data rather than using
+    # rendered_with_positions(), because this observer fires BEFORE
+    # renderVisNetwork re-executes (Shiny flush cycle: observers before outputs).
     observeEvent(current_network_data(), {
       ambient_drift_active(FALSE)
-      if (rendered_with_positions()) {
-        # Loaded graph — physics was disabled at render, toggle should reflect that
+      net_data <- current_network_data()
+      has_saved_positions <- !is.null(net_data$nodes$x_position) &&
+        !is.null(net_data$nodes$y_position)
+      if (has_saved_positions) {
+        # Loaded graph — physics will be disabled at render, toggle must match
         bslib::update_switch("physics_enabled", value = FALSE, session = session)
       } else {
         # Fresh build — physics is running for initial layout, toggle should be ON
