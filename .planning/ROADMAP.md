@@ -137,7 +137,9 @@ See [v8.0-ROADMAP.md](milestones/v8.0-ROADMAP.md) for full details.
 
 ### v9.0 Network Graph Polish (Phases 41-43)
 
-- [ ] Phase 41: Physics Stabilization — Fix collapse bug + restore ambient rotation (PHYS-01, PHYS-02)
+- [ ] Phase 41: Physics Stabilization — Fix collapse bug + restore ambient rotation (PHYS-01, PHYS-02) — **Plans:** 1 plan
+  Plans:
+  - [ ] 41-01-PLAN.md — Fix singularity collapse on physics toggle + add ambient orbital drift for small networks
 - [ ] Phase 42: Year Filters + Network Trimming — Fix year bounds + add influential paper filter (FILT-01, FILT-02)
 - [ ] Phase 43: Tooltip Overhaul — Contain tooltips + fix dark mode readability (TOOL-01, TOOL-02)
 
