@@ -211,8 +211,7 @@ See [v8.0-ROADMAP.md](milestones/v8.0-ROADMAP.md) for full details.
 |-------------|-------|--------|
 | PHYS-01 | 41 | ✅ Complete (2026-03-03) |
 | PHYS-02 | 41 | ✅ Complete (2026-03-03) |
-| FILT-01 | 42 | ✅ Complete (2026-03-03) |
-| FILT-02 | 42 | ✅ Complete (2026-03-03) |
+| FILT-01 | 42 | ✅ Complete (2026-03-03) | Complete    | 2026-03-03 | 42 | ✅ Complete (2026-03-03) |
 | TOOL-01 | 43 | Pending |
 | TOOL-02 | 43 | Pending |
 
