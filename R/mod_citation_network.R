@@ -365,7 +365,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           ),
           div(
             class = "pt-4",
-            checkboxInput(ns("include_unknown_year_network"), "Include unknown year", value = TRUE)
+            bslib::input_switch(ns("include_unknown_year_network"), "Include unknown year", value = TRUE),
+            bslib::input_switch(ns("trim_enabled"), "Trim to Influential", value = FALSE),
+            uiOutput(ns("trim_label"))
           ),
           div(
             class = "pt-3",
@@ -373,15 +375,6 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                          class = "btn-outline-primary btn-sm", icon = icon("filter")),
             uiOutput(ns("year_filter_preview"))
           )
-        ),
-        div(
-          class = "mt-2 d-flex align-items-center gap-2",
-          bslib::input_switch(
-            ns("trim_enabled"),
-            "Trim to Influential",
-            value = FALSE
-          ),
-          uiOutput(ns("trim_label"))
         )
       )
     })
