@@ -9,8 +9,8 @@ Requirements for v9.0 Network Graph Polish. Each maps to roadmap phases.
 
 ### Physics
 
-- [ ] **PHYS-01**: Network does not collapse when toggling physics after returning to tab (#131)
-- [ ] **PHYS-02**: Small/single-seed networks retain ambient orbital rotation after stabilization (#130)
+- [x] **PHYS-01**: Network does not collapse when toggling physics after returning to tab (#131) — ✅ Completed 2026-03-03 (Phase 41-01)
+- [x] **PHYS-02**: Small/single-seed networks retain ambient orbital rotation after stabilization (#130) — ✅ Completed 2026-03-03 (Phase 41-01)
 
 ### Filtering
 
@@ -54,8 +54,8 @@ Deferred to future milestones.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PHYS-01 | Phase 41 | Pending |
-| PHYS-02 | Phase 41 | Pending |
+| PHYS-01 | Phase 41 | ✅ Complete (2026-03-03) |
+| PHYS-02 | Phase 41 | ✅ Complete (2026-03-03) |
 | FILT-01 | Phase 42 | Pending |
 | FILT-02 | Phase 42 | Pending |
 | TOOL-01 | Phase 43 | Pending |
@@ -65,7 +65,8 @@ Deferred to future milestones.
 - v9.0 requirements: 6 total
 - Mapped to phases: 6
 - Unmapped: 0 ✓
+- Completed: 2 (33%)
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after initial definition*
+*Last updated: 2026-03-03 — Phase 41-01 complete (PHYS-01, PHYS-02)*
