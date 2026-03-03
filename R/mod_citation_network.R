@@ -188,6 +188,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     selected_node_id <- reactiveVal(NULL)
     # Physics state tracking
     ambient_drift_active <- reactiveVal(FALSE)
+    # TRUE when the current render used saved positions (physics disabled at render).
+    # Prevents the data-change observer from forcing physics ON and causing a
+    # singularity collapse — loaded graphs should stay frozen until the user
+    # explicitly toggles physics.
+    rendered_with_positions <- reactiveVal(FALSE)
 
     # Progressive loading state
     progressive_nodes <- reactiveVal(NULL)
@@ -548,6 +553,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Check if this is a loaded network (has pre-computed positions)
       has_positions <- !is.null(nodes$x_position) && !is.null(nodes$y_position)
+      # Track render mode so the data-change observer knows not to force physics ON
+      # for loaded graphs (which would cause singularity collapse — see PHYS-01)
+      rendered_with_positions(has_positions)
 
       if (has_positions) {
         # Use saved positions
@@ -863,11 +871,21 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       }
     }, ignoreInit = TRUE)
 
-    # Reset physics state when network data changes
+    # Reset physics state when network data changes.
+    # PHYS-01: Only force physics ON for fresh builds (no saved positions).
+    # Loaded graphs render with physics disabled; forcing the toggle ON here
+    # would re-enable physics via the debounced toggle observer, causing vis.js
+    # to run a new simulation with default solver params → singularity collapse.
+    # Instead, loaded graphs set the toggle to OFF to match their rendered state.
     observeEvent(current_network_data(), {
       ambient_drift_active(FALSE)
-      # Reset physics toggle to ON when new data arrives
-      bslib::update_switch("physics_enabled", value = TRUE, session = session)
+      if (rendered_with_positions()) {
+        # Loaded graph — physics was disabled at render, toggle should reflect that
+        bslib::update_switch("physics_enabled", value = FALSE, session = session)
+      } else {
+        # Fresh build — physics is running for initial layout, toggle should be ON
+        bslib::update_switch("physics_enabled", value = TRUE, session = session)
+      }
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Handle node click
