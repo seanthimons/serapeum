@@ -806,26 +806,30 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                 var left = parseInt(tooltip.style.left, 10) || 0;
                 var top = parseInt(tooltip.style.top, 10) || 0;
 
-                // Clamp right edge within container
-                var rightOverflow = (cRect.left + left + tipRect.width) - cRect.right;
+                // Tooltip viewport position = canvas origin + canvas-relative offset
+                var tipViewportLeft = cRect.left + left;
+                var tipViewportTop = cRect.top + top;
+
+                // Check right overflow
+                var rightOverflow = (tipViewportLeft + tipRect.width) - cRect.right;
                 if (rightOverflow > 0) {
                   left = left - rightOverflow - 8;
                 }
 
-                // Clamp left edge within container
+                // Check left overflow (recalculate after right adjustment)
                 if (cRect.left + left < cRect.left) {
-                  left = 0;
+                  left = 8;
                 }
 
-                // Clamp bottom edge within container
-                var bottomOverflow = (cRect.top + top + tipRect.height) - cRect.bottom;
+                // Check bottom overflow
+                var bottomOverflow = (tipViewportTop + tipRect.height) - cRect.bottom;
                 if (bottomOverflow > 0) {
                   top = top - tipRect.height - 20;
                 }
 
-                // Clamp top edge within container
-                if (top < 0) {
-                  top = 0;
+                // Check top overflow (after bottom flip)
+                if (cRect.top + top < cRect.top) {
+                  top = 8;
                 }
 
                 tooltip.style.left = left + 'px';
