@@ -159,7 +159,14 @@ mod_citation_network_ui <- function(id) {
               ns("physics_enabled"),
               "Physics Simulation",
               value = TRUE
-            )
+            ),
+            tags$hr(),
+            bslib::input_switch(
+              ns("trim_enabled"),
+              "Trim to Influential",
+              value = FALSE
+            ),
+            uiOutput(ns("trim_label"))
           )
         )
       ),
@@ -178,6 +185,103 @@ mod_citation_network_ui <- function(id) {
 #' @param network_trigger Reactive trigger for network list refresh
 mod_citation_network_server <- function(id, con_r, config_r, network_id_r, network_trigger) {
   moduleServer(id, function(input, output, session) {
+
+    # Helper function: Compute influential paper IDs with bridge detection
+    compute_trim_ids <- function(nodes, edges) {
+      n_nodes <- nrow(nodes)
+
+      # For very small networks, don't trim
+      if (n_nodes < 20) {
+        return(list(keep_ids = nodes$id, remove_count = 0))
+      }
+
+      # Seeds always kept
+      seed_ids <- nodes$id[nodes$is_seed]
+
+      # Compute adaptive citation threshold from unfiltered data
+      # NOTE: Adaptive percentile threshold — tuneable parameter
+      if (n_nodes >= 50) {
+        threshold <- quantile(nodes$cited_by_count, 0.75, na.rm = TRUE)
+      } else {
+        threshold <- quantile(nodes$cited_by_count, 0.50, na.rm = TRUE)
+      }
+
+      # Influential papers = seeds + high citation count
+      influential_ids <- nodes$id[nodes$cited_by_count >= threshold | nodes$is_seed]
+
+      # Bridge detection (skip for large networks > 500 nodes)
+      bridge_ids <- character(0)
+      if (n_nodes <= 500) {
+        # NOTE: Bridge detection — simplified edge-based approach for citation networks (mostly DAGs).
+        # For dense graphs, consider igraph::articulation_points() instead.
+        non_influential <- nodes$id[!(nodes$id %in% influential_ids)]
+
+        for (node_id in non_influential) {
+          # Check if this node has edges connecting TO influential papers
+          has_edge_to_influential <- any(edges$from == node_id & edges$to %in% influential_ids)
+          # AND edges connecting FROM influential papers
+          has_edge_from_influential <- any(edges$to == node_id & edges$from %in% influential_ids)
+
+          if (has_edge_to_influential && has_edge_from_influential) {
+            bridge_ids <- c(bridge_ids, node_id)
+          }
+        }
+      }
+
+      keep_ids <- unique(c(seed_ids, influential_ids, bridge_ids))
+      remove_count <- n_nodes - length(keep_ids)
+
+      list(keep_ids = keep_ids, remove_count = remove_count)
+    }
+
+    # Helper function: Apply combined year + trim filters
+    apply_combined_filters <- function() {
+      net_data <- unfiltered_network_data()
+      req(net_data)
+
+      nodes <- net_data$nodes
+      edges <- net_data$edges
+
+      # Start with all nodes
+      year_keep <- rep(TRUE, nrow(nodes))
+      trim_keep <- rep(TRUE, nrow(nodes))
+
+      # Apply year filter
+      range <- input$year_filter
+      include_null <- input$include_unknown_year_network
+      if (!is.null(range) && !is.null(include_null)) {
+        # Seeds always kept
+        year_keep <- nodes$is_seed
+        if (include_null) {
+          year_keep <- year_keep | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
+        } else {
+          year_keep <- year_keep | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
+        }
+      }
+
+      # Apply trim filter
+      if (isTRUE(input$trim_enabled)) {
+        result <- compute_trim_ids(nodes, edges)
+        trim_keep <- nodes$id %in% result$keep_ids
+      }
+
+      # Combine with AND logic
+      final_keep <- year_keep & trim_keep
+      filtered_nodes <- nodes[final_keep, ]
+
+      # Keep edges where both endpoints survive
+      filtered_node_ids <- filtered_nodes$id
+      filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
+
+      # Update display data
+      current_network_data(list(
+        nodes = filtered_nodes,
+        edges = filtered_edges,
+        metadata = net_data$metadata
+      ))
+
+      filtered_nodes
+    }
 
     # Current network data (may be filtered)
     current_network_data <- reactiveVal(NULL)
@@ -239,8 +343,20 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
     # Year filter panel — only shown when a network exists
     output$year_filter_panel <- renderUI({
-      req(unfiltered_network_data())
+      net_data <- unfiltered_network_data()
+      req(net_data)
       ns <- session$ns
+
+      # FILT-01: Compute dynamic year bounds from actual network data
+      valid_years <- net_data$nodes$year[!is.na(net_data$nodes$year)]
+      if (length(valid_years) > 0) {
+        min_year <- min(valid_years)
+        max_year <- max(valid_years)
+      } else {
+        min_year <- 1900
+        max_year <- as.integer(format(Sys.Date(), "%Y"))
+      }
+
       div(
         class = "mt-2 pt-2 border-top",
         layout_columns(
@@ -250,7 +366,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
               ns("year_filter"),
               tags$span("Year Range",
                         title = "Filter network nodes by publication year. Adjust range then click Apply to update."),
-              min = 1900, max = 2026, value = c(1900, 2026),
+              min = min_year, max = max_year, value = c(min_year, max_year),
               step = 1, sep = "", ticks = FALSE
             )
           ),
@@ -313,39 +429,36 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       )
     })
 
+    # Trim label — shows removal count when enabled
+    output$trim_label <- renderUI({
+      net_data <- unfiltered_network_data()
+      if (is.null(net_data)) return(NULL)
+      if (!isTRUE(input$trim_enabled)) return(NULL)
+
+      result <- compute_trim_ids(net_data$nodes, net_data$edges)
+
+      div(class = "small text-muted mt-1",
+          paste("Removes", result$remove_count, "papers"))
+    })
+
+    # Auto-enable trim for 500+ node networks
+    observe({
+      net_data <- unfiltered_network_data()
+      req(net_data)
+      if (nrow(net_data$nodes) >= 500) {
+        bslib::update_switch("trim_enabled", value = TRUE, session = session)
+      }
+    }, priority = -1)
+
     # Apply year filter — filters from unfiltered snapshot, never destructive
     observeEvent(input$apply_year_filter, {
       net_data <- unfiltered_network_data()
       req(net_data)
 
-      range <- input$year_filter
-      include_null <- input$include_unknown_year_network
-
-      nodes <- net_data$nodes
-      edges <- net_data$edges
-
-      # Always keep seed paper regardless of year filter
-      is_kept <- nodes$is_seed
-      if (include_null) {
-        is_kept <- is_kept | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
-      } else {
-        is_kept <- is_kept | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
-      }
-      filtered_nodes <- nodes[is_kept, ]
-
-      # Keep edges where both endpoints survive
-      filtered_node_ids <- filtered_nodes$id
-      filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
-
-      # Update display data (unfiltered snapshot stays intact)
-      current_network_data(list(
-        nodes = filtered_nodes,
-        edges = filtered_edges,
-        metadata = net_data$metadata
-      ))
+      filtered_nodes <- apply_combined_filters()
 
       showNotification(
-        paste("Year filter applied:", nrow(filtered_nodes), "of", nrow(nodes), "nodes shown"),
+        paste("Filters applied:", nrow(filtered_nodes), "of", nrow(net_data$nodes), "nodes shown"),
         type = "message"
       )
     })
@@ -771,6 +884,14 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                                               "value", "shape", "borderWidth",
                                               "color.border",
                                               "color.highlight.border")])
+    }, ignoreInit = TRUE)
+
+    # Debounced trim toggle observer
+    trim_debounced <- reactive({ input$trim_enabled }) |> debounce(300)
+    observeEvent(trim_debounced(), {
+      net_data <- unfiltered_network_data()
+      req(net_data)
+      apply_combined_filters()
     }, ignoreInit = TRUE)
 
     # Debounced physics toggle to prevent rapid-click glitches
