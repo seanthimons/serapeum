@@ -1177,7 +1177,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
         # Get seed IDs (use new field if available, fall back to old single-seed field)
         loaded_seed_ids <- if (!is.null(loaded$metadata$seed_paper_ids)) {
-          loaded$metadata$seed_paper_ids
+          unlist(loaded$metadata$seed_paper_ids)
         } else {
           c(loaded$metadata$seed_paper_id)
         }
