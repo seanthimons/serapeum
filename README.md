@@ -50,14 +50,18 @@ Generate presentation slides from notebook content using Quarto RevealJS.
 ### Citation Network Visualization
 Explore citation relationships through interactive network graphs.
 
-- **One-click generation** - Build citation networks from any paper's abstract view
+- **Multi-seed networks** - Seed from all papers in a notebook or BibTeX import
+- **Overlap detection** - Papers cited by multiple seeds highlighted as diamonds
+- **Shape encoding** - Stars (seeds), diamonds (overlap), dots (regular) with year color gradient
+- **Missing papers discovery** - Find frequently-cited papers not in your collection, import with one click
 - **Directional control** - Explore forward citations, backward references, or both
-- **Configurable depth** - Traverse 1-3 hops from the seed paper
-- **Node cap** - Limit network size (5-200 nodes) to keep graphs readable
+- **Configurable depth** - Traverse 1-3 hops from seed papers
+- **Node cap** - Per-seed node limits to keep graphs readable
 - **Interactive graph** - Pan, zoom, click nodes to view paper details
+- **Physics toggle** - Freeze/unfreeze node simulation from the legend panel
 - **Color palettes** - Five viridis color schemes with live-switching
 - **Save & reload** - Persist networks to database with layout positions preserved
-- **Collapsible legend** - Minimizable legend with dynamic gradient preview
+- **Collapsible legend** - Minimizable legend with shape key and gradient preview
 
 ### Dark Mode
 
@@ -233,6 +237,7 @@ serapeum/
 │   ├── mod_topic_explorer.R    # Topic browsing
 │   ├── mod_journal_filter.R    # Journal filtering
 │   ├── mod_keyword_filter.R    # Keyword filtering
+│   ├── mod_bulk_import.R       # DOI/BibTeX bulk import
 │   ├── mod_settings.R
 │   └── mod_slides.R
 ├── data/
