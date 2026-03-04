@@ -637,12 +637,19 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   nodes_df$color.highlight.background <- nodes_df$color.background
   nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 2)
 
-  # Preserve original paper title before overwriting with tooltip.
-  # For loaded networks, paper_title already exists (plain text) — don't
-
-  # clobber it with the old tooltip HTML stored in title.
+  # Preserve original paper title.
+  # For loaded networks, paper_title may not exist — fall back to title.
   if (is.null(nodes_df$paper_title)) {
     nodes_df$paper_title <- nodes_df$title
+  }
+
+  # Sanitize: old saved networks stored tooltip HTML in title column.
+  # Extract plain title from between <b>...</b> tags if present.
+  has_html <- grepl("<b>", nodes_df$paper_title, fixed = TRUE)
+  if (any(has_html)) {
+    nodes_df$paper_title[has_html] <- sub(
+      ".*?<b>(.*?)</b>.*", "\\1", nodes_df$paper_title[has_html]
+    )
   }
 
   # Extract first author for display
