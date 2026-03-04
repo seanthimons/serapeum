@@ -113,7 +113,7 @@ High-effort, high-payoff features for the future.
 |-------|-------|------------|--------|
 | [#109](https://github.com/seanthimons/serapeum/issues/109) | moonshot: Flag to disable AI features, pure abstract searching app | High | High |
 | [#41](https://github.com/seanthimons/serapeum/issues/41) | moonshot: Full OpenAlex Corpus Ingestion | Very High | Very High |
-| [#42](https://github.com/seanthimons/serapeum/issues/42) | moonshot: DuckDB Native Vector Search | High | High |
+| ~~[#42](https://github.com/seanthimons/serapeum/issues/42)~~ | ~~moonshot: DuckDB Native Vector Search~~ — **superseded by ragnar VSS+BM25 integration (v3.0)** | — | — |
 
 ---
 
@@ -186,6 +186,7 @@ High-effort, high-payoff features for the future.
 - [x] fix: Origin metadata suffix breaking notebook filter — all retrieved rows dropped (Phase 29)
 - [x] fix: Stale ragnar chunks on document delete (Phase 29)
 - [x] feat: Chat send button spinner during RAG processing (Phase 29, partial #87)
+- [x] [#120](https://github.com/seanthimons/serapeum/issues/120): Database stack evaluation — DuckDB retained; VSS bundled in 1.3.2 via ragnar, no extra installs needed; LanceDB has no R bindings (see `docs/plans/2026-03-04-database-stack-decision.md`)
 
 ---
 

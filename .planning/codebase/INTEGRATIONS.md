@@ -42,17 +42,25 @@
 ## Data Storage
 
 **Databases:**
-- **DuckDB** (local)
+- **DuckDB 1.3.2** (local) — relational data
   - Connection: `data/notebooks.duckdb` file
   - Client: DBI + duckdb package
   - Schema: `R/db.R` - `init_schema()` function
-  - Tables:
-    - `notebooks` - Metadata for document and search notebooks
-    - `documents` - Uploaded PDFs with text and metadata
-    - `abstracts` - Papers from OpenAlex searches
-    - `chunks` - Text chunks from documents for RAG retrieval
-    - `embeddings` - Vector embeddings for semantic search
-    - (Additional tables for search results, quality flags)
+  - Tables: `notebooks`, `documents`, `abstracts`, `chunks` (metadata only),
+    `settings`, `quality_cache_meta`, `predatory_publishers`, `predatory_journals`,
+    `retracted_papers`, `cost_log`, `import_runs`, `import_run_items`,
+    `citation_audit_runs`, `citation_audit_results`, `blocked_journals`, `topics`,
+    `schema_migrations`
+  - No VSS extension required here — plain SQL only
+  - Migrations: versioned SQL files in `migrations/` directory, tracked in `schema_migrations`
+
+- **ragnar + DuckDB 1.3.2** (local) — vector search
+  - One DuckDB file per notebook: `data/ragnar/<notebook_id>.duckdb`
+  - Client: `ragnar` R package (tidyverse/ragnar)
+  - Provides: VSS (vector similarity search) + BM25 hybrid retrieval
+  - VSS extension is bundled with DuckDB 1.3.2 — no separate install needed
+  - Managed via: `R/_ragnar.R` - store creation, connection, retrieval helpers
+  - See: `docs/plans/2026-03-04-database-stack-decision.md` for stack analysis
 
 **File Storage:**
 - Local filesystem only
@@ -61,8 +69,8 @@
   - No cloud storage (S3, GCS, etc.)
 
 **Caching:**
-- None - Quality data (predatory publishers, retraction lists) are fetched fresh each time
-- RagnarStore (optional): Vector embeddings cached in `data/serapeum.ragnar.duckdb` when ragnar is available
+- Quality data (predatory publishers, retraction lists) cached in DuckDB tables; refreshed on-demand via Settings
+- Vector search index: per-notebook ragnar stores in `data/ragnar/`
 
 ## Authentication & Identity
 
@@ -175,4 +183,4 @@ get_embeddings(
 
 ---
 
-*Integration audit: 2026-02-10*
+*Integration audit: 2026-03-04*
