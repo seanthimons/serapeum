@@ -257,7 +257,7 @@ Phases execute in numeric order: 44 → 45 → 46 → 47 → 48 → 49
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 44. Tech Debt Cleanup | 1/1 | ✅ Complete | 2026-03-04 |
+| 44. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-04 |
 | 45. Design System Foundation | 0/1 | Not started | - |
 | 46. Citation Audit Bug Fixes | 0/1 | Not started | - |
 | 47. Sidebar & Button Theming | 0/1 | Not started | - |
