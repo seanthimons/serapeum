@@ -13,7 +13,7 @@
 - ✅ **v6.0 Dark Mode + UI Polish** - Phases 30-32 (shipped 2026-02-25)
 - ✅ **v7.0 Citation Audit + Quick Wins** - Phases 33-39 (shipped 2026-02-27)
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
-- ◆ **v9.0 Network Graph Polish** - Phases 41-43
+- ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
 
 ## Phases
 
@@ -135,89 +135,17 @@ See [v8.0-ROADMAP.md](milestones/v8.0-ROADMAP.md) for full details.
 
 </details>
 
-### v9.0 Network Graph Polish (Phases 41-43)
+<details>
+<summary>✅ v9.0 Network Graph Polish (Phases 41-43) - SHIPPED 2026-03-04</summary>
 
-- [x] Phase 41: Physics Stabilization — Fix collapse bug + restore ambient rotation (PHYS-01, PHYS-02) — **Plans:** 1/1 complete
-  Plans:
-  - [x] 41-01-PLAN.md — Fix singularity collapse on physics toggle + add ambient orbital drift for small networks (completed 2026-03-03)
-- [x] Phase 42: Year Filters + Network Trimming — Fix year bounds + add influential paper filter (FILT-01, FILT-02) — **Plans:** 1/1 complete
-  Plans:
-  - [x] 42-01-PLAN.md — Fix year filter bounds + add trim-to-influential toggle with bridge preservation (completed 2026-03-03)
-- [x] Phase 43: Tooltip Overhaul — Contain tooltips + fix dark mode readability (TOOL-01, TOOL-02) — **Plans:** 1 plan (completed 2026-03-04)
-  Plans:
-  - [ ] 43-01-PLAN.md — Fix tooltip HTML rendering, repositioning logic, and dark mode CSS
+- [x] Phase 41: Physics Stabilization (1/1 plan) - completed 2026-03-03
+- [x] Phase 42: Year Filters + Network Trimming (1/1 plan) - completed 2026-03-03
+- [x] Phase 43: Tooltip Overhaul (1/1 plan) - completed 2026-03-04
 
----
+See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 
-## Phase Details: v9.0
-
-### Phase 41: Physics Stabilization
-
-**Goal:** Fix the singularity collapse on physics toggle and restore ambient orbital rotation for small/single-seed networks.
-
-**Requirements:** PHYS-01, PHYS-02
-**Branch:** `fix/network-physics`
-
-**Context:** #131 and #130 are likely related — both involve vis.js physics behavior after stabilization. Research vis.js `stabilizationIterationsDone` event, `damping`, `gravitationalConstant`, and `visPhysics()` state management. The collapse bug may be caused by stale physics parameters or missing node position data when re-enabling physics.
-
-**Key files:**
-- `R/mod_citation_network.R` — physics toggle handler, vis.js configuration
-
-**Success criteria:**
-1. Toggling physics on/off after navigating away does NOT cause nodes to collapse into a singularity
-2. Single-seed or small networks exhibit ambient orbital drift after stabilization
+</details>
 
 ---
-
-### Phase 42: Year Filters + Network Trimming
-
-**Goal:** Fix year filter lower-bound to reflect actual network data and add the ability to trim to influential papers.
-
-**Requirements:** FILT-01, FILT-02
-**Branch:** `feat/network-filtering`
-
-**Context:** Year filter is hardcoded at 1950 instead of computing `min(year)` from the network data. Trimming should expose a UI control to filter out low-citation papers.
-
-**Key files:**
-- `R/mod_citation_network.R` — year filter initialization, network data processing
-
-**Success criteria:**
-1. Year filter lower-bound automatically matches the earliest year in the current network dataset
-2. User can activate a "trim to influential" control that removes low-citation papers
-3. Trimming preserves network connectivity (doesn't orphan important nodes)
-
----
-
-### Phase 43: Tooltip Overhaul
-
-**Goal:** Contain tooltips within the graph area and make them readable in dark mode.
-
-**Requirements:** TOOL-01, TOOL-02
-**Branch:** `fix/network-tooltips`
-
-**Context:** Long-standing #79 — CSS overflow/z-index approaches failed previously. May require custom tooltip implementation via `htmlwidgets::onRender()` JS or `visEvents(hoverNode = ...)`. Dark mode (#127) needs contrast fix.
-
-**Key files:**
-- `R/mod_citation_network.R` — tooltip rendering, visNetwork configuration
-- `R/theme_catppuccin.R` — dark mode CSS overrides
-
-**Success criteria:**
-1. Tooltips do not escape the graph container or overlap the side panel
-2. Tooltips are clearly readable in dark mode with sufficient contrast
-
----
-
-## Requirement Coverage
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| PHYS-01 | 41 | ✅ Complete (2026-03-03) |
-| PHYS-02 | 41 | ✅ Complete (2026-03-03) |
-| FILT-01 | 42 | ✅ Complete (2026-03-03) | Complete    | 2026-03-03 | 42 | ✅ Complete (2026-03-03) |
-| TOOL-01 | 43 | 1/1 | Complete    | 2026-03-04 | 43 | Pending |
-
-**Coverage: 6/6 (100%) ✓**
-**Completed: 4/6 (67%)**
-
----
-*Roadmap created: 2026-03-02*
+*Roadmap created: 2026-02-10*
+*Last updated: 2026-03-04 — v9.0 shipped*

@@ -38,6 +38,43 @@
 
 ---
 
+## Milestone: v9.0 — Network Graph Polish
+
+**Shipped:** 2026-03-04
+**Phases:** 3 | **Plans:** 3
+
+### What Was Built
+- Physics singularity collapse fix with position validation and debounced controls
+- Ambient orbital drift for small/single-seed networks (≤20 nodes)
+- Dynamic year filter bounds from actual network data + trim-to-influential toggle
+- Custom HTML tooltip replacing vis.js default — proper rendering, containment, dark mode styling
+- Legacy saved network compatibility: paper_title preservation with HTML sanitization
+
+### What Worked
+- Small focused phases (1 plan each) — fast turnaround, clear scope
+- User testing during checkpoints caught fundamental approach failures early (tooltip vis.js limitation)
+- Iterative fix cycles: 3 rounds of user testing on tooltips caught data pipeline bugs that static analysis would miss
+- Pattern documentation in SUMMARY.md preserved key learnings (vis.js solver config, position validation)
+
+### What Was Inefficient
+- Phase 43 initial plan assumed vis.js default tooltip could render HTML — wrong assumption required full architectural pivot
+- Three iterative fix rounds for tooltips (raw HTML → dual tooltips → data clobbering) — each required user screenshot diagnosis
+- Executor agent's MutationObserver approach was fundamentally flawed; needed human feedback to pivot to custom tooltip
+
+### Patterns Established
+- Custom vis.js tooltip pattern: tooltip_html column + title=NA + htmlwidgets::onRender
+- vis.js physics: always pass full solver config when re-enabling (prevents barnesHut revert)
+- Data validation: check positions on actual data columns, not render flags
+- Legacy data migration: regex-based HTML sanitization for saved network compatibility
+
+### Key Lessons
+1. vis.js default tooltip uses textContent not innerHTML — any HTML tooltip needs custom implementation
+2. Saved data round-trips through DB can corrupt fields (tooltip HTML stored in title column → paper_title clobbering)
+3. Small milestones (3 phases, 1 plan each) ship fast and maintain focus — v9.0 completed in 2 days
+4. User screenshot testing is irreplaceable for UI work — catches issues that code review and planning miss
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -45,8 +82,11 @@
 | Milestone | Phases | Plans | Key Change |
 |-----------|--------|-------|------------|
 | v6.0 | 3 | 8 | UAT-driven gap closure loop for UI milestones |
+| v9.0 | 3 | 3 | Small focused phases (1 plan each) for fast iteration |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Validation phases catch nothing when earlier phases are thorough — Phase 32 was clean
 2. Centralized CSS/theming prevents scatter and makes iteration fast
+3. User screenshot testing catches UI issues that planning and code review miss (v6.0 UAT, v9.0 tooltips)
+4. Small milestones (3 phases) ship faster with cleaner scope than large ones

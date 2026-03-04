@@ -204,3 +204,20 @@
 
 ---
 
+
+## v9.0 Network Graph Polish (Shipped: 2026-03-04)
+
+**Phases completed:** 3 phases (41-43), 3 plans
+
+**Key accomplishments:**
+- Fixed singularity collapse on physics toggle with position validation and debounced controls (PHYS-01)
+- Added ambient orbital drift for small/single-seed networks after stabilization (PHYS-02)
+- Dynamic year filter bounds from actual network data + trim-to-influential toggle with bridge preservation (FILT-01, FILT-02)
+- Custom HTML tooltip replacing vis.js default — proper rendering, dark mode styling, container containment (TOOL-01, TOOL-02)
+- Legacy saved network compatibility: paper_title preservation and HTML sanitization
+
+**Stats:** 24 commits, 2 days (2026-03-03 → 2026-03-04)
+**Key files:** R/mod_citation_network.R, R/citation_network.R, R/db.R
+
+---
+

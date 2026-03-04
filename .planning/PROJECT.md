@@ -101,20 +101,16 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Save/load multi-seed metadata as JSON array (MSEED-05) — v8.0 Phase 40
 - ✓ Legend updated with star/diamond/dot shapes (MSEED-06) — v8.0 Phase 40
 - ✓ Discovery + import workflow: missing papers tab with one-click import (MSEED-07) — v8.0 Phase 40
+- ✓ Physics singularity collapse fix with position validation and debounced toggle (PHYS-01) — v9.0
+- ✓ Ambient orbital drift for small/single-seed networks (PHYS-02) — v9.0
+- ✓ Dynamic year filter bounds from actual network data (FILT-01) — v9.0
+- ✓ Trim-to-influential toggle with adaptive thresholds and bridge preservation (FILT-02) — v9.0
+- ✓ Custom HTML tooltip with container containment (TOOL-01) — v9.0
+- ✓ Dark mode tooltip readability with Catppuccin styling (TOOL-02) — v9.0
 
 ### Active
 
-#### Physics
-- [ ] **PHYS-01**: Network does not collapse when toggling physics after returning to tab (#131)
-- [ ] **PHYS-02**: Small/single-seed networks retain ambient orbital rotation after stabilization (#130)
-
-#### Filtering
-- [ ] **FILT-01**: Year filter lower-bound reflects the actual minimum year in the network data (#128)
-- [ ] **FILT-02**: User can trim the network to only influential/high-citation papers (#129)
-
-#### Tooltips
-- [ ] **TOOL-01**: Tooltips remain within the graph container and do not overflow into the side panel (#79)
-- [ ] **TOOL-02**: Tooltips are readable on dark mode with correct contrast (#127)
+(No active requirements — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -129,7 +125,7 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ## Context
 
-Shipped v8.0 with ~20,000 LOC R across 18 production files. 11 milestones shipped (v1.0–v8.0), 41 phases, 73 plans.
+Shipped v9.0 with ~20,000 LOC R across 18 production files. 12 milestones shipped (v1.0–v9.0), 43 phases, 76 plans.
 Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic + bib2df.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
 Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle.
@@ -137,7 +133,7 @@ Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_c
 Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds, ragnar re-indexing, bulk imports, and citation audit with file-based interrupt flags.
 RAG: ragnar is the sole backend — per-notebook DuckDB vector stores (`data/ragnar/{notebook_id}.duckdb`), hybrid VSS+BM25 retrieval, OpenRouter embedding. Section-targeted retrieval via keyword heuristics.
 Slide generation: Programmatic YAML frontmatter via build_qmd_frontmatter(), LLM outputs content only, strip_llm_yaml() handles non-compliant models.
-Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (#117), section_hint not encoded in PDF ragnar origins (#118), dead code (#119), secondary ragnar leak in ensure_ragnar_store(), 13 pre-existing test fixture failures.
+Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint not encoded in PDF ragnar origins (#118), dead code (#119), secondary ragnar leak in ensure_ragnar_store(), 13 pre-existing test fixture failures.
 
 ## Constraints
 
@@ -215,25 +211,21 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 | seed_paper_ids as JSON array (v8.0) | Flexible storage for variable seed counts | ✓ Good — backward compat with single-seed |
 | Shape encoding for overlap (v8.0) | Diamond for overlap preserves year color gradient | ✓ Good — three-shape system works |
 | navset_card_tab for side panel (v8.0) | Tabbed Paper Details + Missing Papers | ✓ Good — clean discovery workflow |
+| Always pass full solver config on physics re-enable (v9.0) | vis.js reverts to barnesHut without explicit config | ✓ Good — eliminated collapse bug |
+| Position validation on data, not render flags (v9.0) | Render flags unreliable for saved graph loading | ✓ Good — deterministic behavior |
+| Custom tooltip via htmlwidgets::onRender (v9.0) | vis.js title uses textContent not innerHTML | ✓ Good — HTML rendering, containment, dark mode |
+| tooltip_html column + title=NA pattern (v9.0) | Separate custom data from vis.js default tooltip | ✓ Good — no dual-tooltip conflict |
+| Adaptive citation percentile for trim (v9.0) | Different thresholds for different network sizes | ✓ Good — balanced filtering |
 
 ---
-## Current Milestone: v9.0 Network Graph Polish
-
-**Goal:** Fix network graph physics bugs, improve year filtering and network trimming, and resolve tooltip usability issues across both themes.
-
-**Target features:**
-- Physics singularity fix + ambient rotation for small networks
-- Year filter auto-bounds + trim to influential papers
-- Tooltip containment + dark mode readability
-
 ## Current State
 
-**Latest shipped:** v8.0 Multi-Seeded Citation Network (2026-03-02)
-**Total milestones:** 11 shipped (v1.0–v8.0)
-**Total phases:** 41 complete across 73 plans
-**Current:** v9.0 Network Graph Polish
+**Latest shipped:** v9.0 Network Graph Polish (2026-03-04)
+**Total milestones:** 12 shipped (v1.0–v9.0)
+**Total phases:** 43 complete across 76 plans
+**Current:** Planning next milestone
 
-**v8.0 shipped:** Multi-seed citation networks — BFS engine with overlap detection, star/diamond/dot shapes, search notebook + BibTeX import entry points, missing papers discovery + import workflow. Hotfix phase (40.1) fixed seed network crash, DOI fallback, physics toggle, button alignment, load network crash.
+**v9.0 shipped:** Physics singularity collapse fix + ambient drift for small networks, dynamic year filter bounds + trim-to-influential with bridge preservation, custom HTML tooltips with dark mode support and container containment.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -241,8 +233,7 @@ Known tech debt: #79 tooltip overflow, connection leak in search_chunks_hybrid (
 - Connection leak in search_chunks_hybrid (#117)
 - Section_hint not encoded in PDF ragnar origins (#118)
 - Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
-- Tooltip overflow (#79)
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-02 after v9.0 milestone initialization*
+*Last updated: 2026-03-04 after v9.0 milestone*
