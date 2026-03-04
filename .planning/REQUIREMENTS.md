@@ -19,8 +19,8 @@ Requirements for v9.0 Network Graph Polish. Each maps to roadmap phases.
 
 ### Tooltips
 
-- [ ] **TOOL-01**: Tooltips remain within the graph container and do not overflow into the side panel (#79)
-- [ ] **TOOL-02**: Tooltips are readable on dark mode with correct contrast (#127)
+- [x] **TOOL-01**: Tooltips remain within the graph container and do not overflow into the side panel (#79)
+- [x] **TOOL-02**: Tooltips are readable on dark mode with correct contrast (#127)
 
 ## Future Requirements
 
@@ -58,8 +58,8 @@ Deferred to future milestones.
 | PHYS-02 | Phase 41 | ✅ Complete (2026-03-03) |
 | FILT-01 | Phase 42 | ✅ Complete (2026-03-03) |
 | FILT-02 | Phase 42 | ✅ Complete (2026-03-03) |
-| TOOL-01 | Phase 43 | Pending |
-| TOOL-02 | Phase 43 | Pending |
+| TOOL-01 | Phase 43 | Complete |
+| TOOL-02 | Phase 43 | Complete |
 
 **Coverage:**
 - v9.0 requirements: 6 total

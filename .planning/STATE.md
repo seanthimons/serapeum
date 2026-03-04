@@ -29,12 +29,12 @@ gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: Network Graph Polish
 status: planning
-last_updated: "2026-03-03T21:22:04Z"
+last_updated: "2026-03-04T15:09:32Z"
 progress:
   total_phases: 44
-  completed_phases: 42
-  total_plans: 75
-  completed_plans: 75
+  completed_phases: 43
+  total_plans: 76
+  completed_plans: 76
 ---
 
 # Project State
@@ -48,27 +48,34 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 
 ## Current Position
 
-Phase: 42 (year-filters-network-trimming)
+Phase: 43 (tooltip-overhaul)
 Plan: 01 (complete)
-Status: Plan 42-01 complete — awaiting next plan
-Last activity: 2026-03-03 — Completed 42-01 year filters and network trimming
+Status: Plan 43-01 complete — awaiting next plan
+Last activity: 2026-03-04 — Completed 43-01 tooltip HTML rendering and dark mode styling
 
-Progress: [████████████████████] 75/75 plans (100%)
+Progress: [████████████████████] 76/76 plans (100%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 75 (across v1.0–v9.0 in-progress)
-- Total phases completed: 42 (across all milestones)
+- Total plans completed: 76 (across v1.0–v9.0 in-progress)
+- Total phases completed: 43 (across all milestones)
 
 **Recent Milestones:**
-- v9.0 (Phases 41-42 in-progress): 2 plans so far (2026-03-03)
+- v9.0 (Phases 41-43 in-progress): 3 plans so far (2026-03-04)
 - v8.0 (Phases 40, 40.1): 6 plans, 2 days (2026-03-01 → 2026-03-02)
 - v7.0 (Phases 33-39): 14 plans, 3 days (2026-02-25 → 2026-02-27)
 
 ## Accumulated Context
 
 ### Recent Decisions
+
+**Phase 43-01 (Tooltip Overhaul):**
+- Use custom tooltip via htmlwidgets::onRender instead of vis.js default title property — vis.js renders title as textContent not innerHTML, breaking HTML formatting
+- Store tooltip HTML in custom tooltip_html column and set title=NA to disable vis.js default tooltip
+- Detect dark mode in JS using data-bs-theme attribute and apply inline styles to custom tooltip
+- Sanitize old saved networks by extracting paper_title from <b>...</b> tags in legacy tooltip HTML
+- Position tooltip using onstationary event instead of MutationObserver — more reliable for initial placement
 
 **Phase 42-01 (Year Filters + Network Trimming):**
 - Move trim toggle from legend panel to year filter area for better UX grouping
@@ -97,13 +104,13 @@ Progress: [████████████████████] 75/75 p
 
 ## Session Continuity
 
-Last session: 2026-03-03
-Stopped at: Completed 42-01-PLAN.md (year filters + network trimming)
+Last session: 2026-03-04
+Stopped at: Completed 43-01-PLAN.md (tooltip HTML rendering and dark mode styling)
 Resume file: None
 
 **Next steps:**
-1. Phase 42 complete (1/1 plans done) — move to Phase 43 (tooltip overhaul)
+1. Phase 43 complete (1/1 plans done) — determine if more phases needed or milestone complete
 2. Feature branch per phase, test before merge
 
 ---
-*Updated: 2026-03-03 — Phase 42-01 complete (year filters + network trimming)*
+*Updated: 2026-03-04 — Phase 43-01 complete (tooltip overhaul)*

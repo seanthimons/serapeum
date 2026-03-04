@@ -143,7 +143,7 @@ See [v8.0-ROADMAP.md](milestones/v8.0-ROADMAP.md) for full details.
 - [x] Phase 42: Year Filters + Network Trimming — Fix year bounds + add influential paper filter (FILT-01, FILT-02) — **Plans:** 1/1 complete
   Plans:
   - [x] 42-01-PLAN.md — Fix year filter bounds + add trim-to-influential toggle with bridge preservation (completed 2026-03-03)
-- [ ] Phase 43: Tooltip Overhaul — Contain tooltips + fix dark mode readability (TOOL-01, TOOL-02) — **Plans:** 1 plan
+- [x] Phase 43: Tooltip Overhaul — Contain tooltips + fix dark mode readability (TOOL-01, TOOL-02) — **Plans:** 1 plan (completed 2026-03-04)
   Plans:
   - [ ] 43-01-PLAN.md — Fix tooltip HTML rendering, repositioning logic, and dark mode CSS
 
@@ -214,8 +214,7 @@ See [v8.0-ROADMAP.md](milestones/v8.0-ROADMAP.md) for full details.
 | PHYS-01 | 41 | ✅ Complete (2026-03-03) |
 | PHYS-02 | 41 | ✅ Complete (2026-03-03) |
 | FILT-01 | 42 | ✅ Complete (2026-03-03) | Complete    | 2026-03-03 | 42 | ✅ Complete (2026-03-03) |
-| TOOL-01 | 43 | Pending |
-| TOOL-02 | 43 | Pending |
+| TOOL-01 | 43 | 1/1 | Complete   | 2026-03-04 | 43 | Pending |
 
 **Coverage: 6/6 (100%) ✓**
 **Completed: 4/6 (67%)**
