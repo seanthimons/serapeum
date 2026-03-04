@@ -1,4 +1,4 @@
-# Roadmap: Serapeum
+# Roadmap: Serapeum v10.0 Theme Harmonization & AI Synthesis
 
 ## Milestones
 
@@ -14,6 +14,7 @@
 - ✅ **v7.0 Citation Audit + Quick Wins** - Phases 33-39 (shipped 2026-02-27)
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
+- 🚧 **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (current)
 
 ## Phases
 
@@ -146,6 +147,123 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 
 </details>
 
+### 🚧 v10.0 Theme Harmonization & AI Synthesis (Phases 44-49)
+
+**Milestone Goal:** Establish a global color/theme/icon design system, fix citation audit bugs, harmonize sidebar and button theming, then add Methodology Extractor and Gap Analysis Report presets.
+
+- [ ] **Phase 44: Tech Debt Cleanup** - Fix connection leaks before increasing rendering load
+- [ ] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet
+- [ ] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync
+- [ ] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics
+- [ ] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods
+- [ ] **Phase 49: Gap Analysis Report Preset** - Cross-paper synthesis identifying methodological and topical gaps
+
+## Phase Details
+
+### Phase 44: Tech Debt Cleanup
+**Goal**: Fix connection leaks in search_chunks_hybrid and remove dead ragnar code before increasing rendering load
+**Depends on**: Phase 43 (v9.0 complete)
+**Requirements**: DEBT-01, DEBT-02
+**Success Criteria** (what must be TRUE):
+  1. All database connections in search_chunks_hybrid are properly closed with on.exit()
+  2. Dead code (with_ragnar_store, register_ragnar_cleanup) is removed from codebase
+  3. Connection leak detection test added to CI
+  4. App runs without connection exhaustion under typical load
+**Plans**: TBD
+
+Plans:
+- [ ] 44-01: Fix connection leaks and remove dead code
+
+### Phase 45: Design System Foundation
+**Goal**: Document semantic color/icon policy and validate with visual swatch sheet before any code changes
+**Depends on**: Phase 44
+**Requirements**: DSGN-01, DSGN-02
+**Success Criteria** (what must be TRUE):
+  1. Semantic action color policy documented in R/theme_catppuccin.R (primary=main action, danger=destructive, etc.)
+  2. Icon-action mappings documented with semantic wrappers (icon_save, icon_download, etc.)
+  3. Visual swatch sheet rendered in both Catppuccin Latte and Mocha showing all button variants, icons, sidebar colors, badges
+  4. Swatch sheet validated by user before any UI code changes
+**Plans**: TBD
+
+Plans:
+- [ ] 45-01: Create design system policy and swatch sheet
+
+### Phase 46: Citation Audit Bug Fixes
+**Goal**: Fix critical citation audit bugs preventing multi-paper imports and abstract notebook sync
+**Depends on**: Phase 44 (connection leaks fixed first)
+**Requirements**: BUGF-01, BUGF-02
+**Success Criteria** (what must be TRUE):
+  1. User can add multiple papers via citation audit without database errors
+  2. Papers added via citation audit immediately appear in abstract notebook
+  3. Defensive SQL handles concurrent imports with transactions
+  4. Reactive invalidation triggers abstract notebook refresh
+**Plans**: TBD
+
+Plans:
+- [ ] 46-01: Fix multi-paper citation audit import and abstract sync
+
+### Phase 47: Sidebar & Button Theming
+**Goal**: Apply design system policy to all buttons, sidebar, and icons across entire app
+**Depends on**: Phase 45 (policy defined), Phase 46 (bugs fixed)
+**Requirements**: THEM-01, THEM-02, THEM-03, DSGN-03, DSGN-04, THEM-04, THEM-05
+**Success Criteria** (what must be TRUE):
+  1. All buttons across app follow documented semantic color scheme from Phase 45
+  2. Icon usage is consistent — same action uses same icon everywhere
+  3. Sidebar colors adapt correctly to both Catppuccin Latte and Mocha
+  4. Citation audit button is readable in light mode
+  5. Import papers button has distinct color from primary buttons
+  6. Abstract notebook buttons are uniform (all icons or all icon+text) with consistent hover states
+  7. Button bar uses available title bar space effectively
+**Plans**: TBD
+
+Plans:
+- [ ] 47-01: Apply design system to sidebar and all buttons
+
+### Phase 48: Methodology Extractor Preset
+**Goal**: Add AI preset extracting structured research methods from papers using section-targeted RAG
+**Depends on**: Phase 47
+**Requirements**: METH-01, METH-02, METH-03, METH-04, METH-05
+**Success Criteria** (what must be TRUE):
+  1. User can generate Methodology Extractor report from document notebook
+  2. Report extracts structured fields: study design, data sources, sample characteristics, statistical methods, tools/instruments
+  3. Extraction uses section-targeted RAG prioritizing Methods/Materials/Introduction sections
+  4. Report includes per-paper citations linking findings to source documents
+  5. AI disclaimer banner is shown on generated output
+**Plans**: TBD
+
+Plans:
+- [ ] 48-01: Implement Methodology Extractor preset with section-targeted RAG
+
+### Phase 49: Gap Analysis Report Preset
+**Goal**: Add AI preset identifying methodological and topical gaps through cross-paper synthesis
+**Depends on**: Phase 48
+**Requirements**: GAPS-01, GAPS-02, GAPS-03, GAPS-04, GAPS-05, GAPS-06
+**Success Criteria** (what must be TRUE):
+  1. User can generate Gap Analysis Report from document notebook (minimum 3 papers)
+  2. Report identifies methodological gaps, geographic gaps, population gaps, measurement gaps, and theoretical gaps
+  3. Report highlights contradictory findings across papers with citations
+  4. Extraction uses section-targeted RAG prioritizing Discussion/Limitations/Future Work sections
+  5. AI disclaimer banner is shown on generated output
+  6. Minimum paper threshold enforced (at least 3 papers required)
+**Plans**: TBD
+
+Plans:
+- [ ] 49-01: Implement Gap Analysis Report preset with cross-paper synthesis
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 44 → 45 → 46 → 47 → 48 → 49
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 44. Tech Debt Cleanup | 0/1 | Not started | - |
+| 45. Design System Foundation | 0/1 | Not started | - |
+| 46. Citation Audit Bug Fixes | 0/1 | Not started | - |
+| 47. Sidebar & Button Theming | 0/1 | Not started | - |
+| 48. Methodology Extractor Preset | 0/1 | Not started | - |
+| 49. Gap Analysis Report Preset | 0/1 | Not started | - |
+
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-04 — v9.0 shipped*
+*Last updated: 2026-03-04 — v10.0 roadmap created*

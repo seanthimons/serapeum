@@ -86,36 +86,36 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEBT-01 | — | Pending |
-| DEBT-02 | — | Pending |
-| DSGN-01 | — | Pending |
-| DSGN-02 | — | Pending |
-| DSGN-03 | — | Pending |
-| DSGN-04 | — | Pending |
-| BUGF-01 | — | Pending |
-| BUGF-02 | — | Pending |
-| THEM-01 | — | Pending |
-| THEM-02 | — | Pending |
-| THEM-03 | — | Pending |
-| THEM-04 | — | Pending |
-| THEM-05 | — | Pending |
-| METH-01 | — | Pending |
-| METH-02 | — | Pending |
-| METH-03 | — | Pending |
-| METH-04 | — | Pending |
-| METH-05 | — | Pending |
-| GAPS-01 | — | Pending |
-| GAPS-02 | — | Pending |
-| GAPS-03 | — | Pending |
-| GAPS-04 | — | Pending |
-| GAPS-05 | — | Pending |
-| GAPS-06 | — | Pending |
+| DEBT-01 | Phase 44 | Pending |
+| DEBT-02 | Phase 44 | Pending |
+| DSGN-01 | Phase 45 | Pending |
+| DSGN-02 | Phase 45 | Pending |
+| DSGN-03 | Phase 47 | Pending |
+| DSGN-04 | Phase 47 | Pending |
+| BUGF-01 | Phase 46 | Pending |
+| BUGF-02 | Phase 46 | Pending |
+| THEM-01 | Phase 47 | Pending |
+| THEM-02 | Phase 47 | Pending |
+| THEM-03 | Phase 47 | Pending |
+| THEM-04 | Phase 47 | Pending |
+| THEM-05 | Phase 47 | Pending |
+| METH-01 | Phase 48 | Pending |
+| METH-02 | Phase 48 | Pending |
+| METH-03 | Phase 48 | Pending |
+| METH-04 | Phase 48 | Pending |
+| METH-05 | Phase 48 | Pending |
+| GAPS-01 | Phase 49 | Pending |
+| GAPS-02 | Phase 49 | Pending |
+| GAPS-03 | Phase 49 | Pending |
+| GAPS-04 | Phase 49 | Pending |
+| GAPS-05 | Phase 49 | Pending |
+| GAPS-06 | Phase 49 | Pending |
 
 **Coverage:**
 - v10.0 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠️
+- Mapped to phases: 24
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after initial definition*
+*Last updated: 2026-03-04 after roadmap creation*
