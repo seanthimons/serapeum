@@ -75,6 +75,158 @@ LATTE <- list(
   peach    = "#fe640b"
 )
 
+# =============================================================================
+# Semantic Color Policy (DSGN-01)
+# =============================================================================
+#
+# Maps Catppuccin palette colors to Bootstrap semantic roles.
+# This is the single source of truth for all button/badge/alert coloring.
+# Phase 47 will apply these mappings across the UI.
+#
+# PRIMARY (blue) — Main actions: Search, Save, Add to Notebook
+#   Mocha: #89b4fa | Latte: #1e66f5
+#   Button: .btn-primary (solid fill, white text)
+#   Sidebar: Active items inherit primary blue
+#
+# DANGER (red) — Destructive: Delete, Remove, Clear
+#   Mocha: #f38ba8 | Latte: #d20f39
+#   Button: .btn-danger (solid fill). No confirmation dialog — color IS the warning.
+#   Reserve confirmation for irreversible bulk actions only.
+#
+# SUCCESS (green) — Confirmations: Paper Added, Export Complete
+#   Mocha: #a6e3a1 | Latte: #40a02b
+#   Button: .btn-success. Also used for completion badges and form validation.
+#
+# WARNING (yellow) — Cautions: API Key Missing, Rate Limit
+#   Mocha: #f9e2af | Latte: #df8e1d
+#   Button: .btn-warning. Also used for caution alerts.
+#
+# INFO (sapphire) — Informational: Tooltips, Help Text
+#   Mocha: #74c7ec | Latte: #209fb5
+#   Button: .btn-info. Distinct from primary blue.
+#
+# SECONDARY (surface0/surface1) — Less Important: Cancel, Close
+#   Mocha: #313244/#45475a | Latte: #ccd0da/#bcc0cc
+#   Button: .btn-outline-secondary (outline style, transparent bg)
+#
+# PEACH (candidate accent) — Highlights, Badges (PENDING VALIDATION)
+#   Mocha: #fab387 | Latte: #fe640b
+#   Concern: May look too similar to warning yellow. Evaluate in swatch sheet.
+#
+# Button Variant Policy:
+#   - Primary actions: solid fill (.btn-primary, .btn-danger, etc.)
+#   - Secondary actions: outline (.btn-outline-secondary)
+#   - Three sizes: btn-sm (inline), default, btn-lg (hero/CTA)
+# =============================================================================
+
+# =============================================================================
+# Icon Wrapper Functions (DSGN-01)
+# =============================================================================
+#
+# Semantic icon wrappers standardize Font Awesome icon usage across the app.
+# Icons are color-neutral — color comes from button/context, not the icon.
+# All wrappers pass through ... args to shiny::icon() for additional classes.
+
+#' Save action icon (floppy disk)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_save <- function(...) shiny::icon("floppy-disk", ...)
+
+#' Delete/Remove action icon (trash can)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_delete <- function(...) shiny::icon("trash", ...)
+
+#' Search action icon (magnifying glass)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_search <- function(...) shiny::icon("magnifying-glass", ...)
+
+#' Add/Create action icon (plus)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_add <- function(...) shiny::icon("plus", ...)
+
+#' Download action icon (down arrow)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_download <- function(...) shiny::icon("download", ...)
+
+#' Upload action icon (up arrow)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_upload <- function(...) shiny::icon("upload", ...)
+
+#' Settings/Config action icon (gear)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_settings <- function(...) shiny::icon("gear", ...)
+
+#' Info/Help icon (circle with i)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_info <- function(...) shiny::icon("circle-info", ...)
+
+#' Warning icon (triangle with exclamation)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_warning <- function(...) shiny::icon("triangle-exclamation", ...)
+
+#' Close/Cancel action icon (X)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_close <- function(...) shiny::icon("xmark", ...)
+
+#' Edit action icon (pen and square)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_edit <- function(...) shiny::icon("pen-to-square", ...)
+
+#' Refresh/Reload action icon (rotating arrows)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_refresh <- function(...) shiny::icon("arrows-rotate", ...)
+
+#' Export action icon (file with arrow)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_export <- function(...) shiny::icon("file-export", ...)
+
+#' Copy action icon (duplicate)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_copy <- function(...) shiny::icon("copy", ...)
+
+#' Expand action icon (expand arrows)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_expand <- function(...) shiny::icon("expand", ...)
+
+#' Collapse action icon (compress arrows)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_collapse <- function(...) shiny::icon("compress", ...)
+
+#' Filter action icon (funnel)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_filter <- function(...) shiny::icon("filter", ...)
+
+#' Sort action icon (sort arrows)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_sort <- function(...) shiny::icon("sort", ...)
+
+#' Book/Reading icon (open book)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_book <- function(...) shiny::icon("book", ...)
+
+#' Paper/Document icon (file with lines)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_paper <- function(...) shiny::icon("file-lines", ...)
+
 # Generate all dark mode CSS overrides as a single string
 # Injected via bslib::bs_add_rules() for centralized dark mode (DARK-05)
 catppuccin_dark_css <- function() {
