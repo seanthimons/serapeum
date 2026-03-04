@@ -159,7 +159,7 @@ mod_citation_network_ui <- function(id) {
               ns("physics_enabled"),
               "Physics Simulation",
               value = TRUE
-            )
+            ),
           )
         )
       ),
@@ -179,6 +179,103 @@ mod_citation_network_ui <- function(id) {
 mod_citation_network_server <- function(id, con_r, config_r, network_id_r, network_trigger) {
   moduleServer(id, function(input, output, session) {
 
+    # Helper function: Compute influential paper IDs with bridge detection
+    compute_trim_ids <- function(nodes, edges) {
+      n_nodes <- nrow(nodes)
+
+      # For very small networks, don't trim
+      if (n_nodes < 20) {
+        return(list(keep_ids = nodes$id, remove_count = 0))
+      }
+
+      # Seeds always kept
+      seed_ids <- nodes$id[nodes$is_seed]
+
+      # Compute adaptive citation threshold from unfiltered data
+      # NOTE: Adaptive percentile threshold — tuneable parameter
+      if (n_nodes >= 50) {
+        threshold <- quantile(nodes$cited_by_count, 0.75, na.rm = TRUE)
+      } else {
+        threshold <- quantile(nodes$cited_by_count, 0.50, na.rm = TRUE)
+      }
+
+      # Influential papers = seeds + high citation count
+      influential_ids <- nodes$id[nodes$cited_by_count >= threshold | nodes$is_seed]
+
+      # Bridge detection (skip for large networks > 500 nodes)
+      bridge_ids <- character(0)
+      if (n_nodes <= 500) {
+        # NOTE: Bridge detection — simplified edge-based approach for citation networks (mostly DAGs).
+        # For dense graphs, consider igraph::articulation_points() instead.
+        non_influential <- nodes$id[!(nodes$id %in% influential_ids)]
+
+        for (node_id in non_influential) {
+          # Check if this node has edges connecting TO influential papers
+          has_edge_to_influential <- any(edges$from == node_id & edges$to %in% influential_ids)
+          # AND edges connecting FROM influential papers
+          has_edge_from_influential <- any(edges$to == node_id & edges$from %in% influential_ids)
+
+          if (has_edge_to_influential && has_edge_from_influential) {
+            bridge_ids <- c(bridge_ids, node_id)
+          }
+        }
+      }
+
+      keep_ids <- unique(c(seed_ids, influential_ids, bridge_ids))
+      remove_count <- n_nodes - length(keep_ids)
+
+      list(keep_ids = keep_ids, remove_count = remove_count)
+    }
+
+    # Helper function: Apply combined year + trim filters
+    apply_combined_filters <- function() {
+      net_data <- unfiltered_network_data()
+      req(net_data)
+
+      nodes <- net_data$nodes
+      edges <- net_data$edges
+
+      # Start with all nodes
+      year_keep <- rep(TRUE, nrow(nodes))
+      trim_keep <- rep(TRUE, nrow(nodes))
+
+      # Apply year filter
+      range <- input$year_filter
+      include_null <- input$include_unknown_year_network
+      if (!is.null(range) && !is.null(include_null)) {
+        # Seeds always kept
+        year_keep <- nodes$is_seed
+        if (include_null) {
+          year_keep <- year_keep | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
+        } else {
+          year_keep <- year_keep | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
+        }
+      }
+
+      # Apply trim filter
+      if (isTRUE(input$trim_enabled)) {
+        result <- compute_trim_ids(nodes, edges)
+        trim_keep <- nodes$id %in% result$keep_ids
+      }
+
+      # Combine with AND logic
+      final_keep <- year_keep & trim_keep
+      filtered_nodes <- nodes[final_keep, ]
+
+      # Keep edges where both endpoints survive
+      filtered_node_ids <- filtered_nodes$id
+      filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
+
+      # Update display data
+      current_network_data(list(
+        nodes = filtered_nodes,
+        edges = filtered_edges,
+        metadata = net_data$metadata
+      ))
+
+      filtered_nodes
+    }
+
     # Current network data (may be filtered)
     current_network_data <- reactiveVal(NULL)
     # Unfiltered snapshot — set when network is built/loaded, never mutated by filters
@@ -186,6 +283,13 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     current_seed_ids <- reactiveVal(character())
     source_notebook_id <- reactiveVal(NULL)
     selected_node_id <- reactiveVal(NULL)
+    # Physics state tracking
+    ambient_drift_active <- reactiveVal(FALSE)
+    # TRUE when the current render used saved positions (physics disabled at render).
+    # Prevents the data-change observer from forcing physics ON and causing a
+    # singularity collapse — loaded graphs should stay frozen until the user
+    # explicitly toggles physics.
+    rendered_with_positions <- reactiveVal(FALSE)
 
     # Progressive loading state
     progressive_nodes <- reactiveVal(NULL)
@@ -232,8 +336,20 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
     # Year filter panel — only shown when a network exists
     output$year_filter_panel <- renderUI({
-      req(unfiltered_network_data())
+      net_data <- unfiltered_network_data()
+      req(net_data)
       ns <- session$ns
+
+      # FILT-01: Compute dynamic year bounds from actual network data
+      valid_years <- net_data$nodes$year[!is.na(net_data$nodes$year)]
+      if (length(valid_years) > 0) {
+        min_year <- min(valid_years)
+        max_year <- max(valid_years)
+      } else {
+        min_year <- 1900
+        max_year <- as.integer(format(Sys.Date(), "%Y"))
+      }
+
       div(
         class = "mt-2 pt-2 border-top",
         layout_columns(
@@ -243,13 +359,15 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
               ns("year_filter"),
               tags$span("Year Range",
                         title = "Filter network nodes by publication year. Adjust range then click Apply to update."),
-              min = 1900, max = 2026, value = c(1900, 2026),
+              min = min_year, max = max_year, value = c(min_year, max_year),
               step = 1, sep = "", ticks = FALSE
             )
           ),
           div(
             class = "pt-4",
-            checkboxInput(ns("include_unknown_year_network"), "Include unknown year", value = TRUE)
+            bslib::input_switch(ns("include_unknown_year_network"), "Include unknown year", value = TRUE),
+            bslib::input_switch(ns("trim_enabled"), "Trim to Influential", value = FALSE),
+            uiOutput(ns("trim_label"))
           ),
           div(
             class = "pt-3",
@@ -306,39 +424,36 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       )
     })
 
+    # Trim label — shows removal count when enabled
+    output$trim_label <- renderUI({
+      net_data <- unfiltered_network_data()
+      if (is.null(net_data)) return(NULL)
+      if (!isTRUE(input$trim_enabled)) return(NULL)
+
+      result <- compute_trim_ids(net_data$nodes, net_data$edges)
+
+      div(class = "small text-muted mt-1",
+          paste("Removes", result$remove_count, "papers"))
+    })
+
+    # Auto-enable trim for 500+ node networks
+    observe({
+      net_data <- unfiltered_network_data()
+      req(net_data)
+      if (nrow(net_data$nodes) >= 500) {
+        bslib::update_switch("trim_enabled", value = TRUE, session = session)
+      }
+    }, priority = -1)
+
     # Apply year filter — filters from unfiltered snapshot, never destructive
     observeEvent(input$apply_year_filter, {
       net_data <- unfiltered_network_data()
       req(net_data)
 
-      range <- input$year_filter
-      include_null <- input$include_unknown_year_network
-
-      nodes <- net_data$nodes
-      edges <- net_data$edges
-
-      # Always keep seed paper regardless of year filter
-      is_kept <- nodes$is_seed
-      if (include_null) {
-        is_kept <- is_kept | is.na(nodes$year) | (nodes$year >= range[1] & nodes$year <= range[2])
-      } else {
-        is_kept <- is_kept | (!is.na(nodes$year) & nodes$year >= range[1] & nodes$year <= range[2])
-      }
-      filtered_nodes <- nodes[is_kept, ]
-
-      # Keep edges where both endpoints survive
-      filtered_node_ids <- filtered_nodes$id
-      filtered_edges <- edges[edges$from %in% filtered_node_ids & edges$to %in% filtered_node_ids, ]
-
-      # Update display data (unfiltered snapshot stays intact)
-      current_network_data(list(
-        nodes = filtered_nodes,
-        edges = filtered_edges,
-        metadata = net_data$metadata
-      ))
+      filtered_nodes <- apply_combined_filters()
 
       showNotification(
-        paste("Year filter applied:", nrow(filtered_nodes), "of", nrow(nodes), "nodes shown"),
+        paste("Filters applied:", nrow(filtered_nodes), "of", nrow(net_data$nodes), "nodes shown"),
         type = "message"
       )
     })
@@ -546,6 +661,9 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Check if this is a loaded network (has pre-computed positions)
       has_positions <- !is.null(nodes$x_position) && !is.null(nodes$y_position)
+      # Track render mode so the data-change observer knows not to force physics ON
+      # for loaded graphs (which would cause singularity collapse — see PHYS-01)
+      rendered_with_positions(has_positions)
 
       if (has_positions) {
         # Use saved positions
@@ -638,73 +756,92 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             if (params.nodes.length > 0) {
               Shiny.setInputValue('%s', params.nodes[0], {priority: 'event'});
             }
-          }", session$ns("node_clicked"))
+          }", session$ns("node_clicked")),
+          stabilizationIterationsDone = sprintf("function() {
+            Shiny.setInputValue('%s', Date.now(), {priority: 'event'});
+          }", session$ns("stabilization_done")),
+          dragStart = sprintf("function(params) {
+            Shiny.setInputValue('%s', true, {priority: 'event'});
+          }", session$ns("user_interacting")),
+          dragEnd = sprintf("function(params) {
+            Shiny.setInputValue('%s', false, {priority: 'event'});
+          }", session$ns("user_interacting"))
         ) |>
         visNetwork::visOptions(
           highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
         ) |>
-        # UIPX-03: Tooltip smart repositioning — keep within graph container bounds
+        # Custom tooltip — renders HTML, handles containment & dark mode
         htmlwidgets::onRender("
           function(el, x) {
-            var container = el.closest('.citation-network-container');
-            if (!container) return;
+            var container = el.closest('.citation-network-container') || el;
+            var network = HTMLWidgets.getInstance(el).network;
+            if (!network) return;
 
-            var observer = new MutationObserver(function(mutations) {
-              mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                  if (node.classList && node.classList.contains('vis-tooltip')) {
-                    repositionTooltip(node, container);
-                  }
-                });
-                // Also handle attribute changes (tooltip moves with mouse)
-                if (mutation.type === 'attributes' && mutation.target.classList &&
-                    mutation.target.classList.contains('vis-tooltip')) {
-                  repositionTooltip(mutation.target, container);
-                }
-              });
-            });
+            // Create custom tooltip element inside the position:relative container
+            var tip = document.createElement('div');
+            tip.style.cssText = 'position:absolute;display:none;z-index:1000;max-width:300px;' +
+              'word-wrap:break-word;padding:8px 12px;border-radius:0.5rem;' +
+              'pointer-events:none;font-size:14px;line-height:1.4;';
+            container.appendChild(tip);
 
-            observer.observe(el, {
-              childList: true,
-              subtree: true,
-              attributes: true,
-              attributeFilter: ['style']
-            });
+            var mx = 0, my = 0;
 
-            function repositionTooltip(tooltip, container) {
-              requestAnimationFrame(function() {
-                var tipRect = tooltip.getBoundingClientRect();
-                var cRect = container.getBoundingClientRect();
-
-                var left = parseInt(tooltip.style.left, 10) || 0;
-                var top = parseInt(tooltip.style.top, 10) || 0;
-
-                // Clamp right edge within container
-                var rightOverflow = (cRect.left + left + tipRect.width) - cRect.right;
-                if (rightOverflow > 0) {
-                  left = left - rightOverflow - 8;
-                }
-
-                // Clamp left edge within container
-                if (cRect.left + left < cRect.left) {
-                  left = 0;
-                }
-
-                // Clamp bottom edge within container
-                var bottomOverflow = (cRect.top + top + tipRect.height) - cRect.bottom;
-                if (bottomOverflow > 0) {
-                  top = top - tipRect.height - 20;
-                }
-
-                // Clamp top edge within container
-                if (top < 0) {
-                  top = 0;
-                }
-
-                tooltip.style.left = left + 'px';
-                tooltip.style.top = top + 'px';
-              });
+            function styleTip() {
+              var dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+              if (dark) {
+                tip.style.backgroundColor = '#313244';
+                tip.style.color = '#cdd6f4';
+                tip.style.border = '1px solid #6c7086';
+                tip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)';
+              } else {
+                tip.style.backgroundColor = '#f5f4ed';
+                tip.style.color = '#000';
+                tip.style.border = '1px solid #808074';
+                tip.style.boxShadow = '3px 3px 10px rgba(0,0,0,0.2)';
+              }
             }
+
+            function positionTip() {
+              var cW = container.clientWidth;
+              var cH = container.clientHeight;
+              var tW = tip.offsetWidth;
+              var tH = tip.offsetHeight;
+
+              var left = mx + 15;
+              var top = my + 15;
+
+              // Clamp right — flip to left of cursor
+              if (left + tW > cW - 8) left = mx - tW - 10;
+              if (left < 8) left = 8;
+
+              // Clamp bottom — flip above cursor
+              if (top + tH > cH - 8) top = my - tH - 10;
+              if (top < 8) top = 8;
+
+              tip.style.left = left + 'px';
+              tip.style.top = top + 'px';
+            }
+
+            // Track mouse position relative to container
+            el.addEventListener('mousemove', function(e) {
+              var r = container.getBoundingClientRect();
+              mx = e.clientX - r.left;
+              my = e.clientY - r.top;
+              if (tip.style.display !== 'none') positionTip();
+            });
+
+            network.on('hoverNode', function(params) {
+              var node = network.body.data.nodes.get(params.node);
+              if (!node || !node.tooltip_html) return;
+              tip.innerHTML = node.tooltip_html;
+              styleTip();
+              tip.style.display = 'block';
+              positionTip();
+            });
+
+            network.on('blurNode', function() { tip.style.display = 'none'; });
+            network.on('dragStart', function() { tip.style.display = 'none'; });
+            network.on('zoom', function() { tip.style.display = 'none'; });
           }
         ")
 
@@ -754,12 +891,153 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                                               "color.highlight.border")])
     }, ignoreInit = TRUE)
 
-    # Toggle physics simulation on/off
-    observeEvent(input$physics_enabled, {
-      req(current_network_data())
-      visNetwork::visNetworkProxy(session$ns("network_graph")) |>
-        visNetwork::visPhysics(enabled = input$physics_enabled)
+    # Debounced trim toggle observer
+    trim_debounced <- reactive({ input$trim_enabled }) |> debounce(300)
+    observeEvent(trim_debounced(), {
+      net_data <- unfiltered_network_data()
+      req(net_data)
+      apply_combined_filters()
     }, ignoreInit = TRUE)
+
+    # Debounced physics toggle to prevent rapid-click glitches
+    physics_toggle_debounced <- reactive({
+      input$physics_enabled
+    }) |> debounce(300)  # NOTE: Debounce delay — tuneable. Prevents rapid toggle glitches
+
+    # PHYS-01: Debounced physics toggle with position validation (prevents singularity collapse)
+    observeEvent(physics_toggle_debounced(), {
+      enabled <- physics_toggle_debounced()
+      req(!is.null(enabled))
+      net_data <- current_network_data()
+      req(net_data)
+
+      if (enabled) {
+        # PHYS-01: Re-enable physics with the same forceAtlas2Based solver used
+        # for fresh builds. Calling visPhysics(enabled = TRUE) alone uses vis.js
+        # defaults (barnesHut), whose gravity pulls all nodes to (0,0) — the
+        # singularity collapse bug. Passing explicit solver params ensures nodes
+        # maintain their spread and simulate naturally from current positions.
+        nodes <- net_data$nodes
+        n_nodes <- nrow(nodes)
+        n_edges <- nrow(net_data$edges)
+
+        # Same density-scaled params as renderVisNetwork (lines ~584-597)
+        gravity <- if (n_nodes <= 30) -120
+                   else if (n_nodes <= 100) -200
+                   else if (n_nodes <= 200) -350
+                   else -500
+        spring <- if (n_nodes <= 30) 350
+                  else if (n_nodes <= 100) 450
+                  else if (n_nodes <= 200) 600
+                  else 800
+        edge_ratio <- n_edges / max(n_nodes, 1)
+        if (edge_ratio > 3) {
+          gravity <- gravity * 1.5
+          spring <- spring * 1.3
+        }
+
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(
+            enabled = TRUE,
+            solver = "forceAtlas2Based",
+            forceAtlas2Based = list(
+              gravitationalConstant = gravity,
+              springLength = spring,
+              damping = 0.4
+            ),
+            stabilization = FALSE  # Don't re-stabilize — resume from current positions
+          )
+      } else {
+        # Instant freeze — nodes stop immediately where they are
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = FALSE)
+        ambient_drift_active(FALSE)
+      }
+    }, ignoreInit = TRUE)
+
+    # PHYS-02: Stabilization handler — conditional freeze/drift based on network size
+    observeEvent(input$stabilization_done, {
+      net_data <- current_network_data()
+      req(net_data)
+
+      n_nodes <- nrow(net_data$nodes)
+
+      if (n_nodes <= 20) {  # NOTE: Ambient drift threshold — tuneable
+        # Enable gentle ambient drift for small networks
+        ambient_drift_active(TRUE)
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(
+            enabled = TRUE,
+            solver = "forceAtlas2Based",
+            forceAtlas2Based = list(
+              gravitationalConstant = -50,
+              centralGravity = 0.005,
+              damping = 0.25  # NOTE: Drift speed — tuneable. Lower damping = longer orbit (~30-60s). centralGravity keeps nodes loosely centered.
+            )
+          )
+      } else {
+        # Freeze large networks after stabilization
+        ambient_drift_active(FALSE)
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = FALSE)
+      }
+    }, ignoreInit = TRUE)
+
+    # Interaction-aware drift pausing
+    observeEvent(input$user_interacting, {
+      if (isTRUE(input$user_interacting) && ambient_drift_active()) {
+        # Temporarily disable physics during interaction
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(enabled = FALSE)
+      }
+    }, ignoreInit = TRUE)
+
+    # Debounced interaction end — resume drift after user stops interacting
+    interaction_ended_debounced <- reactive({
+      input$user_interacting
+    }) |> debounce(1000)  # NOTE: Resume delay after interaction — tuneable
+
+    observeEvent(interaction_ended_debounced(), {
+      if (isFALSE(interaction_ended_debounced()) &&
+          ambient_drift_active() &&
+          isTRUE(physics_toggle_debounced())) {
+        # Resume ambient drift after user interaction ends
+        visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+          visNetwork::visPhysics(
+            enabled = TRUE,
+            solver = "forceAtlas2Based",
+            forceAtlas2Based = list(
+              gravitationalConstant = -50,
+              centralGravity = 0.005,
+              damping = 0.25
+            )
+          )
+      }
+    }, ignoreInit = TRUE)
+
+    # Reset physics state when network data changes.
+    # PHYS-01: Only force physics ON for fresh builds (no saved positions).
+    # Loaded graphs render with physics disabled; forcing the toggle ON here
+    # would re-enable physics via the debounced toggle observer, causing vis.js
+    # to run a new simulation with default solver params → singularity collapse.
+    # Instead, loaded graphs set the toggle to OFF to match their rendered state.
+    #
+    # NOTE: We check for positions directly on the data rather than using
+    # rendered_with_positions(), because this observer fires BEFORE
+    # renderVisNetwork re-executes (Shiny flush cycle: observers before outputs).
+    observeEvent(current_network_data(), {
+      ambient_drift_active(FALSE)
+      net_data <- current_network_data()
+      has_saved_positions <- !is.null(net_data$nodes$x_position) &&
+        !is.null(net_data$nodes$y_position)
+      if (has_saved_positions) {
+        # Loaded graph — physics will be disabled at render, toggle must match
+        bslib::update_switch("physics_enabled", value = FALSE, session = session)
+      } else {
+        # Fresh build — physics is running for initial layout, toggle should be ON
+        bslib::update_switch("physics_enabled", value = TRUE, session = session)
+      }
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Handle node click
     observeEvent(input$node_clicked, {

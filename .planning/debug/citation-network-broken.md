@@ -1,5 +1,5 @@
 ---
-status: investigating
+status: resolved
 trigger: "citation network generation broken after dark mode changes (phases 30-31)"
 created: 2026-02-23T00:00:00Z
 updated: 2026-02-23T00:00:00Z

@@ -1,0 +1,72 @@
+# Requirements: Serapeum
+
+**Defined:** 2026-03-02
+**Core Value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
+
+## v9.0 Requirements
+
+Requirements for v9.0 Network Graph Polish. Each maps to roadmap phases.
+
+### Physics
+
+- [x] **PHYS-01**: Network does not collapse when toggling physics after returning to tab (#131) — ✅ Completed 2026-03-03 (Phase 41-01)
+- [x] **PHYS-02**: Small/single-seed networks retain ambient orbital rotation after stabilization (#130) — ✅ Completed 2026-03-03 (Phase 41-01)
+
+### Filtering
+
+- [x] **FILT-01**: Year filter lower-bound reflects the actual minimum year in the network data (#128) — ✅ Completed 2026-03-03 (Phase 42-01)
+- [x] **FILT-02**: User can trim the network to only influential/high-citation papers (#129) — ✅ Completed 2026-03-03 (Phase 42-01)
+
+### Tooltips
+
+- [x] **TOOL-01**: Tooltips remain within the graph container and do not overflow into the side panel (#79)
+- [x] **TOOL-02**: Tooltips are readable on dark mode with correct contrast (#127)
+
+## Future Requirements
+
+Deferred to future milestones.
+
+### AI Output Overhaul (epic #107)
+
+- **AIOUT-01**: Methodology Extractor preset (#100)
+- **AIOUT-02**: Gap Analysis Report preset (#101)
+- **AIOUT-03**: Rethink conclusion synthesis as split presets (#88)
+- **AIOUT-04**: Argument Map / Claims Network preset (#104)
+- **AIOUT-05**: Annotated Bibliography export (#105)
+- **AIOUT-06**: Teaching Materials Generator (#106)
+
+### Network Enhancements
+
+- **NET-01**: Partial BFS graph as intentional visualization mode (#126)
+- **NET-02**: Export from network graph to abstract search + vice versa (#84)
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Auto-freeze physics for large networks | User removed from v9.0 scope — may revisit if PHYS-02 approach informs it |
+| Partial BFS visualization mode (#126) | Exploratory — deferred to future |
+| Network-to-abstract export (#84) | High complexity, different milestone |
+| Recursive abstract searching (#11) | High complexity, future milestone |
+| PDF image pipeline (#44) | Epic-level effort, future milestone |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PHYS-01 | Phase 41 | ✅ Complete (2026-03-03) |
+| PHYS-02 | Phase 41 | ✅ Complete (2026-03-03) |
+| FILT-01 | Phase 42 | ✅ Complete (2026-03-03) |
+| FILT-02 | Phase 42 | ✅ Complete (2026-03-03) |
+| TOOL-01 | Phase 43 | Complete |
+| TOOL-02 | Phase 43 | Complete |
+
+**Coverage:**
+- v9.0 requirements: 6 total
+- Mapped to phases: 6
+- Unmapped: 0 ✓
+- Completed: 4 (67%)
+
+---
+*Requirements defined: 2026-03-02*
+*Last updated: 2026-03-03 — Phase 42-01 complete (FILT-01, FILT-02)*

@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "Investigate the root cause of this UAT gap for Phase 39 (Slide Healing): The slide generation and healing prompts in `R/slides.R` lack sufficient RevealJS/Quarto formatting reference. The LLM produces incorrect syntax for footnotes, speaker notes, etc."
 created: 2026-02-27T12:45:00Z
 updated: 2026-02-27T12:52:00Z

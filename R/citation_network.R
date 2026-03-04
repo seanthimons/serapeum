@@ -637,17 +637,41 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
   nodes_df$color.highlight.background <- nodes_df$color.background
   nodes_df$borderWidth <- ifelse(nodes_df$is_seed, 5, 2)
 
-  # Preserve original paper title before overwriting with tooltip
-  nodes_df$paper_title <- nodes_df$title
+  # Preserve original paper title.
+  # For loaded networks, paper_title may not exist — fall back to title.
+  if (is.null(nodes_df$paper_title)) {
+    nodes_df$paper_title <- nodes_df$title
+  }
 
-  # Tooltip with paper details (visNetwork uses 'title' for hover tooltip)
-  nodes_df$title <- sprintf(
-    "<b>%s</b><br>Authors: %s<br>Year: %s<br>Citations: %s",
+  # Sanitize: old saved networks stored tooltip HTML in title column.
+  # Extract plain title from between <b>...</b> tags if present.
+  has_html <- grepl("<b>", nodes_df$paper_title, fixed = TRUE)
+  if (any(has_html)) {
+    nodes_df$paper_title[has_html] <- sub(
+      ".*?<b>(.*?)</b>.*", "\\1", nodes_df$paper_title[has_html]
+    )
+  }
+
+  # Extract first author for display
+  first_author <- sub(",.*", "", nodes_df$authors)
+  author_display <- ifelse(
+    grepl(",", nodes_df$authors),
+    paste0(first_author, " et al."),
+    first_author
+  )
+
+  # Tooltip HTML stored in custom column — our onRender JS reads this via innerHTML.
+  # NOT stored in 'title' because vis.js renders title as plain text, not HTML.
+  nodes_df$tooltip_html <- sprintf(
+    "<div style='max-width:300px;word-wrap:break-word'><b>%s</b><br>%s<br>Year: %s<br>Citations: %s</div>",
     htmltools::htmlEscape(nodes_df$paper_title),
-    htmltools::htmlEscape(nodes_df$authors),
+    htmltools::htmlEscape(author_display),
     ifelse(is.na(nodes_df$year), "N/A", nodes_df$year),
     nodes_df$cited_by_count
   )
+
+  # Clear title so vis.js does NOT show its default (text-only) tooltip
+  nodes_df$title <- NA
 
   # Edges: visNetwork expects 'from' and 'to' columns
   if (nrow(edges_df) > 0) {
