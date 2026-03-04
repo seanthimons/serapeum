@@ -169,10 +169,10 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
   2. Dead code (with_ragnar_store, register_ragnar_cleanup) is removed from codebase
   3. Connection leak detection test added to CI
   4. App runs without connection exhaustion under typical load
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 44-01: Fix connection leaks and remove dead code
+- [ ] 44-01-PLAN.md — Validate existing DEBT-01/DEBT-02 fixes and add connection leak detection test
 
 ### Phase 45: Design System Foundation
 **Goal**: Document semantic color/icon policy and validate with visual swatch sheet before any code changes
