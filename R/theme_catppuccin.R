@@ -394,3 +394,631 @@ catppuccin_dark_css <- function() {
 }
 ')
 }
+
+# =============================================================================
+# Swatch Sheet Generator (DSGN-02)
+# =============================================================================
+
+#' Generate Design System Swatch Sheet
+#'
+#' Creates a standalone HTML file showing all design system components
+#' (buttons, badges, alerts, forms, sidebar, cards, icons) in both
+#' Catppuccin Latte (light) and Mocha (dark) flavors side-by-side.
+#'
+#' The swatch sheet serves as a visual validation gate before Phase 47
+#' applies the design system to the actual app UI.
+#'
+#' @param output_path Path to save the HTML file (default: "www/swatch.html")
+#' @return Invisibly returns the path to the generated file
+#' @export
+generate_swatch_html <- function(output_path = "www/swatch.html") {
+
+  # Build comprehensive CSS with embedded Catppuccin colors
+  swatch_css <- paste0('
+    /* Reset and base styles */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+    /* Grid layout: side-by-side */
+    .swatch-container { display: flex; min-height: 100vh; }
+    .theme-column { flex: 1; padding: 2rem; }
+
+    /* Latte (light) theme */
+    .theme-latte {
+      background: ', LATTE$base, ';
+      color: ', LATTE$text, ';
+      --primary: ', LATTE$blue, ';
+      --danger: ', LATTE$red, ';
+      --success: ', LATTE$green, ';
+      --warning: ', LATTE$yellow, ';
+      --info: ', LATTE$sapphire, ';
+      --secondary: ', LATTE$surface1, ';
+      --surface0: ', LATTE$surface0, ';
+      --surface1: ', LATTE$surface1, ';
+      --surface2: ', LATTE$surface2, ';
+      --text: ', LATTE$text, ';
+      --subtext0: ', LATTE$subtext0, ';
+      --peach: ', LATTE$peach, ';
+      --border: ', LATTE$surface2, ';
+    }
+
+    /* Mocha (dark) theme */
+    .theme-mocha {
+      background: ', MOCHA$base, ';
+      color: ', MOCHA$text, ';
+      --primary: ', MOCHA$blue, ';
+      --danger: ', MOCHA$red, ';
+      --success: ', MOCHA$green, ';
+      --warning: ', MOCHA$yellow, ';
+      --info: ', MOCHA$sapphire, ';
+      --secondary: ', MOCHA$surface1, ';
+      --surface0: ', MOCHA$surface0, ';
+      --surface1: ', MOCHA$surface1, ';
+      --surface2: ', MOCHA$surface2, ';
+      --text: ', MOCHA$text, ';
+      --subtext0: ', MOCHA$subtext0, ';
+      --peach: ', MOCHA$peach, ';
+      --border: ', MOCHA$surface2, ';
+    }
+
+    /* Typography */
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--primary); }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+    p { margin-bottom: 1rem; line-height: 1.6; }
+
+    /* Section spacing */
+    .section { margin-bottom: 2.5rem; }
+
+    /* Color swatches */
+    .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .color-swatch { padding: 1rem; border-radius: 8px; border: 1px solid var(--border); }
+    .color-name { font-weight: 600; margin-bottom: 0.25rem; }
+    .color-hex { font-family: monospace; font-size: 0.875rem; color: var(--subtext0); }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      margin: 0.25rem;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+    }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+    .btn-lg { padding: 0.75rem 1.5rem; font-size: 1.125rem; }
+
+    .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+    .btn-danger:hover { opacity: 0.85; }
+    .btn-success { background: var(--success); color: white; border-color: var(--success); }
+    .btn-success:hover { opacity: 0.85; }
+    .btn-warning { background: var(--warning); color: var(--text); border-color: var(--warning); }
+    .btn-warning:hover { opacity: 0.85; }
+    .btn-info { background: var(--info); color: white; border-color: var(--info); }
+    .btn-info:hover { opacity: 0.85; }
+    .btn-secondary { background: var(--secondary); color: var(--text); border-color: var(--secondary); }
+    .btn-secondary:hover { opacity: 0.85; }
+
+    .btn-outline-primary { background: transparent; color: var(--primary); border-color: var(--primary); }
+    .btn-outline-primary:hover { background: var(--primary); color: white; }
+    .btn-outline-secondary { background: transparent; color: var(--text); border-color: var(--border); }
+    .btn-outline-secondary:hover { background: var(--surface0); }
+    .btn-outline-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+    .btn-outline-danger:hover { background: var(--danger); color: white; }
+
+    .btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.65rem;
+      margin: 0.25rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: white;
+    }
+    .badge.bg-primary { background: var(--primary); }
+    .badge.bg-danger { background: var(--danger); }
+    .badge.bg-success { background: var(--success); }
+    .badge.bg-warning { background: var(--warning); color: var(--text); }
+    .badge.bg-info { background: var(--info); }
+    .badge.bg-peach { background: var(--peach); color: var(--text); }
+
+    /* Alerts */
+    .alert {
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+    }
+    .alert-primary { background: color-mix(in srgb, var(--primary) 15%, transparent); border-color: var(--primary); color: var(--text); }
+    .alert-danger { background: color-mix(in srgb, var(--danger) 15%, transparent); border-color: var(--danger); color: var(--text); }
+    .alert-success { background: color-mix(in srgb, var(--success) 15%, transparent); border-color: var(--success); color: var(--text); }
+    .alert-warning { background: color-mix(in srgb, var(--warning) 15%, transparent); border-color: var(--warning); color: var(--text); }
+    .alert-info { background: color-mix(in srgb, var(--info) 15%, transparent); border-color: var(--info); color: var(--text); }
+
+    /* Cards */
+    .card {
+      background: var(--surface0);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 0.75rem 1rem;
+      background: var(--surface1);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .card-body { padding: 1rem; }
+    .card-footer {
+      padding: 0.75rem 1rem;
+      background: var(--surface1);
+      border-top: 1px solid var(--border);
+      font-size: 0.875rem;
+      color: var(--subtext0);
+    }
+
+    /* Form inputs */
+    .form-control {
+      display: block;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 1rem;
+      background: var(--surface0);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 1rem;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+    }
+    .form-control:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background: var(--surface1);
+    }
+
+    /* Sidebar simulation */
+    .sidebar-demo {
+      background: var(--surface0);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+    .sidebar-item {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 0.25rem;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .sidebar-item:hover { background: var(--surface1); }
+    .sidebar-item.active {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+    }
+
+    /* Comparison boxes */
+    .comparison-box {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .comparison-item {
+      flex: 1;
+      padding: 1rem;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    /* Icon grid */
+    .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+    .icon-item { text-align: center; padding: 1rem; }
+    .icon-item i { font-size: 2rem; margin-bottom: 0.5rem; color: var(--primary); }
+    .icon-label { font-size: 0.875rem; color: var(--subtext0); font-family: monospace; }
+  ')
+
+  # Create HTML structure using htmltools
+  swatch_ui <- htmltools::tags$html(
+    htmltools::tags$head(
+      htmltools::tags$meta(charset = "UTF-8"),
+      htmltools::tags$meta(name = "viewport", content = "width=device-width, initial-scale=1.0"),
+      htmltools::tags$title("Serapeum Design System Swatch Sheet"),
+      htmltools::tags$link(
+        rel = "stylesheet",
+        href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      ),
+      htmltools::tags$style(htmltools::HTML(swatch_css))
+    ),
+    htmltools::tags$body(
+      htmltools::tags$div(
+        class = "swatch-container",
+
+        # LEFT COLUMN: Latte (Light)
+        htmltools::tags$div(
+          class = "theme-column theme-latte",
+          htmltools::tags$h1("Catppuccin Latte (Light)"),
+          htmltools::tags$p(
+            "Generated: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
+            htmltools::tags$br(),
+            "Phase 45 Design System Foundation"
+          ),
+
+          # 1. Raw Palette
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("1. Raw Palette"),
+            htmltools::tags$div(
+              class = "color-grid",
+              lapply(names(LATTE), function(name) {
+                htmltools::tags$div(
+                  class = "color-swatch",
+                  style = paste0("background: ", LATTE[[name]], ";"),
+                  htmltools::tags$div(class = "color-name", name),
+                  htmltools::tags$div(class = "color-hex", LATTE[[name]])
+                )
+              })
+            )
+          ),
+
+          # 2. Semantic Color Mapping
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("2. Semantic Color Mapping"),
+            htmltools::tags$p(htmltools::tags$strong("PRIMARY (blue)"), " — Main actions: Search, Save, Add to Notebook"),
+            htmltools::tags$p(htmltools::tags$strong("DANGER (red)"), " — Destructive: Delete, Remove, Clear"),
+            htmltools::tags$p(htmltools::tags$strong("SUCCESS (green)"), " — Confirmations: Paper Added, Export Complete"),
+            htmltools::tags$p(htmltools::tags$strong("WARNING (yellow)"), " — Cautions: API Key Missing, Rate Limit"),
+            htmltools::tags$p(htmltools::tags$strong("INFO (sapphire)"), " — Informational: Tooltips, Help Text"),
+            htmltools::tags$p(htmltools::tags$strong("SECONDARY (surface0/surface1)"), " — Less Important: Cancel, Close")
+          ),
+
+          # 3. Buttons
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("3. Buttons"),
+            htmltools::tags$h3("Solid Variants"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-primary", "Primary"),
+              htmltools::tags$button(class = "btn btn-danger", "Danger"),
+              htmltools::tags$button(class = "btn btn-success", "Success"),
+              htmltools::tags$button(class = "btn btn-warning", "Warning"),
+              htmltools::tags$button(class = "btn btn-info", "Info"),
+              htmltools::tags$button(class = "btn btn-secondary", "Secondary")
+            ),
+            htmltools::tags$h3("Outline Variants"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-outline-primary", "Outline Primary"),
+              htmltools::tags$button(class = "btn btn-outline-secondary", "Outline Secondary"),
+              htmltools::tags$button(class = "btn btn-outline-danger", "Outline Danger")
+            ),
+            htmltools::tags$h3("Sizes"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-sm btn-primary", "Small"),
+              htmltools::tags$button(class = "btn btn-primary", "Default"),
+              htmltools::tags$button(class = "btn btn-lg btn-primary", "Large")
+            ),
+            htmltools::tags$h3("Disabled State"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-primary", disabled = NA, "Disabled Primary"),
+              htmltools::tags$button(class = "btn btn-outline-secondary", disabled = NA, "Disabled Outline")
+            )
+          ),
+
+          # 4. Peach vs Yellow Comparison
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("4. Peach vs Yellow Comparison"),
+            htmltools::tags$p("Evaluate visual ambiguity — are these distinct enough?"),
+            htmltools::tags$div(
+              class = "comparison-box",
+              htmltools::tags$div(
+                class = "comparison-item",
+                style = paste0("background: ", LATTE$peach, ";"),
+                htmltools::tags$h3("Peach"),
+                htmltools::tags$p(LATTE$peach),
+                htmltools::tags$div(class = "badge bg-peach", "Peach Badge")
+              ),
+              htmltools::tags$div(
+                class = "comparison-item",
+                style = paste0("background: ", LATTE$yellow, ";"),
+                htmltools::tags$h3("Yellow"),
+                htmltools::tags$p(LATTE$yellow),
+                htmltools::tags$div(class = "badge bg-warning", "Warning Badge")
+              )
+            )
+          ),
+
+          # 5. Badges
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("5. Badges"),
+            htmltools::tags$div(
+              htmltools::tags$span(class = "badge bg-primary", "Primary"),
+              htmltools::tags$span(class = "badge bg-danger", "Danger"),
+              htmltools::tags$span(class = "badge bg-success", "Success"),
+              htmltools::tags$span(class = "badge bg-warning", "Warning"),
+              htmltools::tags$span(class = "badge bg-info", "Info"),
+              htmltools::tags$span(class = "badge bg-peach", "Peach (candidate)")
+            )
+          ),
+
+          # 6. Sidebar
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("6. Sidebar Simulation"),
+            htmltools::tags$div(
+              class = "sidebar-demo",
+              htmltools::tags$div(class = "sidebar-item active", "Active Item (Primary Blue)"),
+              htmltools::tags$div(class = "sidebar-item", "Inactive Item"),
+              htmltools::tags$div(class = "sidebar-item", "Hover to See Effect")
+            )
+          ),
+
+          # 7. Alerts
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("7. Alerts"),
+            htmltools::tags$div(class = "alert alert-primary", htmltools::tags$strong("Primary alert:"), " Informational message"),
+            htmltools::tags$div(class = "alert alert-danger", htmltools::tags$strong("Danger alert:"), " Something went wrong"),
+            htmltools::tags$div(class = "alert alert-success", htmltools::tags$strong("Success alert:"), " Operation completed"),
+            htmltools::tags$div(class = "alert alert-warning", htmltools::tags$strong("Warning alert:"), " Please check this"),
+            htmltools::tags$div(class = "alert alert-info", htmltools::tags$strong("Info alert:"), " Helpful information")
+          ),
+
+          # 8. Form Inputs
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("8. Form Inputs"),
+            htmltools::tags$input(class = "form-control", type = "text", placeholder = "Default state"),
+            htmltools::tags$input(class = "form-control", type = "text", placeholder = "Focus state (click to see focus ring)"),
+            htmltools::tags$input(class = "form-control", type = "text", placeholder = "Disabled state", disabled = NA)
+          ),
+
+          # 9. Cards
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("9. Cards"),
+            htmltools::tags$div(
+              class = "card",
+              htmltools::tags$div(class = "card-header", "Card Header"),
+              htmltools::tags$div(class = "card-body", "Card body content with proper border colors and background."),
+              htmltools::tags$div(class = "card-footer", "Card Footer")
+            )
+          ),
+
+          # 10. Icons
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("10. Icon Wrappers"),
+            htmltools::tags$div(
+              class = "icon-grid",
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-floppy-disk"), htmltools::tags$div(class = "icon-label", "icon_save")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-trash"), htmltools::tags$div(class = "icon-label", "icon_delete")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-magnifying-glass"), htmltools::tags$div(class = "icon-label", "icon_search")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-plus"), htmltools::tags$div(class = "icon-label", "icon_add")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-download"), htmltools::tags$div(class = "icon-label", "icon_download")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-upload"), htmltools::tags$div(class = "icon-label", "icon_upload")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-gear"), htmltools::tags$div(class = "icon-label", "icon_settings")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-circle-info"), htmltools::tags$div(class = "icon-label", "icon_info")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-triangle-exclamation"), htmltools::tags$div(class = "icon-label", "icon_warning")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-xmark"), htmltools::tags$div(class = "icon-label", "icon_close")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-pen-to-square"), htmltools::tags$div(class = "icon-label", "icon_edit")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-arrows-rotate"), htmltools::tags$div(class = "icon-label", "icon_refresh")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-file-export"), htmltools::tags$div(class = "icon-label", "icon_export")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-copy"), htmltools::tags$div(class = "icon-label", "icon_copy")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-expand"), htmltools::tags$div(class = "icon-label", "icon_expand")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-compress"), htmltools::tags$div(class = "icon-label", "icon_collapse")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-filter"), htmltools::tags$div(class = "icon-label", "icon_filter")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-sort"), htmltools::tags$div(class = "icon-label", "icon_sort")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-book"), htmltools::tags$div(class = "icon-label", "icon_book")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-file-lines"), htmltools::tags$div(class = "icon-label", "icon_paper"))
+            )
+          )
+        ),
+
+        # RIGHT COLUMN: Mocha (Dark) - Same structure with Mocha colors
+        htmltools::tags$div(
+          class = "theme-column theme-mocha",
+          htmltools::tags$h1("Catppuccin Mocha (Dark)"),
+          htmltools::tags$p(
+            "Generated: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
+            htmltools::tags$br(),
+            "Phase 45 Design System Foundation"
+          ),
+
+          # 1. Raw Palette
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("1. Raw Palette"),
+            htmltools::tags$div(
+              class = "color-grid",
+              lapply(names(MOCHA), function(name) {
+                htmltools::tags$div(
+                  class = "color-swatch",
+                  style = paste0("background: ", MOCHA[[name]], ";"),
+                  htmltools::tags$div(class = "color-name", name),
+                  htmltools::tags$div(class = "color-hex", MOCHA[[name]])
+                )
+              })
+            )
+          ),
+
+          # 2. Semantic Color Mapping
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("2. Semantic Color Mapping"),
+            htmltools::tags$p(htmltools::tags$strong("PRIMARY (blue)"), " — Main actions: Search, Save, Add to Notebook"),
+            htmltools::tags$p(htmltools::tags$strong("DANGER (red)"), " — Destructive: Delete, Remove, Clear"),
+            htmltools::tags$p(htmltools::tags$strong("SUCCESS (green)"), " — Confirmations: Paper Added, Export Complete"),
+            htmltools::tags$p(htmltools::tags$strong("WARNING (yellow)"), " — Cautions: API Key Missing, Rate Limit"),
+            htmltools::tags$p(htmltools::tags$strong("INFO (sapphire)"), " — Informational: Tooltips, Help Text"),
+            htmltools::tags$p(htmltools::tags$strong("SECONDARY (surface0/surface1)"), " — Less Important: Cancel, Close")
+          ),
+
+          # 3. Buttons
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("3. Buttons"),
+            htmltools::tags$h3("Solid Variants"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-primary", "Primary"),
+              htmltools::tags$button(class = "btn btn-danger", "Danger"),
+              htmltools::tags$button(class = "btn btn-success", "Success"),
+              htmltools::tags$button(class = "btn btn-warning", "Warning"),
+              htmltools::tags$button(class = "btn btn-info", "Info"),
+              htmltools::tags$button(class = "btn btn-secondary", "Secondary")
+            ),
+            htmltools::tags$h3("Outline Variants"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-outline-primary", "Outline Primary"),
+              htmltools::tags$button(class = "btn btn-outline-secondary", "Outline Secondary"),
+              htmltools::tags$button(class = "btn btn-outline-danger", "Outline Danger")
+            ),
+            htmltools::tags$h3("Sizes"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-sm btn-primary", "Small"),
+              htmltools::tags$button(class = "btn btn-primary", "Default"),
+              htmltools::tags$button(class = "btn btn-lg btn-primary", "Large")
+            ),
+            htmltools::tags$h3("Disabled State"),
+            htmltools::tags$div(
+              htmltools::tags$button(class = "btn btn-primary", disabled = NA, "Disabled Primary"),
+              htmltools::tags$button(class = "btn btn-outline-secondary", disabled = NA, "Disabled Outline")
+            )
+          ),
+
+          # 4. Peach vs Yellow Comparison
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("4. Peach vs Yellow Comparison"),
+            htmltools::tags$p("Evaluate visual ambiguity — are these distinct enough?"),
+            htmltools::tags$div(
+              class = "comparison-box",
+              htmltools::tags$div(
+                class = "comparison-item",
+                style = paste0("background: ", MOCHA$peach, ";"),
+                htmltools::tags$h3("Peach"),
+                htmltools::tags$p(MOCHA$peach),
+                htmltools::tags$div(class = "badge bg-peach", "Peach Badge")
+              ),
+              htmltools::tags$div(
+                class = "comparison-item",
+                style = paste0("background: ", MOCHA$yellow, ";"),
+                htmltools::tags$h3("Yellow"),
+                htmltools::tags$p(MOCHA$yellow),
+                htmltools::tags$div(class = "badge bg-warning", "Warning Badge")
+              )
+            )
+          ),
+
+          # 5. Badges
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("5. Badges"),
+            htmltools::tags$div(
+              htmltools::tags$span(class = "badge bg-primary", "Primary"),
+              htmltools::tags$span(class = "badge bg-danger", "Danger"),
+              htmltools::tags$span(class = "badge bg-success", "Success"),
+              htmltools::tags$span(class = "badge bg-warning", "Warning"),
+              htmltools::tags$span(class = "badge bg-info", "Info"),
+              htmltools::tags$span(class = "badge bg-peach", "Peach (candidate)")
+            )
+          ),
+
+          # 6. Sidebar
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("6. Sidebar Simulation"),
+            htmltools::tags$div(
+              class = "sidebar-demo",
+              htmltools::tags$div(class = "sidebar-item active", "Active Item (Primary Blue)"),
+              htmltools::tags$div(class = "sidebar-item", "Inactive Item"),
+              htmltools::tags$div(class = "sidebar-item", "Hover to See Effect")
+            )
+          ),
+
+          # 7. Alerts
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("7. Alerts"),
+            htmltools::tags$div(class = "alert alert-primary", htmltools::tags$strong("Primary alert:"), " Informational message"),
+            htmltools::tags$div(class = "alert alert-danger", htmltools::tags$strong("Danger alert:"), " Something went wrong"),
+            htmltools::tags$div(class = "alert alert-success", htmltools::tags$strong("Success alert:"), " Operation completed"),
+            htmltools::tags$div(class = "alert alert-warning", htmltools::tags$strong("Warning alert:"), " Please check this"),
+            htmltools::tags$div(class = "alert alert-info", htmltools::tags$strong("Info alert:"), " Helpful information")
+          ),
+
+          # 8. Form Inputs
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("8. Form Inputs"),
+            htmltools::tags$input(class = "form-control", type = "text", placeholder = "Default state"),
+            htmltools::tags$input(class = "form-control", type = "text", placeholder = "Focus state (click to see focus ring)"),
+            htmltools::tags$input(class = "form-control", type = "text", placeholder = "Disabled state", disabled = NA)
+          ),
+
+          # 9. Cards
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("9. Cards"),
+            htmltools::tags$div(
+              class = "card",
+              htmltools::tags$div(class = "card-header", "Card Header"),
+              htmltools::tags$div(class = "card-body", "Card body content with proper border colors and background."),
+              htmltools::tags$div(class = "card-footer", "Card Footer")
+            )
+          ),
+
+          # 10. Icons
+          htmltools::tags$div(
+            class = "section",
+            htmltools::tags$h2("10. Icon Wrappers"),
+            htmltools::tags$div(
+              class = "icon-grid",
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-floppy-disk"), htmltools::tags$div(class = "icon-label", "icon_save")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-trash"), htmltools::tags$div(class = "icon-label", "icon_delete")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-magnifying-glass"), htmltools::tags$div(class = "icon-label", "icon_search")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-plus"), htmltools::tags$div(class = "icon-label", "icon_add")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-download"), htmltools::tags$div(class = "icon-label", "icon_download")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-upload"), htmltools::tags$div(class = "icon-label", "icon_upload")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-gear"), htmltools::tags$div(class = "icon-label", "icon_settings")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-circle-info"), htmltools::tags$div(class = "icon-label", "icon_info")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-triangle-exclamation"), htmltools::tags$div(class = "icon-label", "icon_warning")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-xmark"), htmltools::tags$div(class = "icon-label", "icon_close")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-pen-to-square"), htmltools::tags$div(class = "icon-label", "icon_edit")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-arrows-rotate"), htmltools::tags$div(class = "icon-label", "icon_refresh")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-file-export"), htmltools::tags$div(class = "icon-label", "icon_export")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-copy"), htmltools::tags$div(class = "icon-label", "icon_copy")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-expand"), htmltools::tags$div(class = "icon-label", "icon_expand")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-compress"), htmltools::tags$div(class = "icon-label", "icon_collapse")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-filter"), htmltools::tags$div(class = "icon-label", "icon_filter")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-sort"), htmltools::tags$div(class = "icon-label", "icon_sort")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-book"), htmltools::tags$div(class = "icon-label", "icon_book")),
+              htmltools::tags$div(class = "icon-item", htmltools::tags$i(class = "fa-solid fa-file-lines"), htmltools::tags$div(class = "icon-label", "icon_paper"))
+            )
+          )
+        )
+      )
+    )
+  )
+
+  # Save to file
+  htmltools::save_html(swatch_ui, file = output_path)
+  message("Swatch sheet generated: ", output_path)
+  invisible(output_path)
+}

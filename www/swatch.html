@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<style>body{background-color:white;}</style>
+
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Serapeum Design System Swatch Sheet</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+  <style>
+    /* Reset and base styles */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+    /* Grid layout: side-by-side */
+    .swatch-container { display: flex; min-height: 100vh; }
+    .theme-column { flex: 1; padding: 2rem; }
+
+    /* Latte (light) theme */
+    .theme-latte {
+      background: #eff1f5;
+      color: #4c4f69;
+      --primary: #1e66f5;
+      --danger: #d20f39;
+      --success: #40a02b;
+      --warning: #df8e1d;
+      --info: #209fb5;
+      --secondary: #bcc0cc;
+      --surface0: #ccd0da;
+      --surface1: #bcc0cc;
+      --surface2: #acb0be;
+      --text: #4c4f69;
+      --subtext0: #6c6f85;
+      --peach: #fe640b;
+      --border: #acb0be;
+    }
+
+    /* Mocha (dark) theme */
+    .theme-mocha {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      --primary: #89b4fa;
+      --danger: #f38ba8;
+      --success: #a6e3a1;
+      --warning: #f9e2af;
+      --info: #74c7ec;
+      --secondary: #45475a;
+      --surface0: #313244;
+      --surface1: #45475a;
+      --surface2: #585b70;
+      --text: #cdd6f4;
+      --subtext0: #a6adc8;
+      --peach: #fab387;
+      --border: #585b70;
+    }
+
+    /* Typography */
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--primary); }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+    p { margin-bottom: 1rem; line-height: 1.6; }
+
+    /* Section spacing */
+    .section { margin-bottom: 2.5rem; }
+
+    /* Color swatches */
+    .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .color-swatch { padding: 1rem; border-radius: 8px; border: 1px solid var(--border); }
+    .color-name { font-weight: 600; margin-bottom: 0.25rem; }
+    .color-hex { font-family: monospace; font-size: 0.875rem; color: var(--subtext0); }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      margin: 0.25rem;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+    }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+    .btn-lg { padding: 0.75rem 1.5rem; font-size: 1.125rem; }
+
+    .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+    .btn-danger:hover { opacity: 0.85; }
+    .btn-success { background: var(--success); color: white; border-color: var(--success); }
+    .btn-success:hover { opacity: 0.85; }
+    .btn-warning { background: var(--warning); color: var(--text); border-color: var(--warning); }
+    .btn-warning:hover { opacity: 0.85; }
+    .btn-info { background: var(--info); color: white; border-color: var(--info); }
+    .btn-info:hover { opacity: 0.85; }
+    .btn-secondary { background: var(--secondary); color: var(--text); border-color: var(--secondary); }
+    .btn-secondary:hover { opacity: 0.85; }
+
+    .btn-outline-primary { background: transparent; color: var(--primary); border-color: var(--primary); }
+    .btn-outline-primary:hover { background: var(--primary); color: white; }
+    .btn-outline-secondary { background: transparent; color: var(--text); border-color: var(--border); }
+    .btn-outline-secondary:hover { background: var(--surface0); }
+    .btn-outline-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+    .btn-outline-danger:hover { background: var(--danger); color: white; }
+
+    .btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.65rem;
+      margin: 0.25rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: white;
+    }
+    .badge.bg-primary { background: var(--primary); }
+    .badge.bg-danger { background: var(--danger); }
+    .badge.bg-success { background: var(--success); }
+    .badge.bg-warning { background: var(--warning); color: var(--text); }
+    .badge.bg-info { background: var(--info); }
+    .badge.bg-peach { background: var(--peach); color: var(--text); }
+
+    /* Alerts */
+    .alert {
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+    }
+    .alert-primary { background: color-mix(in srgb, var(--primary) 15%, transparent); border-color: var(--primary); color: var(--text); }
+    .alert-danger { background: color-mix(in srgb, var(--danger) 15%, transparent); border-color: var(--danger); color: var(--text); }
+    .alert-success { background: color-mix(in srgb, var(--success) 15%, transparent); border-color: var(--success); color: var(--text); }
+    .alert-warning { background: color-mix(in srgb, var(--warning) 15%, transparent); border-color: var(--warning); color: var(--text); }
+    .alert-info { background: color-mix(in srgb, var(--info) 15%, transparent); border-color: var(--info); color: var(--text); }
+
+    /* Cards */
+    .card {
+      background: var(--surface0);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 0.75rem 1rem;
+      background: var(--surface1);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .card-body { padding: 1rem; }
+    .card-footer {
+      padding: 0.75rem 1rem;
+      background: var(--surface1);
+      border-top: 1px solid var(--border);
+      font-size: 0.875rem;
+      color: var(--subtext0);
+    }
+
+    /* Form inputs */
+    .form-control {
+      display: block;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 1rem;
+      background: var(--surface0);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 1rem;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+    }
+    .form-control:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background: var(--surface1);
+    }
+
+    /* Sidebar simulation */
+    .sidebar-demo {
+      background: var(--surface0);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+    .sidebar-item {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 0.25rem;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .sidebar-item:hover { background: var(--surface1); }
+    .sidebar-item.active {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+    }
+
+    /* Comparison boxes */
+    .comparison-box {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .comparison-item {
+      flex: 1;
+      padding: 1rem;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    /* Icon grid */
+    .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+    .icon-item { text-align: center; padding: 1rem; }
+    .icon-item i { font-size: 2rem; margin-bottom: 0.5rem; color: var(--primary); }
+    .icon-label { font-size: 0.875rem; color: var(--subtext0); font-family: monospace; }
+  </style>
+</head>
+<html>
+  <body>
+    <div class="swatch-container">
+      <div class="theme-column theme-latte">
+        <h1>Catppuccin Latte (Light)</h1>
+        <p>
+          Generated: 
+          2026-03-04 17:26:48 EST
+          <br/>
+          Phase 45 Design System Foundation
+        </p>
+        <div class="section">
+          <h2>1. Raw Palette</h2>
+          <div class="color-grid">
+            <div class="color-swatch" style="background: #eff1f5;">
+              <div class="color-name">base</div>
+              <div class="color-hex">#eff1f5</div>
+            </div>
+            <div class="color-swatch" style="background: #e6e9ef;">
+              <div class="color-name">mantle</div>
+              <div class="color-hex">#e6e9ef</div>
+            </div>
+            <div class="color-swatch" style="background: #dce0e8;">
+              <div class="color-name">crust</div>
+              <div class="color-hex">#dce0e8</div>
+            </div>
+            <div class="color-swatch" style="background: #4c4f69;">
+              <div class="color-name">text</div>
+              <div class="color-hex">#4c4f69</div>
+            </div>
+            <div class="color-swatch" style="background: #5c5f77;">
+              <div class="color-name">subtext1</div>
+              <div class="color-hex">#5c5f77</div>
+            </div>
+            <div class="color-swatch" style="background: #6c6f85;">
+              <div class="color-name">subtext0</div>
+              <div class="color-hex">#6c6f85</div>
+            </div>
+            <div class="color-swatch" style="background: #ccd0da;">
+              <div class="color-name">surface0</div>
+              <div class="color-hex">#ccd0da</div>
+            </div>
+            <div class="color-swatch" style="background: #bcc0cc;">
+              <div class="color-name">surface1</div>
+              <div class="color-hex">#bcc0cc</div>
+            </div>
+            <div class="color-swatch" style="background: #acb0be;">
+              <div class="color-name">surface2</div>
+              <div class="color-hex">#acb0be</div>
+            </div>
+            <div class="color-swatch" style="background: #9ca0b0;">
+              <div class="color-name">overlay0</div>
+              <div class="color-hex">#9ca0b0</div>
+            </div>
+            <div class="color-swatch" style="background: #8c8fa1;">
+              <div class="color-name">overlay1</div>
+              <div class="color-hex">#8c8fa1</div>
+            </div>
+            <div class="color-swatch" style="background: #7c7f93;">
+              <div class="color-name">overlay2</div>
+              <div class="color-hex">#7c7f93</div>
+            </div>
+            <div class="color-swatch" style="background: #7287fd;">
+              <div class="color-name">lavender</div>
+              <div class="color-hex">#7287fd</div>
+            </div>
+            <div class="color-swatch" style="background: #209fb5;">
+              <div class="color-name">sapphire</div>
+              <div class="color-hex">#209fb5</div>
+            </div>
+            <div class="color-swatch" style="background: #04a5e5;">
+              <div class="color-name">sky</div>
+              <div class="color-hex">#04a5e5</div>
+            </div>
+            <div class="color-swatch" style="background: #1e66f5;">
+              <div class="color-name">blue</div>
+              <div class="color-hex">#1e66f5</div>
+            </div>
+            <div class="color-swatch" style="background: #40a02b;">
+              <div class="color-name">green</div>
+              <div class="color-hex">#40a02b</div>
+            </div>
+            <div class="color-swatch" style="background: #df8e1d;">
+              <div class="color-name">yellow</div>
+              <div class="color-hex">#df8e1d</div>
+            </div>
+            <div class="color-swatch" style="background: #d20f39;">
+              <div class="color-name">red</div>
+              <div class="color-hex">#d20f39</div>
+            </div>
+            <div class="color-swatch" style="background: #fe640b;">
+              <div class="color-name">peach</div>
+              <div class="color-hex">#fe640b</div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>2. Semantic Color Mapping</h2>
+          <p>
+            <strong>PRIMARY (blue)</strong>
+             — Main actions: Search, Save, Add to Notebook
+          </p>
+          <p>
+            <strong>DANGER (red)</strong>
+             — Destructive: Delete, Remove, Clear
+          </p>
+          <p>
+            <strong>SUCCESS (green)</strong>
+             — Confirmations: Paper Added, Export Complete
+          </p>
+          <p>
+            <strong>WARNING (yellow)</strong>
+             — Cautions: API Key Missing, Rate Limit
+          </p>
+          <p>
+            <strong>INFO (sapphire)</strong>
+             — Informational: Tooltips, Help Text
+          </p>
+          <p>
+            <strong>SECONDARY (surface0/surface1)</strong>
+             — Less Important: Cancel, Close
+          </p>
+        </div>
+        <div class="section">
+          <h2>3. Buttons</h2>
+          <h3>Solid Variants</h3>
+          <div>
+            <button class="btn btn-primary">Primary</button>
+            <button class="btn btn-danger">Danger</button>
+            <button class="btn btn-success">Success</button>
+            <button class="btn btn-warning">Warning</button>
+            <button class="btn btn-info">Info</button>
+            <button class="btn btn-secondary">Secondary</button>
+          </div>
+          <h3>Outline Variants</h3>
+          <div>
+            <button class="btn btn-outline-primary">Outline Primary</button>
+            <button class="btn btn-outline-secondary">Outline Secondary</button>
+            <button class="btn btn-outline-danger">Outline Danger</button>
+          </div>
+          <h3>Sizes</h3>
+          <div>
+            <button class="btn btn-sm btn-primary">Small</button>
+            <button class="btn btn-primary">Default</button>
+            <button class="btn btn-lg btn-primary">Large</button>
+          </div>
+          <h3>Disabled State</h3>
+          <div>
+            <button class="btn btn-primary" disabled>Disabled Primary</button>
+            <button class="btn btn-outline-secondary" disabled>Disabled Outline</button>
+          </div>
+        </div>
+        <div class="section">
+          <h2>4. Peach vs Yellow Comparison</h2>
+          <p>Evaluate visual ambiguity — are these distinct enough?</p>
+          <div class="comparison-box">
+            <div class="comparison-item" style="background: #fe640b;">
+              <h3>Peach</h3>
+              <p>#fe640b</p>
+              <div class="badge bg-peach">Peach Badge</div>
+            </div>
+            <div class="comparison-item" style="background: #df8e1d;">
+              <h3>Yellow</h3>
+              <p>#df8e1d</p>
+              <div class="badge bg-warning">Warning Badge</div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>5. Badges</h2>
+          <div>
+            <span class="badge bg-primary">Primary</span>
+            <span class="badge bg-danger">Danger</span>
+            <span class="badge bg-success">Success</span>
+            <span class="badge bg-warning">Warning</span>
+            <span class="badge bg-info">Info</span>
+            <span class="badge bg-peach">Peach (candidate)</span>
+          </div>
+        </div>
+        <div class="section">
+          <h2>6. Sidebar Simulation</h2>
+          <div class="sidebar-demo">
+            <div class="sidebar-item active">Active Item (Primary Blue)</div>
+            <div class="sidebar-item">Inactive Item</div>
+            <div class="sidebar-item">Hover to See Effect</div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>7. Alerts</h2>
+          <div class="alert alert-primary">
+            <strong>Primary alert:</strong>
+             Informational message
+          </div>
+          <div class="alert alert-danger">
+            <strong>Danger alert:</strong>
+             Something went wrong
+          </div>
+          <div class="alert alert-success">
+            <strong>Success alert:</strong>
+             Operation completed
+          </div>
+          <div class="alert alert-warning">
+            <strong>Warning alert:</strong>
+             Please check this
+          </div>
+          <div class="alert alert-info">
+            <strong>Info alert:</strong>
+             Helpful information
+          </div>
+        </div>
+        <div class="section">
+          <h2>8. Form Inputs</h2>
+          <input class="form-control" type="text" placeholder="Default state"/>
+          <input class="form-control" type="text" placeholder="Focus state (click to see focus ring)"/>
+          <input class="form-control" type="text" placeholder="Disabled state" disabled/>
+        </div>
+        <div class="section">
+          <h2>9. Cards</h2>
+          <div class="card">
+            <div class="card-header">Card Header</div>
+            <div class="card-body">Card body content with proper border colors and background.</div>
+            <div class="card-footer">Card Footer</div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>10. Icon Wrappers</h2>
+          <div class="icon-grid">
+            <div class="icon-item">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <div class="icon-label">icon_save</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-trash"></i>
+              <div class="icon-label">icon_delete</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <div class="icon-label">icon_search</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-plus"></i>
+              <div class="icon-label">icon_add</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-download"></i>
+              <div class="icon-label">icon_download</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-upload"></i>
+              <div class="icon-label">icon_upload</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-gear"></i>
+              <div class="icon-label">icon_settings</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-circle-info"></i>
+              <div class="icon-label">icon_info</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <div class="icon-label">icon_warning</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-xmark"></i>
+              <div class="icon-label">icon_close</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-pen-to-square"></i>
+              <div class="icon-label">icon_edit</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              <div class="icon-label">icon_refresh</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-file-export"></i>
+              <div class="icon-label">icon_export</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-copy"></i>
+              <div class="icon-label">icon_copy</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-expand"></i>
+              <div class="icon-label">icon_expand</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-compress"></i>
+              <div class="icon-label">icon_collapse</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-filter"></i>
+              <div class="icon-label">icon_filter</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-sort"></i>
+              <div class="icon-label">icon_sort</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-book"></i>
+              <div class="icon-label">icon_book</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-file-lines"></i>
+              <div class="icon-label">icon_paper</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="theme-column theme-mocha">
+        <h1>Catppuccin Mocha (Dark)</h1>
+        <p>
+          Generated: 
+          2026-03-04 17:26:48 EST
+          <br/>
+          Phase 45 Design System Foundation
+        </p>
+        <div class="section">
+          <h2>1. Raw Palette</h2>
+          <div class="color-grid">
+            <div class="color-swatch" style="background: #1e1e2e;">
+              <div class="color-name">base</div>
+              <div class="color-hex">#1e1e2e</div>
+            </div>
+            <div class="color-swatch" style="background: #181825;">
+              <div class="color-name">mantle</div>
+              <div class="color-hex">#181825</div>
+            </div>
+            <div class="color-swatch" style="background: #11111b;">
+              <div class="color-name">crust</div>
+              <div class="color-hex">#11111b</div>
+            </div>
+            <div class="color-swatch" style="background: #cdd6f4;">
+              <div class="color-name">text</div>
+              <div class="color-hex">#cdd6f4</div>
+            </div>
+            <div class="color-swatch" style="background: #bac2de;">
+              <div class="color-name">subtext1</div>
+              <div class="color-hex">#bac2de</div>
+            </div>
+            <div class="color-swatch" style="background: #a6adc8;">
+              <div class="color-name">subtext0</div>
+              <div class="color-hex">#a6adc8</div>
+            </div>
+            <div class="color-swatch" style="background: #313244;">
+              <div class="color-name">surface0</div>
+              <div class="color-hex">#313244</div>
+            </div>
+            <div class="color-swatch" style="background: #45475a;">
+              <div class="color-name">surface1</div>
+              <div class="color-hex">#45475a</div>
+            </div>
+            <div class="color-swatch" style="background: #585b70;">
+              <div class="color-name">surface2</div>
+              <div class="color-hex">#585b70</div>
+            </div>
+            <div class="color-swatch" style="background: #6c7086;">
+              <div class="color-name">overlay0</div>
+              <div class="color-hex">#6c7086</div>
+            </div>
+            <div class="color-swatch" style="background: #7f849c;">
+              <div class="color-name">overlay1</div>
+              <div class="color-hex">#7f849c</div>
+            </div>
+            <div class="color-swatch" style="background: #9399b2;">
+              <div class="color-name">overlay2</div>
+              <div class="color-hex">#9399b2</div>
+            </div>
+            <div class="color-swatch" style="background: #b4befe;">
+              <div class="color-name">lavender</div>
+              <div class="color-hex">#b4befe</div>
+            </div>
+            <div class="color-swatch" style="background: #74c7ec;">
+              <div class="color-name">sapphire</div>
+              <div class="color-hex">#74c7ec</div>
+            </div>
+            <div class="color-swatch" style="background: #89dceb;">
+              <div class="color-name">sky</div>
+              <div class="color-hex">#89dceb</div>
+            </div>
+            <div class="color-swatch" style="background: #89b4fa;">
+              <div class="color-name">blue</div>
+              <div class="color-hex">#89b4fa</div>
+            </div>
+            <div class="color-swatch" style="background: #a6e3a1;">
+              <div class="color-name">green</div>
+              <div class="color-hex">#a6e3a1</div>
+            </div>
+            <div class="color-swatch" style="background: #f9e2af;">
+              <div class="color-name">yellow</div>
+              <div class="color-hex">#f9e2af</div>
+            </div>
+            <div class="color-swatch" style="background: #f38ba8;">
+              <div class="color-name">red</div>
+              <div class="color-hex">#f38ba8</div>
+            </div>
+            <div class="color-swatch" style="background: #fab387;">
+              <div class="color-name">peach</div>
+              <div class="color-hex">#fab387</div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>2. Semantic Color Mapping</h2>
+          <p>
+            <strong>PRIMARY (blue)</strong>
+             — Main actions: Search, Save, Add to Notebook
+          </p>
+          <p>
+            <strong>DANGER (red)</strong>
+             — Destructive: Delete, Remove, Clear
+          </p>
+          <p>
+            <strong>SUCCESS (green)</strong>
+             — Confirmations: Paper Added, Export Complete
+          </p>
+          <p>
+            <strong>WARNING (yellow)</strong>
+             — Cautions: API Key Missing, Rate Limit
+          </p>
+          <p>
+            <strong>INFO (sapphire)</strong>
+             — Informational: Tooltips, Help Text
+          </p>
+          <p>
+            <strong>SECONDARY (surface0/surface1)</strong>
+             — Less Important: Cancel, Close
+          </p>
+        </div>
+        <div class="section">
+          <h2>3. Buttons</h2>
+          <h3>Solid Variants</h3>
+          <div>
+            <button class="btn btn-primary">Primary</button>
+            <button class="btn btn-danger">Danger</button>
+            <button class="btn btn-success">Success</button>
+            <button class="btn btn-warning">Warning</button>
+            <button class="btn btn-info">Info</button>
+            <button class="btn btn-secondary">Secondary</button>
+          </div>
+          <h3>Outline Variants</h3>
+          <div>
+            <button class="btn btn-outline-primary">Outline Primary</button>
+            <button class="btn btn-outline-secondary">Outline Secondary</button>
+            <button class="btn btn-outline-danger">Outline Danger</button>
+          </div>
+          <h3>Sizes</h3>
+          <div>
+            <button class="btn btn-sm btn-primary">Small</button>
+            <button class="btn btn-primary">Default</button>
+            <button class="btn btn-lg btn-primary">Large</button>
+          </div>
+          <h3>Disabled State</h3>
+          <div>
+            <button class="btn btn-primary" disabled>Disabled Primary</button>
+            <button class="btn btn-outline-secondary" disabled>Disabled Outline</button>
+          </div>
+        </div>
+        <div class="section">
+          <h2>4. Peach vs Yellow Comparison</h2>
+          <p>Evaluate visual ambiguity — are these distinct enough?</p>
+          <div class="comparison-box">
+            <div class="comparison-item" style="background: #fab387;">
+              <h3>Peach</h3>
+              <p>#fab387</p>
+              <div class="badge bg-peach">Peach Badge</div>
+            </div>
+            <div class="comparison-item" style="background: #f9e2af;">
+              <h3>Yellow</h3>
+              <p>#f9e2af</p>
+              <div class="badge bg-warning">Warning Badge</div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>5. Badges</h2>
+          <div>
+            <span class="badge bg-primary">Primary</span>
+            <span class="badge bg-danger">Danger</span>
+            <span class="badge bg-success">Success</span>
+            <span class="badge bg-warning">Warning</span>
+            <span class="badge bg-info">Info</span>
+            <span class="badge bg-peach">Peach (candidate)</span>
+          </div>
+        </div>
+        <div class="section">
+          <h2>6. Sidebar Simulation</h2>
+          <div class="sidebar-demo">
+            <div class="sidebar-item active">Active Item (Primary Blue)</div>
+            <div class="sidebar-item">Inactive Item</div>
+            <div class="sidebar-item">Hover to See Effect</div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>7. Alerts</h2>
+          <div class="alert alert-primary">
+            <strong>Primary alert:</strong>
+             Informational message
+          </div>
+          <div class="alert alert-danger">
+            <strong>Danger alert:</strong>
+             Something went wrong
+          </div>
+          <div class="alert alert-success">
+            <strong>Success alert:</strong>
+             Operation completed
+          </div>
+          <div class="alert alert-warning">
+            <strong>Warning alert:</strong>
+             Please check this
+          </div>
+          <div class="alert alert-info">
+            <strong>Info alert:</strong>
+             Helpful information
+          </div>
+        </div>
+        <div class="section">
+          <h2>8. Form Inputs</h2>
+          <input class="form-control" type="text" placeholder="Default state"/>
+          <input class="form-control" type="text" placeholder="Focus state (click to see focus ring)"/>
+          <input class="form-control" type="text" placeholder="Disabled state" disabled/>
+        </div>
+        <div class="section">
+          <h2>9. Cards</h2>
+          <div class="card">
+            <div class="card-header">Card Header</div>
+            <div class="card-body">Card body content with proper border colors and background.</div>
+            <div class="card-footer">Card Footer</div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>10. Icon Wrappers</h2>
+          <div class="icon-grid">
+            <div class="icon-item">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <div class="icon-label">icon_save</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-trash"></i>
+              <div class="icon-label">icon_delete</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <div class="icon-label">icon_search</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-plus"></i>
+              <div class="icon-label">icon_add</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-download"></i>
+              <div class="icon-label">icon_download</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-upload"></i>
+              <div class="icon-label">icon_upload</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-gear"></i>
+              <div class="icon-label">icon_settings</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-circle-info"></i>
+              <div class="icon-label">icon_info</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <div class="icon-label">icon_warning</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-xmark"></i>
+              <div class="icon-label">icon_close</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-pen-to-square"></i>
+              <div class="icon-label">icon_edit</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              <div class="icon-label">icon_refresh</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-file-export"></i>
+              <div class="icon-label">icon_export</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-copy"></i>
+              <div class="icon-label">icon_copy</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-expand"></i>
+              <div class="icon-label">icon_expand</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-compress"></i>
+              <div class="icon-label">icon_collapse</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-filter"></i>
+              <div class="icon-label">icon_filter</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-sort"></i>
+              <div class="icon-label">icon_sort</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-book"></i>
+              <div class="icon-label">icon_book</div>
+            </div>
+            <div class="icon-item">
+              <i class="fa-solid fa-file-lines"></i>
+              <div class="icon-label">icon_paper</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+</html>
