@@ -1,815 +1,624 @@
-# Architecture Integration: Citation Audit + Bulk Import + Slide Healing
+# Architecture Integration Research
 
-**Project:** Serapeum v7.0
-**Researched:** 2026-02-25
+**Domain:** Theme Harmonization + AI Synthesis Presets in R/Shiny Research Assistant
+**Researched:** 2026-03-04
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone adds 5 features to existing R/Shiny architecture:
-1. **Citation Audit** — analyze `referenced_works` in abstracts table to find missing seminal papers
-2. **Bulk DOI upload** — textarea + file upload for DOI lists → OpenAlex batch lookup
-3. **BibTeX file parsing** — extract DOIs from .bib files for network seeding
-4. **Select-all import** — bulk import filtered abstracts into document notebook
-5. **Slide prompt healing** — pre-inject YAML + regeneration workflow for malformed QMD
+This milestone adds **global theme policy**, **citation audit bug fixes**, **sidebar/button theming**, and **two new AI synthesis presets** (Methodology Extractor, Gap Analysis Report) to an existing R/Shiny app with ~20,000 LOC across 18 production files.
 
-All integrate with existing Shiny module pattern, DuckDB schema, and OpenAlex/OpenRouter APIs. **No new infrastructure needed** — reuse async ExtendedTask pattern, existing db.R functions, and producer-consumer discovery flow.
+**Key architectural insight:** All new features integrate with existing patterns. Theme policy extends `R/theme_catppuccin.R`. Presets extend `R/rag.R` preset functions. Citation audit fixes touch `R/mod_citation_audit.R` and `R/mod_search_notebook.R`. No new modules, no architectural changes — pure extension.
 
-## System Context
+**Build order recommendation:** Theme policy first (foundation) → Citation audit fixes (critical bugs) → Sidebar/button theming (apply policy) → Methodology preset → Gap Analysis preset.
 
-### Current Architecture (v6.0)
+## Existing Architecture Overview
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Shiny UI Layer                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ mod_search   │  │ mod_document │  │ mod_citation │       │
-│  │ _notebook    │  │ _notebook    │  │ _network     │       │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
-├─────────┼──────────────────┼──────────────────┼──────────────┤
-│                    Business Logic                             │
-│  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────┴───────┐       │
-│  │ api_openalex │  │ api_openrouter│  │ citation_    │       │
-│  │              │  │ + slides.R    │  │ network.R    │       │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
-├─────────┼──────────────────┼──────────────────┼──────────────┤
-│                    Data Layer                                 │
-│  ┌──────┴──────────────────┴──────────────────┴────────┐     │
-│  │ db.R → DuckDB (abstracts, documents, notebooks)     │     │
-│  └─────────────────────────────────────────────────────┘     │
-├──────────────────────────────────────────────────────────────┤
-│                    Async Infrastructure                       │
-│  ┌───────────────────────────────────────────────────────┐   │
-│  │ ExtendedTask + mirai (citation builds, ragnar reindex)│   │
-│  └───────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**Key patterns already in place:**
-- **Shiny modules** (`mod_*.R`) with `ns()` namespacing
-- **API clients** (`api_*.R`) return structured lists with error handling
-- **Database layer** (`db.R`) with `get_db_connection()`, transaction support
-- **Async pattern** ExtendedTask + mirai for non-blocking operations
-- **Producer-consumer discovery** (seed/query/topic → abstract preview → import)
-
-## Feature Integration Maps
-
-### 1. Citation Audit
-
-**What:** Analyze `referenced_works` JSON column in abstracts table → find frequently-cited DOIs not in corpus → query OpenAlex for metadata → present import UI
-
-**Integration points:**
+### System Structure
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ mod_search_notebook.R (MODIFIED)                        │
-│  + "Find Missing Papers" button in header              │
-│  + observeEvent(input$audit_citations)                 │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ R/citation_audit.R (NEW)                                │
-│  + analyze_citation_gaps(con, notebook_id, top_n=20)   │
-│     1. SELECT referenced_works FROM abstracts           │
-│     2. Parse JSON arrays, flatten to DOI vector         │
-│     3. Count frequency, filter out existing abstracts   │
-│     4. Return top N missing DOIs with counts            │
-│  + fetch_missing_papers(dois, email, api_key)          │
-│     - OpenAlex batch query (pipe-separated filter)      │
-│     - Parse to abstract format                          │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ db.R (NO CHANGE)                                        │
-│  - Reuse list_abstracts(), create_abstract()           │
-│  - referenced_works column already exists (v2.0 mig)    │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ UI: Modal with ranked list                              │
-│  [✓] Paper Title (Author, Year) — cited 12 times       │
-│  [✓] Another Paper (Author, Year) — cited 8 times      │
-│  [Import Selected] [Cancel]                             │
+│                       UI Layer                           │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ app.R: page_sidebar() + bs_theme()               │   │
+│  │  - Sidebar: notebook list + discovery buttons    │   │
+│  │  - Main: navset_card_tab() for notebooks/modules │   │
+│  └────────────────┬─────────────────────────────────┘   │
+├──────────────────┬┴─────────────────────────────────────┤
+│             Module Layer (14 Shiny modules)              │
+│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐   │
+│  │ Document   │ │ Search     │ │ Citation           │   │
+│  │ Notebook   │ │ Notebook   │ │ Network/Audit      │   │
+│  └──────┬─────┘ └──────┬─────┘ └──────┬─────────────┘   │
+│         │              │               │                 │
+│  ┌──────┴──────────────┴───────────────┴──────────────┐  │
+│  │  Discovery Modules (producer-consumer pattern)     │  │
+│  │  - Seed Discovery, Query Builder, Topic Explorer   │  │
+│  └─────────────────────┬──────────────────────────────┘  │
+├──────────────────────┬─┴─────────────────────────────────┤
+│              Business Logic Layer                        │
+│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐   │
+│  │ R/rag.R    │ │ R/pdf.R    │ │ R/api_*.R          │   │
+│  │ - Presets  │ │ - Section  │ │ - OpenRouter       │   │
+│  │ - Retrieval│ │   Detection│ │ - OpenAlex         │   │
+│  └──────┬─────┘ └──────┬─────┘ └──────┬─────────────┘   │
+│         │              │               │                 │
+│  ┌──────┴──────────────┴───────────────┴──────────────┐  │
+│  │ R/db.R: Database operations + hybrid search        │  │
+│  └─────────────────────┬──────────────────────────────┘  │
+├──────────────────────┬─┴─────────────────────────────────┤
+│               Data Layer                                 │
+│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐   │
+│  │ DuckDB     │ │ Ragnar     │ │ Theme              │   │
+│  │ notebooks  │ │ per-notebook│ │ R/theme_catppuccin │   │
+│  │ .duckdb    │ │ stores      │ │ - MOCHA/LATTE      │   │
+│  └────────────┘ └────────────┘ └────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**New components:**
-- `R/citation_audit.R` — analysis + OpenAlex batch fetch
+### Key Architectural Patterns
 
-**Modified components:**
-- `R/mod_search_notebook.R` — add audit button + modal UI
+**1. Shiny Module Pattern** (`mod_*_ui()` + `mod_*_server()`)
+- 14 production modules in `R/mod_*.R`
+- Namespace isolation via `NS(id)` in UI, `ns()` in server
+- Reactive communication via `reactiveVal()` and callbacks
+- Example: `mod_search_notebook.R` (2634 lines), `mod_document_notebook.R` (789 lines)
+
+**2. Preset Function Pattern** (R/rag.R)
+- `generate_preset()`: Simple presets (summarize, keypoints, studyguide, outline)
+- `generate_conclusions_preset()`: Section-targeted RAG with three-level fallback
+- `generate_research_questions()`: Standalone function with paper metadata enrichment
+- Common: RAG retrieval → prompt building → LLM call → cost logging
+
+**3. Theme System** (R/theme_catppuccin.R)
+- Catppuccin LATTE (light) and MOCHA (dark) palettes
+- `bs_theme()` for base colors in `app.R` (lines 57-72)
+- `catppuccin_dark_css()` generates all `[data-bs-theme="dark"]` overrides (~244 lines)
+- Applied via `bs_add_rules()` in `app.R` theme block
+
+**4. Section-Targeted RAG** (R/db.R + R/pdf.R)
+- `detect_section_hint()`: Keyword heuristics classify chunks (methods, conclusion, discussion, etc.)
+- `search_chunks_hybrid()`: Optional `section_filter` parameter for targeted retrieval
+- Three-level fallback: section-filtered → unfiltered → direct DB (graceful degradation)
+- Used by Conclusions preset, Research Questions preset
+
+## Integration Points for New Features
+
+### 1. Global Theme Policy (Issue #138)
+
+**Existing touchpoint:** `R/theme_catppuccin.R`
+
+**Integration pattern:**
+- Define semantic color mapping in new section of `theme_catppuccin.R`
+- Document mapping: action type → Bootstrap semantic class → Catppuccin color
+- Example structure:
+  ```r
+  # Semantic Action Color Policy
+  # - Destructive/delete: danger (MOCHA$red / LATTE$red)
+  # - Primary/create: primary (MOCHA$lavender / LATTE$lavender)
+  # - Success/import: success (MOCHA$green / LATTE$green)
+  # - Info/explore: info (MOCHA$blue / LATTE$blue)
+  # - Warning/caution: warning (MOCHA$yellow / LATTE$yellow)
+  ```
+
+**What changes:**
+- ADD: Design policy documentation in `theme_catppuccin.R` (comment block or exported constant)
+- MODIFY: None (policy is documentation, not code)
 
 **Data flow:**
-1. User clicks "Find Missing Papers" button
-2. Extract all `referenced_works` JSON arrays from abstracts table
-3. Parse to DOI list, count frequency across corpus
-4. Filter out DOIs already in abstracts table (anti-join on DOI)
-5. Batch fetch top 20 from OpenAlex (pipe-separated filter, max 50 per request)
-6. Present checkbox list ranked by citation frequency
-7. Import selected via existing `create_abstract()` workflow
+- One-way: Policy document → Developer reads → Applies to buttons
 
-**Complexity:** MEDIUM — requires JSON parsing, frequency analysis, batch API handling
+**Why this works:**
+- Policy extends existing theme system without new abstractions
+- Catppuccin palette already defines all semantic colors
+- Bootstrap 5 semantic classes (`btn-primary`, `btn-danger`) automatically theme-aware
 
 ---
 
-### 2. Bulk DOI Upload
+### 2. Citation Audit Bug Fixes (Issues #134, #133)
 
-**What:** Textarea for pasting DOI list + file upload (.txt, .csv) → parse, validate, batch OpenAlex lookup → import to notebook
+**Existing touchpoints:**
+- `R/mod_citation_audit.R` (error on adding multiple papers)
+- `R/mod_search_notebook.R` (papers not appearing in abstract notebook)
 
-**Integration points:**
+**Integration pattern:**
+- Bug #134: Likely error in `check_audit_imports()` or batch import SQL (line 111 in mod_citation_audit.R)
+- Bug #133: Abstract refresh reactive not triggering after import (line 2483-2493 in mod_search_notebook.R)
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ mod_search_notebook.R (MODIFIED)                        │
-│  + "Bulk Import" dropdown option → "DOI List..."       │
-│  + Modal with textarea + fileInput                      │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ R/utils_doi.R (MODIFIED)                                │
-│  + parse_doi_list(text) — split by newline/comma/space │
-│  + validate_doi_batch(dois) — filter valid, return list│
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ R/api_openalex.R (MODIFIED)                             │
-│  + batch_fetch_works_by_doi(dois, email, api_key)      │
-│     - Chunk into batches of 50 (OpenAlex limit)        │
-│     - Build filter: doi:10.1234/a|10.5678/b             │
-│     - Return parsed work list                           │
-│     - Handle missing DOIs gracefully (warn, skip)       │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ ExtendedTask for async batch import                     │
-│  - Progress bar updates per batch                       │
-│  - Mirai isolated process for API calls                │
-│  - Interrupt flag support for cancel                    │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ db.R (NO CHANGE)                                        │
-│  - Reuse create_abstract() for each fetched paper      │
-└─────────────────────────────────────────────────────────┘
-```
-
-**New components:**
-- `parse_doi_list()` in utils_doi.R
-- `validate_doi_batch()` in utils_doi.R
-- `batch_fetch_works_by_doi()` in api_openalex.R
-
-**Modified components:**
-- `mod_search_notebook.R` — add bulk import modal UI + ExtendedTask observer
+**What changes:**
+- MODIFY: `R/mod_citation_audit.R` — Fix SQL/error handling in audit import flow
+- MODIFY: `R/mod_search_notebook.R` — Fix reactive invalidation in abstract list after import
 
 **Data flow:**
-1. User clicks "Bulk Import" → "DOI List..."
-2. Modal opens with textarea (placeholder: "10.1234/abc\n10.5678/def") + fileInput
-3. Parse input: split by newline, comma, or whitespace
-4. Normalize with `normalize_doi_bare()`, validate format
-5. Deduplicate, filter out DOIs already in notebook
-6. Chunk into batches of 50 (OpenAlex max per request)
-7. Async ExtendedTask: batch fetch with progress updates
-8. Import each fetched paper via `create_abstract()`
-9. Show success notification: "Imported 47 papers, 3 DOIs not found"
+```
+Citation Audit Import Flow (Current):
+1. User selects papers → selected_ids reactive
+2. Click import → mod_citation_audit imports to target notebook DB
+3. Navigate to target notebook → mod_search_notebook loads abstracts
+   [BUG: Abstracts not refreshed if notebook already open]
 
-**UI considerations:**
-- Show validation errors inline (invalid DOI format)
-- Preview valid DOI count before import
-- Progress modal with cancel button (mirai interrupt flag)
+Expected Flow:
+1-2. Same
+3. Navigate + invalidate abstracts reactive → reload from DB
+```
 
-**Complexity:** MEDIUM — parsing, batching, async handling
+**Why these are bugs, not features:**
+- Code path exists, fails under specific conditions (multiple papers, already-open notebook)
+- No new architecture — just defensive checks and reactive invalidation
 
 ---
 
-### 3. BibTeX File Parsing
+### 3. Sidebar + Button Theming (Issues #137, #139)
 
-**What:** File upload (.bib) → parse with bib2df → extract DOIs → same batch import flow as #2
+**Existing touchpoints:**
+- `app.R` lines 160-221 (sidebar structure)
+- `R/mod_search_notebook.R` abstract preview buttons (lines 1682-1767)
 
-**Integration points:**
+**Integration pattern:**
+- Apply theme policy from #138 to sidebar discovery buttons
+- Standardize button style: icon-only vs icon+label, outline vs filled
+- Ensure WCAG AA contrast in both light/dark modes
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ mod_search_notebook.R (MODIFIED)                        │
-│  + "Bulk Import" dropdown option → "BibTeX File..."    │
-│  + fileInput(accept = ".bib")                           │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ R/utils_bibtex.R (NEW)                                  │
-│  + parse_bibtex_file(filepath)                          │
-│     - Uses bib2df::bib2df(filepath)                     │
-│     - Extract DOI column from tibble                    │
-│     - Normalize with normalize_doi_bare()               │
-│     - Return cleaned DOI vector                         │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ Same batch fetch flow as #2                             │
-│  - batch_fetch_works_by_doi()                           │
-│  - ExtendedTask for async import                        │
-│  - db.R create_abstract() for persistence               │
-└─────────────────────────────────────────────────────────┘
-```
+**What changes:**
+- MODIFY: `app.R` sidebar button classes (apply semantic classes from policy)
+- MODIFY: `R/mod_search_notebook.R` abstract preview button classes
+- POSSIBLY ADD: New CSS rules in `catppuccin_dark_css()` if buttons need dark mode overrides
 
-**New components:**
-- `R/utils_bibtex.R` with `parse_bibtex_file()`
-- Add `bib2df` to DESCRIPTION dependencies
-
-**Modified components:**
-- `mod_search_notebook.R` — add .bib file upload modal
-
-**Data flow:**
-1. User uploads .bib file
-2. Parse with `bib2df::bib2df(filepath)` → tibble
-3. Extract `DOI` column (may be NA, URL, or bare format)
-4. Normalize with `normalize_doi_bare()`, filter valid
-5. Pass DOI vector to existing batch import flow (#2)
-6. Show results: "Found 32 DOIs in BibTeX, imported 28 papers, 4 not found"
-
-**BibTeX library choice:**
-- **bib2df** (rOpenSci) — converts to tibble, actively maintained (2026)
-- Alternative: `bibtex::read.bib()` (returns list, harder to extract DOIs)
-- `RefManageR::ReadBib()` — more complex, overkill for DOI extraction
-
-**Complexity:** LOW — thin wrapper over bib2df, reuses DOI batch import
-
----
-
-### 4. Select-All Import
-
-**What:** Checkbox to select all filtered abstracts → bulk import into document notebook
-
-**Integration points:**
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ mod_search_notebook.R (MODIFIED)                        │
-│  + Checkbox above paper list: "Select all (N papers)"  │
-│  + Reactive: selected_papers_rv()                       │
-│     - If select_all checked: filtered_papers()          │
-│     - Else: papers with individual checkboxes           │
-│  + Import button: observeEvent(input$import_abstracts)  │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ R/db.R (NO CHANGE)                                      │
-│  - Reuse create_abstract() in loop                      │
-│  - Wrap in transaction for atomicity                    │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ UI updates                                              │
-│  - Move "Hide predatory journals" into Filter modal     │
-│  - Replace with select-all checkbox                     │
-│  - Individual checkboxes remain for manual selection    │
-└─────────────────────────────────────────────────────────┘
-```
-
-**New components:** NONE
-
-**Modified components:**
-- `mod_search_notebook.R` — UI refactor + select-all reactive logic
-
-**Data flow:**
-1. User applies filters (year, keyword, journal quality)
-2. Filtered paper list updates
-3. "Select all (47 papers)" checkbox above list
-4. User checks select-all OR individual papers
-5. Click "Import to Document Notebook" dropdown → select notebook
-6. Loop through selected papers, call `create_abstract()` for each
-7. Transaction ensures all-or-nothing (if one fails, rollback)
-8. Toast notification: "Imported 47 papers to [Notebook Name]"
-
-**UI refactor:**
-- Current: predatory journal toggle outside filter modal
-- New: move toggle into filter modal, reclaim space for select-all checkbox
-
-**Complexity:** LOW — pure UI + reactive logic, no new backend code
-
----
-
-### 5. Slide Prompt Healing
-
-**What:** Pre-inject YAML template into prompt + regeneration workflow to fix malformed QMD
-
-**Integration points:**
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ R/slides.R (MODIFIED)                                   │
-│  + build_slides_prompt() modifications:                 │
-│     - System prompt includes YAML template              │
-│     - "Output YAML exactly as shown below:"             │
-│     - Example YAML block in prompt                      │
-│  + heal_qmd_yaml(qmd_content, theme) — NEW             │
-│     - Detect malformed YAML (missing ---, wrong indent) │
-│     - Replace with correct template                     │
-│     - Preserve slide content below YAML                 │
-│       ↓                                                 │
-├─────────────────────────────────────────────────────────┤
-│ mod_slides.R (MODIFIED)                                 │
-│  + "Regenerate" button in preview modal                 │
-│  + textAreaInput for healing instructions              │
-│     - Placeholder: "Fix the YAML", "Fix table 3"       │
-│  + observeEvent(input$regenerate_slides)                │
-│     - Append healing instruction to original prompt     │
-│     - Call generate_slides() with amended messages      │
-│     - Update preview with healed QMD                    │
-└─────────────────────────────────────────────────────────┘
-```
-
-**New components:**
-- `heal_qmd_yaml()` function in slides.R (fallback fixer)
-
-**Modified components:**
-- `build_slides_prompt()` in slides.R — inject YAML template
-- `mod_slides.R` — add regeneration UI + observer
-
-**Prompt changes:**
-
-**Before:**
-```
-System: You are an expert presentation designer. Generate a Quarto RevealJS
-presentation in valid .qmd format.
-
-Output format requirements:
-- Start with YAML frontmatter (title, format: revealjs)
-- Use # for section titles...
-```
-
-**After:**
-```
-System: You are an expert presentation designer. Generate a Quarto RevealJS
-presentation in valid .qmd format.
-
-CRITICAL: Start with this YAML frontmatter EXACTLY as shown:
----
-title: "Your Title Here"
-format:
-  revealjs:
-    theme: dark
----
-
-Output format requirements:
-- Keep YAML exactly as shown above (only change title)
-- Use # for section titles...
-```
-
-**Healing workflow:**
-1. User generates slides
-2. LLM returns malformed YAML (common with smaller models)
-3. Quarto render fails
-4. User clicks "Regenerate" button
-5. Enters healing instruction: "Fix the YAML indentation"
-6. System appends to original prompt: "The previous output had errors. Fix: [instruction]. Regenerate the entire presentation with corrections."
-7. Call `chat_completion()` with amended messages (includes history context)
-8. Apply `heal_qmd_yaml()` as fallback (regex-based YAML replacement)
-9. Preview updated QMD
-
-**Complexity:** LOW — prompt engineering + simple UI addition
-
----
-
-## Component Architecture
-
-### New Files
-
-| File | Purpose | LOC Est. |
-|------|---------|----------|
-| `R/citation_audit.R` | Citation gap analysis + batch fetch | ~150 |
-| `R/utils_bibtex.R` | BibTeX parsing wrapper | ~50 |
-
-### Modified Files
-
-| File | Changes | Complexity |
-|------|---------|------------|
-| `R/mod_search_notebook.R` | + Audit button + bulk import modals + select-all checkbox | MEDIUM (~200 LOC) |
-| `R/api_openalex.R` | + `batch_fetch_works_by_doi()` | LOW (~80 LOC) |
-| `R/utils_doi.R` | + `parse_doi_list()`, `validate_doi_batch()` | LOW (~60 LOC) |
-| `R/slides.R` | + YAML template in prompt + `heal_qmd_yaml()` | LOW (~100 LOC) |
-| `R/mod_slides.R` | + Regeneration UI + observer | LOW (~80 LOC) |
-
-### Dependencies
-
-**New R packages:**
-- `bib2df` — BibTeX parser (rOpenSci, CRAN, active 2026)
-  - Alternative: `bibtex` (CRAN, last updated 2025-07-22)
-  - Recommendation: **bib2df** for tibble output (easier DOI extraction)
-
-**No infrastructure changes:**
-- DuckDB schema unchanged (all columns exist)
-- Async pattern reuses ExtendedTask + mirai
-- OpenAlex API within rate limits (polite pool, batch requests)
-
----
-
-## Data Flow Diagrams
-
-### Citation Audit Flow
-
-```
-User clicks "Find Missing Papers"
-    ↓
-Extract referenced_works from abstracts table
-    ↓
-Parse JSON arrays → flatten to DOI list
-    ↓
-Count frequency across corpus
-    ↓
-Filter out DOIs already in abstracts (anti-join)
-    ↓
-Rank by frequency → top 20
-    ↓
-OpenAlex batch query (pipe-separated filter)
-    ↓
-Modal with checkbox list (ranked by citations)
-    ↓
-User selects papers to import
-    ↓
-Loop: create_abstract() for each selected
-    ↓
-Toast: "Imported 8 seminal papers"
-```
-
-### Bulk DOI Import Flow
-
-```
-User clicks "Bulk Import" → "DOI List" or "BibTeX File"
-    ↓
-[If DOI List] Parse textarea/file → normalize → validate
-[If BibTeX] bib2df::bib2df() → extract DOI column → normalize
-    ↓
-Deduplicate, filter out existing DOIs
-    ↓
-Chunk into batches of 50
-    ↓
-ExtendedTask: batch_fetch_works_by_doi()
-    ↓ (per batch)
-OpenAlex API: filter=doi:A|B|C...
-    ↓
-Parse works, insert via create_abstract()
-    ↓
-Update progress bar: "Batch 2/5 — 20 papers imported"
-    ↓
-Toast: "Imported 87 papers, 3 DOIs not found"
-```
-
-### Slide Healing Flow
-
-```
-User generates slides
-    ↓
-LLM returns malformed YAML
-    ↓
-Quarto render fails (error shown in modal)
-    ↓
-User clicks "Regenerate"
-    ↓
-Enters healing instruction: "Fix YAML indentation"
-    ↓
-System builds amended prompt:
-  Original prompt + "Previous output had errors. Fix: [instruction]"
-    ↓
-chat_completion() with history context
-    ↓
-Apply heal_qmd_yaml() as fallback (regex-based)
-    ↓
-Preview updated QMD
-    ↓
-User downloads or re-renders
-```
-
----
-
-## Integration Patterns
-
-### Pattern 1: Batch API Operations with Progress
-
-**What:** Chunk large operations (50+ items) into batches, use ExtendedTask + mirai for async execution with progress updates
-
-**When:** Bulk DOI import, citation audit fetch
-
-**Implementation:**
+**Current sidebar button pattern:**
 ```r
-# In mod_search_notebook.R server
-bulk_import_task <- ExtendedTask$new(function(dois, email, api_key) {
-  mirai::mirai({
-    batch_fetch_works_by_doi(dois, email, api_key)
-  })
-})
-
-observeEvent(input$start_bulk_import, {
-  # Parse and validate DOIs
-  dois <- parse_doi_list(input$doi_textarea)
-  valid_dois <- validate_doi_batch(dois)
-
-  # Invoke async task
-  bulk_import_task$invoke(valid_dois, cfg$email, cfg$api_key)
-})
-
-# Progress observer
-observe({
-  result <- bulk_import_task$result()
-  if (!is.null(result)) {
-    # Insert into DB
-    lapply(result, function(work) {
-      create_abstract(con(), notebook_id(), work$paper_id, ...)
-    })
-    showNotification("Import complete", type = "message")
-  }
-})
+actionButton("new_document_nb", "New Document Notebook",
+             class = "btn-primary", icon = icon("file-pdf"))
+actionButton("new_search_nb", "New Search Notebook",
+             class = "btn-outline-primary", icon = icon("magnifying-glass"))
+actionButton("discover_paper", "Discover from Paper",
+             class = "btn-outline-success", icon = icon("seedling"))
 ```
 
-**Trade-offs:**
-- Pro: Non-blocking UI, cancellable, progress feedback
-- Con: Adds ~50 LOC per feature (task setup + observers)
+**Needs harmonization:**
+- Consistency: `btn-outline-*` for discovery actions, `btn-*` for primary create?
+- Theme alignment: Apply policy (e.g., "Import Papers" should be `btn-outline-success`, not `btn-outline-primary`)
+- Dark mode: Verify `btn-outline-secondary` contrast (Issue #137 mentions citation audit hard to read in light mode)
+
+**Data flow:**
+- One-way: User clicks button → Shiny input event → Module handles
 
 ---
 
-### Pattern 2: Modal-Driven Workflows
+### 4. Methodology Extractor Preset (Issue #100)
 
-**What:** Use `showModal()` for multi-step operations (input → validate → confirm → execute)
+**Existing touchpoint:** `R/rag.R` — extends preset system
 
-**When:** Citation audit, bulk import, slide regeneration
+**Integration pattern:**
+- Clone `generate_conclusions_preset()` architecture
+- Use section-targeted RAG with `section_filter = c("methods", "introduction")`
+- Structured prompt for: Study Design | Sample | Measures | Analysis
 
-**Implementation:**
+**What changes:**
+- ADD: `generate_methodology_preset()` function in `R/rag.R` (after line 664)
+- MODIFY: `R/mod_document_notebook.R` — Add "Extract Methods" button in preset section
+- MODIFY: `R/mod_search_notebook.R` — Add "Extract Methods" button in preset section (if applies to search notebooks)
+
+**New function signature:**
 ```r
-observeEvent(input$audit_citations, {
-  # Show loading modal
-  showModal(modalDialog(
-    title = "Analyzing Citations...",
-    "Finding missing papers...",
-    footer = NULL
-  ))
-
-  # Compute in background
-  gaps <- analyze_citation_gaps(con(), notebook_id(), top_n = 20)
-
-  # Replace with results modal
-  removeModal()
-  showModal(modalDialog(
-    title = "Missing Papers",
-    checkboxGroupInput(ns("papers_to_import"), NULL,
-                       choices = format_gap_list(gaps)),
-    footer = tagList(
-      actionButton(ns("import_gaps"), "Import Selected"),
-      modalButton("Cancel")
-    )
-  ))
-})
+generate_methodology_preset <- function(con, config, notebook_id,
+                                        notebook_type = "document",
+                                        session_id = NULL)
 ```
 
-**Trade-offs:**
-- Pro: Familiar pattern in codebase, clean UX separation
-- Con: Modal stacking (loading → results) can feel janky if slow
-
----
-
-### Pattern 3: JSON Column Analysis
-
-**What:** Query JSON column from DuckDB, parse in R, aggregate results
-
-**When:** Citation audit (extract `referenced_works` arrays)
-
-**Implementation:**
+**Section filter strategy:**
 ```r
-analyze_citation_gaps <- function(con, notebook_id, top_n = 20) {
-  # Fetch all referenced_works JSON arrays
-  abstracts <- dbGetQuery(con, "
-    SELECT paper_id, doi, referenced_works
-    FROM abstracts
-    WHERE notebook_id = ?
-  ", list(notebook_id))
+# Try section-filtered search first
+chunks <- search_chunks_hybrid(
+  con,
+  query = "methods methodology study design sample statistical analysis",
+  notebook_id = notebook_id,
+  limit = 10,
+  section_filter = c("methods", "introduction", "results"),  # Methods often in intro for some papers
+  api_key = api_key,
+  embed_model = embed_model
+)
 
-  # Parse JSON arrays, flatten to DOI list
-  all_refs <- unlist(lapply(abstracts$referenced_works, function(json) {
-    if (is.na(json) || json == "") return(character())
-    refs <- jsonlite::fromJSON(json)
-    # Extract DOI from OpenAlex URL: https://openalex.org/W123
-    # Note: OpenAlex referenced_works are work IDs, not DOIs!
-    # Need to query OpenAlex to get DOIs for these work IDs
-    refs
-  }))
-
-  # Count frequency
-  ref_counts <- table(all_refs)
-  ref_counts <- sort(ref_counts, decreasing = TRUE)
-
-  # Filter out papers already in corpus
-  existing_ids <- abstracts$paper_id
-  missing_refs <- ref_counts[!names(ref_counts) %in% existing_ids]
-
-  # Top N
-  top_missing <- head(missing_refs, top_n)
-
-  # Fetch metadata from OpenAlex (batch query by work ID)
-  fetch_missing_papers(names(top_missing), email, api_key)
+# Fallback: retry without section filter (graceful degradation)
+if (is.null(chunks) || nrow(chunks) == 0) {
+  chunks <- search_chunks_hybrid(..., section_filter = NULL)
 }
 ```
 
-**Trade-offs:**
-- Pro: Leverages existing schema, no new columns needed
-- Con: JSON parsing in R (slower than native DB query), work ID → DOI lookup needed
+**Prompt structure:**
+```r
+system_prompt <- "You are a research methodology expert. Extract and organize methodological details from the provided sources."
 
-**CRITICAL DISCOVERY:** OpenAlex `referenced_works` stores **work IDs** (e.g., `https://openalex.org/W123`), NOT DOIs. Citation audit must:
-1. Extract work IDs from `referenced_works` JSON
-2. Batch query OpenAlex by work ID to get DOI/title/author
-3. Filter out works already in corpus (match by work ID, not DOI)
+user_prompt <- sprintf("Sources:\n%s\n\nTask: Extract research methods as a structured report:
 
----
+## Study Design
+[Type of study, research design, approach]
 
-## Build Order with Dependencies
+## Sample Characteristics
+[Population, sample size, demographics, selection criteria]
 
-Recommended phase order considering feature dependencies:
+## Data Collection
+[Instruments, measures, materials, procedures]
 
-### Phase 1: Foundation (DOI utilities)
-**Goal:** Add parsing and validation utilities for bulk operations
+## Analysis Methods
+[Statistical tests, software, analytical approach]
 
-**Tasks:**
-- Add `parse_doi_list()` to utils_doi.R
-- Add `validate_doi_batch()` to utils_doi.R
-- Write unit tests for parsing edge cases (URLs, bare DOIs, malformed)
-
-**Why first:** All bulk import features depend on DOI parsing
-
-**Deliverables:**
-- `R/utils_doi.R` updated
-- `tests/testthat/test-utils_doi.R` added
-
----
-
-### Phase 2: OpenAlex Batch Fetch
-**Goal:** Add batch API query support
-
-**Tasks:**
-- Add `batch_fetch_works_by_doi()` to api_openalex.R
-- Chunk into batches of 50 (OpenAlex max)
-- Handle missing DOIs gracefully (warn, skip)
-- Write integration test with mock API
-
-**Why second:** Citation audit and bulk import both need this
-
-**Deliverables:**
-- `R/api_openalex.R` updated
-- `tests/testthat/test-api_openalex.R` updated
-
----
-
-### Phase 3: Bulk DOI Import UI
-**Goal:** Textarea + file upload → batch import workflow
-
-**Tasks:**
-- Add "Bulk Import" → "DOI List..." modal to mod_search_notebook.R
-- ExtendedTask for async import with progress
-- Wire up parse_doi_list() → batch_fetch_works_by_doi() → create_abstract()
-- Handle errors (invalid DOIs, API failures, duplicate papers)
-
-**Why third:** Validates batch fetch works before building on it
-
-**Deliverables:**
-- `R/mod_search_notebook.R` updated
-- Manual test: import 20 DOIs from textarea
-
----
-
-### Phase 4: BibTeX Import
-**Goal:** .bib file upload → extract DOIs → reuse bulk import flow
-
-**Tasks:**
-- Add bib2df to DESCRIPTION
-- Create `R/utils_bibtex.R` with `parse_bibtex_file()`
-- Add "Bulk Import" → "BibTeX File..." modal
-- Wire up to existing batch import flow (Phase 3)
-
-**Why fourth:** Thin wrapper over Phase 3, low risk
-
-**Deliverables:**
-- `R/utils_bibtex.R` added
-- `R/mod_search_notebook.R` updated
-- Test fixture: sample.bib with 10 entries
-
----
-
-### Phase 5: Citation Audit
-**Goal:** Analyze referenced_works → find missing papers → import workflow
-
-**Tasks:**
-- Create `R/citation_audit.R`
-- `analyze_citation_gaps()` — JSON parsing, frequency analysis, work ID extraction
-- OpenAlex batch query by work ID (NOT DOI — critical distinction)
-- Add "Find Missing Papers" button to mod_search_notebook.R
-- Modal with ranked checkbox list
-- Import selected via existing create_abstract()
-
-**Why fifth:** Most complex, depends on batch fetch (Phase 2)
-
-**Deliverables:**
-- `R/citation_audit.R` added
-- `R/mod_search_notebook.R` updated
-- Manual test: audit notebook with 30+ papers
-
----
-
-### Phase 6: Select-All Import
-**Goal:** Checkbox to bulk-select filtered papers for import
-
-**Tasks:**
-- Add select-all checkbox above paper list
-- Move predatory journal toggle into filter modal (UI refactor)
-- Reactive: `selected_papers_rv()` merges select-all + individual checkboxes
-- Import loop with transaction wrapper
-
-**Why sixth:** Independent of other features, pure UI change
-
-**Deliverables:**
-- `R/mod_search_notebook.R` updated
-- Manual test: select all 50 papers, import to notebook
-
----
-
-### Phase 7: Slide Prompt Healing
-**Goal:** Pre-inject YAML + regeneration workflow
-
-**Tasks:**
-- Update `build_slides_prompt()` with YAML template
-- Add `heal_qmd_yaml()` fallback function
-- Add "Regenerate" button + textarea to mod_slides.R
-- Healing observer: amend prompt with instruction, re-call chat_completion()
-
-**Why last:** Independent of all other features, lower priority
-
-**Deliverables:**
-- `R/slides.R` updated
-- `R/mod_slides.R` updated
-- Manual test: generate slides with small model, regenerate with healing
-
----
-
-## Dependency Graph
-
-```
-Phase 1 (DOI utils)
-    ├─→ Phase 2 (Batch fetch)
-    │       ├─→ Phase 3 (DOI import)
-    │       │       └─→ Phase 4 (BibTeX import)
-    │       └─→ Phase 5 (Citation audit)
-    │
-    ├─→ Phase 6 (Select-all) — INDEPENDENT
-    └─→ Phase 7 (Slide healing) — INDEPENDENT
+Cite sources for each claim.", context)
 ```
 
-**Parallelization opportunities:**
-- Phase 6 and Phase 7 can be built in parallel with other phases
-- Phase 4 can start as soon as Phase 3 is functional
+**Data flow:**
+```
+User clicks "Extract Methods"
+  ↓
+mod_document_notebook observeEvent(input$btn_methodology)
+  ↓
+generate_methodology_preset(con, config_r(), notebook_id, "document", session$token)
+  ↓
+search_chunks_hybrid(section_filter = c("methods", "introduction", "results"))
+  ↓
+build_context(chunks)
+  ↓
+chat_completion(api_key, chat_model, messages)
+  ↓
+log_cost() + return markdown
+  ↓
+Insert into chat history with AI disclaimer
+```
+
+**Why this works:**
+- Reuses existing `search_chunks_hybrid()` with `section_filter` (already tested for Conclusions preset)
+- Same RAG retrieval → LLM generation → cost logging pattern
+- `detect_section_hint()` already classifies "methods" chunks (line 60 in pdf.R)
+
+---
+
+### 5. Gap Analysis Report Preset (Issue #101)
+
+**Existing touchpoint:** `R/rag.R` — extends preset system
+
+**Integration pattern:**
+- Clone `generate_conclusions_preset()` architecture
+- Use section-targeted RAG with `section_filter = c("conclusion", "limitations", "discussion")`
+- Inferential prompt: Identify absences, contradictions, underexplored areas
+
+**What changes:**
+- ADD: `generate_gap_analysis_preset()` function in `R/rag.R` (after Methodology preset)
+- MODIFY: `R/mod_document_notebook.R` — Add "Gap Analysis" button in preset section
+- MODIFY: `R/mod_search_notebook.R` — Add "Gap Analysis" button in preset section
+
+**New function signature:**
+```r
+generate_gap_analysis_preset <- function(con, config, notebook_id,
+                                         notebook_type = "document",
+                                         session_id = NULL)
+```
+
+**Section filter strategy:**
+```r
+# Same three-level fallback as Conclusions preset
+chunks <- search_chunks_hybrid(
+  con,
+  query = "limitations gaps future research contradictions underexplored",
+  notebook_id = notebook_id,
+  limit = 10,
+  section_filter = c("conclusion", "limitations", "future_work", "discussion"),
+  api_key = api_key,
+  embed_model = embed_model
+)
+```
+
+**Prompt structure:**
+```r
+system_prompt <- "You are a research synthesis expert. Systematically identify gaps, contradictions, and underexplored areas in the literature."
+
+user_prompt <- sprintf("Sources:\n%s\n\nTask: Analyze research gaps across this corpus. Organize by:
+
+## Methodological Gaps
+[Missing methods, design limitations, measurement issues]
+
+## Population Gaps
+[Underrepresented demographics, geographic regions, contexts]
+
+## Theoretical Gaps
+[Unexplored mechanisms, missing frameworks, unanswered questions]
+
+## Contradictory Findings
+[Where studies disagree or produce inconsistent results]
+
+## Emerging Opportunities
+[New research directions suggested by recent work]
+
+For each gap, cite specific sources that reveal or discuss it. Mark contradictions clearly.", context)
+```
+
+**Data flow:**
+- Identical to Methodology preset flow
+- Difference: Different prompt, different section filter priority, higher inferential nature
+
+**Risk mitigation:**
+- AI disclaimer banner (same as Conclusions preset, line 764-780 in mod_search_notebook.R)
+- OWASP instruction-data separation (already in all presets)
+- Higher hallucination risk acknowledged in Issue #101 — prompt should explicitly request citations
+
+**Why this works:**
+- Same architecture as Conclusions and Methodology presets
+- Section detection already handles "limitations", "discussion", "conclusion" (lines 40-54 in pdf.R)
+- Three-level fallback ensures graceful degradation on older notebooks without section hints
+
+---
+
+## Component Responsibilities (Modified)
+
+| Component | Current Responsibility | New Additions |
+|-----------|------------------------|---------------|
+| `R/theme_catppuccin.R` | MOCHA/LATTE palette + dark CSS overrides | ADD: Semantic action color policy documentation |
+| `R/rag.R` | RAG retrieval + preset generation (4 presets) | ADD: `generate_methodology_preset()`, `generate_gap_analysis_preset()` |
+| `R/mod_citation_audit.R` | Citation audit UI + async analysis | FIX: Error handling for multi-paper import (#134) |
+| `R/mod_search_notebook.R` | Search notebook UI (papers, filters, chat, presets) | FIX: Abstract refresh reactive (#133), MODIFY: Button theming (#137, #139), ADD: Methodology + Gap buttons |
+| `R/mod_document_notebook.R` | Document notebook UI (PDFs, chat, presets) | ADD: Methodology + Gap buttons |
+| `app.R` | Main UI layout + sidebar | MODIFY: Sidebar button theming (#137) |
+
+## Data Flow Changes
+
+### New Preset Generation Flow
+
+```
+User clicks "Extract Methods" or "Gap Analysis"
+  ↓
+Shiny input event → observeEvent() in mod_*_notebook.R
+  ↓
+generate_methodology_preset() OR generate_gap_analysis_preset()
+  ↓
+search_chunks_hybrid(section_filter = [...])
+  ↓ (three-level fallback if needed)
+search_chunks_hybrid(section_filter = NULL)
+  ↓ (if still empty)
+Direct DB query for chunks
+  ↓
+build_context(chunks)
+  ↓
+chat_completion(api_key, chat_model, formatted_messages)
+  ↓
+log_cost(con, "chat", chat_model, usage, session_id)
+  ↓
+Return markdown string
+  ↓
+Insert into chat history with AI disclaimer banner
+```
+
+**Key characteristics:**
+- Synchronous (user waits for LLM response)
+- Cost-tracked (every preset generation logs to `cost_log` table)
+- Section-aware (leverages existing `section_hint` metadata from PDF ingestion)
+- Failsafe (graceful degradation if section hints missing)
+
+---
+
+## Build Order Recommendation
+
+### Phase 1: Foundation (Theme Policy)
+**Why first:** Design policy document informs all theming work
+
+1. Define semantic action color policy in `R/theme_catppuccin.R`
+2. Document mapping: action type → Bootstrap class → Catppuccin color
+3. No code changes — pure documentation
+
+**Validation:**
+- Design doc complete
+- Developer can reference policy for button styling
+
+---
+
+### Phase 2: Critical Bugs (Citation Audit)
+**Why second:** Blocking issues before new features
+
+1. Fix #134: Citation audit error on multiple papers
+   - Debug `R/mod_citation_audit.R` import flow
+   - Add error handling / defensive SQL
+
+2. Fix #133: Citation audit papers not appearing in abstract notebook
+   - Fix reactive invalidation in `R/mod_search_notebook.R`
+   - Ensure abstracts reload after import
+
+**Validation:**
+- Import multiple papers from citation audit → no error
+- Navigate to target notebook → papers appear immediately
+
+---
+
+### Phase 3: Apply Theme (Sidebar + Buttons)
+**Why third:** Policy defined, bugs fixed, now harmonize UI
+
+1. Apply policy to sidebar buttons (`app.R` lines 160-190)
+   - Standardize outline vs filled, colors per policy
+   - Fix #137: Citation audit button contrast
+
+2. Apply policy to abstract preview buttons (`R/mod_search_notebook.R` lines 1682-1767)
+   - Standardize icon vs icon+label
+   - Fix #139: Abstract button theming
+
+3. Add dark mode CSS overrides if needed (in `catppuccin_dark_css()`)
+
+**Validation:**
+- All buttons follow policy
+- WCAG AA contrast in light and dark modes
+- Visual consistency across modules
+
+---
+
+### Phase 4: Methodology Extractor Preset
+**Why fourth:** Easier preset (factual extraction, lower hallucination risk)
+
+1. Add `generate_methodology_preset()` to `R/rag.R`
+   - Clone `generate_conclusions_preset()` structure
+   - Section filter: `c("methods", "introduction", "results")`
+   - Structured prompt for Study Design | Sample | Measures | Analysis
+
+2. Add "Extract Methods" button to `R/mod_document_notebook.R`
+   - Same pattern as existing preset buttons (lines 728-791)
+   - Render conditionally based on `rag_available()`
+
+3. Add "Extract Methods" button to `R/mod_search_notebook.R`
+   - Same pattern as existing preset buttons (lines 728-791)
+
+**Validation:**
+- Button appears when RAG available
+- Section-filtered retrieval works (check chunks have methods sections)
+- Fallback to unfiltered works (try on notebook without section hints)
+- Output structured as expected
+- Cost logged correctly
+
+---
+
+### Phase 5: Gap Analysis Report Preset
+**Why fifth:** More inferential, higher hallucination risk — build after simpler preset
+
+1. Add `generate_gap_analysis_preset()` to `R/rag.R`
+   - Clone `generate_conclusions_preset()` structure
+   - Section filter: `c("conclusion", "limitations", "future_work", "discussion")`
+   - Inferential prompt for gaps, contradictions, opportunities
+
+2. Add "Gap Analysis" button to `R/mod_document_notebook.R`
+   - Same pattern as Methodology preset
+
+3. Add "Gap Analysis" button to `R/mod_search_notebook.R`
+   - Same pattern as Methodology preset
+
+**Validation:**
+- Same validation as Methodology preset
+- Verify AI disclaimer banner appears (inferential content)
+- Check prompt requests citations (mitigate hallucination)
+
+---
+
+## New vs Modified Components
+
+### NEW Components
+- `generate_methodology_preset()` in `R/rag.R`
+- `generate_gap_analysis_preset()` in `R/rag.R`
+- Semantic action color policy documentation in `R/theme_catppuccin.R`
+
+### MODIFIED Components
+- `R/mod_citation_audit.R` — Bug fix for multi-paper import (#134)
+- `R/mod_search_notebook.R` — Bug fix for abstract refresh (#133), button theming (#137, #139), new preset buttons
+- `R/mod_document_notebook.R` — New preset buttons
+- `app.R` — Sidebar button theming (#137)
+- `R/theme_catppuccin.R` — Possibly new dark mode CSS rules for button contrast
+
+### NO CHANGES
+- `R/db.R` — Section-targeted RAG already exists
+- `R/pdf.R` — Section detection already exists
+- `R/rag.R` preset infrastructure — Only adding new functions, not modifying existing
+- Database schema — No new migrations needed
 
 ---
 
 ## Risk Assessment
 
-| Feature | Risk Level | Mitigation |
-|---------|------------|------------|
-| Citation Audit | MEDIUM | Work ID vs DOI confusion — verify OpenAlex response format early |
-| Bulk DOI Import | LOW | Batch chunking well-documented, existing async pattern proven |
-| BibTeX Parsing | LOW | bib2df is mature (rOpenSci), fallback to bibtex package if needed |
-| Select-All Import | VERY LOW | Pure UI + existing backend, no new infrastructure |
-| Slide Healing | LOW | Prompt engineering risk — test with multiple models early |
+### Low Risk
+- **Theme policy:** Documentation only, no code
+- **Sidebar theming:** Changing CSS classes, well-tested Bootstrap classes
+- **Methodology preset:** Factual extraction, existing section detection works
 
-**Highest risk:** Citation audit work ID extraction — OpenAlex `referenced_works` returns work URLs, not DOIs. Must batch query by work ID to get metadata, then filter by work ID (not DOI) against corpus.
+### Medium Risk
+- **Citation audit bug fixes:** Debugging without clear reproduction steps (issues lack details)
+- **Gap Analysis preset:** Higher inferential nature → hallucination risk (mitigated with AI disclaimer + citation requirement)
+
+### High Risk
+- None — All features extend existing patterns, no architectural changes
 
 ---
 
-## Open Questions
+## Dependencies Between Components
 
-1. **Citation audit performance:** With 100+ papers, JSON parsing for all `referenced_works` may be slow. Should we:
-   - Cache analysis results in DB table?
-   - Compute on-demand only (current plan)?
-   - Use DuckDB JSON functions instead of R parsing?
+```
+Theme Policy (Phase 1)
+    ↓ (informs)
+Sidebar/Button Theming (Phase 3)
 
-2. **Bulk import deduplication:** If user imports same DOI twice:
-   - Silently skip (current plan)?
-   - Warn user in preview?
-   - Update existing abstract metadata?
+Citation Audit Bugs (Phase 2)
+    ↓ (independent of theme, but blocks user workflow)
+[No dependencies on other phases]
 
-3. **BibTeX DOI quality:** Many .bib files have missing or malformed DOIs. Should we:
-   - Fall back to title search if DOI missing?
-   - Import only entries with valid DOIs (current plan)?
-   - Show preview of skipped entries?
+Methodology Preset (Phase 4)
+    ↓ (depends on)
+Section-Targeted RAG (existing, R/db.R + R/pdf.R)
+    ↓ (independent of)
+Gap Analysis Preset (Phase 5)
+```
 
-4. **Slide healing retry limit:** Should we:
-   - Allow unlimited regenerations (current plan)?
-   - Cap at 3 attempts to prevent cost runaway?
-   - Track healing cost separately from original generation?
+**Critical path:**
+1. Theme Policy → Sidebar/Button Theming
+2. Methodology Preset → Gap Analysis Preset (same pattern, validate simpler one first)
+
+**Parallelizable:**
+- Citation audit bugs (Phase 2) can run parallel to theme work (Phases 1, 3)
+- Methodology and Gap presets share no dependencies with citation audit
+
+---
+
+## Testing Strategies
+
+### Theme Policy
+- **Manual:** Review policy doc for completeness
+- **Visual:** Screenshot sidebar in light/dark mode, verify contrast
+
+### Citation Audit Bugs
+- **Unit:** Mock multi-paper import, verify no SQL errors
+- **Integration:** Import papers from audit → navigate to notebook → verify papers appear
+- **Regression:** Ensure single-paper import still works
+
+### Sidebar/Button Theming
+- **Manual:** Visual review of all buttons in light/dark mode
+- **Accessibility:** WCAG AA contrast checker on all button states (hover, active, disabled)
+
+### Methodology Preset
+- **Unit:** Test `generate_methodology_preset()` with mock chunks
+- **Integration:** Run on document notebook with PDFs containing methods sections
+- **Fallback:** Test on notebook without section hints (should gracefully degrade)
+- **Cost:** Verify cost logging to `cost_log` table
+
+### Gap Analysis Preset
+- **Same as Methodology preset**
+- **Additional:** Review output for hallucination (do cited sources actually support claims?)
+
+---
+
+## Open Questions for Implementer
+
+1. **Citation Audit Bug #134:** Error message not provided in issue — need to reproduce locally first
+2. **Citation Audit Bug #133:** Is reactive invalidation the issue, or does `get_abstracts()` query need fixing?
+3. **Sidebar Theming #137:** "Citation audit hard to read in light mode" — is this a contrast issue or color choice?
+4. **Abstract Buttons #139:** "Convert all to symbols or add text to all" — which direction? (Recommend: icon + text for clarity)
+5. **Preset Applicability:** Should Methodology and Gap Analysis apply to search notebooks, or document notebooks only? (Recommend: Both, since search notebooks have abstracts with methods/limitations sections)
 
 ---
 
 ## Sources
 
-**OpenAlex API:**
-- [Batch DOI lookup with pipe-separated filter](https://blog.openalex.org/fetch-multiple-dois-in-one-openalex-api-request/) — Official guide, up to 50 DOIs per request
-- [Filter entity lists](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists) — OpenAlex filter syntax
-- [Work object](https://docs.openalex.org/api-entities/works/work-object) — `referenced_works` field documentation
+**Existing Codebase:**
+- `app.R` — Main UI structure, sidebar, theme setup
+- `R/theme_catppuccin.R` — Catppuccin palette, dark mode CSS
+- `R/rag.R` — Preset generation functions (existing 3 presets)
+- `R/db.R` — `search_chunks_hybrid()` with section filtering
+- `R/pdf.R` — `detect_section_hint()` keyword heuristics
+- `R/mod_citation_audit.R` — Citation audit module
+- `R/mod_search_notebook.R` — Search notebook module
+- `R/mod_document_notebook.R` — Document notebook module
 
-**R Packages:**
-- [bib2df package](https://docs.ropensci.org/bib2df/) — rOpenSci BibTeX parser, converts to tibble
-- [bibtex package (CRAN)](https://cran.r-project.org/package=bibtex) — Alternative parser, updated 2025-07-22
-- [rbibutils (CRAN)](https://cran.r-project.org/web/packages/rbibutils/rbibutils.pdf) — Updated 2026-01-21
+**GitHub Issues:**
+- #138: Global color theme for buttons/UI
+- #137: Fix sidebar colors + theming
+- #139: UI adjustment to abstract buttons
+- #134: Citation audit shows error when adding multiple papers
+- #133: Citation audit papers do not appear in abstract notebook
+- #100: feat: Methodology Extractor preset
+- #101: feat: Gap Analysis Report preset
 
-**Shiny Patterns:**
-- [ExtendedTask with mirai](https://mirai.r-lib.org/articles/shiny.html) — Official Shiny integration guide
-- [Promises and progress bars](https://mirai.r-lib.org/articles/v3-promises.html) — Progress updates with mirai_map()
-- [File upload control](https://shiny.posit.co/r/reference/shiny/latest/fileinput.html) — Official Shiny fileInput() docs
+**Milestone Context:**
+- `.planning/PROJECT.md` — Project state, tech stack, architectural decisions
+- Milestone v10.0 — Theme Harmonization & AI Synthesis
 
 ---
 
-*Architecture research for Serapeum v7.0 milestone*
-*Researched: 2026-02-25*
-*Confidence: HIGH (existing architecture verified, OpenAlex API documented, R packages confirmed)*
+*Architecture integration research for: Serapeum v10.0 Theme Harmonization & AI Synthesis*
+*Researched: 2026-03-04*

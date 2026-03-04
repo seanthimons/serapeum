@@ -1,261 +1,237 @@
 # Project Research Summary
 
-**Project:** Serapeum v7.0 — Citation Audit + Bulk Import + Prompt Healing
-**Domain:** Academic research assistant (R/Shiny) with citation analysis and literature management
-**Researched:** 2026-02-25
+**Project:** Serapeum v10.0 Theme Harmonization & AI Synthesis
+**Domain:** R/Shiny Research Assistant UI Design System + AI Synthesis Presets
+**Researched:** 2026-03-04
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Serapeum v7.0 adds citation audit and bulk import capabilities to an existing R/Shiny research assistant. The research reveals a clear technical path: leverage existing DuckDB infrastructure for citation frequency analysis, use OpenAlex API batch endpoints for efficient bulk lookups, and adopt established BibTeX parsing libraries (bib2df) for interoperability with reference managers. All features integrate cleanly with the current Shiny module architecture and async patterns—no new infrastructure required.
+This milestone extends Serapeum's existing R/Shiny research assistant with a global design system policy and two new AI synthesis presets (Methodology Extractor, Gap Analysis Report). The research reveals **excellent architectural alignment** — all features integrate cleanly with existing patterns. Theme policy extends the established Catppuccin system, new presets reuse section-targeted RAG from v2.1, and critical bugs are self-contained fixes to existing modules. No new dependencies required, no architectural changes needed.
 
-The recommended approach prioritizes foundational utilities first (DOI parsing, batch API operations), then builds user-facing features on that foundation (bulk import UI, citation audit, BibTeX support). This order mitigates the highest risk: OpenAlex rate limiting during bulk operations. Research shows that naive sequential API calls fail catastrophically at 20+ DOIs due to rate limits—batching 50 DOIs per request with proper delays is non-negotiable. The second major risk is BibTeX parsing fragility with real-world files, addressed by using tolerant parsers with per-entry error handling.
+The recommended approach is **foundation-first, bugs-second, features-third**: establish design system policy before touching any UI code, fix citation audit race conditions before increasing rendering load, then build on this stable foundation with new presets. This ordering prevents CSS specificity wars (pitfall #1), connection leak amplification (pitfall #8), and module theme desynchronization (pitfall #3).
 
-Citation gap detection emerges as a key differentiator—most competitors (Connected Papers, Scite) show what you have, but identifying frequently-cited papers missing from your collection provides unique research insight. Combined with local-first analysis (no cloud upload required), Serapeum occupies a distinct position in the literature management landscape.
+Key risks center on **consistency and brittleness**: icon library fragmentation across 18 modules, section-targeted RAG keyword heuristics failing on non-standard papers, and prompt template coupling as preset count grows from 5 to 7. All are preventable with proper phasing: audit icons before harmonizing buttons, test retrieval on diverse paper types before writing preset prompts, and refactor shared prompt components before adding new presets.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v7.0 features require only one new dependency: **bib2df** for BibTeX parsing. All other functionality leverages existing packages (readr for CSV parsing, httr2 for API calls, DuckDB for citation aggregation). This minimal stack addition reduces integration risk and maintains the project's lightweight philosophy.
+**No new dependencies required.** All v10.0 features can be implemented with the existing stack (bslib 0.9.0, pdftools 3.6.0, bsicons 0.1.2, ragnar). The milestone extends current capabilities rather than adding new ones.
 
-**Core technologies:**
-- **bib2df 1.1.2.0**: Parse BibTeX to tibbles — rOpenSci package with clean API, handles malformed entries gracefully, direct DOI extraction
-- **readr 2.2.0** (existing): CSV/text parsing for DOI lists — 10-100x faster than base R, already in tidyverse dependencies
-- **httr2** (existing): OpenAlex batch requests — supports pipe-separated filter syntax for 50 DOIs per request
-- **DuckDB** (existing): Citation frequency aggregation — `UNNEST()` + `GROUP BY` for single-query analysis, 10-100x faster than R loops
+**Core technologies (unchanged):**
+- **bslib 0.9.0** — Bootstrap 5 theming with Catppuccin palette; `bs_add_variables()` handles semantic color mapping for design system
+- **bsicons 0.1.2** — Bootstrap-native icon library with 2000+ icons; already used for citation audit, extend to all modules for consistency
+- **pdftools 3.6.0** — PDF text extraction; methods sections already extracted, methodology preset reuses existing chunks
+- **ragnar** — Section-aware chunking with `detect_section_hint()`; recognizes "methods", "limitations", "discussion" sections for targeted retrieval
+
+**Optional upgrades (not required):**
+- bslib 0.10.0 (latest) deferred to v11.0 — current version sufficient for theme variables, upgrade during active milestone risky
+- pdftools 3.7.0 (latest) deferred — no new API, methodology extraction uses same `pdf_text()` function
 
 **What NOT to add:**
-- **RefManageR**: Heavyweight bibliography manager—overkill for simple DOI extraction
-- **Base R read.csv()**: 10-100x slower than readr on large files
-- **bibtex package**: Lower-level parser requiring manual data frame conversion
+- sass package standalone — already bundled with bslib
+- tabulizer/tesseract — methods text already extracted by pdftools, no OCR needed
+- fontawesome as alternative — stick to bsicons for consistency, avoid library fragmentation
 
 ### Expected Features
 
-Research identified a clear MVP (v7.0) vs deferred features (v7.x+) split. The MVP focuses on core citation audit workflow and bulk import table stakes. Advanced features like prompt healing and network seeding are validated as valuable but non-blocking for launch.
+**Must have (table stakes):**
+- **Consistent button semantics** — primary (main action), secondary (alternative), danger (destructive) with uniform colors/meanings across app
+- **Dark mode compatibility** — all UI elements readable in both Catppuccin Latte/Mocha without manual switching
+- **AI output disclaimers** — warnings when content is AI-generated (research integrity, already in v2.1)
+- **Structured output format** — research synthesis as tables/lists, not prose walls (validated in Literature Review Table v4.0)
 
-**Must have (table stakes for v7.0):**
-- **Citation frequency analysis** — Count references across papers to identify seminal works (standard methodology in systematic reviews)
-- **Citation gap detection** — Show frequently-cited papers missing from collection (differentiator vs competitors)
-- **Bulk DOI import** — Paste/upload DOI lists for batch import (expected by all modern reference managers)
-- **BibTeX file upload** — Universal interchange format for library migration and tool integration
-- **Select-all batch operations** — Standard UI pattern for efficient multi-paper workflows
+**Should have (competitive differentiators):**
+- **Methodology Extractor preset** — auto-extract methods sections using PICO/IMRAD framework, section-targeted RAG, structured output
+- **Gap Analysis Report preset** — cross-paper synthesis using PICOS framework to identify under-researched areas, conflicting findings, methodological gaps
+- **Design token system** — single source of truth for colors/spacing/icons documented as policy (not just scattered CSS)
+- **Preset icon system** — consistent icons per preset type (already implemented for Overview, Research Questions, Literature Review; extend to new presets)
 
-**Should have (competitive advantage, v7.x):**
-- **Prompt healing for slides** — Auto-detect and correct malformed LLM-generated YAML (quality-of-life improvement)
-- **BibTeX for network seeding** — Novel workflow using .bib files to seed citation network exploration
-- **Export citation gaps as BibTeX** — Convenience feature for importing gaps into other tools
-
-**Defer (v8+ — requires significant infrastructure):**
-- **Multi-level backward citation mining** (depth=2+) — Advanced discovery requiring API quota management
-- **Citation context analysis** — Classify HOW papers cite each other (supporting/contrasting) like Scite—requires full-text PDF analysis
-- **Temporal citation trends** — Distinguish recent relevance from historical importance
-- **Journal impact weighting** — Weight citation frequency by source journal quality
+**Defer (v2+ / anti-features):**
+- Custom color themes (breaks accessibility, maintenance burden)
+- Per-preset color customization (conflicts with semantic color meaning)
+- Global "Regenerate All" button (expensive, slow, unclear UX)
+- Gap analysis on single paper (gaps are comparative, require 3-5+ papers)
+- Live theme preview in settings (adds complexity, fixed palette means preview unnecessary)
 
 ### Architecture Approach
 
-All v7.0 features integrate with existing patterns—Shiny modules, DuckDB schema, async ExtendedTask for long operations. The architecture research validated that no schema changes are needed: the `referenced_works` column (added in v2.0) already stores citation data as JSON arrays. The key architectural insight is reusing the producer-consumer discovery pattern (search → preview → import) for all bulk import workflows.
+All new features integrate with existing patterns through pure extension — no architectural changes required. Theme policy extends `R/theme_catppuccin.R` with documentation. Presets extend `R/rag.R` by cloning `generate_conclusions_preset()` architecture. Citation audit fixes touch `R/mod_citation_audit.R` and `R/mod_search_notebook.R` with defensive SQL and reactive invalidation. Build order: design policy (foundation) → bug fixes (critical path) → sidebar/button theming (apply policy) → methodology preset → gap analysis preset.
 
-**Major components:**
-1. **Citation Audit Module** (new: `R/citation_audit.R`) — Analyze `referenced_works` column with DuckDB `UNNEST()`, batch fetch missing papers from OpenAlex, present ranked import UI
-2. **Bulk Import Utilities** (new: `R/utils_doi.R`, `R/utils_bibtex.R`) — Parse DOI lists and BibTeX files, normalize formats, extract DOIs for batch lookup
-3. **Batch API Operations** (modified: `R/api_openalex.R`) — Add `batch_fetch_works_by_doi()` using pipe-separated filter syntax (50 DOIs per request) with rate limiting
-4. **Select-All UI Pattern** (modified: `R/mod_search_notebook.R`) — Checkbox for bulk selection, reactive selection state, batch import with progress indicator
-5. **Slide Healing Workflow** (modified: `R/slides.R`, `R/mod_slides.R`) — Pre-inject YAML template in prompts, add regeneration UI with healing instructions
+**Major components (modified/new):**
+1. **R/theme_catppuccin.R** — ADD semantic action color policy documentation (e.g., danger=destructive, primary=main action)
+2. **R/rag.R** — ADD `generate_methodology_preset()` and `generate_gap_analysis_preset()` using section-targeted RAG with three-level fallback
+3. **R/mod_citation_audit.R** — FIX multi-paper import error (#134) with defensive SQL/error handling
+4. **R/mod_search_notebook.R** — FIX abstract refresh reactive (#133), apply button theming (#137, #139), add preset buttons
+5. **R/mod_document_notebook.R** — ADD methodology + gap analysis preset buttons following existing pattern
+6. **app.R** — APPLY design policy to sidebar buttons (#137)
 
-**Integration patterns to reuse:**
-- **ExtendedTask + mirai** for async batch operations (>5 seconds) with progress updates and cancellation
-- **Modal-driven workflows** for multi-step operations (input → validate → confirm → execute)
-- **JSON column analysis** with DuckDB aggregation functions for citation frequency counting
+**Key patterns leveraged:**
+- **Shiny module pattern** — 14 production modules with namespace isolation, reactive communication
+- **Preset function pattern** — RAG retrieval → prompt building → LLM call → cost logging (established in v2.1)
+- **Section-targeted RAG** — `detect_section_hint()` + `search_chunks_hybrid(section_filter)` with three-level fallback (graceful degradation)
+- **Theme system** — Catppuccin LATTE/MOCHA via `bs_theme()` + `bs_add_rules()`, applied in app.R
 
 ### Critical Pitfalls
 
-Research uncovered six critical pitfalls, with OpenAlex rate limiting being the highest risk. The pitfalls map directly to specific phases, enabling targeted prevention during implementation.
+1. **CSS Specificity Wars** — Custom design system rules fail to override Bootstrap, developers use `!important` repeatedly creating cascade hell. **Prevention:** Use `bs_add_variables()` for Sass variables BEFORE compilation, leverage Bootstrap semantic classes (`bg-body-secondary`), document specificity hierarchy, audit existing `!important` usage before adding more.
 
-1. **OpenAlex Rate Limit Cascade Failure** — Bulk imports trigger rapid-fire requests hitting 100 req/sec limit or $1/day budget, causing 429 errors that block all operations. **Prevention:** Batch 50 DOIs per request using pipe-separated filter syntax, add 0.1-0.2s delays between batches, implement exponential backoff on 429 errors.
+2. **Icon Library Fragmentation** — Mixed fontawesome/bsicons usage across 18 modules with inconsistent semantic naming. **Prevention:** Choose bsicons as primary library, create `R/icons.R` with semantic wrappers (`icon_save()`, `icon_download()`), audit all existing icon calls, document nav_panel integration issue (bsicons requires `tags$i()` wrapper).
 
-2. **BibTeX Parsing Malformed Entry Silent Failure** — Real-world .bib files from Zotero/Mendeley contain malformed entries (nested braces, unescaped characters) that crash parsers or silently skip without notification. **Prevention:** Use tolerant parsers (rbibutils or bib2df), implement per-entry try-catch, show parse diagnostics ("Parsed 42/50 entries. 8 failed"), extract DOIs via regex fallback.
+3. **Module Theme State Desynchronization** — Design system applied to some modules but not others causes "half-migrated" UI, saved content uses old theme. **Prevention:** Audit modules for cached UI elements, test theme consistency after design system → reload saved network → toggle dark mode, document components that can't react to runtime theme changes.
 
-3. **Citation Audit SQL N+1 Query Explosion** — Naive loop over abstracts to count references takes 30+ seconds with 500 papers, locks UI, times out at 5000 papers. **Prevention:** Single SQL query with `UNNEST(referenced_works) ... GROUP BY` aggregation, materialize top-N only (limit 20-50), cache results in session variable.
+4. **Section-Targeted RAG Brittleness** — Keyword heuristics fail on non-standard papers (preprints, reviews, non-IMRAD structure), presets return wrong sections. **Prevention:** Expand keyword dictionaries for methodology/future work, implement multi-tier fallback (section-filtered → keyword-boosted → direct vector search), test on diverse paper types (journal, preprint, conference), add retrieval diagnostics.
 
-4. **LLM Prompt Healing Infinite Loop on YAML Validation** — Generic "fix this YAML" prompts create retry loops with smaller models, burning tokens and time without fixing errors. **Prevention:** Validate YAML programmatically first with `yaml::yaml.load()`, provide specific error feedback ("missing colon at line 3"), limit to 2 retries maximum, fall back to template YAML with only title customized.
+5. **Prompt Template Coupling** — Duplicated prompt components across 7 presets scale O(n) maintenance cost, inconsistencies accumulate. **Prevention:** Extract shared components to reusable functions (`prompt_header()`, `prompt_rag_context()`, `prompt_citation_format()`), presets compose task instructions + shared components, version prompt components, test matrix for format compliance.
 
-5. **Select-All Import Memory Explosion with Large Result Sets** — Importing 500 abstracts serializes 3-5MB data through reactive values, crashes with memory allocation errors or Shiny disconnects. **Prevention:** Batch size warning if >100 papers, paginated transfer via DuckDB temp table (not reactive serialization), exclude `referenced_works` column from transfer, add progress indicator with ExtendedTask.
+6. **Citation Audit Race Conditions** — Concurrent multi-paper imports cause foreign key violations, lost writes, duplicate entries. **Prevention:** Batch citation audits in single mirai task, use DuckDB transactions with SERIALIZABLE isolation, implement retry logic with exponential backoff, fix connection leaks (#117, #119) before adding citation audit fixes.
 
-6. **BibTeX Import Referenced_Works Data Loss During OpenAlex Enrichment** — Naive pattern overwrites .bib metadata with NULL when OpenAlex lookup fails for preprints/gray literature, losing author/title from original file. **Prevention:** Merge metadata (coalesce pattern: `openalex$title %||% bib$title`), mark enrichment status, show stats ("42 enriched, 8 from .bib only"), preserve DOI even on API failure.
+7. **Dark Mode Collision** — Browser `prefers-color-scheme` media queries compete with app `input_dark_mode()` toggle, some components ignore toggle. **Prevention:** Replace `@media (prefers-color-scheme: dark)` with class-based targeting, set explicit default mode independent of OS preference, add localStorage persistence for user preference.
+
+8. **Connection Leak Amplification** — Design system rendering load triggers existing connection leaks in `search_chunks_hybrid()` and ragnar stores, database exhausts. **Prevention:** FIX connection leaks (#117, #119) in Phase 0 before any design system work, audit all `dbConnect()` calls for paired `on.exit(dbDisconnect())`, add leak detection tests to CI.
 
 ## Implications for Roadmap
 
-Based on research, suggested 7-phase structure with clear dependency chain:
+Based on research, suggested phase structure:
 
-### Phase 1: DOI Parsing Utilities (Foundation)
-**Rationale:** All bulk import features depend on robust DOI parsing and validation. Build this foundation first to avoid rework. Low complexity (utilities only, no UI), high reusability.
+### Phase 0: Tech Debt Cleanup (BLOCKER)
+**Rationale:** Connection leaks (#117, #119) amplify under design system rendering load. Fix before increasing load prevents database exhaustion, app crashes, emergency hotfixes.
+**Delivers:** All database connections properly closed with `on.exit()`, leak detection test in CI, stable foundation for design system work.
+**Addresses:** Pitfall #8 (connection leak amplification), prevents pitfall #6 (citation audit race conditions) from compounding.
+**Avoids:** App performance degradation, database locks, memory usage climbing.
 
-**Delivers:** `parse_doi_list()` and `validate_doi_batch()` functions in `utils_doi.R` with unit tests covering edge cases (URLs, bare DOIs, comma/newline/space-separated input).
+### Phase 1: Design System Foundation
+**Rationale:** Policy document defines semantics before touching any UI code. Prevents CSS specificity wars, icon fragmentation, inconsistent implementations across 18 modules.
+**Delivers:** Semantic action color policy in `R/theme_catppuccin.R`, icon library audit + semantic wrapper functions in `R/icons.R`, CSS specificity hierarchy documentation.
+**Addresses:** Features — design token system (differentiator); Pitfalls #1 (CSS specificity), #2 (icon fragmentation).
+**Avoids:** Developers making inconsistent choices, Bootstrap override cascade hell, mixing icon libraries.
 
-**Addresses:** Foundation for Bulk DOI Import, BibTeX Import, Citation Audit features.
+### Phase 2: Citation Audit Bug Fixes
+**Rationale:** Critical blockers (#134, #133) before new features. Race conditions must be fixed before increasing complexity.
+**Delivers:** Multi-paper import works without errors, papers appear immediately in abstract notebook after import, defensive SQL + reactive invalidation.
+**Addresses:** GitHub issues #134, #133; Pitfall #6 (citation audit race conditions).
+**Avoids:** Database corruption, lost writes, user workflow blocked.
 
-**Avoids:** Malformed input causing downstream errors in OpenAlex API calls. Early validation reduces debugging later.
+### Phase 3: Sidebar & Button Theming
+**Rationale:** Policy defined (Phase 1), bugs fixed (Phase 2), now harmonize UI. Apply design system atomically across all modules to avoid "half-migrated" appearance.
+**Delivers:** All buttons follow semantic policy, sidebar icons consistent, WCAG AA contrast in both themes, dark mode toggle works across all components.
+**Addresses:** Features — consistent button semantics, dark mode compatibility; Issues #137, #139; Pitfall #3 (module theme desync), #7 (dark mode collision).
+**Avoids:** Users seeing inconsistent UI, accessibility violations, theme toggle ignored by some components.
 
----
+### Phase 4: AI Preset Foundation Refactor
+**Rationale:** Extract shared prompt components BEFORE adding new presets. Prevents prompt template coupling as preset count grows from 5 to 7.
+**Delivers:** Reusable prompt component functions (`prompt_header()`, `prompt_rag_context()`, `prompt_citation_format()`), existing 5 presets refactored to use components, test matrix for format compliance.
+**Addresses:** Pitfall #5 (prompt template coupling), prepares for methodology + gap analysis presets.
+**Avoids:** Maintenance cost scaling O(n) with presets, inconsistent citation formats, bug fixes requiring 7-file edits.
 
-### Phase 2: OpenAlex Batch API Support
-**Rationale:** Citation audit and bulk import both require efficient batch fetching. Implementing this before UI prevents discovering rate limit issues late in development. Critical pitfall mitigation (rate limit cascade) happens here.
+### Phase 5: Methodology Extractor Preset
+**Rationale:** Easier preset first (factual extraction, lower hallucination risk). Validates section-targeted RAG pattern reuse on new section type (methods vs conclusions).
+**Delivers:** `generate_methodology_preset()` in R/rag.R with PICO/IMRAD structured output, section filter for methods/introduction/results, buttons in document + search notebooks, AI disclaimer banner.
+**Addresses:** Features — methodology extractor (differentiator); Pitfall #4 (section RAG brittleness) with expanded keyword dictionary + multi-tier fallback.
+**Avoids:** RAG retrieval failures on non-standard papers, preset returning abstract instead of methods.
 
-**Delivers:** `batch_fetch_works_by_doi()` in `api_openalex.R` with chunking (50 DOIs per request), rate limiting (0.1s delays between batches), exponential backoff on 429 errors, graceful handling of missing DOIs.
-
-**Uses:** OpenAlex pipe-separated filter syntax (`filter=doi:A|B|C`), existing httr2 infrastructure.
-
-**Avoids:** **Pitfall #1 (Rate Limit Cascade)** — batching and delays prevent 429 errors, exponential backoff handles budget exhaustion gracefully.
-
----
-
-### Phase 3: Bulk DOI Import UI
-**Rationale:** First user-facing feature, validates that batch API operations work end-to-end before building more complex features on top. Provides immediate value (users can import paper lists from other tools).
-
-**Delivers:** "Bulk Import" → "DOI List..." modal in search notebook with textarea/file upload, ExtendedTask for async import with progress bar, error handling (invalid DOIs, API failures, duplicates), success notification with import stats.
-
-**Uses:** Phase 1 DOI parsing, Phase 2 batch API, existing `create_abstract()` for persistence.
-
-**Implements:** Modal-driven workflow pattern, ExtendedTask + mirai for async operations (standard architecture pattern).
-
----
-
-### Phase 4: BibTeX File Import
-**Rationale:** Thin wrapper over Phase 3 bulk import—reuses all backend logic, just adds .bib parsing layer. Low risk, high user value (library migration from Zotero/Mendeley).
-
-**Delivers:** "Bulk Import" → "BibTeX File..." modal, `parse_bibtex_file()` in `utils_bibtex.R` using bib2df, DOI extraction with normalization, wire to existing batch import flow, per-entry error handling with diagnostics.
-
-**Uses:** bib2df package (new dependency), Phase 1 DOI parsing, Phase 2 batch API.
-
-**Avoids:** **Pitfall #2 (BibTeX Parse Failure)** — per-entry try-catch prevents one malformed entry from blocking entire import, diagnostics show users what succeeded/failed.
-
-**Avoids:** **Pitfall #6 (Metadata Loss)** — merge-not-replace pattern preserves .bib metadata when OpenAlex lookup fails for unindexed papers.
-
----
-
-### Phase 5: Citation Audit Analysis
-**Rationale:** Most complex feature—depends on batch API (Phase 2) and requires careful SQL optimization. Build after validating batch operations work reliably. Provides key differentiator (citation gap detection).
-
-**Delivers:** "Find Missing Papers" button in search notebook, `analyze_citation_gaps()` in `citation_audit.R` with single-query SQL aggregation (`UNNEST() + GROUP BY`), OpenAlex batch query by work ID (not DOI—critical distinction discovered in research), modal with ranked checkbox list, import via existing `create_abstract()`.
-
-**Uses:** DuckDB array functions for JSON parsing, Phase 2 batch API for metadata fetch.
-
-**Avoids:** **Pitfall #3 (SQL N+1 Explosion)** — single aggregation query with `UNNEST()` scales to 5000+ abstracts, R loop pattern would time out at 500.
-
-**Critical discovery:** OpenAlex `referenced_works` stores **work IDs** (`https://openalex.org/W123`), not DOIs. Must batch query by work ID to get DOI/title/author, then filter by work ID (not DOI) against corpus.
-
----
-
-### Phase 6: Select-All Batch Import
-**Rationale:** Independent of other features (pure UI change), can be built in parallel with Phase 5. Enables efficient bulk workflows for filtered search results. UI refactor requires careful reactive logic.
-
-**Delivers:** Select-all checkbox above paper list, move predatory journal toggle into filter modal (UI refactor), `selected_papers_rv()` reactive merging select-all + individual checkboxes, import loop with transaction wrapper for atomicity.
-
-**Addresses:** Table stakes feature (expected by users from other reference managers).
-
-**Avoids:** **Pitfall #5 (Memory Explosion)** — batch size warning if >100 papers selected, progress indicator with ExtendedTask for large imports, paginated transfer via DuckDB (not reactive serialization).
-
----
-
-### Phase 7: Slide Prompt Healing
-**Rationale:** Independent of all other features (operates on existing slide generation), lowest priority (quality-of-life improvement vs core workflow). Can be built in parallel with other phases or deferred to v7.x if needed.
-
-**Delivers:** YAML template pre-injection in `build_slides_prompt()`, `heal_qmd_yaml()` fallback function, "Regenerate" button + textarea in slides modal, healing observer that amends prompt with specific instructions, max 2 retries + template fallback.
-
-**Uses:** Existing `chat_completion()` with history context, `yaml::yaml.load()` for validation.
-
-**Avoids:** **Pitfall #4 (YAML Healing Infinite Loop)** — specific error feedback ("missing colon at line 3") instead of generic "fix this", 2-retry limit prevents cost runaway, template fallback ensures user gets usable output.
+### Phase 6: Gap Analysis Report Preset
+**Rationale:** More complex preset last (inferential, higher hallucination risk). Build after simpler methodology preset validates retrieval pattern.
+**Delivers:** `generate_gap_analysis_preset()` in R/rag.R with PICOS framework for cross-paper synthesis, section filter for limitations/future work/discussion, minimum 3-paper validation, AI disclaimer.
+**Addresses:** Features — gap analysis (unique differentiator); Issue #101; Pitfall #4 (section RAG brittleness) on future work/limitations sections.
+**Avoids:** Hallucinated gaps not supported by sources, single-paper "gap analysis" confusion.
 
 ### Phase Ordering Rationale
 
-- **Phase 1 → Phase 2 dependency:** DOI utilities must exist before batch API operations can validate input
-- **Phase 2 → Phase 3 → Phase 4 dependency chain:** Batch API must work before bulk import UI, bulk import must work before .bib import (which reuses it)
-- **Phase 2 → Phase 5 dependency:** Batch API must work before citation audit (which fetches missing paper metadata)
-- **Phase 6 and Phase 7 parallelizable:** Both independent of other features—can be built concurrently with Phase 3-5
-- **Pitfall mitigation embedded in phase order:** Rate limiting (Phase 2) addressed before any bulk operations exposed to users, SQL optimization (Phase 5) required before citation audit ships, memory handling (Phase 6) required before select-all ships
+**Critical path dependencies:**
+1. **Phase 0 → all other phases** — Connection leaks must be fixed before increasing rendering load
+2. **Phase 1 → Phase 3** — Design policy informs button/sidebar theming implementation
+3. **Phase 4 → Phases 5, 6** — Shared prompt components prevent preset coupling
+4. **Phase 5 → Phase 6** — Simpler preset validates retrieval pattern before complex preset
 
-This order minimizes rework: foundational utilities first, then features built on top. Critical pitfalls are addressed in the phases where they occur, not retroactively fixed later.
+**Parallelizable work:**
+- Phase 2 (citation audit bugs) can run parallel to Phase 1 (design policy writing) — independent concerns
+- Phases 5, 6 (presets) independent of citation audit (Phase 2) — different modules
+
+**Why this ordering avoids pitfalls:**
+- Foundation-first (Phase 1) prevents specificity wars (#1) and icon fragmentation (#2)
+- Bugs-second (Phase 2) prevents race conditions (#6) from blocking user workflow
+- Refactor-before-extend (Phase 4 before 5, 6) prevents prompt coupling (#5)
+- Simple-before-complex (Phase 5 before 6) validates RAG brittleness fixes (#4) on easier use case
+- Tech debt cleanup (Phase 0) before load increase prevents leak amplification (#8)
 
 ### Research Flags
 
-**Phases needing standard patterns only (skip research-phase):**
-- **Phase 1 (DOI utilities):** Text parsing and regex validation—well-documented, no special research needed
-- **Phase 3 (Bulk DOI UI):** Reuses existing async patterns (ExtendedTask + mirai), modal workflows—established in codebase
-- **Phase 4 (BibTeX import):** bib2df is well-documented rOpenSci package, reuses Phase 3 infrastructure
-- **Phase 6 (Select-all):** Pure Shiny reactive UI logic, no external integration complexity
-- **Phase 7 (Slide healing):** Prompt engineering iteration, no research-phase needed (just testing)
+**Phases with standard patterns (skip research-phase):**
+- **Phase 0:** Tech debt cleanup — known connection leak locations, standard `on.exit()` pattern
+- **Phase 1:** Design system foundation — Bootstrap 5 documentation authoritative, Catppuccin palette already validated
+- **Phase 2:** Citation audit bugs — debugging task, not research task
+- **Phase 3:** Sidebar/button theming — applies documented policy, bslib semantic classes well-documented
+- **Phase 4:** Preset refactor — code reorganization, not new functionality
+- **Phase 5, 6:** AI presets — reuse section-targeted RAG pattern from v2.1, PICO/PICOS frameworks documented in systematic review literature
 
-**Phases where research already complete (use this research):**
-- **Phase 2 (Batch API):** OpenAlex API batching fully researched (pipe-separated syntax, 50 DOI limit, rate limiting strategies documented)
-- **Phase 5 (Citation audit):** DuckDB array aggregation patterns researched, OpenAlex work ID vs DOI distinction documented
+**Phases needing validation (not deep research, but testing):**
+- **Phase 4:** Test section-targeted RAG on diverse paper corpus (journal, preprint, conference, review) to validate keyword expansion
+- **Phase 5, 6:** Test prompt engineering on real papers to verify structured output quality
 
-**No phases need additional research-phase.** This project research was comprehensive—all technical unknowns resolved. During implementation, if unexpected complexity emerges (e.g., bib2df can't handle a specific .bib format), handle with targeted task-level research rather than formal research-phase.
+**Overall:** No phases require `/gsd:research-phase`. All patterns established in prior milestones (v2.1 section RAG, v4.0 structured output, v6.0 Catppuccin theming, v7.0 mirai async). This is **execution-focused milestone**, not discovery-focused.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | bib2df is rOpenSci package (peer-reviewed, actively maintained). OpenAlex batch API syntax verified in official docs. All other packages already in use (readr, httr2, DuckDB). |
-| Features | MEDIUM | Feature list validated against competitors (Litmaps, Connected Papers, Scite), but v7.0 scope based on inference from user needs (no user interviews conducted). Table stakes features (bulk import, .bib support) confirmed via reference manager landscape research. Citation gap detection validated as differentiator. |
-| Architecture | HIGH | Integration points verified by reading existing codebase. `referenced_works` column confirmed to exist (v2.0 migration). ExtendedTask + mirai pattern proven in production (Phase 30 citation network). No schema changes required. |
-| Pitfalls | HIGH | Rate limiting and batch API patterns verified in OpenAlex docs (Feb 2026 updates). BibTeX parsing pitfalls documented in rOpenSci roundup and GitHub issues. DuckDB performance characteristics confirmed in official docs. LLM YAML healing validated in research papers (2024-2026). |
+| Stack | HIGH | No new dependencies, bslib/pdftools/bsicons versions verified from CRAN PDFs (Jan-Feb 2026), all patterns tested in v1.0-v9.0 |
+| Features | MEDIUM-HIGH | Bootstrap/bslib docs authoritative (HIGH), AI tool feature landscape from web search (MEDIUM), gap analysis methodology from systematic review literature (HIGH) |
+| Architecture | HIGH | Existing codebase (~20,000 LOC) analyzed, all integration points verified in app.R/R/rag.R/R/mod_*.R, pure extension pattern confirmed |
+| Pitfalls | HIGH | Pitfalls sourced from official docs (MDN CSS specificity, bslib dark mode, Bootstrap overrides), arXiv RAG research papers, project tech debt (#117, #118, #119), milestone decision logs |
 
 **Overall confidence:** HIGH
 
-Research sources are authoritative (official docs, rOpenSci peer-reviewed packages, OpenAlex API documentation, academic papers on LLM self-correction). The one MEDIUM confidence area (Features) reflects lack of direct user validation—feature priorities inferred from competitor analysis and systematic review methodology standards. This gap can be addressed during implementation by iterating on UX based on user feedback.
+Research converges on clear recommendations with minimal uncertainty. Stack requires no changes, architecture is pure extension, pitfalls are well-documented with prevention strategies. Only uncertainty is MEDIUM on AI tool competitive feature landscape (web search coverage incomplete), but this doesn't affect technical implementation — design system and presets are based on validated patterns regardless of competitor features.
 
 ### Gaps to Address
 
-- **BibTeX DOI quality validation:** Many real-world .bib files have missing or malformed DOI fields. Research identified this gap but didn't quantify prevalence. **Mitigation:** Phase 4 should test with diverse .bib exports (Zotero, Mendeley, EndNote) to measure skip rates and refine fallback strategies (title search vs skip-and-warn).
+**Gap: Section-targeted RAG recall on non-standard papers**
+- Research shows keyword heuristics are brittle, error rates increase ~1% per 5 documents
+- **Mitigation:** Test methodology/gap presets on diverse paper corpus during Phase 4-5, expand keyword dictionaries iteratively, document retrieval diagnostics in preset disclaimers
+- **Future enhancement:** ML-based section classifier (out of scope for v10.0, but document as known limitation with workaround)
 
-- **OpenAlex work ID resolution performance:** Citation audit must batch-query work IDs from `referenced_works` to get DOIs/titles. Research confirmed this is possible but didn't benchmark speed. **Mitigation:** Phase 5 should performance-test with 500+ abstracts (thousands of work IDs) to validate single-query aggregation scales as expected.
+**Gap: Citation audit race condition root cause**
+- Issue #134 lacks error message details, can't confirm if foreign key violation or other concurrency issue
+- **Mitigation:** Reproduce locally in Phase 2, add integration test for concurrent writes, implement transactions + retry logic regardless of specific error type
 
-- **User expectations for citation audit threshold:** Research found 3-5 citations as common threshold for "frequently cited," but didn't determine optimal default. **Mitigation:** Phase 5 should start with threshold=3 (inclusive), add UI control in v7.x if users request configurability.
+**Gap: Prompt template component boundary**
+- Research shows prompt coupling is common mistake, but which components to extract requires codebase-specific judgment
+- **Mitigation:** Start with obvious duplicates (instruction-data separation, RAG citation format, safety constraints), iterate based on actual preset diff analysis in Phase 4
 
-- **LLM model variability in YAML generation:** Slide healing assumes smaller models produce malformed YAML more often, but research didn't quantify rates per model. **Mitigation:** Phase 7 should test with Claude Haiku, GPT-4o-mini, Llama 3.1 to validate healing improves success rates across model tiers.
+**Gap: Icon coverage between bsicons (2000+) vs fontawesome (16,000+)**
+- bsicons recommended for consistency, but may lack specific icons needed
+- **Mitigation:** Audit current icon usage (grep for `fa()` and `bs_icon()`), map to bsicons equivalents, document fontawesome as fallback ONLY when bsicons lacks required icon, handle nav_panel integration issue (bsicons requires `tags$i()` wrapper)
+
+**Gap: Theme persistence across sessions**
+- Dark mode toggle doesn't persist to localStorage, users re-toggle every session
+- **Mitigation:** Add in Phase 3 sidebar theming: `observeEvent(input$dark_mode, { # store in localStorage or DB })`, restore on session start
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-**OpenAlex API:**
-- [OpenAlex rate limits and authentication](https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication) — 100 req/sec limit, $1/day free tier, batch syntax verified
-- [OpenAlex API batch DOI requests](https://blog.openalex.org/fetch-multiple-dois-in-one-openalex-api-request/) — Official guide to pipe-separated filter syntax (50 DOI limit per request)
-- [OpenAlex filter entity lists](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists) — Filter syntax documentation
-- [OpenAlex Work object](https://docs.openalex.org/api-entities/works/work-object) — `referenced_works` field stores work IDs, not DOIs
-
-**R Packages:**
-- [bib2df CRAN vignette](https://cran.r-project.org/web/packages/bib2df/vignettes/bib2df.html) — Version 1.1.2.0, rOpenSci peer-reviewed
-- [bib2df GitHub (rOpenSci)](https://github.com/ropensci/bib2df) — Active maintenance, last updated Jan 2026
-- [rOpenSci BibTeX parser roundup](https://ropensci.org/blog/2020/05/07/rmd-citations/) — Comparison of bib2df, bibtex, RefManageR, rbibutils
-- [ExtendedTask with mirai](https://mirai.r-lib.org/articles/shiny.html) — Official Shiny integration guide
-- [DuckDB Performance Tuning](https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads) — Columnar-vectorized execution, array aggregation
-
-**Citation Audit Methodology:**
-- [Litmaps research gap detection](https://www.litmaps.com) — Dynamic citation mapping competitor with gap detection
-- [Scite AI Smart Citations review](https://effortlessacademic.com/scite-ai-review-2026-literature-review-tool-for-researchers/) — Citation context analysis (supporting/contrasting)
-- [Finding Seminal Works - National University Library](https://resources.nu.edu/researchprocess/seminalworks) — Citation analysis methodology (3-5 citation threshold standard)
-- [In-text Citation Frequencies for Relevancy](https://pmc.ncbi.nlm.nih.gov/articles/PMC8189020/) — Papers cited >5 times in text = high relevance (academic standard)
+- **Existing codebase** — app.R (sidebar, theme), R/theme_catppuccin.R (Catppuccin palette), R/rag.R (preset functions), R/db.R (section-targeted RAG), R/pdf.R (section detection), R/mod_*.R (18 modules)
+- **bslib documentation** — [Theming guide](https://rstudio.github.io/bslib/articles/theming/index.html), [Sass variables](https://rstudio.github.io/bslib/reference/bs_bundle.html), [Dark mode input](https://rstudio.github.io/bslib/reference/input_dark_mode.html), [Sidebars](https://rstudio.github.io/bslib/articles/sidebars/index.html)
+- **Bootstrap 5 documentation** — [Buttons](https://getbootstrap.com/docs/5.3/components/buttons/), [Color modes](https://getbootstrap.com/docs/5.3/customize/color-modes/)
+- **CRAN package PDFs** — bslib 0.10.0 (Jan 2026), pdftools 3.7.0 (Jan 2026), bsicons 0.1.2 (Jul 2025)
+- **ragnar documentation** — [Semantic chunking](https://ragnar.tidyverse.org/articles/ragnar.html)
+- **Project context** — .planning/PROJECT.md (decision log v1.0-v9.0), GitHub issues #133, #134, #137, #138, #139, #100, #101
 
 ### Secondary (MEDIUM confidence)
-
-**Reference Management Landscape:**
-- [Best Reference Management Software 2026](https://research.com/software/best-reference-management-software) — Industry standards for bulk import (DOI lists, .bib files expected)
-- [Paperguide AI Reference Manager](https://paperguide.ai/blog/ai-reference-manager-tools/) — BibTeX/RIS/DOI import patterns across tools
-- [Zotero/Mendeley bulk import guides](https://libguides.ucalgary.ca/guides/endnote/EN20references) — BibTeX batch workflow patterns
-
-**LLM Structured Output:**
-- [When Can LLMs Actually Correct Their Own Mistakes? (2024)](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00713/125177/) — Self-correction works only with reliable external feedback
-- [LLM Infinite Loops In Entity Extraction - GDELT](https://blog.gdeltproject.org/llm-infinite-loops-in-llm-entity-extraction-when-temperature-basic-prompt-engineering-cant-fix-things/) — Temperature=0 creates deterministic loops
-- [Implementing Retry Mechanisms for LLM Calls](https://apxml.com/courses/prompt-engineering-llm-application-development/chapter-7-output-parsing-validation-reliability/implementing-retry-mechanisms) — Best practices: validate → retry 1-2 times → escalate
+- **RAG pitfalls** — [Seven Failure Points When Engineering a RAG System (arXiv)](https://arxiv.org/pdf/2401.05856) — keyword brittleness, error rates scaling with document count
+- **Prompt engineering** — [Prompt Engineering for RAG Pipelines (StackAI)](https://www.stackai.com/blog/prompt-engineering-for-rag-pipelines-the-complete-guide-to-prompt-engineering-for-retrieval-augmented-generation), [10 Common LLM Prompt Mistakes (GoInsight.ai)](https://www.goinsight.ai/blog/llm-prompt-mistake/) — prompt template coupling anti-pattern
+- **CSS specificity** — [MDN: CSS Specificity](https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity), [How To Override Bootstrap 5 CSS (ThemeSelection)](https://themeselection.com/override-bootstrap-css-styles/)
+- **Dark mode** — [Dark Mode Toggle and prefers-color-scheme (DEV Community)](https://dev.to/abbeyperini/dark-mode-toggle-and-prefers-color-scheme-4f3m), [prefers-color-scheme browser vs OS (Sara Soueidan)](https://www.sarasoueidan.com/blog/prefers-color-scheme-browser-vs-os/)
+- **Icon systems** — [Iconography In Design Systems (Smashing Magazine)](https://www.smashingmagazine.com/2024/04/iconography-design-systems-troubleshooting-maintenance/), [bsicons GitHub Issue #639](https://github.com/rstudio/bslib/issues/639) (nav_panel integration)
+- **Citation errors** — [Citation Errors in Scientific Research (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10307651/) — ~20% citations contain errors, automated tools prone to matching errors
+- **Systematic review methodology** — [Framework for Determining Research Gaps (NCBI)](https://www.ncbi.nlm.nih.gov/books/NBK126702/), [IMRAD Structure Classification (Semantic Scholar)](https://www.semanticscholar.org/paper/Discovering-IMRaD-Structure-with-Different-Ribeiro-Yao/be2ef84f950edf665924cbb7d24545eeb319dffd) — PICO/PICOS frameworks, 81% accuracy for IMRAD classification
 
 ### Tertiary (LOW confidence)
-
-**BibTeX Edge Cases:**
-- [bibtex-parsing edge cases - citation-js Issue #73](https://github.com/citation-js/citation-js/issues/73) — Valid but unusual BibTeX entries (missing keys, arbitrary types)
-- [Parsing BibTeX in Racket](https://matt.might.net/articles/parsing-bibtex/) — Nested braces and string literal tokenization rules
+- **AI research tool competitors** — [Elicit](https://elicit.com/), [Paperguide](https://paperguide.ai/), [11 Best AI Tools for Scientific Literature Review (Cypris)](https://www.cypris.ai/insights/11-best-ai-tools-for-scientific-literature-review-in-2026) — feature landscape (methodology extraction table stakes, gap analysis differentiator), needs validation
+- **Design system patterns** — [Design Patterns For AI Interfaces (Smashing Magazine)](https://www.smashingmagazine.com/2025/07/design-patterns-ai-interfaces/) — general patterns, not R/Shiny-specific
+- **DuckDB concurrency** — [DuckDB Memory Behavior Issue #464](https://github.com/duckdb/duckdb/issues/464), [Garbage-collected warning (GitHub Issue #34)](https://github.com/duckdb/duckdb-r/issues/34) — connection leak symptoms, transaction behavior inferred
 
 ---
-*Research completed: 2026-02-25*
+*Research completed: 2026-03-04*
 *Ready for roadmap: yes*

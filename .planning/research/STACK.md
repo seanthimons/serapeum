@@ -1,167 +1,247 @@
-# Stack Research
+# Stack Research — v10.0 Theme Harmonization & AI Synthesis
 
-**Domain:** Citation audit, bulk DOI/BibTeX import, and slide generation prompt healing for R/Shiny research assistant
-**Researched:** 2026-02-25
+**Domain:** Global theme/icon design system, methodology extraction from PDFs, gap analysis synthesis
+**Researched:** 2026-03-04
 **Confidence:** HIGH
 
-## Recommended Stack Additions
+## Executive Summary
 
-### For .bib File Parsing
+**No new dependencies required.** All features can be implemented with the existing stack. This milestone extends current capabilities rather than adding new ones.
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| bib2df | 1.1.2.0 | Parse BibTeX files to data frames | Official rOpenSci package, parses directly to tibbles for easy OpenAlex DOI extraction. Clean API: `bib2df(file)` returns one row per entry with standardized field names. Handles multiple BibTeX styles and missing fields gracefully. |
+- **Global theme/icon policy** → Use existing `bslib::bs_add_variables()` + `bsicons` (already in use)
+- **Methodology extraction** → Reuse section-targeted RAG from Conclusions preset (existing `detect_section_hint()` recognizes "methods" sections)
+- **Gap analysis synthesis** → Reuse existing preset architecture (`generate_conclusions_preset()` pattern)
 
-### For Bulk DOI Input
+## Recommended Stack (NO CHANGES)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| readr | 2.2.0 | Parse CSV files with DOI lists | Already in tidyverse, fast CSV parsing (10-100x base R). Use `read_csv()` for user-uploaded CSV files, or `read_lines()` for paste-based text input. Built-in column type detection and error handling. |
+### Core Framework — Already Validated
 
-### Supporting Libraries
+| Technology | Current | Latest | Status | Notes |
+|------------|---------|--------|--------|-------|
+| **bslib** | 0.9.0 | 0.10.0 | Optional upgrade | Theme system + `bs_add_rules()` sufficient for v10.0 |
+| **pdftools** | 3.6.0 | 3.7.0 | No change needed | Current version handles PDF extraction |
+| **bsicons** | 0.1.2 | 0.1.2 | Current | Bootstrap icons already integrated |
+| **ragnar** | (installed) | (installed) | Current | Section detection already implemented |
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| httr2 | (existing) | Batch OpenAlex API calls | Already in use. OpenAlex API supports up to 100 DOIs per request using pipe separator: `filter=doi:10.xxx/yyy\|10.zzz/aaa`. Requires `per-page=100` parameter to retrieve all results in single query. |
-| DuckDB | (existing) | Citation frequency aggregation | For citation audit: SQL query to aggregate `referenced_works` array column and count frequency across all papers in search notebook. No new dependency needed. |
+### What NOT to Add
 
-## What NOT to Add
+| Library | Reason NOT to Add |
+|---------|-------------------|
+| **sass** package standalone | Already bundled with bslib — `bs_add_rules()` accepts Sass |
+| **tabulizer** / **tesseract** | Methodology text is already extracted by `pdftools::pdf_text()` — no OCR/table extraction needed |
+| **fontawesome** alternative | `bsicons` already provides 2000+ Bootstrap icons — adding another library fragments icon usage |
+| **Custom CSS frameworks** | Bootstrap + Catppuccin palette already validated across 9 milestones |
+| **Additional NLP libraries** | Section detection via keyword heuristics (`detect_section_hint()`) works — LLM-based extraction is overkill |
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| RefManageR | Heavyweight bibliography manager (1.4.3) — overkill for simple .bib parsing, adds complex bibliography management features not needed | bib2df — lighter, focused on parsing to data frames |
-| bibtex | Lower-level parser (0.5.1) — returns S3 objects requiring manual conversion to data frames | bib2df — direct tibble output |
-| rbibutils | More complex conversion library (latest Jan 2026) — handles multiple bibliography formats but adds unnecessary complexity for BibTeX-only use case | bib2df — BibTeX-focused, simpler API |
-| Base R `read.csv()` | 10-100x slower than readr on large files, less robust column type detection | readr::read_csv() — already in project dependencies via tidyverse |
+## Integration Points
 
-## Integration Points with Existing Stack
+### 1. Global Theme/Icon Policy (#138)
 
-### Citation Audit (referenced_works frequency analysis)
+**Current architecture:**
+```r
+# R/theme_catppuccin.R
+catppuccin_dark_css() → bs_add_rules()
 
-**Existing capabilities:**
-- OpenAlex API already returns `referenced_works` array in `parse_openalex_work()` (line 252 of api_openalex.R)
-- DuckDB can aggregate array columns with `UNNEST()` and `GROUP BY`
+# app.R
+bs_theme(
+  version = 5,
+  primary = "#7287fd",  # Catppuccin Lavender
+  secondary = "#9ca0b0", # Catppuccin Overlay0
+  ...
+)
+```
 
-**New code needed:**
-- SQL query to aggregate frequency across papers in search notebook
-- UI component to display missing high-frequency papers
+**What v10.0 adds:**
+- Centralize button color mapping in `bs_theme()` using semantic Bootstrap variables
+- Document icon-to-action mapping (destruction → `trash`, addition → `plus-circle`, etc.)
+- Use `bs_add_variables()` to override Bootstrap's `$btn-*` Sass defaults for consistent states (hover, active, disabled)
 
-**No new dependencies required.**
+**Why existing stack is sufficient:**
+- `bslib::bs_add_variables()` sets Sass variables BEFORE Bootstrap compilation → affects all button variants
+- `bsicons::bs_icon()` already used for citation audit value boxes → extend pattern to buttons
+- No new dependencies required
 
-### Bulk DOI Upload
+### 2. Methodology Extractor Preset (#100)
 
-**Existing capabilities:**
-- `normalize_doi()` function handles various DOI formats (line 418 of api_openalex.R)
-- `get_paper()` fetches single paper by DOI (line 467)
-- OpenAlex API supports batch lookup (verified 100 DOI limit)
+**Current architecture:**
+```r
+# R/pdf.R
+detect_section_hint() → recognizes "methods", "methodology", "approach", "experimental setup"
 
-**New code needed:**
-- UI for paste/CSV upload (use `shiny::textAreaInput()` or `shiny::fileInput()`)
-- DOI extraction using regex: `/^10\.\d{4,}/[-._;()/:A-Z0-9]+$/i` (Crossref standard)
-- Batch OpenAlex requests with pipe-separated DOIs: `filter=doi:https://doi.org/10.xxx/yyy|https://doi.org/10.zzz/aaa`
-- Progress indicator for 100+ DOI uploads (split into batches)
+# R/rag.R
+generate_conclusions_preset() → section-filtered hybrid search
+```
 
-**Dependencies:**
-- readr — for CSV parsing (already in tidyverse)
-- httr2 — for batch API calls (already in use)
+**What v10.0 adds:**
+```r
+generate_methodology_preset(
+  con, config, notebook_id,
+  notebook_type = "document",
+  session_id = NULL
+) {
+  # Query: "study design sample methods statistical analysis instruments"
+  # Section filter: c("methods", "introduction", "general")
+  # Same hybrid search + fallback pattern as conclusions preset
+}
+```
 
-### Bulk .bib Upload
+**Why existing stack is sufficient:**
+- `detect_section_hint()` already tags chunks with `section_hint = "methods"` (R/pdf.R line 60)
+- `search_chunks_hybrid()` already accepts `section_filter` parameter (R/_ragnar.R)
+- `pdftools::pdf_text()` extracts all text — methods sections are already in chunks table
+- No new PDF parsing needed
 
-**Existing capabilities:**
-- DOI normalization (line 418)
-- Batch OpenAlex lookup pattern (same as bulk DOI)
+### 3. Gap Analysis Report Preset (#101)
 
-**New code needed:**
-- Parse .bib file with `bib2df::bib2df(file_path)`
-- Extract DOI field from each entry
-- Feed DOIs into batch OpenAlex lookup
-- Handle entries without DOIs (warn user, skip, or log)
+**Current architecture:**
+```r
+# R/rag.R
+generate_conclusions_preset() →
+  - Section-filtered search for "limitations", "future_work", "discussion"
+  - LLM synthesis with structured prompt
+  - AI disclaimer banner
+```
 
-**Dependencies:**
-- bib2df 1.1.2.0 (new)
+**What v10.0 adds:**
+```r
+generate_gap_analysis_preset(
+  con, config, notebook_id,
+  notebook_type = "document",
+  session_id = NULL
+) {
+  # Query: "limitations contradictions underexplored missing gaps"
+  # Section filter: c("limitations", "future_work", "discussion", "conclusion")
+  # Structured prompt: methodological/geographic/population/theoretical gaps
+  # AI disclaimer (like conclusions preset)
+}
+```
 
-### Slide Generation Prompt Healing
+**Why existing stack is sufficient:**
+- Same section-targeted RAG pattern as conclusions preset
+- `detect_section_hint()` already tags limitations/future work sections
+- OpenRouter LLM already handles synthesis — gap analysis is a different prompt, not new tech
+- No new dependencies required
 
-**Issue:** LLMs generate invalid YAML frontmatter for Quarto slides (issue #124)
+## Alternatives Considered
 
-**Existing capabilities:**
-- `build_slides_prompt()` creates system/user prompts (line 38 of slides.R)
-- `inject_theme_to_qmd()` modifies YAML post-generation (line 101)
-- `inject_citation_css()` modifies YAML post-generation (line 136)
-
-**Solution: Provide YAML template in prompt instead of relying on LLM**
-
-**New code needed:**
-- Include literal YAML template in system prompt:
-  ```yaml
-  ---
-  title: "[Title Here]"
-  format:
-    revealjs:
-      theme: [theme]
-  ---
-  ```
-- Instruct LLM to fill `[Title Here]` only, not generate YAML structure
-- Add regeneration-specific instructions: "If regenerating: keep YAML unchanged, modify only [specified section]"
-
-**No new dependencies required.**
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| Icon library | bsicons | fontawesome | Already using bsicons for citation audit — mixing icon libraries fragments design system |
+| Theme framework | bslib + Sass | Custom CSS | Bootstrap + Catppuccin validated across 9 milestones — custom CSS adds tech debt |
+| PDF parsing | pdftools + ragnar | tabulizer | Methods text is in plain text, no table extraction needed |
+| Section detection | Keyword heuristics | LLM-based extraction | Current `detect_section_hint()` works — LLM adds latency + cost |
 
 ## Installation
 
-```r
-# New package for .bib parsing
-install.packages("bib2df")
+**No new packages required.** All dependencies already in `renv.lock`.
 
-# Existing packages (already installed)
-# readr — via tidyverse
-# httr2 — already in DESCRIPTION
-# DuckDB — already in DESCRIPTION
+```r
+# Current renv.lock (verified 2026-03-04)
+bslib: 0.9.0
+pdftools: 3.6.0
+bsicons: (via bslib Suggests)
+ragnar: (installed as hard dependency)
 ```
 
-## Validation and Testing
+## Design System Patterns
 
-**bib2df compatibility:**
-- rOpenSci package, actively maintained
-- Compatible with R >= 3.5.0
-- No known conflicts with existing stack (Shiny, DuckDB, httr2)
+### Button Color Semantics (Bootstrap 5 Standard)
 
-**OpenAlex API batch limits:**
-- Official limit: 100 DOIs per request (verified via [OpenAlex docs](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists))
-- Use `per-page=100` parameter to retrieve all results
-- Pipe separator syntax: `doi:value1|value2|...|value100`
+**Recommended mapping for #138:**
 
-**DOI regex pattern:**
-- Crossref standard: `/^10\.\d{4,9}/[-._;()/:A-Z0-9]+$/i`
-- Matches 74.4M of 74.9M DOIs in Crossref database
-- Source: [Crossref DOI regex blog](https://www.crossref.org/blog/dois-and-matching-regular-expressions/)
+| Action Type | Bootstrap Class | Catppuccin Color | Icon Example |
+|-------------|-----------------|------------------|--------------|
+| **Primary action** | `btn-primary` | Lavender (#7287fd Latte) | `layer-group`, `search` |
+| **Destructive** | `btn-danger` | Red (#d20f39 Latte / #f38ba8 Mocha) | `trash`, `x-circle` |
+| **Confirmation** | `btn-success` | Green (#40a02b Latte / #a6e3a1 Mocha) | `check-circle`, `download` |
+| **Secondary** | `btn-secondary` | Overlay0 (#9ca0b0) | `gear`, `eye` |
+| **Warning** | `btn-warning` | Yellow (#df8e1d Latte / #f9e2af Mocha) | `exclamation-triangle` |
 
-## Performance Considerations
+**Source:** [Bootstrap 5 button components](https://getbootstrap.com/docs/5.3/components/buttons/)
 
-**Batch DOI lookup:**
-- 100 DOIs per API call vs 100 individual calls = 100x reduction in HTTP overhead
-- Estimated time: ~1-2 seconds per 100 DOIs (network dependent)
-- For 500 DOIs: 5 batches × 1.5s = ~7.5 seconds total
+### Icon Consistency
 
-**CSV parsing with readr:**
-- 10-100x faster than base R `read.csv()` on files >10K rows
-- Negligible performance impact for typical DOI lists (<10K entries)
+**Current usage audit:**
+- 4 bsicons in use: `file-text`, `arrow-left`, `arrow-right`, `search` (citation audit module)
+- FontAwesome icons in document notebook: `layer-group`, `lightbulb`, `list-ol`, `microscope`
 
-**BibTeX parsing with bib2df:**
-- Typical .bib files: 10-1000 entries
-- Parse time: <1 second for 1000 entries
-- Bottleneck will be OpenAlex API batch requests, not parsing
+**Recommendation:**
+- Migrate FontAwesome to `bsicons` for consistency (bsicons has 2000+ icons)
+- Document icon → action mapping in `R/theme_catppuccin.R` or new `R/design_system.R`
+
+### Sass Variable Strategy
+
+**Use `bs_add_variables()` for button state overrides:**
+```r
+bs_theme(
+  primary = LATTE$lavender,
+  danger = LATTE$red,
+  ...
+) %>%
+bs_add_variables(
+  # Override button hover behavior
+  "btn-hover-bg-scale" = "-10%",  # Darken on hover
+  "btn-hover-border-scale" = "-12.5%"
+)
+```
+
+**Source:** [bslib Sass variables documentation](https://rstudio.github.io/bslib/reference/bs_bundle.html)
+
+## Version Verification
+
+**Verification method:** WebSearch (CRAN package PDFs dated January–February 2026)
+
+**Latest versions (as of 2026-03-04):**
+- bslib 0.10.0 (January 26, 2026) — [CRAN package page](https://cran.r-project.org/web/packages/bslib/bslib.pdf)
+- pdftools 3.7.0 (January 30, 2026) — [CRAN package page](https://cran.r-project.org/web/packages/pdftools/pdftools.pdf)
+- bsicons 0.1.2 (July 22, 2025) — [CRAN package page](https://cran.r-project.org/web/packages/bsicons/bsicons.pdf)
+
+### Optional Upgrades (Not Required for v10.0)
+
+**bslib 0.9.0 → 0.10.0:**
+- Pro: Latest Bootstrap 5.3 features, improved `bs_themer()` for real-time testing
+- Con: Upgrade risk during active milestone (9 releases since 0.9.0)
+- **Recommendation:** Defer to v11.0 — current version sufficient for theme variables
+
+**pdftools 3.6.0 → 3.7.0:**
+- Pro: Bug fixes in libpoppler backend
+- Con: No new API — methodology extraction uses same `pdf_text()` function
+- **Recommendation:** Defer — current version handles all use cases
+
+## Pitfalls and Mitigations
+
+### Theme/Icon Policy
+
+**Risk:** Bootstrap state classes (hover, active, disabled) may not cascade correctly if variables set too late
+**Mitigation:** Use `bs_add_variables(.where = "defaults")` to inject before Bootstrap compilation
+
+### Methodology Extraction
+
+**Risk:** Methods sections vary widely in structure (some papers use "Materials and Methods", others "Experimental Design")
+**Mitigation:** Expand `detect_section_hint()` regex to catch variants: `"(method|material|experiment|procedure)"`
+
+### Gap Analysis
+
+**Risk:** Higher hallucination risk (inferring what's NOT in text vs extracting what IS there)
+**Mitigation:**
+- Use OWASP instruction-data separation (already in conclusions preset)
+- AI disclaimer banner (already implemented for conclusions/research questions/lit review)
+- Prompt engineering: "Only identify gaps supported by contradictions or omissions explicitly mentioned in the sources"
 
 ## Sources
 
-- [bib2df CRAN](https://cran.r-project.org/web/packages/bib2df/vignettes/bib2df.html) — Official vignette, version 1.1.2.0
-- [bib2df GitHub (rOpenSci)](https://github.com/ropensci/bib2df) — Active maintenance, rOpenSci peer-reviewed
-- [readr CRAN documentation](https://cran.r-project.org/web/packages/readr/readr.pdf) — Version 2.2.0, February 2026
-- [OpenAlex API filter documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/filter-entity-lists) — Verified 100-value limit for pipe-separated filters
-- [OpenAlex blog: Batch DOI requests](https://blog.openalex.org/fetch-multiple-dois-in-one-openalex-api-request/) — Official guide to batch lookup
-- [Crossref DOI regex](https://www.crossref.org/blog/dois-and-matching-regular-expressions/) — Authoritative DOI validation pattern
-- [RefManageR CRAN](https://cran.r-project.org/web/packages/RefManageR/RefManageR.pdf) — Version 1.4.0, considered but not recommended (overkill)
-- [readr tidyverse documentation](https://readr.tidyverse.org/reference/read_delim.html) — Official API reference
+**Official documentation:**
+- [bslib theming guide](https://rstudio.github.io/bslib/articles/theming/index.html) — Theming approach for Bootstrap in R
+- [bslib Sass variables reference](https://rstudio.github.io/bslib/reference/bs_bundle.html) — `bs_add_variables()` documentation
+- [pdftools package documentation](https://cran.r-project.org/web/packages/pdftools/pdftools.pdf) — Version 3.7.0, January 2026
+- [bsicons package documentation](https://cran.r-project.org/web/packages/bsicons/bsicons.pdf) — Version 0.1.2, July 2025
+- [Bootstrap 5.3 button components](https://getbootstrap.com/docs/5.3/components/buttons/) — Official Bootstrap docs
+
+**Community/Best Practices:**
+- [Semantic button color design 2026](https://thelinuxcode.com/how-to-change-button-color-in-bootstrap-5-and-keep-it-consistent-accessible-and-scalable/) — Design system principles
+- [sass R package overview](https://rstudio.github.io/sass/articles/sass.html) — How sass integrates with bslib
+- [ragnar semantic chunking documentation](https://ragnar.tidyverse.org/articles/ragnar.html) — Section-aware chunking
 
 ---
-*Stack research for: Serapeum v7.0 Citation Audit + Quick Wins*
-*Researched: 2026-02-25*
+*Stack research for: Serapeum v10.0 Theme Harmonization & AI Synthesis*
+*Researched: 2026-03-04*
