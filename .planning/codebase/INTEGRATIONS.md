@@ -58,7 +58,7 @@
   - One DuckDB file per notebook: `data/ragnar/<notebook_id>.duckdb`
   - Client: `ragnar` R package (tidyverse/ragnar)
   - Provides: VSS (vector similarity search) + BM25 hybrid retrieval
-  - VSS extension is bundled with DuckDB 1.3.2 — no separate install needed
+  - VSS extension is downloaded once by DuckDB's extension loader (handled transparently by ragnar; users never call INSTALL/LOAD manually)
   - Managed via: `R/_ragnar.R` - store creation, connection, retrieval helpers
   - See: `docs/plans/2026-03-04-database-stack-decision.md` for stack analysis
 
