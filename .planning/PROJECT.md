@@ -110,7 +110,14 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active requirements — next milestone not yet defined)
+<!-- v10.0 Theme Harmonization & AI Synthesis -->
+- [ ] Global color/theme/icon policy for all buttons and UI elements (#138)
+- [ ] Fix citation audit error when adding multiple papers (#134)
+- [ ] Fix citation audit papers not appearing in abstract notebook (#133)
+- [ ] UI adjustment to abstract buttons (#139)
+- [ ] Fix sidebar colors + theming (#137)
+- [ ] Methodology Extractor preset (#100)
+- [ ] Gap Analysis Report preset (#101)
 
 ### Out of Scope
 
@@ -218,12 +225,23 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 | Adaptive citation percentile for trim (v9.0) | Different thresholds for different network sizes | ✓ Good — balanced filtering |
 
 ---
+## Current Milestone: v10.0 Theme Harmonization & AI Synthesis
+
+**Goal:** Establish a global color/theme/icon design system, fix citation audit bugs, harmonize sidebar and button theming, then add Methodology Extractor and Gap Analysis Report presets to advance the AI Output Overhaul epic.
+
+**Target features:**
+- Global color/theme/icon policy (#138) — design system foundation
+- Citation audit bug fixes (#134, #133) — critical bugs
+- Sidebar + button theming (#137, #139) — apply design system
+- Methodology Extractor preset (#100) — new AI output
+- Gap Analysis Report preset (#101) — new AI output
+
 ## Current State
 
 **Latest shipped:** v9.0 Network Graph Polish (2026-03-04)
 **Total milestones:** 12 shipped (v1.0–v9.0)
 **Total phases:** 43 complete across 76 plans
-**Current:** Planning next milestone
+**Current:** v10.0 Theme Harmonization & AI Synthesis
 
 **v9.0 shipped:** Physics singularity collapse fix + ambient drift for small networks, dynamic year filter bounds + trim-to-influential with bridge preservation, custom HTML tooltips with dark mode support and container containment.
 
@@ -236,4 +254,4 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-04 after v9.0 milestone*
+*Last updated: 2026-03-04 after v10.0 milestone start*
