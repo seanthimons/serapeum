@@ -151,7 +151,7 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 
 **Milestone Goal:** Establish a global color/theme/icon design system, fix citation audit bugs, harmonize sidebar and button theming, then add Methodology Extractor and Gap Analysis Report presets.
 
-- [ ] **Phase 44: Tech Debt Cleanup** - Fix connection leaks before increasing rendering load
+- [x] **Phase 44: Tech Debt Cleanup** - Fix connection leaks before increasing rendering load (completed 2026-03-04)
 - [ ] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet
 - [ ] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync
 - [ ] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics
@@ -172,7 +172,7 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 44-01-PLAN.md — Validate existing DEBT-01/DEBT-02 fixes and add connection leak detection test
+- [x] 44-01-PLAN.md — Validate existing DEBT-01/DEBT-02 fixes and add connection leak detection test (completed 2026-03-04)
 
 ### Phase 45: Design System Foundation
 **Goal**: Document semantic color/icon policy and validate with visual swatch sheet before any code changes
@@ -257,7 +257,7 @@ Phases execute in numeric order: 44 → 45 → 46 → 47 → 48 → 49
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 44. Tech Debt Cleanup | 0/1 | Not started | - |
+| 44. Tech Debt Cleanup | 1/1 | ✅ Complete | 2026-03-04 |
 | 45. Design System Foundation | 0/1 | Not started | - |
 | 46. Citation Audit Bug Fixes | 0/1 | Not started | - |
 | 47. Sidebar & Button Theming | 0/1 | Not started | - |
@@ -266,4 +266,4 @@ Phases execute in numeric order: 44 → 45 → 46 → 47 → 48 → 49
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-04 — v10.0 roadmap created*
+*Last updated: 2026-03-04 — Phase 44 complete (connection leak detection tests)*
