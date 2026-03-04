@@ -183,10 +183,10 @@ Plans:
   2. Icon-action mappings documented with semantic wrappers (icon_save, icon_download, etc.)
   3. Visual swatch sheet rendered in both Catppuccin Latte and Mocha showing all button variants, icons, sidebar colors, badges
   4. Swatch sheet validated by user before any UI code changes
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 45-01: Create design system policy and swatch sheet
+- [ ] 45-01-PLAN.md — Define semantic color/icon policy and generate visual swatch sheet for validation
 
 ### Phase 46: Citation Audit Bug Fixes
 **Goal**: Fix critical citation audit bugs preventing multi-paper imports and abstract notebook sync
