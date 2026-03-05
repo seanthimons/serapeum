@@ -154,7 +154,7 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 - [x] **Phase 44: Tech Debt Cleanup** - Fix connection leaks before increasing rendering load (completed 2026-03-04)
 - [x] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet (completed 2026-03-05)
 - [ ] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync
-- [x] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics (completed 2026-03-05)
+- [x] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics (completed 2026-03-05)
 - [ ] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods
 - [ ] **Phase 49: Gap Analysis Report Preset** - Cross-paper synthesis identifying methodological and topical gaps
 
@@ -197,10 +197,10 @@ Plans:
   2. Papers added via citation audit immediately appear in abstract notebook
   3. Defensive SQL handles concurrent imports with transactions
   4. Reactive invalidation triggers abstract notebook refresh
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 46-01: Fix multi-paper citation audit import and abstract sync
+- [ ] 46-01-PLAN.md — Fix import_audit_papers skipped_count, observer pattern, and notebook_refresh wiring
 
 ### Phase 47: Sidebar & Button Theming
 **Goal**: Apply design system policy to all buttons, sidebar, and icons across entire app
@@ -268,4 +268,4 @@ Phases execute in numeric order: 44 -> 45 -> 46 -> 47 -> 48 -> 49
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-05 — Phase 47 planned (3 plans in 2 waves)*
+*Last updated: 2026-03-05 — Phase 46 planned (1 plan in 1 wave)*
