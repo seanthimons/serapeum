@@ -526,11 +526,13 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
 #' @param con DuckDB connection (uses existing connection from main process)
 #' @param interrupt_flag Path to interrupt flag file (optional)
 #' @param progress_file Path to progress file (optional)
-#' @return List with imported_count, failed_count
+#' @param progress_callback Optional function(current, total) called after each paper
+#' @return List with imported_count, failed_count, skipped_count
 import_audit_papers <- function(work_ids, notebook_id, email, api_key, con,
-                                 interrupt_flag = NULL, progress_file = NULL) {
+                                 interrupt_flag = NULL, progress_file = NULL,
+                                 progress_callback = NULL) {
   if (length(work_ids) == 0) {
-    return(list(imported_count = 0L, failed_count = 0L))
+    return(list(imported_count = 0L, failed_count = 0L, skipped_count = 0L))
   }
 
   tryCatch({
@@ -539,10 +541,12 @@ import_audit_papers <- function(work_ids, notebook_id, email, api_key, con,
       SELECT paper_id FROM abstracts WHERE notebook_id = ?
     ", list(notebook_id))$paper_id
 
-    # Filter out already-imported
+    # Filter out already-imported and track skipped count
     new_ids <- setdiff(work_ids, existing)
+    skipped <- length(work_ids) - length(new_ids)
+
     if (length(new_ids) == 0) {
-      return(list(imported_count = 0L, failed_count = 0L))
+      return(list(imported_count = 0L, failed_count = 0L, skipped_count = skipped))
     }
 
     # Fetch full metadata from OpenAlex
@@ -552,7 +556,8 @@ import_audit_papers <- function(work_ids, notebook_id, email, api_key, con,
     imported <- 0L
     failed <- 0L
 
-    for (paper in metadata) {
+    for (i in seq_along(metadata)) {
+      paper <- metadata[[i]]
       tryCatch({
         create_abstract(
           con = con,
@@ -579,6 +584,11 @@ import_audit_papers <- function(work_ids, notebook_id, email, api_key, con,
         message("[citation_audit] Failed to import ", paper$paper_id, ": ", e$message)
         failed <<- failed + 1L
       })
+
+      # Call progress callback after processing each paper
+      if (!is.null(progress_callback)) {
+        progress_callback(i, length(metadata))
+      }
     }
 
     # Mark imported results in audit table
@@ -587,9 +597,9 @@ import_audit_papers <- function(work_ids, notebook_id, email, api_key, con,
       check_audit_imports(con, latest_run$id, notebook_id)
     }
 
-    list(imported_count = imported, failed_count = failed)
+    list(imported_count = imported, failed_count = failed, skipped_count = skipped)
   }, error = function(e) {
     message("[citation_audit] Import error: ", e$message)
-    list(imported_count = 0L, failed_count = 0L, error = e$message)
+    list(imported_count = 0L, failed_count = 0L, skipped_count = 0L, error = e$message)
   })
 }
