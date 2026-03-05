@@ -21,8 +21,8 @@ Requirements for v10.0 Theme Harmonization & AI Synthesis. Each maps to roadmap 
 
 ### Bug Fixes
 
-- [ ] **BUGF-01**: Citation audit can add multiple papers without error (#134)
-- [ ] **BUGF-02**: Papers added via citation audit appear in the abstract notebook (#133)
+- [x] **BUGF-01**: Citation audit can add multiple papers without error (#134)
+- [x] **BUGF-02**: Papers added via citation audit appear in the abstract notebook (#133)
 
 ### UI Theming
 
@@ -92,8 +92,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | DSGN-02 | Phase 45 | Complete |
 | DSGN-03 | Phase 47 | Complete |
 | DSGN-04 | Phase 47 | Complete |
-| BUGF-01 | Phase 46 | Pending |
-| BUGF-02 | Phase 46 | Pending |
+| BUGF-01 | Phase 46 | Complete |
+| BUGF-02 | Phase 46 | Complete |
 | THEM-01 | Phase 47 | Complete |
 | THEM-02 | Phase 47 | Complete |
 | THEM-03 | Phase 47 | Complete |
