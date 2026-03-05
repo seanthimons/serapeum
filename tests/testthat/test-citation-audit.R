@@ -261,3 +261,69 @@ test_that("save_audit_results handles NULL input", {
   result <- save_audit_results(con, "fake-run", "fake-nb", NULL)
   expect_equal(result, 0L)
 })
+
+# ============================================================================
+# import_audit_papers tests
+# ============================================================================
+
+test_that("import_audit_papers returns skipped_count for partial duplicates", {
+  skip("Requires live OpenAlex API - skipped for automated testing")
+  # This test would verify skipped_count with mix of new and existing papers
+  # Requires actual API calls, so skipped in unit tests
+})
+
+test_that("import_audit_papers returns correct skipped_count when all are duplicates", {
+  con <- dbConnect(duckdb())
+  on.exit(dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  init_schema(con)
+
+  nb_id <- uuid::UUIDgenerate()
+  dbExecute(con, "INSERT INTO notebooks (id, name, type) VALUES (?, ?, ?)",
+            list(nb_id, "Test Notebook", "search"))
+
+  # Add both papers as existing
+  dbExecute(con, "INSERT INTO abstracts (id, notebook_id, paper_id, title) VALUES (?, ?, ?, ?)",
+            list(uuid::UUIDgenerate(), nb_id, "W100", "Paper A"))
+  dbExecute(con, "INSERT INTO abstracts (id, notebook_id, paper_id, title) VALUES (?, ?, ?, ?)",
+            list(uuid::UUIDgenerate(), nb_id, "W200", "Paper B"))
+
+  result <- import_audit_papers(
+    work_ids = c("W100", "W200"),
+    notebook_id = nb_id,
+    email = "test@example.com",
+    api_key = NULL,
+    con = con
+  )
+
+  expect_equal(result$imported_count, 0L)
+  expect_equal(result$skipped_count, 2L)  # Both already exist
+  expect_equal(result$failed_count, 0L)
+})
+
+test_that("import_audit_papers with empty work_ids returns all counts as 0", {
+  con <- dbConnect(duckdb())
+  on.exit(dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  init_schema(con)
+
+  nb_id <- uuid::UUIDgenerate()
+  dbExecute(con, "INSERT INTO notebooks (id, name, type) VALUES (?, ?, ?)",
+            list(nb_id, "Test Notebook", "search"))
+
+  result <- import_audit_papers(
+    work_ids = character(0),
+    notebook_id = nb_id,
+    email = "test@example.com",
+    api_key = NULL,
+    con = con
+  )
+
+  expect_equal(result$imported_count, 0L)
+  expect_equal(result$skipped_count, 0L)
+  expect_equal(result$failed_count, 0L)
+})
+
+test_that("import_audit_papers calls progress_callback with correct parameters", {
+  skip("Requires live OpenAlex API - skipped for automated testing")
+  # This test would verify progress_callback is called with (current, total) parameters
+  # Requires actual API calls, so skipped in unit tests
+})
