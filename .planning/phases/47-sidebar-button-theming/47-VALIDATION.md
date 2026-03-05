@@ -2,8 +2,8 @@
 phase: 47
 slug: sidebar-button-theming
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-05
 ---
 
@@ -52,7 +52,7 @@ created: 2026-03-05
 
 ## Wave 0 Requirements
 
-- [ ] `tests/testthat/test_icon_wrappers.R` — stubs for DSGN-04 (verifies no raw icon() calls remain, all wrappers defined)
+- [x] `tests/testthat/test_icon_wrappers.R` — created by Plan 01 Task 2 during execution (no separate Wave 0 needed)
 
 *Existing infrastructure covers remaining phase requirements. Most validation is manual (visual theming phase).*
 
