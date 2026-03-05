@@ -48,7 +48,7 @@ ui <- page_sidebar(
     class = "d-flex align-items-center justify-content-between w-100",
     div(
       class = "d-flex align-items-center gap-2",
-      icon("book-open"),
+      icon_book_open(),
       "Serapeum"
     ),
     bslib::input_dark_mode(id = "dark_mode")
@@ -64,7 +64,7 @@ ui <- page_sidebar(
       success = LATTE$green,
       danger = LATTE$red,
       warning = LATTE$yellow,
-      info = LATTE$blue,
+      info = LATTE$sapphire,
       "border-radius" = "0.5rem",
       "link-color" = LATTE$sapphire,
       "link-hover-color" = LATTE$sky
@@ -165,28 +165,28 @@ ui <- page_sidebar(
       class = "d-grid gap-2 mb-2",
       actionButton("new_document_nb", "New Document Notebook",
                    class = "btn-primary",
-                   icon = icon("file-pdf")),
+                   icon = icon_file_pdf()),
       actionButton("new_search_nb", "New Search Notebook",
                    class = "btn-outline-primary",
-                   icon = icon("magnifying-glass")),
+                   icon = icon_search()),
       actionButton("discover_paper", "Discover from Paper",
                    class = "btn-outline-success",
-                   icon = icon("seedling")),
+                   icon = icon_seedling()),
       actionButton("build_query", "Build a Query",
                    class = "btn-outline-info",
-                   icon = icon("wand-magic-sparkles")),
+                   icon = icon_wand()),
       actionButton("explore_topics", "Explore Topics",
                    class = "btn-outline-warning",
-                   icon = icon("compass")),
+                   icon = icon_compass()),
       actionButton("new_network", "Citation Network",
                    class = "btn-outline-danger",
-                   icon = icon("diagram-project")),
+                   icon = icon_diagram()),
       actionButton("citation_audit", "Citation Audit",
                    class = "btn-outline-secondary",
-                   icon = icon("magnifying-glass-chart")),
+                   icon = icon_audit()),
       actionButton("import_papers", "Import Papers",
                    class = "btn-outline-primary",
-                   icon = icon("file-import"))
+                   icon = icon_file_import())
     ),
     # Notebook list
     div(
@@ -200,21 +200,21 @@ ui <- page_sidebar(
       # Row 1: Session cost + Costs link
       div(
         class = "d-flex justify-content-between align-items-center",
-        span(class = "text-muted small", icon("coins"), " Session:"),
+        span(class = "text-muted small", icon_coins(), " Session:"),
         div(
           class = "d-flex align-items-center gap-2",
           textOutput("session_cost_inline", inline = TRUE) |>
             tagAppendAttributes(class = "text-muted small fw-semibold"),
-          actionLink("cost_link", label = tagList(icon("dollar-sign"), "Details"),
+          actionLink("cost_link", label = tagList(icon_dollar(), "Details"),
                      class = "text-muted small")
         )
       ),
       # Row 2: Settings + About
       div(
         class = "d-flex justify-content-between align-items-center",
-        actionLink("settings_link", label = tagList(icon("gear"), "Settings"),
+        actionLink("settings_link", label = tagList(icon_settings(), "Settings"),
                    class = "text-muted small"),
-        actionLink("about_link", label = tagList(icon("info-circle"), "About"),
+        actionLink("about_link", label = tagList(icon_circle_info(), "About"),
                    class = "text-muted small")
       )
     ),
@@ -383,7 +383,7 @@ server <- function(input, output, session) {
             actionLink(
               inputId = paste0("select_nb_", nb$id),
               label = tagList(
-                icon("file-pdf", class = "text-danger me-2"),
+                icon_file_pdf(class = "text-danger me-2"),
                 span(class = "text-truncate", nb$name)
               ),
               class = "d-flex align-items-center py-2 px-2 rounded hover-bg-light w-100"
@@ -399,7 +399,7 @@ server <- function(input, output, session) {
             actionLink(
               inputId = paste0("select_nb_", nb$id),
               label = tagList(
-                icon("magnifying-glass", class = "text-primary me-2"),
+                icon_search(class = "text-primary me-2"),
                 span(class = "text-truncate", nb$name)
               ),
               class = "d-flex align-items-center py-2 px-2 rounded hover-bg-light w-100"
@@ -420,14 +420,14 @@ server <- function(input, output, session) {
                 actionLink(
                   inputId = paste0("select_network_", net$id),
                   label = tagList(
-                    icon("diagram-project", class = "text-danger me-2"),
+                    icon_diagram(class = "text-danger me-2"),
                     span(class = "text-truncate", net$name)
                   ),
                   class = "flex-grow-1 text-decoration-none"
                 ),
                 actionButton(
                   paste0("delete_network_", net$id),
-                  icon("times"),
+                  icon_times(),
                   class = "btn-sm btn-link text-muted p-0",
                   style = "border: none;",
                   title = "Delete network"
@@ -516,7 +516,7 @@ server <- function(input, output, session) {
   # Wizard modal helper function
   wizard_modal <- function() {
     modalDialog(
-      title = tagList(icon("compass"), "Welcome to Serapeum"),
+      title = tagList(icon_compass(), "Welcome to Serapeum"),
       div(
         class = "text-center mb-4",
         p(class = "lead", "How would you like to start exploring research?")
@@ -525,21 +525,21 @@ server <- function(input, output, session) {
         col_widths = c(4, 4, 4),
         actionButton("wizard_seed_paper",
                      label = tagList(
-                       div(icon("seedling", class = "fa-2x mb-2")),
+                       div(icon_seedling(class = "fa-2x mb-2")),
                        div(strong("Start with a Paper")),
                        div(class = "small text-muted", "Have a paper in mind? Find related work.")
                      ),
                      class = "btn-outline-success w-100 h-100 py-4"),
         actionButton("wizard_query_builder",
                      label = tagList(
-                       div(icon("wand-magic-sparkles", class = "fa-2x mb-2")),
+                       div(icon_wand(class = "fa-2x mb-2")),
                        div(strong("Build a Query")),
                        div(class = "small text-muted", "Describe your research interest.")
                      ),
                      class = "btn-outline-info w-100 h-100 py-4"),
         actionButton("wizard_topic_explorer",
                      label = tagList(
-                       div(icon("compass", class = "fa-2x mb-2")),
+                       div(icon_compass(class = "fa-2x mb-2")),
                        div(strong("Browse Topics")),
                        div(class = "small text-muted", "Explore research areas.")
                      ),
@@ -623,7 +623,7 @@ server <- function(input, output, session) {
   # New citation network button - show seed paper search modal
   observeEvent(input$new_network, {
     showModal(modalDialog(
-      title = tagList(icon("diagram-project"), "New Citation Network"),
+      title = tagList(icon_diagram(), "New Citation Network"),
       p("Search for a seed paper to build a citation network around."),
       textInput("network_seed_search", "Search for Paper",
                 placeholder = "e.g., attention is all you need"),
@@ -726,7 +726,7 @@ server <- function(input, output, session) {
   # New document notebook modal
   observeEvent(input$new_document_nb, {
     showModal(modalDialog(
-      title = tagList(icon("file-pdf"), "New Document Notebook"),
+      title = tagList(icon_file_pdf(), "New Document Notebook"),
       textInput("new_doc_nb_name", "Notebook Name",
                 placeholder = "e.g., Research Papers"),
       footer = tagList(
@@ -752,7 +752,7 @@ server <- function(input, output, session) {
   # New search notebook modal
   observeEvent(input$new_search_nb, {
     showModal(modalDialog(
-      title = tagList(icon("magnifying-glass"), "New Search Notebook"),
+      title = tagList(icon_search(), "New Search Notebook"),
       textInput("new_search_nb_name", "Notebook Name",
                 placeholder = "e.g., Machine Learning Papers"),
       textInput("new_search_query", "Search Query",
@@ -784,7 +784,7 @@ server <- function(input, output, session) {
       # Quality filters
       div(
         class = "mb-3",
-        h6(class = "text-muted", icon("shield-halved"), " Quality Filters"),
+        h6(class = "text-muted", icon_shield(), " Quality Filters"),
         checkboxInput("search_exclude_retracted", "Exclude retracted papers", value = TRUE),
         checkboxInput("search_flag_predatory", "Flag predatory journals/publishers", value = TRUE),
         numericInput("search_min_citations", "Minimum citations (optional)",
@@ -960,7 +960,7 @@ server <- function(input, output, session) {
           class = "border-0 bg-transparent",
           card_body(
             class = "text-center py-5",
-            icon("book-open", class = "fa-4x text-primary mb-4"),
+            icon_book_open(class = "fa-4x text-primary mb-4"),
             h2("Welcome to Serapeum"),
             p(class = "lead text-muted",
               "Your AI-powered research assistant"),
@@ -968,19 +968,19 @@ server <- function(input, output, session) {
             layout_columns(
               col_widths = c(4, 4, 4),
               div(
-                icon("file-pdf", class = "fa-2x text-danger mb-2"),
+                icon_file_pdf(class = "fa-2x text-danger mb-2"),
                 h5("Document Notebooks"),
                 p(class = "text-muted small",
                   "Upload PDFs and chat with your documents. Get summaries, key points, and answers with citations.")
               ),
               div(
-                icon("magnifying-glass", class = "fa-2x text-primary mb-2"),
+                icon_search(class = "fa-2x text-primary mb-2"),
                 h5("Search Notebooks"),
                 p(class = "text-muted small",
                   "Search OpenAlex for academic papers. Query abstracts and import interesting finds.")
               ),
               div(
-                icon("gear", class = "fa-2x text-secondary mb-2"),
+                icon_settings(class = "fa-2x text-secondary mb-2"),
                 h5("Configurable"),
                 p(class = "text-muted small",
                   "Choose your preferred AI models via OpenRouter. Your data stays local.")
@@ -1006,23 +1006,23 @@ server <- function(input, output, session) {
     if (nb$type == "document") {
       tagList(
         div(
-          class = "d-flex justify-content-between align-items-center mb-3",
-          h4(class = "mb-0", tagList(icon("file-pdf", class = "text-danger me-2"), nb$name)),
-          actionButton("delete_nb", "Delete", class = "btn-outline-danger btn-sm",
-                       icon = icon("trash"))
+          class = "d-flex align-items-center gap-2 mb-3",
+          h4(class = "mb-0", tagList(icon_file_pdf(class = "text-danger me-2"), nb$name)),
+          actionButton("delete_nb", NULL, class = "btn-outline-danger btn-sm",
+                       icon = icon_delete(), title = "Delete notebook")
         ),
         mod_document_notebook_ui("doc_notebook")
       )
     } else {
       tagList(
         div(
-          class = "d-flex justify-content-between align-items-center mb-3",
+          class = "d-flex align-items-center gap-2 mb-3",
           div(
-            h4(class = "mb-0", tagList(icon("magnifying-glass", class = "text-primary me-2"), nb$name)),
+            h4(class = "mb-0", tagList(icon_search(class = "text-primary me-2"), nb$name)),
             p(class = "text-muted small mb-0", paste("Query:", nb$search_query))
           ),
-          actionButton("delete_nb", "Delete", class = "btn-outline-danger btn-sm",
-                       icon = icon("trash"))
+          actionButton("delete_nb", NULL, class = "btn-outline-danger btn-sm",
+                       icon = icon_delete(), title = "Delete notebook")
         ),
         mod_search_notebook_ui("search_notebook")
       )
