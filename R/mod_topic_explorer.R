@@ -53,7 +53,7 @@ mod_topic_explorer_ui <- function(id) {
       actionButton(
         ns("create_notebook_btn"),
         "Explore This Topic",
-        class = "btn-success w-100",
+        class = "btn-primary w-100",
         icon = icon("book")
       )
     )

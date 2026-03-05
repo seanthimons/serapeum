@@ -239,7 +239,7 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
         actionButton(
           ns("fetch_btn"),
           "Create Notebook with Results",
-          class = "btn-success w-100",
+          class = "btn-primary w-100",
           icon = icon("book")
         )
       )

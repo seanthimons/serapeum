@@ -1145,7 +1145,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (need_embed == 0) {
         return(
           tags$button(
-            class = "btn btn-success w-100",
+            class = "btn btn-outline-success w-100",
             disabled = "disabled",
             HTML("&#10003; All Papers Embedded")
           )

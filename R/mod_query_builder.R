@@ -173,7 +173,7 @@ OUTPUT (valid JSON only, no markdown, no code fences):
         actionButton(
           ns("execute_btn"),
           "Create Search Notebook",
-          class = "btn-success w-100"
+          class = "btn-primary w-100"
         )
       )
     })
