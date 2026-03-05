@@ -240,7 +240,7 @@ mod_seed_discovery_server <- function(id, con, config, pre_fill_doi = NULL) {
           ns("fetch_btn"),
           "Create Notebook with Results",
           class = "btn-primary w-100",
-          icon = icon("book")
+          icon = icon_book()
         )
       )
     })

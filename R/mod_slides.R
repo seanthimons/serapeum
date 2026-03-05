@@ -10,7 +10,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
               "moon", "night", "serif", "simple", "sky", "solarized")
 
   modalDialog(
-    title = tagList(icon("file-powerpoint"), "Generate Slides"),
+    title = tagList(icon_file_powerpoint(), "Generate Slides"),
     size = "l",
     easyClose = FALSE,
 
@@ -107,7 +107,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
 
     footer = tagList(
       modalButton("Cancel"),
-      actionButton(ns("generate"), "Generate", class = "btn-primary", icon = icon("wand-magic-sparkles"))
+      actionButton(ns("generate"), "Generate", class = "btn-primary", icon = icon_wand())
     )
   )
 }
@@ -121,13 +121,13 @@ mod_slides_heal_modal_ui <- function(ns, errors = NULL, is_success = FALSE) {
   summary_panel <- if (is_success) {
     div(
       class = "alert alert-info mb-3",
-      icon("circle-info", class = "me-2"),
+      icon_circle_info(class = "me-2"),
       "Slides generated successfully. Use healing to make cosmetic adjustments."
     )
   } else if (!is.null(errors) && length(errors) > 0) {
     div(
       class = "alert alert-warning mb-3",
-      icon("triangle-exclamation", class = "me-2"),
+      icon_warning(class = "me-2"),
       strong("Issues found:"),
       tags$ul(
         class = "mb-0 mt-2",
@@ -149,7 +149,7 @@ mod_slides_heal_modal_ui <- function(ns, errors = NULL, is_success = FALSE) {
   })
 
   modalDialog(
-    title = tagList(icon("wrench"), "Heal Slides"),
+    title = tagList(icon_wrench(), "Heal Slides"),
     size = "m",
     easyClose = FALSE,
 
@@ -172,7 +172,7 @@ mod_slides_heal_modal_ui <- function(ns, errors = NULL, is_success = FALSE) {
 
     footer = tagList(
       modalButton("Cancel"),
-      actionButton(ns("do_heal"), "Heal", class = "btn-primary", icon = icon("wrench"))
+      actionButton(ns("do_heal"), "Heal", class = "btn-primary", icon = icon_wrench())
     )
   )
 }
@@ -215,7 +215,7 @@ mod_slides_results_ui <- function(ns, preview_url = NULL, error = NULL,
   fallback_banner <- if (is_fallback) {
     div(
       class = "alert alert-warning mb-3",
-      icon("triangle-exclamation", class = "me-2"),
+      icon_warning(class = "me-2"),
       "Generation failed after 2 attempts. Showing template outline ",
       tags$span(class = "fw-semibold", "-- download the .qmd and edit manually.")
     )
@@ -230,7 +230,7 @@ mod_slides_results_ui <- function(ns, preview_url = NULL, error = NULL,
       retry_counter,
       div(
         class = "alert alert-danger",
-        icon("triangle-exclamation", class = "me-2"),
+        icon_warning(class = "me-2"),
         strong("Generation failed: "), error
       ),
       raw_output_toggle
@@ -264,13 +264,13 @@ mod_slides_results_ui <- function(ns, preview_url = NULL, error = NULL,
   }
 
   modalDialog(
-    title = tagList(icon("file-powerpoint"), "Generated Slides"),
+    title = tagList(icon_file_powerpoint(), "Generated Slides"),
     size = "xl",
     easyClose = FALSE,
     content,
     footer = tagList(
-      actionButton(ns("open_heal"), "Heal", class = "btn-outline-warning", icon = icon("wrench")),
-      actionButton(ns("regenerate"), "Regenerate", class = "btn-outline-secondary", icon = icon("rotate")),
+      actionButton(ns("open_heal"), "Heal", class = "btn-outline-warning", icon = icon_wrench()),
+      actionButton(ns("regenerate"), "Regenerate", class = "btn-outline-secondary", icon = icon_rotate()),
       modalButton("Close")
     )
   )

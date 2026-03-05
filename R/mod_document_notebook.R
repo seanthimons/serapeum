@@ -67,7 +67,7 @@ mod_document_notebook_ui <- function(id) {
                 trigger = actionButton(
                   ns("btn_overview"), "Overview",
                   class = "btn-sm btn-outline-primary",
-                  icon = icon("layer-group")
+                  icon = icon_layer_group()
                 ),
                 title = "Overview Options",
                 id = ns("overview_popover"),
@@ -89,31 +89,31 @@ mod_document_notebook_ui <- function(id) {
               ),
               actionButton(ns("btn_studyguide"), "Study Guide",
                            class = "btn-sm btn-outline-primary",
-                           icon = icon("lightbulb")),
+                           icon = icon_lightbulb()),
               actionButton(ns("btn_outline"), "Outline",
                            class = "btn-sm btn-outline-primary",
-                           icon = icon("list-ol")),
+                           icon = icon_list_ol()),
               actionButton(ns("btn_conclusions"), "Conclusions",
                            class = "btn-sm btn-outline-primary",
-                           icon = icon("microscope")),
+                           icon = icon_microscope()),
               actionButton(ns("btn_lit_review"), "Lit Review",
                            class = "btn-sm btn-outline-primary",
-                           icon = icon("table-cells")),
+                           icon = icon_table()),
               actionButton(ns("btn_slides"), "Slides",
                            class = "btn-sm btn-outline-primary",
-                           icon = icon("file-powerpoint"))
+                           icon = icon_file_powerpoint())
             ),
             div(
               class = "btn-group btn-group-sm",
               tags$button(
                 class = "btn btn-outline-secondary dropdown-toggle",
                 `data-bs-toggle` = "dropdown",
-                icon("download"), " Export"
+                icon_download(), " Export"
               ),
               tags$ul(
                 class = "dropdown-menu",
-                tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
-                tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
+                tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon_paper(), " Markdown (.md)")),
+                tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon_file_code(), " HTML (.html)"))
               )
             )
           )
@@ -478,7 +478,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return(
           div(
             class = "text-center text-muted py-4",
-            icon("file-pdf", class = "fa-3x mb-2"),
+            icon_file_pdf(class = "fa-3x mb-2"),
             p("No documents yet"),
             p(class = "small", "Upload a PDF to get started")
           )
@@ -521,13 +521,13 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom position-relative",
           div(
             class = "d-flex align-items-center flex-grow-1 overflow-hidden",
-            icon("file-pdf", class = "text-danger me-2"),
+            icon_file_pdf(class = "text-danger me-2"),
             if (is_embedded) {
               span(
                 class = "text-primary me-1",
                 style = "cursor: help; opacity: 0.7;",
                 title = "Embedded in search index",
-                icon("brain")
+                icon_brain()
               )
             },
             span(doc$filename, class = "text-truncate", style = "max-width: 120px;",
@@ -541,11 +541,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               download = doc$filename,
               class = "btn btn-sm btn-outline-secondary py-0 px-1",
               title = "Download PDF",
-              icon("download")
+              icon_download()
             ),
             actionLink(
               ns(delete_id),
-              icon("xmark"),
+              icon_close(),
               class = "text-muted",
               style = "cursor: pointer; opacity: 0.5;",
               title = "Remove document"
@@ -665,7 +665,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             class = "text-center py-5",
             div(
               class = "alert alert-warning",
-              icon("triangle-exclamation", class = "me-2"),
+              icon_warning(class = "me-2"),
               strong("OpenRouter API key not configured"),
               p(class = "mb-0 mt-2 small",
                 "Go to Settings to add your API key. ",
@@ -680,7 +680,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return(
           div(
             class = "text-center text-muted py-5",
-            icon("comments", class = "fa-2x mb-2"),
+            icon_comments(class = "fa-2x mb-2"),
             p("Ask a question about your documents"),
             p(class = "small", "Or use the preset buttons above")
           )
@@ -709,7 +709,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               div(
                 class = "alert alert-warning py-2 px-3 mb-2 small",
                 role = "alert",
-                tags$strong(icon("triangle-exclamation"), " AI-Generated Content"),
+                tags$strong(icon_warning(), " AI-Generated Content"),
                 " - Verify all claims against original sources before use."
               )
             },

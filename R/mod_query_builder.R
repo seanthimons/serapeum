@@ -16,7 +16,7 @@ mod_query_builder_ui <- function(id) {
         ns("generate_btn"),
         "Generate Query",
         class = "btn-primary",
-        icon = icon("wand-magic-sparkles")
+        icon = icon_wand()
       ),
       hr(),
       uiOutput(ns("query_preview"))

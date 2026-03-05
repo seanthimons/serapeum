@@ -306,6 +306,11 @@ icon_key_points <- function(...) shiny::icon("list-check", ...)
 #' @return Icon tag
 icon_shield <- function(...) shiny::icon("shield-halved", ...)
 
+#' Check icon (checkmark)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_check <- function(...) shiny::icon("check", ...)
+
 #' Circle check icon (status OK)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag

@@ -14,7 +14,7 @@ mod_cost_tracker_ui <- function(id) {
       value_box(
         title = "Session Cost",
         value = textOutput(ns("session_total"), inline = TRUE),
-        showcase = icon("dollar-sign"),
+        showcase = icon_dollar(),
         showcase_layout = "left center",
         theme = "primary"
       ),
@@ -79,7 +79,7 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
         value_box(
           title = "OpenRouter Balance",
           value = sprintf("$%.2f", remaining),
-          showcase = icon("wallet"),
+          showcase = icon_wallet(),
           showcase_layout = "left center",
           theme = theme,
           p(class = "small mb-0",

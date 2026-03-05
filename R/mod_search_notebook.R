@@ -72,32 +72,32 @@ mod_search_notebook_ui <- function(id) {
             class = "d-flex gap-2",
             actionButton(ns("open_bulk_import"), NULL,
                          class = "btn-sm btn-outline-success",
-                         icon = icon("file-import"),
+                         icon = icon_file_import(),
                          title = "Import DOIs"),
             div(
               class = "btn-group btn-group-sm",
               tags$button(
                 class = "btn btn-outline-primary dropdown-toggle",
                 `data-bs-toggle` = "dropdown",
-                icon("download"), " Export"
+                icon_download(), " Export"
               ),
               tags$ul(
                 class = "dropdown-menu",
-                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon("file-code"), " BibTeX (.bib)")),
-                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon("file-csv"), " CSV (.csv)"))
+                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
+                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
               )
             ),
             actionButton(ns("seed_citation_network"), NULL,
                          class = "btn-sm btn-outline-info",
-                         icon = icon("share-nodes"),
+                         icon = icon_share_nodes(),
                          title = "Seed Citation Network"),
             actionButton(ns("edit_search"), NULL,
                          class = "btn-sm btn-outline-secondary",
-                         icon = icon("pen-to-square"),
+                         icon = icon_edit(),
                          title = "Edit Search"),
             actionButton(ns("refresh_search"), "Refresh",
                          class = "btn-sm btn-outline-secondary",
-                         icon = icon("rotate"))
+                         icon = icon_rotate())
           )
         ),
         card_body(
@@ -184,8 +184,8 @@ mod_search_notebook_ui <- function(id) {
             style = "cursor: pointer;",
             `data-bs-toggle` = "collapse",
             `data-bs-target` = paste0("#", ns("keyword_filter_body")),
-            span(icon("key"), " Keywords"),
-            icon("chevron-down", class = "text-muted")
+            span(icon_key(), " Keywords"),
+            icon_chevron_down(class = "text-muted")
           ),
           card_body(
             id = ns("keyword_filter_body"),
@@ -207,14 +207,14 @@ mod_search_notebook_ui <- function(id) {
             style = "cursor: pointer;",
             `data-bs-toggle` = "collapse",
             `data-bs-target` = paste0("#", ns("journal_quality_body")),
-            span(icon("shield-halved"), " Journal Quality"),
+            span(icon_shield(), " Journal Quality"),
             div(
               class = "d-flex align-items-center gap-2",
               tags$span(
                 onclick = "event.stopPropagation();",
-                actionLink(ns("manage_blocklist"), icon("list"), class = "text-muted", title = "Manage blocklist")
+                actionLink(ns("manage_blocklist"), icon_list(), class = "text-muted", title = "Manage blocklist")
               ),
-              icon("chevron-down", class = "text-muted")
+              icon_chevron_down(class = "text-muted")
             )
           ),
           card_body(
@@ -265,12 +265,12 @@ mod_search_notebook_ui <- function(id) {
             tags$button(
               class = "btn btn-outline-secondary dropdown-toggle",
               `data-bs-toggle` = "dropdown",
-              icon("download")
+              icon_download()
             ),
             tags$ul(
               class = "dropdown-menu dropdown-menu-end",
-              tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon("file-lines"), " Markdown (.md)")),
-              tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon("file-code"), " HTML (.html)"))
+              tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon_paper(), " Markdown (.md)")),
+              tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon_file_code(), " HTML (.html)"))
             )
           ),
           tags$button(
@@ -710,13 +710,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 22: Render send button (disabled when rag_available is FALSE)
     output$send_btn_ui <- renderUI({
       if (isTRUE(rag_available())) {
-        actionButton(ns("send"), NULL, class = "btn-primary", icon = icon("paper-plane"))
+        actionButton(ns("send"), NULL, class = "btn-primary", icon = icon_paper_plane())
       } else {
         tags$button(
           class = "btn btn-primary disabled",
           disabled = "disabled",
           title = "Chat unavailable \u2014 re-index this notebook first",
-          icon("paper-plane")
+          icon_paper_plane()
         )
       }
     })
@@ -728,7 +728,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           trigger = actionButton(
             ns("btn_overview"), "Overview",
             class = "btn-sm btn-outline-primary",
-            icon = icon("layer-group")
+            icon = icon_layer_group()
           ),
           title = "Overview Options",
           id = ns("overview_popover"),
@@ -753,7 +753,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           class = "btn btn-sm btn-outline-primary disabled",
           disabled = "disabled",
           title = "Synthesis unavailable \u2014 re-index this notebook first",
-          icon("layer-group"), " Overview"
+          icon_layer_group(), " Overview"
         )
       }
     })
@@ -763,13 +763,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (isTRUE(rag_available())) {
         actionButton(ns("btn_conclusions"), "Conclusions",
                      class = "btn-sm btn-outline-primary",
-                     icon = icon("microscope"))
+                     icon = icon_microscope())
       } else {
         tags$button(
           class = "btn btn-sm btn-outline-primary disabled",
           disabled = "disabled",
           title = "Synthesis unavailable \u2014 re-index this notebook first",
-          icon("microscope"), " Conclusions"
+          icon_microscope(), " Conclusions"
         )
       }
     })
@@ -779,13 +779,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (isTRUE(rag_available())) {
         actionButton(ns("btn_research_questions"), "Research Questions",
                      class = "btn-sm btn-outline-primary",
-                     icon = icon("lightbulb"))
+                     icon = icon_lightbulb())
       } else {
         tags$button(
           class = "btn btn-sm btn-outline-primary disabled",
           disabled = "disabled",
           title = "Synthesis unavailable \u2014 re-index this notebook first",
-          icon("lightbulb"), " Research Questions"
+          icon_lightbulb(), " Research Questions"
         )
       }
     })
@@ -842,7 +842,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           class = "text-muted",
           style = "cursor: help;",
           title = "Cited by count",
-          icon("arrow-down", class = "small me-1"),
+          icon_arrow_down(class = "small me-1"),
           format(cited_by %||% 0, big.mark = ",")
         )
       ))
@@ -855,7 +855,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = fwci_class,
             style = "cursor: help;",
             title = "Field-weighted citation impact (>1.0 = above average)",
-            icon("scale-balanced", class = "small me-1"),
+            icon_scale_balanced(class = "small me-1"),
             sprintf("%.1f", fwci)
           )
         ))
@@ -867,7 +867,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           class = "text-muted",
           style = "cursor: help;",
           title = "References (outgoing citations)",
-          icon("arrow-up", class = "small me-1"),
+          icon_arrow_up(class = "small me-1"),
           format(refs %||% 0, big.mark = ",")
         )
       ))
@@ -1265,7 +1265,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         return(
           div(
             class = "text-center text-muted py-4",
-            icon("magnifying-glass", class = "fa-3x mb-2"),
+            icon_search(class = "fa-3x mb-2"),
             p("No papers loaded yet"),
             p(class = "small", "Click 'Refresh' to search")
           )
@@ -1313,7 +1313,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           # Delete button (top-right)
           actionLink(
             ns(paste0("delete_paper_", paper$id)),
-            icon("xmark"),
+            icon_close(),
             class = "position-absolute text-muted",
             style = "top: 4px; right: 4px; cursor: pointer; opacity: 0.5;",
             title = "Remove paper"
@@ -1340,7 +1340,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 class = "text-warning",
                 style = "cursor: help;",
                 title = flag_tooltip,
-                icon("triangle-exclamation")
+                icon_warning()
               )
             },
             actionLink(
@@ -1386,7 +1386,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 target = "_blank",
                 class = "btn btn-sm btn-outline-danger py-0 px-1 ms-1",
                 title = "View PDF",
-                icon("file-pdf")
+                icon_file_pdf()
               )
             }
           )
@@ -1499,7 +1499,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       label <- if (n > 0) paste0("Import Selected (", n, ")") else "Import Selected"
       actionButton(ns("import_selected"), label,
                    class = "btn-primary w-100",
-                   icon = icon("download"))
+                   icon = icon_download())
     })
 
     # Abstract detail view
@@ -1510,7 +1510,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         return(
           div(
             class = "text-center text-muted py-5",
-            icon("file-lines", class = "fa-3x mb-3"),
+            icon_paper(class = "fa-3x mb-3"),
             h5("No paper selected"),
             p("Click on a paper title to view its abstract")
           )
@@ -1599,7 +1599,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             if (!is.na(paper$venue) && nchar(paper$venue) > 0) {
               actionLink(
                 ns(paste0("block_journal_", paper$id)),
-                span(class = "badge bg-danger", icon("ban"), " Block"),
+                span(class = "badge bg-danger", icon_ban(), " Block"),
                 title = paste("Block all papers from", paper$venue),
                 style = "text-decoration: none; line-height: 1;"
               )
@@ -1643,7 +1643,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         } else {
           div(
             class = "alert alert-light",
-            icon("circle-info", class = "me-2"),
+            icon_circle_info(class = "me-2"),
             "No abstract available for this paper."
           )
         },
@@ -1660,9 +1660,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               target = "_blank",
               rel = "noopener noreferrer",
               class = "btn btn-outline-primary btn-sm",
-              icon("file-pdf", class = "me-1"),
+              icon_file_pdf(class = "me-1"),
               "View PDF ",
-              icon("arrow-up-right-from-square", class = "ms-1 small")
+              icon_external_link(class = "ms-1 small")
             )
           )
         }
@@ -1682,14 +1682,14 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         seed_btn <- actionButton(
           ns("use_as_seed"),
           "Use as Seed",
-          icon = icon("seedling"),
+          icon = icon_seedling(),
           class = "btn-sm btn-outline-success me-1"
         )
       }
 
       close_btn <- actionButton(
         ns("close_detail"),
-        icon("xmark"),
+        icon_close(),
         class = "btn-sm btn-outline-secondary"
       )
 
@@ -1749,7 +1749,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (nrow(blocked) == 0) {
         body_content <- div(
           class = "text-center text-muted py-4",
-          icon("check-circle", class = "fa-2x mb-2"),
+          icon_check_circle(class = "fa-2x mb-2"),
           p("No journals blocked yet."),
           p(class = "small", "You can block journals from the paper detail view.")
         )
@@ -1766,7 +1766,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               ),
               actionButton(
                 ns(paste0("unblock_", j$id)),
-                icon("trash"),
+                icon_delete(),
                 class = "btn-sm btn-outline-danger",
                 title = "Remove from blocklist"
               )
@@ -1776,7 +1776,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
 
       showModal(modalDialog(
-        title = span(icon("shield-halved"), " Blocked Journals"),
+        title = span(icon_shield(), " Blocked Journals"),
         body_content,
         size = "m",
         easyClose = TRUE,
@@ -1828,7 +1828,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           var offcanvas = new bootstrap.Offcanvas(document.getElementById('%s'));
           offcanvas.toggle();
         ", ns("chat_offcanvas")),
-        icon("comments"),
+        icon_comments(),
         " Chat",
         badge
       )
@@ -1850,7 +1850,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
 
       showModal(modalDialog(
-        title = tagList(icon("pen-to-square"), " Edit Search"),
+        title = tagList(icon_edit(), " Edit Search"),
         size = "m",
 
         # Search terms
@@ -1888,7 +1888,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Document type filters
         div(
           class = "mb-3",
-          h6(class = "text-muted", icon("file-lines"), " Document Types"),
+          h6(class = "text-muted", icon_paper(), " Document Types"),
           div(
             class = "d-flex flex-wrap gap-3",
             checkboxInput(ns("edit_type_article"), "Articles",
@@ -1919,7 +1919,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Quality filters section
         div(
           class = "mb-3",
-          h6(class = "text-muted", icon("shield-halved"), " Quality Filters"),
+          h6(class = "text-muted", icon_shield(), " Quality Filters"),
 
           checkboxInput(ns("edit_exclude_retracted"), "Exclude retracted papers",
                         value = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE),
@@ -1999,7 +1999,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           tags$details(
             class = "mt-2",
             tags$summary(class = "text-muted small", style = "cursor: pointer;",
-                         icon("chart-bar"), " View distribution in results"),
+                         icon_chart_bar(), " View distribution in results"),
             div(class = "mt-2 p-2 bg-body-secondary rounded small text-muted",
                 "Type data not available. Re-run search to fetch type information.")
           )
@@ -2016,7 +2016,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       tags$details(
         class = "mt-2",
         tags$summary(class = "text-muted small", style = "cursor: pointer;",
-                     icon("chart-bar"), " View distribution in results"),
+                     icon_chart_bar(), " View distribution in results"),
         div(
           class = "mt-2 p-2 bg-body-secondary rounded",
           lapply(names(type_counts), function(type_name) {
@@ -2454,7 +2454,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (length(selected) >= 100) {
         # Show confirmation modal for large imports
         showModal(modalDialog(
-          title = tagList(icon("triangle-exclamation", class = "text-warning"), "Large Import"),
+          title = tagList(icon_warning(class = "text-warning"), "Large Import"),
           p(sprintf("You're about to import %d papers. This may take a few minutes.", length(selected))),
           p(class = "text-muted small", "You can cancel the import at any time. Papers already imported will be kept."),
           footer = tagList(
@@ -2508,9 +2508,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 38: Results modal helper
     show_import_results <- function(imported, duplicates, failed, cancelled = FALSE) {
       title <- if (cancelled) {
-        tagList(icon("circle-pause", class = "text-warning"), "Import Cancelled")
+        tagList(icon_circle_pause(class = "text-warning"), "Import Cancelled")
       } else {
-        tagList(icon("circle-check", class = "text-success"), "Import Complete")
+        tagList(icon_check_circle(class = "text-success"), "Import Complete")
       }
 
       showModal(modalDialog(
@@ -2611,7 +2611,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         # Show progress modal (matches bulk import modal pattern)
         showModal(modalDialog(
-          title = tagList(icon("spinner", class = "fa-spin"), "Importing Papers"),
+          title = tagList(icon_spinner(class = "fa-spin"), "Importing Papers"),
           tags$div(
             class = "progress",
             style = "height: 25px;",
@@ -2632,7 +2632,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             sprintf("Importing %d papers...", length(selected))
           ),
           footer = actionButton(ns("cancel_batch_import"), "Cancel",
-                                 class = "btn-warning", icon = icon("stop")),
+                                 class = "btn-warning", icon = icon_stop()),
           easyClose = FALSE
         ))
 
@@ -2720,7 +2720,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = "text-center py-4",
             div(
               class = "alert alert-warning mb-0",
-              icon("triangle-exclamation", class = "me-2"),
+              icon_warning(class = "me-2"),
               strong("API key not configured"),
               p(class = "mb-0 mt-2 small",
                 "Go to Settings to add your OpenRouter API key.")
@@ -2733,7 +2733,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         return(
           div(
             class = "text-center text-muted py-4",
-            icon("comments", class = "fa-2x mb-2"),
+            icon_comments(class = "fa-2x mb-2"),
             p("Ask questions about these papers"),
             p(class = "small", "Query across all abstracts")
           )
@@ -2758,7 +2758,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               div(
                 class = "alert alert-warning py-2 px-3 mb-2 small",
                 role = "alert",
-                tags$strong(icon("triangle-exclamation"), " AI-Generated Content"),
+                tags$strong(icon_warning(), " AI-Generated Content"),
                 " - Verify all claims against original sources before use."
               )
             },

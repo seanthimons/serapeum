@@ -9,7 +9,7 @@ mod_citation_audit_ui <- function(id) {
       # Header
       div(
         class = "d-flex align-items-center gap-2 mb-3",
-        icon("magnifying-glass-chart", class = "fa-2x text-primary"),
+        icon_audit(class = "fa-2x text-primary"),
         div(
           h3("Citation Audit", class = "mb-0"),
           p(class = "text-muted mb-0 small",
@@ -28,7 +28,7 @@ mod_citation_audit_ui <- function(id) {
             div(
               class = "d-flex align-items-end gap-2 h-100",
               actionButton(ns("run_audit"), "Run Analysis",
-                           icon = icon("play"), class = "btn-primary"),
+                           icon = icon_play(), class = "btn-primary"),
               uiOutput(ns("last_analyzed_text"))
             ),
             div(
@@ -137,7 +137,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       if (is.null(run) || run$status != "cancelled") return(NULL)
       div(
         class = "alert alert-warning d-flex align-items-center mb-3",
-        icon("triangle-exclamation", class = "me-2"),
+        icon_warning(class = "me-2"),
         "Results may be incomplete -- analysis was cancelled or encountered errors."
       )
     })
@@ -152,25 +152,25 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         value_box(
           title = "Papers Analyzed",
           value = format(run$total_papers, big.mark = ","),
-          showcase = bsicons::bs_icon("file-text"),
+          showcase = bsicons::bs_icon_file_text(),
           theme = "primary"
         ),
         value_box(
           title = "Backward Refs",
           value = format(run$backward_count, big.mark = ","),
-          showcase = bsicons::bs_icon("arrow-left"),
+          showcase = bsicons::bs_icon_arrow_left(),
           theme = "info"
         ),
         value_box(
           title = "Forward Citations",
           value = format(run$forward_count, big.mark = ","),
-          showcase = bsicons::bs_icon("arrow-right"),
+          showcase = bsicons::bs_icon_arrow_right(),
           theme = "info"
         ),
         value_box(
           title = "Missing Papers Found",
           value = format(run$missing_found, big.mark = ","),
-          showcase = bsicons::bs_icon("search"),
+          showcase = bsicons::bs_icon_search(),
           theme = "success"
         )
       )
@@ -238,7 +238,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
 
       # Show progress modal
       showModal(modalDialog(
-        title = tagList(icon("spinner", class = "fa-spin"), "Analyzing Citations"),
+        title = tagList(icon_spinner(class = "fa-spin"), "Analyzing Citations"),
         div(
           class = "mb-3",
           div(
@@ -255,7 +255,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         ),
         p(id = ns("audit_msg"), class = "text-muted", "Initializing..."),
         footer = actionButton(ns("cancel_audit"), "Cancel",
-                              class = "btn-warning", icon = icon("stop")),
+                              class = "btn-warning", icon = icon_stop()),
         size = "m",
         easyClose = FALSE
       ))
@@ -438,7 +438,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
               tagList(
                 span(class = "badge bg-primary", paste(length(sel), "selected")),
                 actionButton(ns("batch_import"), "Import Selected",
-                             class = "btn-sm btn-success", icon = icon("download"))
+                             class = "btn-sm btn-success", icon = icon_download())
               )
             },
             checkboxInput(ns("select_all"), "Select All", value = FALSE, width = "auto")
@@ -516,7 +516,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
                     } else {
                       actionButton(ns(paste0("imp_", wid)), "Import",
                                    class = "btn-sm btn-outline-success",
-                                   icon = icon("plus"))
+                                   icon = icon_add())
                     }
                   )
                 )
@@ -605,7 +605,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         footer = tagList(
           modalButton("Cancel"),
           actionButton(ns("confirm_batch"), "Import",
-                       class = "btn-success", icon = icon("download"))
+                       class = "btn-success", icon = icon_download())
         )
       ))
     })

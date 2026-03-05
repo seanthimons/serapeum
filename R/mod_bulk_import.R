@@ -101,7 +101,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       }
 
       showModal(modalDialog(
-        title = tagList(icon("file-import"), "Bulk DOI Import"),
+        title = tagList(icon_file_import(), "Bulk DOI Import"),
         notebook_selector_ui,
         tabsetPanel(
           id = ns("import_method"),
@@ -122,9 +122,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         footer = tagList(
           modalButton("Cancel"),
           actionButton(ns("preview_btn"), "Validate",
-                       class = "btn-outline-primary", icon = icon("check-double")),
+                       class = "btn-outline-primary", icon = icon_check_double()),
           actionButton(ns("start_import"), "Import",
-                       class = "btn-primary", icon = icon("file-import"),
+                       class = "btn-primary", icon = icon_file_import(),
                        disabled = "disabled")
         ),
         size = "l",
@@ -259,7 +259,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       # Valid new DOIs
       items[[length(items) + 1]] <- tags$div(
         class = "d-flex justify-content-between",
-        tags$span(icon("circle-check", class = "text-success"), paste(length(new), "valid new DOIs to import")),
+        tags$span(icon_check_circle(class = "text-success"), paste(length(new), "valid new DOIs to import")),
         tags$span(class = "text-muted", estimate_import_time(length(new)))
       )
 
@@ -268,7 +268,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         items[[length(items) + 1]] <- tags$details(
           tags$summary(
             class = "text-warning",
-            icon("copy"), paste(length(dups), "already in notebook (will be skipped)")
+            icon_copy(), paste(length(dups), "already in notebook (will be skipped)")
           ),
           tags$div(
             class = "small text-muted ms-4 mt-1",
@@ -283,7 +283,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         items[[length(items) + 1]] <- tags$details(
           tags$summary(
             class = "text-danger",
-            icon("circle-xmark"), paste(nrow(invalid), "malformed (will be skipped)")
+            icon_circle_xmark(), paste(nrow(invalid), "malformed (will be skipped)")
           ),
           tags$div(
             class = "small text-muted ms-4 mt-1",
@@ -308,7 +308,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       if (!is.null(parsed$duplicates) && nrow(parsed$duplicates) > 0) {
         items[[length(items) + 1]] <- tags$div(
           class = "text-muted small",
-          icon("layer-group"), paste(nrow(parsed$duplicates), "duplicates in input (deduplicated)")
+          icon_layer_group(), paste(nrow(parsed$duplicates), "duplicates in input (deduplicated)")
         )
       }
 
@@ -316,7 +316,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       if (bib_no_doi > 0) {
         items[[length(items) + 1]] <- tags$div(
           class = "text-muted small",
-          icon("file-circle-question"), paste(bib_no_doi, ".bib entries without DOI field (skipped)")
+          icon_file_question(), paste(bib_no_doi, ".bib entries without DOI field (skipped)")
         )
       }
 
@@ -325,7 +325,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       if (!is.null(diag)) {
         items[[length(items) + 1]] <- tags$div(
           class = "text-info small",
-          icon("file-lines"),
+          icon_paper(),
           sprintf("BibTeX: %d entries parsed, %d with DOIs, %d without DOIs",
                   diag$total_entries, diag$entries_with_doi, diag$entries_without_doi)
         )
@@ -336,7 +336,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       if (!is.null(diag) && diag$total_entries >= 200) {
         warning_ui <- tags$div(
           class = "alert alert-warning mt-2 mb-0",
-          icon("triangle-exclamation"),
+          icon_warning(),
           sprintf("Large BibTeX file: %d entries. Import may take a while.", diag$total_entries),
           tags$strong(estimate_import_time(length(new))),
           "You can cancel mid-import."
@@ -344,7 +344,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       } else if (length(new) >= 200) {
         warning_ui <- tags$div(
           class = "alert alert-warning mt-2 mb-0",
-          icon("triangle-exclamation"),
+          icon_warning(),
           paste("Large import:", length(new), "DOIs."),
           tags$strong(estimate_import_time(length(new))),
           "You can cancel mid-import."
@@ -410,7 +410,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       # Close input modal, show progress modal
       removeModal()
       showModal(modalDialog(
-        title = tagList(icon("spinner", class = "fa-spin"), "Importing Papers"),
+        title = tagList(icon_spinner(class = "fa-spin"), "Importing Papers"),
         tags$div(
           class = "progress",
           style = "height: 25px;",
@@ -431,7 +431,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
           "Initializing import..."
         ),
         footer = actionButton(ns("cancel_import"), "Cancel",
-                               class = "btn-warning", icon = icon("stop")),
+                               class = "btn-warning", icon = icon_stop()),
         easyClose = FALSE
       ))
 
@@ -613,9 +613,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
     # --- Results Modal ---
     show_results_modal <- function(result, run_id) {
       title <- if (isTRUE(result$cancelled)) {
-        tagList(icon("circle-pause", class = "text-warning"), "Import Cancelled")
+        tagList(icon_circle_pause(class = "text-warning"), "Import Cancelled")
       } else {
-        tagList(icon("circle-check", class = "text-success"), "Import Complete")
+        tagList(icon_check_circle(class = "text-success"), "Import Complete")
       }
 
       skipped <- length(duplicate_dois()) + (if (!is.null(malformed_dois())) nrow(malformed_dois()) else 0L)
@@ -676,7 +676,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       if (result$failed_count > 0) {
         footer_buttons <- c(
           list(actionButton(ns("retry_failed"), "Retry Failed DOIs",
-                            class = "btn-outline-warning", icon = icon("rotate-right"))),
+                            class = "btn-outline-warning", icon = icon_rotate_right())),
           footer_buttons
         )
       }
@@ -687,7 +687,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         footer_buttons <- c(
           list(actionButton(ns("seed_network"), "Seed Citation Network",
                             class = "btn-outline-primary",
-                            icon = icon("share-nodes"))),
+                            icon = icon_share_nodes())),
           footer_buttons
         )
       }
@@ -698,7 +698,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       if (!is.null(diag)) {
         bib_detail_ui <- tags$div(
           class = "border rounded p-2 mb-3",
-          tags$h6(class = "mb-2", icon("file-lines"), "BibTeX Details"),
+          tags$h6(class = "mb-2", icon_paper(), "BibTeX Details"),
           tags$div(
             class = "small",
             tags$div(sprintf("%d entries parsed from .bib file", diag$total_entries)),
@@ -771,7 +771,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       current_progress_file(prog_file)
 
       showModal(modalDialog(
-        title = tagList(icon("spinner", class = "fa-spin"), "Retrying Failed DOIs"),
+        title = tagList(icon_spinner(class = "fa-spin"), "Retrying Failed DOIs"),
         tags$div(
           class = "progress", style = "height: 25px;",
           tags$div(id = ns("import_progress_bar"),
@@ -781,7 +781,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         tags$div(id = ns("import_progress_message"), class = "text-muted mt-2",
                  paste("Retrying", length(retry_dois), "DOIs...")),
         footer = actionButton(ns("cancel_import"), "Cancel",
-                               class = "btn-warning", icon = icon("stop")),
+                               class = "btn-warning", icon = icon_stop()),
         easyClose = FALSE
       ))
 
@@ -857,7 +857,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
             actionButton(
               ns(paste0("delete_run_", run$id)),
               NULL, class = "btn-sm btn-outline-danger",
-              icon = icon("trash"), title = "Delete run"
+              icon = icon_delete(), title = "Delete run"
             )
           ),
           tags$div(
