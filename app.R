@@ -191,6 +191,8 @@ ui <- page_sidebar(
                    class = "btn-outline-sky",
                    icon = icon_audit())
     ),
+    # Divider between sidebar buttons and saved notebooks
+    div(class = "border-top my-2"),
     # Notebook list
     div(
       class = "mt-2",
@@ -423,7 +425,7 @@ server <- function(input, output, session) {
                 actionLink(
                   inputId = paste0("select_network_", net$id),
                   label = tagList(
-                    icon_diagram(class = "text-danger me-2"),
+                    icon_diagram(class = "text-primary me-2"),
                     span(class = "text-truncate", net$name)
                   ),
                   class = "flex-grow-1 text-decoration-none"
@@ -1019,13 +1021,14 @@ server <- function(input, output, session) {
     } else {
       tagList(
         div(
-          class = "d-flex align-items-center gap-2 mb-3",
+          class = "mb-3",
           div(
+            class = "d-flex align-items-center gap-2",
             h4(class = "mb-0", tagList(icon_search(class = "text-primary me-2"), nb$name)),
-            p(class = "text-muted small mb-0", paste("Query:", nb$search_query))
+            actionButton("delete_nb", NULL, class = "btn-outline-danger btn-sm",
+                         icon = icon_delete(), title = "Delete notebook")
           ),
-          actionButton("delete_nb", NULL, class = "btn-outline-danger btn-sm",
-                       icon = icon_delete(), title = "Delete notebook")
+          p(class = "text-muted small mb-0 mt-1", paste("Query:", nb$search_query))
         ),
         mod_search_notebook_ui("search_notebook")
       )

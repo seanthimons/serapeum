@@ -152,7 +152,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         value_box(
           title = "Papers Analyzed",
           value = format(run$total_papers, big.mark = ","),
-          showcase = bsicons::bs_icon_file_text(),
+          showcase = icon_file_text(),
           theme = "primary"
         ),
         value_box(
