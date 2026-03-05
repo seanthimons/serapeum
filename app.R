@@ -158,35 +158,38 @@ ui <- page_sidebar(
     });
   "))),
   sidebar = sidebar(
-    title = "Notebooks",
     width = 280,
-    # New notebook button
+    # Notebook creation and discovery buttons
     div(
       class = "d-grid gap-2 mb-2",
+      # Notebook creation (solid primary lavender)
+      actionButton("new_search_nb", "New Search Notebook",
+                   class = "btn-primary",
+                   icon = icon_search()),
       actionButton("new_document_nb", "New Document Notebook",
                    class = "btn-primary",
                    icon = icon_file_pdf()),
-      actionButton("new_search_nb", "New Search Notebook",
-                   class = "btn-outline-primary",
-                   icon = icon_search()),
+      # Divider between creation and discovery
+      div(class = "border-top my-2"),
+      # Discovery and utility actions (rainbow outline colors)
+      actionButton("import_papers", "Import Papers",
+                   class = "btn-outline-peach",
+                   icon = icon_file_import()),
       actionButton("discover_paper", "Discover from Paper",
                    class = "btn-outline-success",
                    icon = icon_seedling()),
-      actionButton("build_query", "Build a Query",
-                   class = "btn-outline-info",
-                   icon = icon_wand()),
       actionButton("explore_topics", "Explore Topics",
                    class = "btn-outline-warning",
                    icon = icon_compass()),
+      actionButton("build_query", "Build a Query",
+                   class = "btn-outline-info",
+                   icon = icon_wand()),
       actionButton("new_network", "Citation Network",
-                   class = "btn-outline-danger",
+                   class = "btn-outline-primary",
                    icon = icon_diagram()),
       actionButton("citation_audit", "Citation Audit",
-                   class = "btn-outline-secondary",
-                   icon = icon_audit()),
-      actionButton("import_papers", "Import Papers",
-                   class = "btn-outline-primary",
-                   icon = icon_file_import())
+                   class = "btn-outline-sky",
+                   icon = icon_audit())
     ),
     # Notebook list
     div(

@@ -158,3 +158,55 @@
 [data-bs-theme="dark"] .hover-bg-light:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* =============================================================================
+ * Custom Catppuccin Button Colors (Phase 47-02)
+ * ============================================================================= */
+
+/* Peach outline button — for Import Papers (distinct from semantic colors) */
+.btn-outline-peach {
+  background-color: transparent;
+  border-color: #fe640b;  /* LATTE$peach */
+  color: #fe640b;
+}
+
+.btn-outline-peach:hover {
+  background-color: #fe640b;
+  border-color: #fe640b;
+  color: #eff1f5;  /* LATTE$base - light text on hover */
+}
+
+[data-bs-theme="dark"] .btn-outline-peach {
+  border-color: #fab387;  /* MOCHA$peach */
+  color: #fab387;
+}
+
+[data-bs-theme="dark"] .btn-outline-peach:hover {
+  background-color: #fab387;
+  border-color: #fab387;
+  color: #1e1e2e;  /* MOCHA$base - dark text on hover */
+}
+
+/* Sky outline button — for Citation Audit (readable in light mode) */
+.btn-outline-sky {
+  background-color: transparent;
+  border-color: #04a5e5;  /* LATTE$sky */
+  color: #04a5e5;
+}
+
+.btn-outline-sky:hover {
+  background-color: #04a5e5;
+  border-color: #04a5e5;
+  color: #eff1f5;  /* LATTE$base - light text on hover */
+}
+
+[data-bs-theme="dark"] .btn-outline-sky {
+  border-color: #89dceb;  /* MOCHA$sky */
+  color: #89dceb;
+}
+
+[data-bs-theme="dark"] .btn-outline-sky:hover {
+  background-color: #89dceb;
+  border-color: #89dceb;
+  color: #1e1e2e;  /* MOCHA$base - dark text on hover */
+}
