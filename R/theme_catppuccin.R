@@ -83,10 +83,10 @@ LATTE <- list(
 # This is the single source of truth for all button/badge/alert coloring.
 # Phase 47 will apply these mappings across the UI.
 #
-# PRIMARY (blue) — Main actions: Search, Save, Add to Notebook
-#   Mocha: #89b4fa | Latte: #1e66f5
+# PRIMARY (lavender) — Main actions: Search, Save, Add to Notebook
+#   Mocha: #b4befe | Latte: #7287fd
 #   Button: .btn-primary (solid fill, white text)
-#   Sidebar: Active items inherit primary blue
+#   Sidebar: Active items inherit primary lavender
 #
 # DANGER (red) — Destructive: Delete, Remove, Clear
 #   Mocha: #f38ba8 | Latte: #d20f39
@@ -103,7 +103,7 @@ LATTE <- list(
 #
 # INFO (sapphire) — Informational: Tooltips, Help Text
 #   Mocha: #74c7ec | Latte: #209fb5
-#   Button: .btn-info. Distinct from primary blue.
+#   Button: .btn-info. Distinct from primary lavender.
 #
 # SECONDARY (surface0/surface1) — Less Important: Cancel, Close
 #   Mocha: #313244/#45475a | Latte: #ccd0da/#bcc0cc
@@ -427,7 +427,7 @@ generate_swatch_html <- function(output_path = "www/swatch.html") {
     .theme-latte {
       background: ', LATTE$base, ';
       color: ', LATTE$text, ';
-      --primary: ', LATTE$blue, ';
+      --primary: ', LATTE$lavender, ';
       --danger: ', LATTE$red, ';
       --success: ', LATTE$green, ';
       --warning: ', LATTE$yellow, ';
@@ -446,7 +446,7 @@ generate_swatch_html <- function(output_path = "www/swatch.html") {
     .theme-mocha {
       background: ', MOCHA$base, ';
       color: ', MOCHA$text, ';
-      --primary: ', MOCHA$blue, ';
+      --primary: ', MOCHA$lavender, ';
       --danger: ', MOCHA$red, ';
       --success: ', MOCHA$green, ';
       --warning: ', MOCHA$yellow, ';
@@ -679,7 +679,7 @@ generate_swatch_html <- function(output_path = "www/swatch.html") {
           htmltools::tags$div(
             class = "section",
             htmltools::tags$h2("2. Semantic Color Mapping"),
-            htmltools::tags$p(htmltools::tags$strong("PRIMARY (blue)"), " — Main actions: Search, Save, Add to Notebook"),
+            htmltools::tags$p(htmltools::tags$strong("PRIMARY (lavender)"), " — Main actions: Search, Save, Add to Notebook"),
             htmltools::tags$p(htmltools::tags$strong("DANGER (red)"), " — Destructive: Delete, Remove, Clear"),
             htmltools::tags$p(htmltools::tags$strong("SUCCESS (green)"), " — Confirmations: Paper Added, Export Complete"),
             htmltools::tags$p(htmltools::tags$strong("WARNING (yellow)"), " — Cautions: API Key Missing, Rate Limit"),
@@ -763,7 +763,7 @@ generate_swatch_html <- function(output_path = "www/swatch.html") {
             htmltools::tags$h2("6. Sidebar Simulation"),
             htmltools::tags$div(
               class = "sidebar-demo",
-              htmltools::tags$div(class = "sidebar-item active", "Active Item (Primary Blue)"),
+              htmltools::tags$div(class = "sidebar-item active", "Active Item (Primary Lavender)"),
               htmltools::tags$div(class = "sidebar-item", "Inactive Item"),
               htmltools::tags$div(class = "sidebar-item", "Hover to See Effect")
             )
@@ -862,7 +862,7 @@ generate_swatch_html <- function(output_path = "www/swatch.html") {
           htmltools::tags$div(
             class = "section",
             htmltools::tags$h2("2. Semantic Color Mapping"),
-            htmltools::tags$p(htmltools::tags$strong("PRIMARY (blue)"), " — Main actions: Search, Save, Add to Notebook"),
+            htmltools::tags$p(htmltools::tags$strong("PRIMARY (lavender)"), " — Main actions: Search, Save, Add to Notebook"),
             htmltools::tags$p(htmltools::tags$strong("DANGER (red)"), " — Destructive: Delete, Remove, Clear"),
             htmltools::tags$p(htmltools::tags$strong("SUCCESS (green)"), " — Confirmations: Paper Added, Export Complete"),
             htmltools::tags$p(htmltools::tags$strong("WARNING (yellow)"), " — Cautions: API Key Missing, Rate Limit"),
@@ -946,7 +946,7 @@ generate_swatch_html <- function(output_path = "www/swatch.html") {
             htmltools::tags$h2("6. Sidebar Simulation"),
             htmltools::tags$div(
               class = "sidebar-demo",
-              htmltools::tags$div(class = "sidebar-item active", "Active Item (Primary Blue)"),
+              htmltools::tags$div(class = "sidebar-item active", "Active Item (Primary Lavender)"),
               htmltools::tags$div(class = "sidebar-item", "Inactive Item"),
               htmltools::tags$div(class = "sidebar-item", "Hover to See Effect")
             )
