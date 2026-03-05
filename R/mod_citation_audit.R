@@ -158,19 +158,19 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         value_box(
           title = "Backward Refs",
           value = format(run$backward_count, big.mark = ","),
-          showcase = bsicons::bs_icon_arrow_left(),
+          showcase = icon_arrow_left(),
           theme = "info"
         ),
         value_box(
           title = "Forward Citations",
           value = format(run$forward_count, big.mark = ","),
-          showcase = bsicons::bs_icon_arrow_right(),
+          showcase = icon_arrow_right(),
           theme = "info"
         ),
         value_box(
           title = "Missing Papers Found",
           value = format(run$missing_found, big.mark = ","),
-          showcase = bsicons::bs_icon_search(),
+          showcase = icon_search(),
           theme = "success"
         )
       )

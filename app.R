@@ -72,6 +72,7 @@ ui <- page_sidebar(
     bs_add_rules(serapeum_theme, catppuccin_dark_css())
   },
   tags$head(
+    tags$link(rel = "stylesheet", href = "custom.css"),
     tags$link(rel = "shortcut icon", href = "favicon.ico"),
     tags$link(rel = "icon", type = "image/png", sizes = "32x32", href = "favicon-32x32.png"),
     tags$link(rel = "icon", type = "image/png", sizes = "16x16", href = "favicon-16x16.png"),
