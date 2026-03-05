@@ -228,13 +228,14 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can generate Methodology Extractor report from document notebook
   2. Report extracts structured fields: study design, data sources, sample characteristics, statistical methods, tools/instruments
-  3. Extraction uses section-targeted RAG prioritizing Methods/Materials/Introduction sections
+  3. Extraction uses section-targeted RAG prioritizing Methods/Materials sections
   4. Report includes per-paper citations linking findings to source documents
   5. AI disclaimer banner is shown on generated output
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 48-01: Implement Methodology Extractor preset with section-targeted RAG
+- [ ] 48-01-PLAN.md — Create generate_methodology_extractor() backend function and icon_flask wrapper
+- [ ] 48-02-PLAN.md — Wire UI: two-row preset bar, Methods button handler, is_synthesis update
 
 ### Phase 49: Gap Analysis Report Preset
 **Goal**: Add AI preset identifying methodological and topical gaps through cross-paper synthesis
@@ -263,9 +264,9 @@ Phases execute in numeric order: 44 -> 45 -> 46 -> 47 -> 48 -> 49
 | 45. Design System Foundation | 1/1 | Complete   | 2026-03-05 |
 | 46. Citation Audit Bug Fixes | 0/1 | Complete    | 2026-03-05 |
 | 47. Sidebar & Button Theming | 3/3 | Complete    | 2026-03-05 |
-| 48. Methodology Extractor Preset | 0/1 | Not started | - |
+| 48. Methodology Extractor Preset | 0/2 | Not started | - |
 | 49. Gap Analysis Report Preset | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-05 — Phase 46 complete (1/1 plans, citation audit import fixes)*
+*Last updated: 2026-03-05 — Phase 48 planned (2 plans)*
