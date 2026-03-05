@@ -14,8 +14,8 @@ Requirements for v10.0 Theme Harmonization & AI Synthesis. Each maps to roadmap 
 
 ### Design System
 
-- [ ] **DSGN-01**: Global color/theme policy document defines button semantics (primary/secondary/danger/success/warning), icon-action mappings, and sidebar theming rules (#138)
-- [ ] **DSGN-02**: Visual swatch sheet rendered in both light and dark mode showing all button variants, icon mappings, sidebar colors, and badge styles — validated before any code changes
+- [x] **DSGN-01**: Global color/theme policy document defines button semantics (primary/secondary/danger/success/warning), icon-action mappings, and sidebar theming rules (#138)
+- [x] **DSGN-02**: Visual swatch sheet rendered in both light and dark mode showing all button variants, icon mappings, sidebar colors, and badge styles — validated before any code changes
 - [ ] **DSGN-03**: All buttons across app follow the documented semantic color scheme
 - [ ] **DSGN-04**: Icon usage is consistent — same action uses same icon everywhere
 
@@ -88,8 +88,8 @@ Deferred to future release. Tracked but not in current roadmap.
 |-------------|-------|--------|
 | DEBT-01 | Phase 44 | ✅ Complete |
 | DEBT-02 | Phase 44 | ✅ Complete |
-| DSGN-01 | Phase 45 | Pending |
-| DSGN-02 | Phase 45 | Pending |
+| DSGN-01 | Phase 45 | Complete |
+| DSGN-02 | Phase 45 | Complete |
 | DSGN-03 | Phase 47 | Pending |
 | DSGN-04 | Phase 47 | Pending |
 | BUGF-01 | Phase 46 | Pending |

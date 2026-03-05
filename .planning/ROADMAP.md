@@ -14,7 +14,7 @@
 - ✅ **v7.0 Citation Audit + Quick Wins** - Phases 33-39 (shipped 2026-02-27)
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
-- 🚧 **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (current)
+- 🚧 **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (current) [2/6 phases complete]
 
 ## Phases
 
@@ -152,7 +152,7 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 **Milestone Goal:** Establish a global color/theme/icon design system, fix citation audit bugs, harmonize sidebar and button theming, then add Methodology Extractor and Gap Analysis Report presets.
 
 - [x] **Phase 44: Tech Debt Cleanup** - Fix connection leaks before increasing rendering load (completed 2026-03-04)
-- [ ] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet
+- [x] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet (completed 2026-03-05)
 - [ ] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync
 - [ ] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics
 - [ ] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods
@@ -186,7 +186,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 45-01-PLAN.md — Define semantic color/icon policy and generate visual swatch sheet for validation
+- [x] 45-01-PLAN.md — Define semantic color/icon policy and generate visual swatch sheet for validation (completed 2026-03-05)
 
 ### Phase 46: Citation Audit Bug Fixes
 **Goal**: Fix critical citation audit bugs preventing multi-paper imports and abstract notebook sync
@@ -258,7 +258,7 @@ Phases execute in numeric order: 44 → 45 → 46 → 47 → 48 → 49
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 44. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-04 |
-| 45. Design System Foundation | 0/1 | Not started | - |
+| 45. Design System Foundation | 1/1 | Complete   | 2026-03-05 |
 | 46. Citation Audit Bug Fixes | 0/1 | Not started | - |
 | 47. Sidebar & Button Theming | 0/1 | Not started | - |
 | 48. Methodology Extractor Preset | 0/1 | Not started | - |
@@ -266,4 +266,4 @@ Phases execute in numeric order: 44 → 45 → 46 → 47 → 48 → 49
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-04 — Phase 44 complete (connection leak detection tests)*
+*Last updated: 2026-03-05 — Phase 45 complete (semantic color policy and swatch validation)*
