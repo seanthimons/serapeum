@@ -75,6 +75,53 @@
 
 ---
 
+## Milestone: v10.0 — Theme Harmonization & AI Synthesis
+
+**Shipped:** 2026-03-06
+**Phases:** 6 | **Plans:** 10
+
+### What Was Built
+- Connection leak fix + dead code removal with automated regression test
+- Catppuccin design system: semantic color policy, 76 icon wrappers, visual swatch sheet
+- Citation audit bug fixes: multi-paper import with duplicate tracking, abstract notebook sync
+- Sidebar & button theming: custom peach/sky CSS, 206 icon calls migrated, search buttons recolored
+- Methodology Extractor preset: section-targeted RAG into GFM tables with DOI citations
+- Gap Analysis Report preset: cross-paper synthesis with 5 gap dimensions and contradiction detection
+
+### What Worked
+- Design system foundation (Phase 45) before theming (Phase 47) — policy-first approach prevented ad-hoc color decisions
+- Section-targeted RAG pattern reuse — Phase 48 established pattern, Phase 49 replicated it with different section filters and output format
+- Two-row preset bar (Quick/Deep) — scalable layout for growing preset count
+- Contradiction blockquote formatting — user feedback during checkpoint caught buried contradictions, fixed immediately
+
+### What Was Inefficient
+- REQUIREMENTS.md traceability not updated during Phase 49 execution — GAPS-01 and GAPS-05 showed "Pending" despite being complete
+- Phase 45 missing VERIFICATION.md — phase completed but verifier never ran (caught during milestone audit)
+- SUMMARY.md frontmatter missing `one_liner` and `requirements_completed` fields across all plans — extraction tools returned null
+- 76 icon wrappers may be over-engineered — only ~30 are actively used, rest are preemptive
+
+### Patterns Established
+- Section-targeted RAG with 3-level fallback (section filter → distributed sampling → all chunks)
+- `build_context_by_paper()` for grouped context construction
+- Dynamic token budget management (starts at 7 chunks/paper, reduces to 2 if > 80k tokens)
+- Preset type tagging in `is_synthesis` vector for AI disclaimer display
+- Two-row preset bar: Quick (Overview, Study Guide, Outline) / Deep (Conclusions, Lit Review, Methods, Research Gaps, Slides)
+- Custom CSS button classes (btn-outline-peach, btn-outline-sky) for sidebar differentiation
+
+### Key Lessons
+1. Policy-first design (document colors → validate with swatch → then code) prevents bike-shedding during implementation
+2. RAG preset development follows a replicable pattern — backend function + UI button + handler + is_synthesis = ~200 lines per preset
+3. Section-targeted retrieval quality varies with paper structure — fallback strategy is essential
+4. Contradiction detection works best with blockquote visual separation — inline bold prefix gets lost in narrative text
+5. SUMMARY frontmatter fields need consistent population — missing `requirements_completed` breaks milestone audit automation
+
+### Cost Observations
+- Model mix: 100% sonnet for executors and verifiers (balanced profile)
+- Phase 49 execution: 2 waves, 3 agents (executor + continuation + verifier), ~10 min total
+- Pattern reuse from Phase 48→49 reduced research time significantly
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -83,6 +130,7 @@
 |-----------|--------|-------|------------|
 | v6.0 | 3 | 8 | UAT-driven gap closure loop for UI milestones |
 | v9.0 | 3 | 3 | Small focused phases (1 plan each) for fast iteration |
+| v10.0 | 6 | 10 | Policy-first design system + replicable RAG preset pattern |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -90,3 +138,5 @@
 2. Centralized CSS/theming prevents scatter and makes iteration fast
 3. User screenshot testing catches UI issues that planning and code review miss (v6.0 UAT, v9.0 tooltips)
 4. Small milestones (3 phases) ship faster with cleaner scope than large ones
+5. Policy-first design (document → validate → code) prevents bike-shedding — confirmed across v6.0 (Catppuccin) and v10.0 (design system)
+6. RAG preset development is now a replicable pattern (~200 LOC per preset) — backend + UI + handler + is_synthesis

@@ -1,4 +1,22 @@
 # Milestones
+## v10.0 Theme Harmonization & AI Synthesis (Shipped: 2026-03-06)
+
+**Phases completed:** 6 phases, 10 plans, 4 tasks
+
+**Key accomplishments:**
+- Fixed DuckDB connection leak in search_chunks_hybrid and removed dead ragnar code with automated regression tests
+- Catppuccin design system with semantic color policy, 76 icon wrappers, and visual swatch sheet for light/dark validation
+- Citation audit bug fixes — multi-paper import with duplicate tracking and abstract notebook sync
+- Sidebar & button theming — custom peach/sky CSS classes, all 206 icon calls migrated to semantic wrappers, search buttons recolored to lavender
+- Methodology Extractor preset — section-targeted RAG extracting study design, data sources, and statistical methods into GFM tables with DOI citations
+- Gap Analysis Report preset — cross-paper synthesis identifying 5 gap dimensions with contradiction detection and blockquote formatting
+
+**Stats:** 23 files changed, +3,327 / -298 lines, 27,046 R LOC + 4,446 CSS LOC
+**Timeline:** 3 days (2026-03-04 → 2026-03-06)
+**Git range:** test(44-01) → fix(49-02)
+
+---
+
 
 ## v1.0 Fix + Discovery (Shipped: 2026-02-11)
 

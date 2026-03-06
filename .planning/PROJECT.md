@@ -107,17 +107,16 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Trim-to-influential toggle with adaptive thresholds and bridge preservation (FILT-02) — v9.0
 - ✓ Custom HTML tooltip with container containment (TOOL-01) — v9.0
 - ✓ Dark mode tooltip readability with Catppuccin styling (TOOL-02) — v9.0
+- ✓ Connection leak fix + dead code removal (DEBT-01, DEBT-02) — v10.0
+- ✓ Global color/theme/icon design system with swatch sheet (DSGN-01, DSGN-02) — v10.0
+- ✓ Citation audit multi-paper import + abstract notebook sync (BUGF-01, BUGF-02) — v10.0
+- ✓ Sidebar & button theming with semantic colors (THEM-01..05, DSGN-03, DSGN-04) — v10.0
+- ✓ Methodology Extractor preset with section-targeted RAG (METH-01..05) — v10.0
+- ✓ Gap Analysis Report preset with contradiction detection (GAPS-01..06) — v10.0
 
 ### Active
 
-<!-- v10.0 Theme Harmonization & AI Synthesis -->
-- [ ] Global color/theme/icon policy for all buttons and UI elements (#138)
-- [ ] Fix citation audit error when adding multiple papers (#134)
-- [ ] Fix citation audit papers not appearing in abstract notebook (#133)
-- [ ] UI adjustment to abstract buttons (#139)
-- [ ] Fix sidebar colors + theming (#137)
-- [ ] Methodology Extractor preset (#100)
-- [ ] Gap Analysis Report preset (#101)
+(No active requirements — define with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -132,15 +131,15 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ## Context
 
-Shipped v9.0 with ~20,000 LOC R across 18 production files. 12 milestones shipped (v1.0–v9.0), 43 phases, 76 plans.
+Shipped v10.0 with ~27,000 LOC R + 4,400 CSS across 18 production files. 13 milestones shipped (v1.0–v10.0), 49 phases, 86 plans.
 Tech stack: R + Shiny + bslib + DuckDB + OpenRouter + OpenAlex + igraph + visNetwork + commonmark + mirai + ragnar + thematic + bib2df.
 Architecture: Shiny module pattern (mod_*.R) with producer-consumer discovery modules.
-Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle.
+Theme: Catppuccin Latte/Mocha via bs_theme() + centralized dark CSS in R/theme_catppuccin.R. bslib::input_dark_mode() for toggle. Semantic color policy with 76 icon wrappers.
 9 database migrations (schema_migrations, topics, cost_log, blocked_journals, doi column, citation networks, section_hint, import_runs, citation_audit_cache).
 Async infrastructure: ExtendedTask + mirai for non-blocking citation network builds, ragnar re-indexing, bulk imports, and citation audit with file-based interrupt flags.
-RAG: ragnar is the sole backend — per-notebook DuckDB vector stores (`data/ragnar/{notebook_id}.duckdb`), hybrid VSS+BM25 retrieval, OpenRouter embedding. Section-targeted retrieval via keyword heuristics.
+RAG: ragnar is the sole backend — per-notebook DuckDB vector stores (`data/ragnar/{notebook_id}.duckdb`), hybrid VSS+BM25 retrieval, OpenRouter embedding. Section-targeted retrieval via keyword heuristics. 7 AI presets (Overview, Study Guide, Outline, Conclusions, Lit Review, Methods, Research Gaps) plus Slides and Export.
 Slide generation: Programmatic YAML frontmatter via build_qmd_frontmatter(), LLM outputs content only, strip_llm_yaml() handles non-compliant models.
-Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint not encoded in PDF ragnar origins (#118), dead code (#119), secondary ragnar leak in ensure_ragnar_store(), 13 pre-existing test fixture failures.
+Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondary ragnar leak in ensure_ragnar_store(), 13 pre-existing test fixture failures.
 
 ## Constraints
 
@@ -151,7 +150,8 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 - **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0), thematic (v6.0), bib2df (v7.0) — ragnar is a hard requirement
 - **RAG**: ragnar is the sole retrieval backend — no legacy cosine similarity fallback
 - **Theme**: Catppuccin palette only — no custom color schemes or multiple theme variants
-- **Design system**: Semantic color policy + icon wrappers in R/theme_catppuccin.R — primary=lavender, info=sapphire (Phase 45)
+- **AI presets**: Two-row layout (Quick/Deep) — approaching prompt template refactor threshold at 10+ presets
+- **Design system**: Semantic color policy + 76 icon wrappers in R/theme_catppuccin.R — primary=lavender, info=sapphire, custom peach/sky for sidebar (v10.0)
 
 ## Key Decisions
 
@@ -228,34 +228,20 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 | Info semantic color: blue → sapphire (v10.0) | Better visual distinction from primary lavender | Pending — Phase 47 will apply |
 | Semantic icon wrappers in theme_catppuccin.R (v10.0) | Centralized icon-to-action mapping for consistency | ✓ Good — 20 wrappers, color-neutral |
 
----
-## Current Milestone: v10.0 Theme Harmonization & AI Synthesis
-
-**Goal:** Establish a global color/theme/icon design system, fix citation audit bugs, harmonize sidebar and button theming, then add Methodology Extractor and Gap Analysis Report presets to advance the AI Output Overhaul epic.
-
-**Target features:**
-- Global color/theme/icon policy (#138) — design system foundation
-- Citation audit bug fixes (#134, #133) — critical bugs
-- Sidebar + button theming (#137, #139) — apply design system
-- Methodology Extractor preset (#100) — new AI output
-- Gap Analysis Report preset (#101) — new AI output
-
 ## Current State
 
-**Latest shipped:** v9.0 Network Graph Polish (2026-03-04)
-**Total milestones:** 12 shipped (v1.0–v9.0)
-**Total phases:** 45 complete across 78 plans
-**Current:** v10.0 Theme Harmonization & AI Synthesis (Phase 45 done — design system foundation)
+**Latest shipped:** v10.0 Theme Harmonization & AI Synthesis (2026-03-06)
+**Total milestones:** 13 shipped (v1.0–v10.0)
+**Total phases:** 49 complete across 86 plans
+**Next:** Define with `/gsd:new-milestone`
 
-**v9.0 shipped:** Physics singularity collapse fix + ambient drift for small networks, dynamic year filter bounds + trim-to-influential with bridge preservation, custom HTML tooltips with dark mode support and container containment.
+**v10.0 shipped:** Catppuccin design system with semantic color policy and 76 icon wrappers. Sidebar and button theming harmonized. Citation audit multi-paper import fixed. Two new AI presets: Methodology Extractor (section-targeted RAG into GFM tables) and Gap Analysis Report (cross-paper synthesis with contradiction detection).
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
 - 13 pre-existing test fixture failures (missing schema columns)
-- Connection leak in search_chunks_hybrid (#117)
 - Section_hint not encoded in PDF ragnar origins (#118)
-- Dead code: with_ragnar_store, register_ragnar_cleanup (#119)
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-05 after Phase 45 (Design System Foundation) complete*
+*Last updated: 2026-03-06 after v10.0 milestone*
