@@ -25,7 +25,6 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#120](https://github.com/seanthimons/serapeum/issues/120) | UI for viewing/editing prompts for research outputs | Medium | Medium |
 | [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
 | [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | High | High |
-| [#88](https://github.com/seanthimons/serapeum/issues/88) | Rethink conclusion synthesis as split presets for faster responses | High | High |
 | [#104](https://github.com/seanthimons/serapeum/issues/104) | feat: Argument Map / Claims Network preset | High | Medium |
 | [#105](https://github.com/seanthimons/serapeum/issues/105) | feat: Annotated Bibliography export (APA/MLA) | Medium | Medium |
 | [#106](https://github.com/seanthimons/serapeum/issues/106) | feat: Teaching Materials Generator | Low-Medium | Medium |
@@ -65,7 +64,7 @@ Nice-to-have features and research tasks.
 
 | Issue | Title | Sub-issues Status |
 |-------|-------|-------------------|
-| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 6/10 complete (#98, #99, #100, #101, #102, #103) |
+| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 7/10 complete (#88, #98, #99, #100, #101, #102, #103) |
 | [#142](https://github.com/seanthimons/serapeum/issues/142) | epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals — 6 phases) — [plan](docs/plans/2026-03-06-advanced-retrieval-pipeline.md) | Phase 1-5 planned |
 | [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete — **CLOSED** |
 | [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 4/4 complete — **CLOSED** |
@@ -187,7 +186,7 @@ High-effort, high-payoff features for the future.
 - [x] [#138](https://github.com/seanthimons/serapeum/issues/138): Global color theme for buttons/UI (v10.0 Phase 45/47)
 - [x] [#100](https://github.com/seanthimons/serapeum/issues/100): feat: Methodology Extractor preset (v10.0 Phase 48)
 - [x] [#101](https://github.com/seanthimons/serapeum/issues/101): feat: Gap Analysis Report preset (v10.0 Phase 49)
-- [x] Slim Conclusions preset — remove redundant "Research Gaps & Future Directions" section (covered by Gap Analysis #101)
+- [x] [#88](https://github.com/seanthimons/serapeum/issues/88): Slim Conclusions preset — remove redundant gaps section (covered by Gap Analysis #101)
 
 ---
 
