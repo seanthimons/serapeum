@@ -155,7 +155,7 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 - [x] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet (completed 2026-03-05)
 - [x] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync (completed 2026-03-05)
 - [x] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics (completed 2026-03-05)
-- [ ] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods
+- [x] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods (completed 2026-03-06)
 - [ ] **Phase 49: Gap Analysis Report Preset** - Cross-paper synthesis identifying methodological and topical gaps
 
 ## Phase Details
@@ -264,7 +264,7 @@ Phases execute in numeric order: 44 -> 45 -> 46 -> 47 -> 48 -> 49
 | 45. Design System Foundation | 1/1 | Complete   | 2026-03-05 |
 | 46. Citation Audit Bug Fixes | 0/1 | Complete    | 2026-03-05 |
 | 47. Sidebar & Button Theming | 3/3 | Complete    | 2026-03-05 |
-| 48. Methodology Extractor Preset | 1/2 | In Progress|  |
+| 48. Methodology Extractor Preset | 2/2 | Complete   | 2026-03-06 |
 | 49. Gap Analysis Report Preset | 0/1 | Not started | - |
 
 ---
