@@ -1,0 +1,85 @@
+# Requirements: Serapeum v11.0
+
+**Defined:** 2026-03-06
+**Core Value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
+
+## v11.0 Requirements
+
+Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
+
+### Toolbar
+
+- [ ] **TOOL-01**: All toolbar buttons display icon+text labels (no icon-only buttons)
+- [ ] **TOOL-02**: Buttons reordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
+- [ ] **TOOL-03**: Buttons harmonized with Catppuccin semantic color system (primary=lavender, info=sapphire, etc.)
+- [ ] **TOOL-04**: Visual grouping with separators between action groups (import/edit, discovery, export, data)
+- [ ] **TOOL-05**: Every toolbar button has a bslib tooltip (max 15 words, keyboard-accessible)
+- [ ] **TOOL-06**: "Papers" label removed from toolbar area
+
+### Pagination
+
+- [ ] **PAGE-01**: Refresh button retries current search (replaces results, resets cursor)
+- [ ] **PAGE-02**: Load More button fetches next page of results (appends, advances cursor)
+- [ ] **PAGE-03**: Load More styled like Topics button (icon+text+sapphire color)
+- [ ] **PAGE-04**: Load More hidden when no more results available
+- [ ] **PAGE-05**: Cursor state resets when search query or filters change
+- [ ] **PAGE-06**: OpenAlex cursor-based pagination in API client (replaces offset-based)
+
+### Document Types
+
+- [ ] **DTYPE-01**: Full 16-type OpenAlex taxonomy exposed as filter options
+- [ ] **DTYPE-02**: Distribution panel showing type counts moved above filter checkboxes
+- [ ] **DTYPE-03**: Type badge styling for each document type in search results
+
+### Year Filter
+
+- [ ] **YEAR-01**: Year slider and histogram visually aligned (CSS fix for #143)
+
+## Future Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Filtering UX
+
+- **FILT-01**: Active filter chips displayed above results with remove buttons
+- **FILT-02**: "Clear All" button when multiple filters active
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Custom color themes | Breaks accessibility (WCAG contrast), maintenance burden — Catppuccin only |
+| Infinite scroll | Goal-oriented academic search needs explicit control and position awareness |
+| Document type collapsible groups | 16 types manageable in flat list; grouping adds complexity without clear value |
+| Analytics instrumentation | Would inform button ordering validation but adds scope — defer to v11.1 |
+| Load More batch size setting | Start with existing page size; add setting only if users request |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| TOOL-01 | — | Pending |
+| TOOL-02 | — | Pending |
+| TOOL-03 | — | Pending |
+| TOOL-04 | — | Pending |
+| TOOL-05 | — | Pending |
+| TOOL-06 | — | Pending |
+| PAGE-01 | — | Pending |
+| PAGE-02 | — | Pending |
+| PAGE-03 | — | Pending |
+| PAGE-04 | — | Pending |
+| PAGE-05 | — | Pending |
+| PAGE-06 | — | Pending |
+| DTYPE-01 | — | Pending |
+| DTYPE-02 | — | Pending |
+| DTYPE-03 | — | Pending |
+| YEAR-01 | — | Pending |
+
+**Coverage:**
+- v11.0 requirements: 16 total
+- Mapped to phases: 0
+- Unmapped: 16 ⚠️
+
+---
+*Requirements defined: 2026-03-06*
+*Last updated: 2026-03-06 after initial definition*
