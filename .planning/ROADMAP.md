@@ -15,6 +15,7 @@
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
 - ✅ **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (shipped 2026-03-06)
+- 🚧 **v11.0 Search Notebook UX** - Phases 50-56 (in progress)
 
 ## Phases
 
@@ -161,6 +162,109 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 </details>
 
+### 🚧 v11.0 Search Notebook UX (In Progress)
+
+**Milestone Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency
+
+- [ ] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client
+- [ ] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics
+- [ ] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering
+- [ ] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization
+- [ ] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility
+- [ ] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout
+- [ ] **Phase 56: Year Slider Alignment Fix** - CSS alignment for histogram and slider
+
+## Phase Details
+
+### Phase 50: API Pagination Foundation
+**Goal**: OpenAlex API client supports cursor-based pagination for both Refresh and Load More workflows
+**Depends on**: Nothing (first phase)
+**Requirements**: PAGE-06
+**Success Criteria** (what must be TRUE):
+  1. `search_papers_with_pagination()` function accepts cursor parameter and returns `list(papers, next_cursor, count)`
+  2. Cursor is treated as opaque string (never parsed or decoded)
+  3. API client extracts `meta.next_cursor` from OpenAlex response for pagination continuation
+  4. First search (cursor=NULL) and paginated search (cursor provided) both return valid paper lists
+**Plans**: TBD
+
+### Phase 51: Pagination State Management
+**Goal**: Server-side state layer tracks pagination cursor and enables distinct Refresh vs Load More behaviors
+**Depends on**: Phase 50
+**Requirements**: PAGE-01, PAGE-05
+**Success Criteria** (what must be TRUE):
+  1. Refresh button replaces results and resets cursor to NULL
+  2. Cursor state resets when user changes search query, year filter, or document type filters
+  3. `pagination_state` reactiveValues tracks cursor, has_more, and total_fetched without reactive loops
+  4. All filter change observers (year, type, Edit Search) include cursor reset logic
+**Plans**: TBD
+
+### Phase 52: Load More Button
+**Goal**: Users can append additional search results without replacing existing papers
+**Depends on**: Phase 51
+**Requirements**: PAGE-02, PAGE-03, PAGE-04
+**Success Criteria** (what must be TRUE):
+  1. Load More button appears in toolbar with icon+text+sapphire color (matches Topics button style)
+  2. Clicking Load More appends next page of results to existing paper list
+  3. Load More button disappears when `pagination_state$has_more` is FALSE
+  4. Papers fetched via Load More persist until Refresh is clicked or filters change
+**Plans**: TBD
+
+### Phase 53: Toolbar Restructuring
+**Goal**: Toolbar buttons follow intuitive workflow order with semantic color harmony
+**Depends on**: Phase 52
+**Requirements**: TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-06
+**Success Criteria** (what must be TRUE):
+  1. All toolbar buttons display icon+text labels (no icon-only buttons remain)
+  2. Buttons ordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
+  3. Button colors harmonized with Catppuccin semantic system (primary=lavender, info=sapphire)
+  4. Visual separators group related actions (import/edit, discovery, export, data)
+  5. "Papers" label removed from toolbar area
+**Plans**: TBD
+
+### Phase 54: Tooltip Layer
+**Goal**: Every toolbar button has accessible, keyboard-navigable tooltips describing its action
+**Depends on**: Phase 53
+**Requirements**: TOOL-05
+**Success Criteria** (what must be TRUE):
+  1. Static toolbar buttons wrapped with `bslib::tooltip()` (max 15 words per tooltip)
+  2. Dynamic buttons (keyword/journal filters) use `title` attributes for tooltip fallback
+  3. Tooltips remain visible and readable in both light and dark modes
+  4. Tooltips accessible via keyboard navigation (WCAG 2.2 compliant)
+**Plans**: TBD
+
+### Phase 55: Document Type Filter UX
+**Goal**: Users can filter by full OpenAlex 16-type taxonomy with clear distribution preview
+**Depends on**: Phase 50
+**Requirements**: DTYPE-01, DTYPE-02, DTYPE-03
+**Success Criteria** (what must be TRUE):
+  1. Edit Search modal exposes all 16 OpenAlex work types as filter checkboxes
+  2. Type distribution panel (showing counts) appears above checkboxes for discoverability
+  3. Each document type has distinctive badge styling in search results
+  4. Document type filtering happens in `papers_data()` reactive before keyword/journal filter chain
+**Plans**: TBD
+
+### Phase 56: Year Slider Alignment Fix
+**Goal**: Year range slider and histogram are visually aligned without layout gaps
+**Depends on**: Nothing (independent cosmetic fix)
+**Requirements**: YEAR-01
+**Success Criteria** (what must be TRUE):
+  1. Year slider and histogram share container div with consistent width
+  2. ggplot2 margin removed via `theme(plot.margin = margin(0,0,0,0))`
+  3. No misalignment visible in both light and dark modes
+**Plans**: TBD
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 50. API Pagination Foundation | 0/? | Not started | - |
+| 51. Pagination State Management | 0/? | Not started | - |
+| 52. Load More Button | 0/? | Not started | - |
+| 53. Toolbar Restructuring | 0/? | Not started | - |
+| 54. Tooltip Layer | 0/? | Not started | - |
+| 55. Document Type Filter UX | 0/? | Not started | - |
+| 56. Year Slider Alignment Fix | 0/? | Not started | - |
+
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-06 — v10.0 milestone shipped*
+*Last updated: 2026-03-06 — v11.0 milestone started*
