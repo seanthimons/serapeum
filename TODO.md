@@ -4,30 +4,13 @@ Future enhancements for the Research Notebook tool, organized by priority.
 
 ---
 
-## Pending PRs (Resolve Immediately)
-
-| PR | Title | Status | Branch |
-|----|-------|--------|--------|
-| [PR #115](https://github.com/seanthimons/serapeum/pull/115) | Make keywords panel collapsible to save vertical space | draft | copilot/hide-keywords-panel |
-| [PR #112](https://github.com/seanthimons/serapeum/pull/112) | Fix duplicate toast notifications on deletion and blocking actions | draft | copilot/fix-modal-repeats-on-remove |
-| [PR #39](https://github.com/seanthimons/serapeum/pull/39) | Add R package for PDF image extraction | draft | copilot/add-pdf-image-extraction-package |
-
----
-
 ## High Priority (Quick Wins & Critical)
 
 Bug fixes and high-impact features with low-to-medium effort.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| — | ~~bug: Ragnar embedding broken~~ — **FIXED** (Phase 29: runtime embed via `@embed` property) | — | — |
-| [#117](https://github.com/seanthimons/serapeum/issues/117) | tech-debt: Connection leak in search_chunks_hybrid — ragnar store never closed | Low | Medium |
-| [#110](https://github.com/seanthimons/serapeum/issues/110) | Seed paper not showing up in abstract search | Low | Medium |
-| [#111](https://github.com/seanthimons/serapeum/issues/111) | When removing abstract, modal repeats multiple times | Low | Medium |
-| [#116](https://github.com/seanthimons/serapeum/issues/116) | [BUG] Follow up on cost tracking; is the table actually being updated? | Low | Medium |
-| [#98](https://github.com/seanthimons/serapeum/issues/98) | Merge Summarize + Key Points into unified Overview output | Medium | High |
-| [#85](https://github.com/seanthimons/serapeum/issues/85) | Select all to be imported into document notebook | Low | Medium |
-| [#86](https://github.com/seanthimons/serapeum/issues/86) | [BUG] Does the refresh button add more papers after removing? | Low | Medium |
+| [#143](https://github.com/seanthimons/serapeum/issues/143) | bug: Slider and histogram do not align on year filter | Low | Medium |
 
 ---
 
@@ -37,43 +20,27 @@ Valuable features requiring more investment, or moderate-impact improvements.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#118](https://github.com/seanthimons/serapeum/issues/118) | tech-debt: section_hint not encoded in PDF ragnar origins | Low | Medium |
+| [#144](https://github.com/seanthimons/serapeum/issues/144) | feat: AA Integration + Split Models + Latency Tracking (5 phases) — [plan](docs/plans/2026-03-06-aa-integration-split-models-latency-tracking.md) | High | High |
+| [#125](https://github.com/seanthimons/serapeum/issues/125) | Update file/document filter types reported by OpenAlex | Medium | Medium |
+| [#120](https://github.com/seanthimons/serapeum/issues/120) | UI for viewing/editing prompts for research outputs | Medium | Medium |
+| [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
+| [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | High | High |
 | [#88](https://github.com/seanthimons/serapeum/issues/88) | Rethink conclusion synthesis as split presets for faster responses | High | High |
-| [#99](https://github.com/seanthimons/serapeum/issues/99) | feat: Literature Review Table (structured comparison matrix) | Medium | Very High |
-| [#100](https://github.com/seanthimons/serapeum/issues/100) | feat: Methodology Extractor preset | Medium | High |
-| [#101](https://github.com/seanthimons/serapeum/issues/101) | feat: Gap Analysis Report preset | Medium | High |
-| [#102](https://github.com/seanthimons/serapeum/issues/102) | feat: Research Question Generator preset | Medium | High |
-| [#103](https://github.com/seanthimons/serapeum/issues/103) | feat: Citation Audit — find missing seminal papers (no LLM) | Medium | High |
 | [#104](https://github.com/seanthimons/serapeum/issues/104) | feat: Argument Map / Claims Network preset | High | Medium |
 | [#105](https://github.com/seanthimons/serapeum/issues/105) | feat: Annotated Bibliography export (APA/MLA) | Medium | Medium |
 | [#106](https://github.com/seanthimons/serapeum/issues/106) | feat: Teaching Materials Generator | Low-Medium | Medium |
-| [#113](https://github.com/seanthimons/serapeum/issues/113) | Bulk upload for network analysis/seeding | Medium | Medium |
-| [#114](https://github.com/seanthimons/serapeum/issues/114) | Hide keywords panel | Medium | Medium |
 | [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging — *spinners done (Phase 29), modal messaging remaining* | Medium | Medium |
-| [#79](https://github.com/seanthimons/serapeum/issues/79) | bug: Tooltip overflows graph container and overlaps side panel | Medium | Medium |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + vice versa | High | Medium |
-| [#71](https://github.com/seanthimons/serapeum/issues/71) | feat: Seeded search same view as abstract preview | Medium | Medium |
 | [#8](https://github.com/seanthimons/serapeum/issues/8) | dev: Local model support | High | High |
 | [#11](https://github.com/seanthimons/serapeum/issues/11) | feat: Recursive abstract searching | High | High |
 | [#28](https://github.com/seanthimons/serapeum/issues/28) | feat: Image/table/chart extraction | High | High |
 | [#29](https://github.com/seanthimons/serapeum/issues/29) | feat: Image/chart injection into slides | High | High |
 | [#38](https://github.com/seanthimons/serapeum/issues/38) | dev: PDF image extraction process | High | High |
 | [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
-| [#24](https://github.com/seanthimons/serapeum/issues/24) | feat: Bulk DOI upload | High | Medium |
 | [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
 | [#48](https://github.com/seanthimons/serapeum/issues/48) | dev: Tighter RAG document retrieval controls | Low | Medium |
 | [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
 | [#60](https://github.com/seanthimons/serapeum/issues/60) | dev: Toggle/UI to expose API queries | Medium | Medium |
-| — | feat: Prompt inspection/editing UI in Settings — view prompts sent to models, allow one-off adjustments (debugging control plane) | Medium | Medium |
-
----
-
-## UI Polish
-
-| Area | Title | Complexity | Impact |
-|------|-------|------------|--------|
-| Settings | Rebalance two-column layout on settings page (DOI Management card added weight to one side) | Low | Low |
-| [#89](https://github.com/seanthimons/serapeum/issues/89) | bug: Citation network background color blending [gsd] (bundle with #79) | Medium | Medium |
 
 ---
 
@@ -83,14 +50,14 @@ Nice-to-have features and research tasks.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#119](https://github.com/seanthimons/serapeum/issues/119) | tech-debt: Remove dead code — with_ragnar_store() and register_ragnar_cleanup() | Low | Low |
+| [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
 | [#6](https://github.com/seanthimons/serapeum/issues/6) | feat: Timeline heatmap | Medium | Low |
 | [#9](https://github.com/seanthimons/serapeum/issues/9) | feat: Versioning for releases | Low | Low |
 | [#12](https://github.com/seanthimons/serapeum/issues/12) | dev: Evaluate reranker need | Low | TBD |
 | [#21](https://github.com/seanthimons/serapeum/issues/21) | feat: Semantic Scholar integration | High | Low |
 | [#22](https://github.com/seanthimons/serapeum/issues/22) | feat: Audio overview (NotebookLM style) | High | Medium |
 | [#30](https://github.com/seanthimons/serapeum/issues/30) | feat: Demo mode | Medium | Low |
-| — | explore: Partial BFS graph as intentional visualization mode | Medium | Medium |
+| [#126](https://github.com/seanthimons/serapeum/issues/126) | explore: Partial BFS graph as intentional visualization mode | Medium | Medium |
 
 ---
 
@@ -98,7 +65,8 @@ Nice-to-have features and research tasks.
 
 | Issue | Title | Sub-issues Status |
 |-------|-------|-------------------|
-| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 1/10 complete (#88) |
+| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 6/10 complete (#98, #99, #100, #101, #102, #103) |
+| [#142](https://github.com/seanthimons/serapeum/issues/142) | epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals — 6 phases) — [plan](docs/plans/2026-03-06-advanced-retrieval-pipeline.md) | Phase 1-5 planned |
 | [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete — **CLOSED** |
 | [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 4/4 complete — **CLOSED** |
 | [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis | 2/2 complete — **CLOSED** |
@@ -186,6 +154,40 @@ High-effort, high-payoff features for the future.
 - [x] fix: Origin metadata suffix breaking notebook filter — all retrieved rows dropped (Phase 29)
 - [x] fix: Stale ragnar chunks on document delete (Phase 29)
 - [x] feat: Chat send button spinner during RAG processing (Phase 29, partial #87)
+- [x] [#117](https://github.com/seanthimons/serapeum/issues/117): tech-debt: Connection leak in search_chunks_hybrid (v6.0)
+- [x] [#116](https://github.com/seanthimons/serapeum/issues/116): [BUG] Cost tracking table update (v6.0)
+- [x] [#114](https://github.com/seanthimons/serapeum/issues/114): Hide keywords panel (v6.0)
+- [x] [#111](https://github.com/seanthimons/serapeum/issues/111): Modal repeats on abstract removal (v6.0)
+- [x] [#110](https://github.com/seanthimons/serapeum/issues/110): Seed paper not showing in abstract search (v6.0)
+- [x] [#98](https://github.com/seanthimons/serapeum/issues/98): Merge Summarize + Key Points into unified Overview (v6.0)
+- [x] [#99](https://github.com/seanthimons/serapeum/issues/99): feat: Literature Review Table (v6.0)
+- [x] [#102](https://github.com/seanthimons/serapeum/issues/102): feat: Research Question Generator (v6.0)
+- [x] [#86](https://github.com/seanthimons/serapeum/issues/86): [BUG] Refresh button adding papers after removal (v6.0)
+- [x] [#89](https://github.com/seanthimons/serapeum/issues/89): Citation network background color blending [gsd] (v6.0)
+- [x] [#71](https://github.com/seanthimons/serapeum/issues/71): Seeded search same view as abstract preview (v6.0)
+- [x] [#119](https://github.com/seanthimons/serapeum/issues/119): tech-debt: Remove dead code — with_ragnar_store() (v6.0)
+- [x] [#121](https://github.com/seanthimons/serapeum/issues/121): Dark mode properly considered (v6.0)
+- [x] [#123](https://github.com/seanthimons/serapeum/issues/123): UI touch ups (v6.0)
+- [x] [#118](https://github.com/seanthimons/serapeum/issues/118): tech-debt: section_hint not encoded in PDF ragnar origins (v6.0)
+- [x] [#124](https://github.com/seanthimons/serapeum/issues/124): Slide generation prompt tweak / healing
+- [x] [#103](https://github.com/seanthimons/serapeum/issues/103): feat: Citation Audit — find missing seminal papers (v8.0)
+- [x] [#24](https://github.com/seanthimons/serapeum/issues/24): feat: Bulk DOI upload (v7.0 Phase 35)
+- [x] [#85](https://github.com/seanthimons/serapeum/issues/85): Select all to be imported into document notebook (v7.0 Phase 38)
+- [x] [#113](https://github.com/seanthimons/serapeum/issues/113): Bulk upload for network analysis/seeding (v7.0/v8.0)
+- [x] [#79](https://github.com/seanthimons/serapeum/issues/79): bug: Tooltip overflows graph container and overlaps side panel (v9.0 Phase 43)
+- [x] [#127](https://github.com/seanthimons/serapeum/issues/127): bug: Tooltips on citation network impossible to read on dark mode (v9.0 Phase 43)
+- [x] [#128](https://github.com/seanthimons/serapeum/issues/128): bug: Network graph year filters lower-bounds are wrong (v9.0 Phase 42)
+- [x] [#129](https://github.com/seanthimons/serapeum/issues/129): feat: Trim network graph to only influential papers (v9.0 Phase 42)
+- [x] [#130](https://github.com/seanthimons/serapeum/issues/130): Adjust network physics to restore rotation for smaller networks (v9.0 Phase 41)
+- [x] [#131](https://github.com/seanthimons/serapeum/issues/131): bug: Network collapses to singularity when toggling physics (v9.0 Phase 41)
+- [x] [#134](https://github.com/seanthimons/serapeum/issues/134): bug: Citation audit shows error when adding multiple papers (v10.0 Phase 46)
+- [x] [#133](https://github.com/seanthimons/serapeum/issues/133): bug: Citation audit papers do not appear in abstract notebook (v10.0 Phase 46)
+- [x] [#139](https://github.com/seanthimons/serapeum/issues/139): bug: UI adjustment to abstract buttons (v10.0 Phase 47)
+- [x] [#137](https://github.com/seanthimons/serapeum/issues/137): bug: Fix sidebar colors + theming (v10.0 Phase 47)
+- [x] [#138](https://github.com/seanthimons/serapeum/issues/138): Global color theme for buttons/UI (v10.0 Phase 45/47)
+- [x] [#100](https://github.com/seanthimons/serapeum/issues/100): feat: Methodology Extractor preset (v10.0 Phase 48)
+- [x] [#101](https://github.com/seanthimons/serapeum/issues/101): feat: Gap Analysis Report preset (v10.0 Phase 49)
+- [x] Slim Conclusions preset — remove redundant "Research Gaps & Future Directions" section (covered by Gap Analysis #101)
 
 ---
 
