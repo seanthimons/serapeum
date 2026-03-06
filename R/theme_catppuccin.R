@@ -606,6 +606,11 @@ icon_window_maximize <- function(...) shiny::icon("window-maximize", ...)
 #' @return Icon tag
 icon_arrow_right_bracket <- function(...) shiny::icon("arrow-right-to-bracket", ...)
 
+#' Flask icon (methodology/laboratory)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_flask <- function(...) shiny::icon("flask", ...)
+
 # Generate all dark mode CSS overrides as a single string
 # Injected via bslib::bs_add_rules() for centralized dark mode (DARK-05)
 catppuccin_dark_css <- function() {
