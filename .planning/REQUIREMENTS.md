@@ -9,8 +9,8 @@ Requirements for v10.0 Theme Harmonization & AI Synthesis. Each maps to roadmap 
 
 ### Tech Debt
 
-- [ ] **DEBT-01**: Connection leak in search_chunks_hybrid is fixed (#117)
-- [ ] **DEBT-02**: Dead code removed — with_ragnar_store() and register_ragnar_cleanup() (#119)
+- [x] **DEBT-01**: Connection leak in search_chunks_hybrid is fixed (#117)
+- [x] **DEBT-02**: Dead code removed — with_ragnar_store() and register_ragnar_cleanup() (#119)
 
 ### Design System
 
@@ -86,8 +86,8 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEBT-01 | Phase 44 | Pending |
-| DEBT-02 | Phase 44 | Pending |
+| DEBT-01 | Phase 44 | ✅ Complete |
+| DEBT-02 | Phase 44 | ✅ Complete |
 | DSGN-01 | Phase 45 | Pending |
 | DSGN-02 | Phase 45 | Pending |
 | DSGN-03 | Phase 47 | Pending |
