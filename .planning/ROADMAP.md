@@ -14,7 +14,7 @@
 - ✅ **v7.0 Citation Audit + Quick Wins** - Phases 33-39 (shipped 2026-02-27)
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
-- 🚧 **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (current) [2/6 phases complete]
+- ✅ **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (shipped 2026-03-06)
 
 ## Phases
 
@@ -156,7 +156,7 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 - [x] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync (completed 2026-03-05)
 - [x] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics (completed 2026-03-05)
 - [x] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods (completed 2026-03-06)
-- [ ] **Phase 49: Gap Analysis Report Preset** - Cross-paper synthesis identifying methodological and topical gaps
+- [x] **Phase 49: Gap Analysis Report Preset** - Cross-paper synthesis identifying methodological and topical gaps (completed 2026-03-06)
 
 ## Phase Details
 
@@ -251,8 +251,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 49-01-PLAN.md — Create generate_gap_analysis() backend function with section-targeted RAG
-- [ ] 49-02-PLAN.md — Wire UI: Research Gaps button, handler with 3-paper threshold, is_synthesis update
+- [x] 49-01-PLAN.md — Create generate_gap_analysis() backend function with section-targeted RAG (completed 2026-03-06)
+- [x] 49-02-PLAN.md — Wire UI: Research Gaps button, handler with 3-paper threshold, is_synthesis update (completed 2026-03-06)
 
 ## Progress
 
@@ -266,8 +266,8 @@ Phases execute in numeric order: 44 -> 45 -> 46 -> 47 -> 48 -> 49
 | 46. Citation Audit Bug Fixes | 0/1 | Complete    | 2026-03-05 |
 | 47. Sidebar & Button Theming | 3/3 | Complete    | 2026-03-05 |
 | 48. Methodology Extractor Preset | 2/2 | Complete    | 2026-03-06 |
-| 49. Gap Analysis Report Preset | 0/2 | Not started | - |
+| 49. Gap Analysis Report Preset | 2/2 | Complete    | 2026-03-06 |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-06 — Phase 49 planned (2 plans)*
+*Last updated: 2026-03-06 — Phase 49 complete (v10.0 milestone shipped)*

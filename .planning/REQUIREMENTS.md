@@ -43,11 +43,11 @@ Requirements for v10.0 Theme Harmonization & AI Synthesis. Each maps to roadmap 
 ### AI Synthesis — Gap Analysis Report
 
 - [ ] **GAPS-01**: User can generate a Gap Analysis Report from document notebook (#101)
-- [ ] **GAPS-02**: Report identifies methodological gaps, geographic gaps, population gaps, measurement gaps, and theoretical gaps
-- [ ] **GAPS-03**: Report highlights contradictory findings across papers with citations
-- [ ] **GAPS-04**: Extraction uses section-targeted RAG to prioritize Discussion/Limitations/Future Work sections
+- [x] **GAPS-02**: Report identifies methodological gaps, geographic gaps, population gaps, measurement gaps, and theoretical gaps
+- [x] **GAPS-03**: Report highlights contradictory findings across papers with citations
+- [x] **GAPS-04**: Extraction uses section-targeted RAG to prioritize Discussion/Limitations/Future Work sections
 - [ ] **GAPS-05**: AI disclaimer banner is shown on generated output
-- [ ] **GAPS-06**: Minimum paper threshold enforced (at least 3 papers required)
+- [x] **GAPS-06**: Minimum paper threshold enforced (at least 3 papers required)
 
 ## Future Requirements
 
@@ -105,11 +105,11 @@ Deferred to future release. Tracked but not in current roadmap.
 | METH-04 | Phase 48 | Complete |
 | METH-05 | Phase 48 | Complete |
 | GAPS-01 | Phase 49 | Pending |
-| GAPS-02 | Phase 49 | Pending |
-| GAPS-03 | Phase 49 | Pending |
-| GAPS-04 | Phase 49 | Pending |
+| GAPS-02 | Phase 49 | Complete |
+| GAPS-03 | Phase 49 | Complete |
+| GAPS-04 | Phase 49 | Complete |
 | GAPS-05 | Phase 49 | Pending |
-| GAPS-06 | Phase 49 | Pending |
+| GAPS-06 | Phase 49 | Complete |
 
 **Coverage:**
 - v10.0 requirements: 24 total

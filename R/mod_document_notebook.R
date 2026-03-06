@@ -112,6 +112,9 @@ mod_document_notebook_ui <- function(id) {
                 actionButton(ns("btn_methods"), "Methods",
                              class = "btn-sm btn-outline-primary",
                              icon = icon_flask()),
+                actionButton(ns("btn_gaps"), "Research Gaps",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_search()),
                 actionButton(ns("btn_slides"), "Slides",
                              class = "btn-sm btn-outline-primary",
                              icon = icon_file_powerpoint())
@@ -714,7 +717,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           )
         } else {
           # Check if this is a synthesis response
-          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("overview", "conclusions", "research_questions", "lit_review", "methodology_extractor")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("overview", "conclusions", "research_questions", "lit_review", "methodology_extractor", "gap_analysis")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
@@ -1025,6 +1028,65 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         content = response,
         timestamp = Sys.time(),
         preset_type = "methodology_extractor"
+      )))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Gap Analysis preset handler
+    observeEvent(input$btn_gaps, {
+      req(!is_processing())
+      req(has_api_key())
+
+      # Guard: RAG must be available
+      if (!isTRUE(rag_available())) {
+        showNotification("Synthesis unavailable - re-index this notebook first.", type = "warning")
+        return()
+      }
+
+      # Minimum 3 papers required for gap analysis
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count < 3L) {
+        showNotification(
+          "Gap analysis requires at least 3 papers. Add more papers to this notebook.",
+          type = "error", duration = 8
+        )
+        return()
+      }
+
+      # Warning toast for large notebooks (15+ papers)
+      if (doc_count >= 15L) {
+        showNotification(
+          sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
+          type = "warning", duration = 8
+        )
+      }
+
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(
+        role = "user",
+        content = "Generate: Research Gaps",
+        timestamp = Sys.time(),
+        preset_type = "gap_analysis"
+      )))
+      messages(msgs)
+
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_gap_analysis(con(), cfg, nb_id, session_id = session$token)
+      }, error = function(e) {
+        sprintf("Error: %s", e$message)
+      })
+
+      msgs <- c(msgs, list(list(
+        role = "assistant",
+        content = response,
+        timestamp = Sys.time(),
+        preset_type = "gap_analysis"
       )))
       messages(msgs)
       is_processing(FALSE)

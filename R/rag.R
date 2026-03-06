@@ -1271,3 +1271,227 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     sprintf("Error generating methodology table: %s", e$message)
   })
 }
+
+#' Generate Gap Analysis Report
+#'
+#' Cross-paper synthesis targeting discussion/limitations/future_work sections
+#' to identify methodological, geographic, population, measurement, and theoretical gaps.
+#'
+#' @param con DuckDB connection
+#' @param config Shiny config reactiveValues
+#' @param notebook_id Notebook UUID
+#' @param session_id Optional session UUID for cost logging
+#' @return Character string with narrative gap analysis or error message
+#' @export
+generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
+  tryCatch({
+    # API setup
+    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    if (nchar(trimws(api_key)) == 0) {
+      return("API key not configured. Please add your OpenRouter API key in Settings.")
+    }
+    chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+
+    # Get documents with metadata
+    docs <- dbGetQuery(con, "
+      SELECT id, filename, title, authors, year, doi
+      FROM documents WHERE notebook_id = ?
+      ORDER BY year DESC NULLS LAST, filename
+    ", list(notebook_id))
+
+    if (nrow(docs) == 0) {
+      return("No documents found in this notebook.")
+    }
+
+    # Minimum 3 papers threshold for gap analysis
+    if (nrow(docs) < 3) {
+      return("Gap analysis requires at least 3 papers to identify meaningful patterns.")
+    }
+
+    paper_count <- nrow(docs)
+
+    # Build paper labels with metadata fallback
+    paper_labels <- lapply(seq_len(nrow(docs)), function(i) {
+      doc <- docs[i, ]
+      if (!is.na(doc$title) && !is.na(doc$authors) && !is.na(doc$year)) {
+        authors_parsed <- tryCatch(jsonlite::fromJSON(doc$authors), error = function(e) NULL)
+        if (!is.null(authors_parsed) && length(authors_parsed) > 0) {
+          # Extract last names - authors stored as JSON array of objects with display_name
+          if (is.data.frame(authors_parsed) && "display_name" %in% names(authors_parsed)) {
+            last_names <- vapply(authors_parsed$display_name, function(a) {
+              parts <- strsplit(trimws(a), "\\s+")[[1]]
+              parts[length(parts)]
+            }, character(1))
+          } else if (is.character(authors_parsed)) {
+            last_names <- vapply(authors_parsed, function(a) {
+              parts <- strsplit(trimws(a), "\\s+")[[1]]
+              parts[length(parts)]
+            }, character(1))
+          } else {
+            last_names <- "Unknown"
+          }
+
+          author_str <- if (length(last_names) > 2) {
+            paste0(last_names[1], " et al.")
+          } else if (length(last_names) == 2) {
+            paste0(last_names[1], " & ", last_names[2])
+          } else {
+            last_names[1]
+          }
+          label <- sprintf("%s (%d)", author_str, doc$year)
+        } else {
+          label <- sprintf("Unknown (%s)", if (!is.na(doc$year)) as.character(doc$year) else "n.d.")
+        }
+      } else {
+        label <- tools::file_path_sans_ext(doc$filename)
+      }
+      list(label = label, doi = doc$doi, doc_id = doc$id)
+    })
+
+    # Section-aware chunk retrieval with dynamic token budget
+    # CRITICAL: lapply is INSIDE the repeat loop so re-querying occurs when chunks_per_paper is reduced
+    max_context_tokens <- 80000L
+    chunks_per_paper <- 7L
+    papers_with_fallback <- character(0)  # Track papers that used fallback
+
+    repeat {
+      # Re-query chunks with current chunks_per_paper limit
+      papers_data <- lapply(seq_len(nrow(docs)), function(i) {
+        doc <- docs[i, ]
+
+        # Try section-filtered first (discussion/limitations/future_work only)
+        section_chunks <- dbGetQuery(con, "
+          SELECT chunk_index, content, page_number, section_hint
+          FROM chunks
+          WHERE source_id = ? AND section_hint IN ('discussion', 'limitations', 'future_work')
+          ORDER BY chunk_index
+          LIMIT ?
+        ", list(doc$id, chunks_per_paper))
+
+        used_fallback <- FALSE
+        if (nrow(section_chunks) < 2) {
+          # Fallback: distributed sampling
+          all_chunks <- dbGetQuery(con, "
+            SELECT chunk_index, content, page_number,
+                   COALESCE(section_hint, 'general') as section_hint
+            FROM chunks WHERE source_id = ?
+            ORDER BY chunk_index
+          ", list(doc$id))
+
+          if (nrow(all_chunks) > chunks_per_paper) {
+            n <- nrow(all_chunks)
+            indices <- unique(c(1, 2, ceiling(n/2), n-1, n))
+            indices <- indices[indices >= 1 & indices <= n]
+            indices <- sort(head(indices, chunks_per_paper))
+            all_chunks <- all_chunks[indices, ]
+          }
+          section_chunks <- all_chunks
+          used_fallback <- TRUE
+        }
+
+        list(
+          label = paper_labels[[i]]$label,
+          doc_id = doc$id,
+          chunks = section_chunks,
+          used_fallback = used_fallback
+        )
+      })
+
+      # Track which papers used fallback (for transparency note)
+      papers_with_fallback <- vapply(papers_data, function(p) p$used_fallback, logical(1))
+
+      # Estimate tokens
+      total_est <- sum(vapply(papers_data, function(p) {
+        if (is.null(p$chunks) || nrow(p$chunks) == 0) return(0)
+        ceiling(nchar(paste(p$chunks$content, collapse = " ")) / 4)
+      }, numeric(1)))
+
+      if (total_est <= max_context_tokens || chunks_per_paper <= 2L) break
+      chunks_per_paper <- chunks_per_paper - 1L
+    }
+
+    # Token budget hard check after loop
+    context <- build_context_by_paper(papers_data)
+    est_tokens <- ceiling(nchar(context) / 4)
+    if (est_tokens > max_context_tokens) {
+      return(sprintf(
+        "The combined document content (~%dk tokens) exceeds the analysis limit (%dk). Consider splitting documents across multiple notebooks or reducing the number of papers.",
+        round(est_tokens / 1000), round(max_context_tokens / 1000)
+      ))
+    }
+
+    # System prompt for gap analysis
+    system_prompt <- paste0(
+      "You are a research gap analyst. Generate a narrative prose gap analysis report.\n\n",
+      "OUTPUT FORMAT:\n",
+      "Use these 5 section headings (always show all 5):\n",
+      "## Summary\n",
+      "## Methodological Gaps\n",
+      "## Geographic Gaps\n",
+      "## Population Gaps\n",
+      "## Measurement Gaps\n",
+      "## Theoretical Gaps\n\n",
+      "RULES:\n",
+      "- Write in narrative prose, not bullet points\n",
+      "- Weave inline citations naturally: 'Smith et al. (2020) found...', 'contradicting Johnson (2018)'\n",
+      "- When no gaps found in a category: 'No significant [type] gaps identified across the reviewed papers.'\n",
+      "- Actively search for contradictions between papers\n",
+      "- Format contradictions as visually separated blockquotes on their own line:\n",
+      "  > **Contradictory finding:** Jones (2021) reported X while Lee (2022) found Y\n",
+      "- Integrate contradictions within their relevant gap category (e.g., methodological contradictions go in Methodological Gaps)\n",
+      "- Base analysis ONLY on the provided sources\n",
+      "- Summary: 2-3 sentences capturing the corpus's main themes and overall gap landscape\n",
+      "- Each gap section: identify specific absent elements, underrepresented contexts, or unresolved questions"
+    )
+
+    # User prompt
+    user_prompt <- sprintf(
+      "===== DOCUMENTS (%d papers) =====\n%s\n===== END =====\n\nGenerate the gap analysis report.",
+      paper_count, context
+    )
+
+    messages <- format_chat_messages(system_prompt, user_prompt)
+    result <- chat_completion(api_key, chat_model, messages)
+
+    if (!is.null(session_id) && !is.null(result$usage)) {
+      cost <- estimate_cost(chat_model,
+                            result$usage$prompt_tokens %||% 0,
+                            result$usage$completion_tokens %||% 0)
+      log_cost(con, "gap_analysis", chat_model,
+               result$usage$prompt_tokens %||% 0,
+               result$usage$completion_tokens %||% 0,
+               result$usage$total_tokens %||% 0,
+               cost, session_id)
+    }
+
+    response <- result$content
+
+    # Strip any markdown code fences the LLM might wrap the response in
+    response <- gsub("^```[a-z]*\\s*\n", "", response)
+    response <- gsub("\n```\\s*$", "", response)
+    response <- trimws(response)
+
+    # DOI injection: replace citations with markdown links where DOI is available
+    for (pl in paper_labels) {
+      if (!is.na(pl$doi) && nchar(pl$doi) > 0) {
+        # Create pattern that matches the label in citation format
+        # Pattern: match the label anywhere it appears in text
+        doi_link <- sprintf("[%s](https://doi.org/%s)", pl$label, pl$doi)
+        response <- gsub(pl$label, doi_link, response, fixed = TRUE)
+      }
+    }
+
+    # Coverage transparency note if any papers used fallback
+    if (any(papers_with_fallback)) {
+      response <- paste0(
+        response,
+        "\n\n---\n*Note: Some papers lacked structured Discussion/Limitations sections; analysis drew from available content.*"
+      )
+    }
+
+    response
+  }, error = function(e) {
+    sprintf("Error generating gap analysis: %s", e$message)
+  })
+}
