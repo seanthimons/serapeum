@@ -60,60 +60,74 @@ mod_document_notebook_ui <- function(id) {
           class = "d-flex justify-content-between align-items-center flex-wrap gap-2",
           span("Chat"),
           div(
-            class = "d-flex gap-2",
+            class = "d-flex flex-wrap gap-2",
+            # Row 1: Quick presets
             div(
-              class = "btn-group",
-              popover(
-                trigger = actionButton(
-                  ns("btn_overview"), "Overview",
-                  class = "btn-sm btn-outline-primary",
-                  icon = icon_layer_group()
+              class = "d-flex gap-1",
+              div(
+                class = "btn-group btn-group-sm",
+                popover(
+                  trigger = actionButton(
+                    ns("btn_overview"), "Overview",
+                    class = "btn-sm btn-outline-primary",
+                    icon = icon_layer_group()
+                  ),
+                  title = "Overview Options",
+                  id = ns("overview_popover"),
+                  placement = "bottom",
+                  radioButtons(
+                    ns("overview_depth"), "Summary Depth",
+                    choices = c("Concise (1-2 paragraphs)" = "concise",
+                                "Detailed (3-4 paragraphs)" = "detailed"),
+                    selected = "concise"
+                  ),
+                  radioButtons(
+                    ns("overview_mode"), "Quality Mode",
+                    choices = c("Quick (single call)" = "quick",
+                                "Thorough (two calls)" = "thorough"),
+                    selected = "quick"
+                  ),
+                  actionButton(ns("btn_overview_generate"), "Generate",
+                               class = "btn-primary btn-sm w-100")
                 ),
-                title = "Overview Options",
-                id = ns("overview_popover"),
-                placement = "bottom",
-                radioButtons(
-                  ns("overview_depth"), "Summary Depth",
-                  choices = c("Concise (1-2 paragraphs)" = "concise",
-                              "Detailed (3-4 paragraphs)" = "detailed"),
-                  selected = "concise"
-                ),
-                radioButtons(
-                  ns("overview_mode"), "Quality Mode",
-                  choices = c("Quick (single call)" = "quick",
-                              "Thorough (two calls)" = "thorough"),
-                  selected = "quick"
-                ),
-                actionButton(ns("btn_overview_generate"), "Generate",
-                             class = "btn-primary btn-sm w-100")
-              ),
-              actionButton(ns("btn_studyguide"), "Study Guide",
-                           class = "btn-sm btn-outline-primary",
-                           icon = icon_lightbulb()),
-              actionButton(ns("btn_outline"), "Outline",
-                           class = "btn-sm btn-outline-primary",
-                           icon = icon_list_ol()),
-              actionButton(ns("btn_conclusions"), "Conclusions",
-                           class = "btn-sm btn-outline-primary",
-                           icon = icon_microscope()),
-              actionButton(ns("btn_lit_review"), "Lit Review",
-                           class = "btn-sm btn-outline-primary",
-                           icon = icon_table()),
-              actionButton(ns("btn_slides"), "Slides",
-                           class = "btn-sm btn-outline-primary",
-                           icon = icon_file_powerpoint())
+                actionButton(ns("btn_studyguide"), "Study Guide",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_lightbulb()),
+                actionButton(ns("btn_outline"), "Outline",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_list_ol())
+              )
             ),
+            # Row 2: Deep presets + Export
             div(
-              class = "btn-group btn-group-sm",
-              tags$button(
-                class = "btn btn-outline-secondary dropdown-toggle",
-                `data-bs-toggle` = "dropdown",
-                icon_download(), " Export"
+              class = "d-flex gap-1",
+              div(
+                class = "btn-group btn-group-sm",
+                actionButton(ns("btn_conclusions"), "Conclusions",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_microscope()),
+                actionButton(ns("btn_lit_review"), "Lit Review",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_table()),
+                actionButton(ns("btn_methods"), "Methods",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_flask()),
+                actionButton(ns("btn_slides"), "Slides",
+                             class = "btn-sm btn-outline-primary",
+                             icon = icon_file_powerpoint())
               ),
-              tags$ul(
-                class = "dropdown-menu",
-                tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon_paper(), " Markdown (.md)")),
-                tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon_file_code(), " HTML (.html)"))
+              div(
+                class = "btn-group btn-group-sm",
+                tags$button(
+                  class = "btn btn-outline-secondary dropdown-toggle",
+                  `data-bs-toggle` = "dropdown",
+                  icon_download(), " Export"
+                ),
+                tags$ul(
+                  class = "dropdown-menu",
+                  tags$li(downloadLink(ns("download_chat_md"), class = "dropdown-item", icon_paper(), " Markdown (.md)")),
+                  tags$li(downloadLink(ns("download_chat_html"), class = "dropdown-item", icon_file_code(), " HTML (.html)"))
+                )
               )
             )
           )
@@ -700,7 +714,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           )
         } else {
           # Check if this is a synthesis response
-          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("overview", "conclusions", "research_questions", "lit_review")
+          is_synthesis <- !is.null(msg$preset_type) && msg$preset_type %in% c("overview", "conclusions", "research_questions", "lit_review", "methodology_extractor")
 
           content_html <- div(
             class = "bg-white border p-2 rounded chat-markdown",
@@ -961,6 +975,56 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         content = response,
         timestamp = Sys.time(),
         preset_type = "lit_review"
+      )))
+      messages(msgs)
+      is_processing(FALSE)
+    })
+
+    # Methodology Extractor preset handler
+    observeEvent(input$btn_methods, {
+      req(!is_processing())
+      req(has_api_key())
+
+      # Guard: RAG must be available
+      if (!isTRUE(rag_available())) {
+        showNotification("Synthesis unavailable - re-index this notebook first.", type = "warning")
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count >= 20L) {
+        showNotification(
+          sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
+          type = "warning", duration = 8
+        )
+      }
+
+      is_processing(TRUE)
+
+      msgs <- messages()
+      msgs <- c(msgs, list(list(
+        role = "user",
+        content = "Generate: Methodology Extractor",
+        timestamp = Sys.time(),
+        preset_type = "methodology_extractor"
+      )))
+      messages(msgs)
+
+      cfg <- config()
+
+      response <- tryCatch({
+        generate_methodology_extractor(con(), cfg, nb_id, session_id = session$token)
+      }, error = function(e) {
+        sprintf("Error: %s", e$message)
+      })
+
+      msgs <- c(msgs, list(list(
+        role = "assistant",
+        content = response,
+        timestamp = Sys.time(),
+        preset_type = "methodology_extractor"
       )))
       messages(msgs)
       is_processing(FALSE)
