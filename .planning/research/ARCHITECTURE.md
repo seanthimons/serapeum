@@ -1,624 +1,765 @@
-# Architecture Integration Research
+# Architecture Research: Search Notebook UX Improvements
 
-**Domain:** Theme Harmonization + AI Synthesis Presets in R/Shiny Research Assistant
-**Researched:** 2026-03-04
+**Domain:** Shiny module UI restructuring with pagination and filtering
+**Researched:** 2026-03-06
 **Confidence:** HIGH
 
-## Executive Summary
-
-This milestone adds **global theme policy**, **citation audit bug fixes**, **sidebar/button theming**, and **two new AI synthesis presets** (Methodology Extractor, Gap Analysis Report) to an existing R/Shiny app with ~20,000 LOC across 18 production files.
-
-**Key architectural insight:** All new features integrate with existing patterns. Theme policy extends `R/theme_catppuccin.R`. Presets extend `R/rag.R` preset functions. Citation audit fixes touch `R/mod_citation_audit.R` and `R/mod_search_notebook.R`. No new modules, no architectural changes — pure extension.
-
-**Build order recommendation:** Theme policy first (foundation) → Citation audit fixes (critical bugs) → Sidebar/button theming (apply policy) → Methodology preset → Gap Analysis preset.
-
-## Existing Architecture Overview
-
-### System Structure
+## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                       UI Layer                           │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │ app.R: page_sidebar() + bs_theme()               │   │
-│  │  - Sidebar: notebook list + discovery buttons    │   │
-│  │  - Main: navset_card_tab() for notebooks/modules │   │
-│  └────────────────┬─────────────────────────────────┘   │
-├──────────────────┬┴─────────────────────────────────────┤
-│             Module Layer (14 Shiny modules)              │
-│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐   │
-│  │ Document   │ │ Search     │ │ Citation           │   │
-│  │ Notebook   │ │ Notebook   │ │ Network/Audit      │   │
-│  └──────┬─────┘ └──────┬─────┘ └──────┬─────────────┘   │
-│         │              │               │                 │
-│  ┌──────┴──────────────┴───────────────┴──────────────┐  │
-│  │  Discovery Modules (producer-consumer pattern)     │  │
-│  │  - Seed Discovery, Query Builder, Topic Explorer   │  │
-│  └─────────────────────┬──────────────────────────────┘  │
-├──────────────────────┬─┴─────────────────────────────────┤
-│              Business Logic Layer                        │
-│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐   │
-│  │ R/rag.R    │ │ R/pdf.R    │ │ R/api_*.R          │   │
-│  │ - Presets  │ │ - Section  │ │ - OpenRouter       │   │
-│  │ - Retrieval│ │   Detection│ │ - OpenAlex         │   │
-│  └──────┬─────┘ └──────┬─────┘ └──────┬─────────────┘   │
-│         │              │               │                 │
-│  ┌──────┴──────────────┴───────────────┴──────────────┐  │
-│  │ R/db.R: Database operations + hybrid search        │  │
-│  └─────────────────────┬──────────────────────────────┘  │
-├──────────────────────┬─┴─────────────────────────────────┤
-│               Data Layer                                 │
-│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐   │
-│  │ DuckDB     │ │ Ragnar     │ │ Theme              │   │
-│  │ notebooks  │ │ per-notebook│ │ R/theme_catppuccin │   │
-│  │ .duckdb    │ │ stores      │ │ - MOCHA/LATTE      │   │
-│  └────────────┘ └────────────┘ └────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    UI Layer (mod_search_notebook_ui)             │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Button Bar   │  │ Year Slider  │  │ Type Filters │          │
+│  │ (Toolbar)    │  │ + Histogram  │  │ (Checkboxes) │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+│         │                  │                  │                  │
+├─────────┴──────────────────┴──────────────────┴──────────────────┤
+│              Server Layer (mod_search_notebook_server)           │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                   Reactive Data Flow                      │   │
+│  │   papers_data() ─→ keyword_filter ─→ journal_filter      │   │
+│  │                           ↓                               │   │
+│  │                   filtered_papers()                       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
+│  │ do_search_  │  │ Pagination  │  │ Filter      │            │
+│  │ refresh()   │  │ State       │  │ Modules     │            │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘            │
+│         │                 │                 │                   │
+├─────────┴─────────────────┴─────────────────┴───────────────────┤
+│                    API Layer (api_openalex.R)                    │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │   search_papers() with cursor pagination support         │   │
+│  └──────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
+│                    Data Layer (DuckDB)                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
+│  │abstracts │  │notebooks │  │ chunks   │                       │
+│  └──────────┘  └──────────┘  └──────────┘                       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Architectural Patterns
+## Current Architecture (v10.0)
 
-**1. Shiny Module Pattern** (`mod_*_ui()` + `mod_*_server()`)
-- 14 production modules in `R/mod_*.R`
-- Namespace isolation via `NS(id)` in UI, `ns()` in server
-- Reactive communication via `reactiveVal()` and callbacks
-- Example: `mod_search_notebook.R` (2634 lines), `mod_document_notebook.R` (789 lines)
+### Existing Components
 
-**2. Preset Function Pattern** (R/rag.R)
-- `generate_preset()`: Simple presets (summarize, keypoints, studyguide, outline)
-- `generate_conclusions_preset()`: Section-targeted RAG with three-level fallback
-- `generate_research_questions()`: Standalone function with paper metadata enrichment
-- Common: RAG retrieval → prompt building → LLM call → cost logging
+| Component | Location | Responsibility | Current Implementation |
+|-----------|----------|----------------|------------------------|
+| Button bar | mod_search_notebook_ui (lines 68-102) | Action buttons in card header | Inline actionButton() calls with icon wrappers, no tooltips |
+| Year slider | mod_search_notebook_ui (lines 129-153) | Year range filtering | sliderInput + plotOutput histogram side-by-side |
+| Document type filters | Edit modal (lines 1892-1912) | Work type filtering | 6 checkboxInput widgets (article, review, preprint, book, dissertation, other) |
+| Refresh button | do_search_refresh() (lines 2189-2323) | Replace all papers with new search | Calls search_papers(), inserts new papers, shows count |
+| papers_data reactive | mod_search_notebook_server (lines 931-956) | Paper list with sorting | list_abstracts(con(), nb_id, sort_by) |
+| Composable filter chain | keyword_filter + journal_filter modules | Filter papers by keyword/journal | Producer-consumer pattern |
 
-**3. Theme System** (R/theme_catppuccin.R)
-- Catppuccin LATTE (light) and MOCHA (dark) palettes
-- `bs_theme()` for base colors in `app.R` (lines 57-72)
-- `catppuccin_dark_css()` generates all `[data-bs-theme="dark"]` overrides (~244 lines)
-- Applied via `bs_add_rules()` in `app.R` theme block
+### Current Data Flow: Refresh (Replace)
 
-**4. Section-Targeted RAG** (R/db.R + R/pdf.R)
-- `detect_section_hint()`: Keyword heuristics classify chunks (methods, conclusion, discussion, etc.)
-- `search_chunks_hybrid()`: Optional `section_filter` parameter for targeted retrieval
-- Three-level fallback: section-filtered → unfiltered → direct DB (graceful degradation)
-- Used by Conclusions preset, Research Questions preset
-
-## Integration Points for New Features
-
-### 1. Global Theme Policy (Issue #138)
-
-**Existing touchpoint:** `R/theme_catppuccin.R`
-
-**Integration pattern:**
-- Define semantic color mapping in new section of `theme_catppuccin.R`
-- Document mapping: action type → Bootstrap semantic class → Catppuccin color
-- Example structure:
-  ```r
-  # Semantic Action Color Policy
-  # - Destructive/delete: danger (MOCHA$red / LATTE$red)
-  # - Primary/create: primary (MOCHA$lavender / LATTE$lavender)
-  # - Success/import: success (MOCHA$green / LATTE$green)
-  # - Info/explore: info (MOCHA$blue / LATTE$blue)
-  # - Warning/caution: warning (MOCHA$yellow / LATTE$yellow)
-  ```
-
-**What changes:**
-- ADD: Design policy documentation in `theme_catppuccin.R` (comment block or exported constant)
-- MODIFY: None (policy is documentation, not code)
-
-**Data flow:**
-- One-way: Policy document → Developer reads → Applies to buttons
-
-**Why this works:**
-- Policy extends existing theme system without new abstractions
-- Catppuccin palette already defines all semantic colors
-- Bootstrap 5 semantic classes (`btn-primary`, `btn-danger`) automatically theme-aware
-
----
-
-### 2. Citation Audit Bug Fixes (Issues #134, #133)
-
-**Existing touchpoints:**
-- `R/mod_citation_audit.R` (error on adding multiple papers)
-- `R/mod_search_notebook.R` (papers not appearing in abstract notebook)
-
-**Integration pattern:**
-- Bug #134: Likely error in `check_audit_imports()` or batch import SQL (line 111 in mod_citation_audit.R)
-- Bug #133: Abstract refresh reactive not triggering after import (line 2483-2493 in mod_search_notebook.R)
-
-**What changes:**
-- MODIFY: `R/mod_citation_audit.R` — Fix SQL/error handling in audit import flow
-- MODIFY: `R/mod_search_notebook.R` — Fix reactive invalidation in abstract list after import
-
-**Data flow:**
 ```
-Citation Audit Import Flow (Current):
-1. User selects papers → selected_ids reactive
-2. Click import → mod_citation_audit imports to target notebook DB
-3. Navigate to target notebook → mod_search_notebook loads abstracts
-   [BUG: Abstracts not refreshed if notebook already open]
-
-Expected Flow:
-1-2. Same
-3. Navigate + invalidate abstracts reactive → reload from DB
+User clicks "Refresh"
+    ↓
+observeEvent(input$refresh_search)
+    ↓
+do_search_refresh() function
+    ↓
+get_notebook(con(), nb_id) → extract search_query + search_filters
+    ↓
+search_papers(query, filters, per_page = abstracts_count) [NO CURSOR]
+    ↓
+OpenAlex API → returns up to 200 papers (per_page limit)
+    ↓
+For each paper:
+    - Check if exists: SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?
+    - If new: create_abstract() + create_chunk()
+    - Increment newly_added counter
+    ↓
+paper_refresh(paper_refresh() + 1) → triggers papers_data() re-run
+    ↓
+showNotification("Added X new papers (Y total in notebook)")
 ```
 
-**Why these are bugs, not features:**
-- Code path exists, fails under specific conditions (multiple papers, already-open notebook)
-- No new architecture — just defensive checks and reactive invalidation
+**Key constraint:** `search_papers()` does NOT support cursor pagination. It's a single-page fetch.
 
----
+### Current Reactive Chain
 
-### 3. Sidebar + Button Theming (Issues #137, #139)
+```
+papers_data()
+    ↓ (reactive dependency)
+keyword_filtered_papers() [mod_keyword_filter_server]
+    ↓ (reactive dependency)
+journal_filtered_papers() [mod_journal_filter_server]
+    ↓ (alias)
+filtered_papers()
+    ↓ (renders)
+output$paper_list (UI)
+```
 
-**Existing touchpoints:**
-- `app.R` lines 160-221 (sidebar structure)
-- `R/mod_search_notebook.R` abstract preview buttons (lines 1682-1767)
+## Proposed Architecture (v11.0)
 
-**Integration pattern:**
-- Apply theme policy from #138 to sidebar discovery buttons
-- Standardize button style: icon-only vs icon+label, outline vs filled
-- Ensure WCAG AA contrast in both light/dark modes
+### New Components
 
-**What changes:**
-- MODIFY: `app.R` sidebar button classes (apply semantic classes from policy)
-- MODIFY: `R/mod_search_notebook.R` abstract preview button classes
-- POSSIBLY ADD: New CSS rules in `catppuccin_dark_css()` if buttons need dark mode overrides
+| Component | Location | Responsibility | Implementation |
+|-----------|----------|----------------|----------------|
+| **Toolbar module** | mod_search_notebook_ui (refactored lines 68-102) | Restructured button bar with semantic colors | Reorder buttons: Import → Refresh → Load More → Export → Network → Edit. Apply Catppuccin semantic colors. |
+| **Tooltip layer** | Toolbar buttons | Add contextual help | Use bslib tooltip() or custom title attributes on buttons |
+| **Load More button** | Toolbar (new) | Append next page of results | Calls search_papers() with cursor, appends to existing papers |
+| **Document type UI** | Edit modal (replace lines 1892-1912) | Expanded type filters with better UX | Replace 6 checkboxes with chip/pill UI or labeled checkboxGroupInput |
+| **Year slider alignment fix** | mod_search_notebook_ui (lines 129-153) | Fix histogram/slider visual alignment | Adjust CSS or layout to align histogram bars with slider ticks |
+| **Pagination state** | reactiveValues() in server | Track cursor for next page | `pagination_state <- reactiveValues(cursor = NULL, has_more = FALSE)` |
 
-**Current sidebar button pattern:**
+### Integration Points
+
+#### 1. Button Bar Restructuring (mod_search_notebook_ui)
+
+**Current:**
 ```r
-actionButton("new_document_nb", "New Document Notebook",
-             class = "btn-primary", icon = icon("file-pdf"))
-actionButton("new_search_nb", "New Search Notebook",
-             class = "btn-outline-primary", icon = icon("magnifying-glass"))
-actionButton("discover_paper", "Discover from Paper",
-             class = "btn-outline-success", icon = icon("seedling"))
+# Lines 68-102
+actionButton(ns("open_bulk_import"), ..., icon = icon_file_import())
+# Export dropdown
+actionButton(ns("seed_citation_network"), ..., icon = icon_share_nodes())
+actionButton(ns("edit_search"), ..., icon = icon_edit())
+actionButton(ns("refresh_search"), "Refresh", ..., icon = icon_rotate())
 ```
 
-**Needs harmonization:**
-- Consistency: `btn-outline-*` for discovery actions, `btn-*` for primary create?
-- Theme alignment: Apply policy (e.g., "Import Papers" should be `btn-outline-success`, not `btn-outline-primary`)
-- Dark mode: Verify `btn-outline-secondary` contrast (Issue #137 mentions citation audit hard to read in light mode)
-
-**Data flow:**
-- One-way: User clicks button → Shiny input event → Module handles
-
----
-
-### 4. Methodology Extractor Preset (Issue #100)
-
-**Existing touchpoint:** `R/rag.R` — extends preset system
-
-**Integration pattern:**
-- Clone `generate_conclusions_preset()` architecture
-- Use section-targeted RAG with `section_filter = c("methods", "introduction")`
-- Structured prompt for: Study Design | Sample | Measures | Analysis
-
-**What changes:**
-- ADD: `generate_methodology_preset()` function in `R/rag.R` (after line 664)
-- MODIFY: `R/mod_document_notebook.R` — Add "Extract Methods" button in preset section
-- MODIFY: `R/mod_search_notebook.R` — Add "Extract Methods" button in preset section (if applies to search notebooks)
-
-**New function signature:**
+**Proposed:**
 ```r
-generate_methodology_preset <- function(con, config, notebook_id,
-                                        notebook_type = "document",
-                                        session_id = NULL)
+# New order with tooltips and semantic colors
+actionButton(ns("open_bulk_import"), NULL,
+             class = "btn-sm btn-outline-success",
+             icon = icon_file_import()) |>
+  bslib::tooltip("Import DOIs from .bib or text"),
+
+actionButton(ns("refresh_search"), NULL,
+             class = "btn-sm btn-outline-primary",  # PRIMARY = lavender
+             icon = icon_rotate()) |>
+  bslib::tooltip("Replace results with new search"),
+
+actionButton(ns("load_more"), NULL,  # NEW
+             class = "btn-sm btn-outline-info",  # INFO = sapphire (distinct from primary)
+             icon = icon_plus_circle()) |>
+  bslib::tooltip("Load more papers from search"),
+
+# Export dropdown (unchanged)
+
+actionButton(ns("seed_citation_network"), NULL,
+             class = "btn-sm btn-outline-info",
+             icon = icon_share_nodes()) |>
+  bslib::tooltip("Build citation network from papers"),
+
+actionButton(ns("edit_search"), NULL,
+             class = "btn-sm btn-outline-secondary",
+             icon = icon_edit()) |>
+  bslib::tooltip("Edit search query and filters")
 ```
 
-**Section filter strategy:**
+**Color harmonization:**
+- **Import** (success/green): New papers entering the system
+- **Refresh** (primary/lavender): Main action for updating results
+- **Load More** (info/sapphire): Secondary fetch action, visually distinct
+- **Network** (info/sapphire): Informational/exploratory action
+- **Edit** (secondary/gray): Utility action
+- **Export** (default): Neutral utility
+
+#### 2. Pagination State Management
+
+**New reactive state:**
 ```r
-# Try section-filtered search first
-chunks <- search_chunks_hybrid(
-  con,
-  query = "methods methodology study design sample statistical analysis",
-  notebook_id = notebook_id,
-  limit = 10,
-  section_filter = c("methods", "introduction", "results"),  # Methods often in intro for some papers
-  api_key = api_key,
-  embed_model = embed_model
+# In mod_search_notebook_server
+pagination_state <- reactiveValues(
+  cursor = NULL,         # Next cursor from meta.next_cursor
+  has_more = FALSE,      # Whether more results available
+  total_fetched = 0      # Running count of API-fetched papers this session
 )
+```
 
-# Fallback: retry without section filter (graceful degradation)
-if (is.null(chunks) || nrow(chunks) == 0) {
-  chunks <- search_chunks_hybrid(..., section_filter = NULL)
+**Updated after Refresh:**
+```r
+# In do_search_refresh()
+resp <- search_papers_with_pagination(...)  # MODIFIED function
+pagination_state$cursor <- resp$next_cursor
+pagination_state$has_more <- !is.null(resp$next_cursor)
+pagination_state$total_fetched <- length(resp$papers)
+```
+
+**Updated after Load More:**
+```r
+# New do_load_more() function
+resp <- search_papers_with_pagination(..., cursor = pagination_state$cursor)
+pagination_state$cursor <- resp$next_cursor
+pagination_state$has_more <- !is.null(resp$next_cursor)
+pagination_state$total_fetched <- pagination_state$total_fetched + length(resp$papers)
+```
+
+#### 3. OpenAlex API Cursor Pagination (api_openalex.R)
+
+**Current:** `search_papers()` does NOT return cursor metadata.
+
+**Proposed:** Add `search_papers_with_pagination()` function.
+
+**Implementation:**
+```r
+#' Search for papers with cursor pagination support
+#' @param cursor Cursor string from previous response (use "*" for first page)
+#' @return List with $papers (parsed works) and $next_cursor (string or NULL)
+search_papers_with_pagination <- function(query, email, api_key = NULL,
+                                          from_year = NULL, to_year = NULL,
+                                          per_page = 25, search_field = "default",
+                                          is_oa = FALSE, min_citations = NULL,
+                                          exclude_retracted = TRUE,
+                                          work_types = NULL,
+                                          cursor = "*") {
+  # Build filters (same as search_papers)
+  filters <- c("has_abstract:true")
+  # ... [existing filter logic] ...
+
+  filter_str <- paste(filters, collapse = ",")
+
+  # Build request with cursor parameter
+  req <- build_openalex_request("works", email, api_key)
+
+  if (use_search_param && nchar(query) > 0) {
+    req <- req |> req_url_query(search = query)
+  }
+
+  req <- req |> req_url_query(
+    filter = filter_str,
+    per_page = per_page,
+    cursor = cursor  # NEW: cursor parameter
+  )
+
+  resp <- tryCatch({
+    req_perform(req)
+  }, error = function(e) {
+    stop_api_error(e, "OpenAlex")
+  })
+
+  body <- resp_body_json(resp)
+
+  papers <- if (!is.null(body$results)) {
+    lapply(body$results, parse_openalex_work)
+  } else {
+    list()
+  }
+
+  # Extract next_cursor from meta object
+  next_cursor <- body$meta$next_cursor  # String like "ZjEwMD..." or NULL
+
+  list(
+    papers = papers,
+    next_cursor = next_cursor,
+    count = body$meta$count  # Total available (informational)
+  )
 }
 ```
 
-**Prompt structure:**
+**Sources:**
+- [Paging | OpenAlex technical documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
+- [openalex-api-tutorials/notebooks/getting-started/paging.ipynb](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb)
+
+#### 4. Reactive Data Flow: Refresh vs Load More
+
+**Refresh (Replace):**
+```
+User clicks "Refresh"
+    ↓
+observeEvent(input$refresh_search)
+    ↓
+do_search_refresh()
+    ↓
+search_papers_with_pagination(..., cursor = "*")  # First page
+    ↓
+For each paper:
+    - If new: insert into DB
+    ↓
+pagination_state$cursor <- resp$next_cursor
+pagination_state$has_more <- !is.null(resp$next_cursor)
+    ↓
+paper_refresh(paper_refresh() + 1)  # Trigger UI update
+    ↓
+showNotification("Added X new papers (Y total)")
+```
+
+**Load More (Append):**
+```
+User clicks "Load More"
+    ↓
+observeEvent(input$load_more)
+    ↓
+req(pagination_state$has_more)  # Disable if no more pages
+    ↓
+do_load_more()
+    ↓
+search_papers_with_pagination(..., cursor = pagination_state$cursor)
+    ↓
+For each paper:
+    - If new: insert into DB
+    ↓
+pagination_state$cursor <- resp$next_cursor
+pagination_state$has_more <- !is.null(resp$next_cursor)
+    ↓
+paper_refresh(paper_refresh() + 1)  # Append to existing list
+    ↓
+showNotification("Loaded X more papers (Y total)")
+```
+
+**Key difference:** Refresh resets cursor to `"*"`. Load More uses existing `pagination_state$cursor`.
+
+#### 5. Document Type Filter Expansion
+
+**Current:** 6 checkboxInput widgets in edit modal (lines 1892-1912).
+
+**Proposed:** Keep existing checkboxInput pattern BUT enhance visibility and usability.
+
+**Options:**
+
+**Option A: Styled checkbox group with badges**
 ```r
-system_prompt <- "You are a research methodology expert. Extract and organize methodological details from the provided sources."
-
-user_prompt <- sprintf("Sources:\n%s\n\nTask: Extract research methods as a structured report:
-
-## Study Design
-[Type of study, research design, approach]
-
-## Sample Characteristics
-[Population, sample size, demographics, selection criteria]
-
-## Data Collection
-[Instruments, measures, materials, procedures]
-
-## Analysis Methods
-[Statistical tests, software, analytical approach]
-
-Cite sources for each claim.", context)
-```
-
-**Data flow:**
-```
-User clicks "Extract Methods"
-  ↓
-mod_document_notebook observeEvent(input$btn_methodology)
-  ↓
-generate_methodology_preset(con, config_r(), notebook_id, "document", session$token)
-  ↓
-search_chunks_hybrid(section_filter = c("methods", "introduction", "results"))
-  ↓
-build_context(chunks)
-  ↓
-chat_completion(api_key, chat_model, messages)
-  ↓
-log_cost() + return markdown
-  ↓
-Insert into chat history with AI disclaimer
-```
-
-**Why this works:**
-- Reuses existing `search_chunks_hybrid()` with `section_filter` (already tested for Conclusions preset)
-- Same RAG retrieval → LLM generation → cost logging pattern
-- `detect_section_hint()` already classifies "methods" chunks (line 60 in pdf.R)
-
----
-
-### 5. Gap Analysis Report Preset (Issue #101)
-
-**Existing touchpoint:** `R/rag.R` — extends preset system
-
-**Integration pattern:**
-- Clone `generate_conclusions_preset()` architecture
-- Use section-targeted RAG with `section_filter = c("conclusion", "limitations", "discussion")`
-- Inferential prompt: Identify absences, contradictions, underexplored areas
-
-**What changes:**
-- ADD: `generate_gap_analysis_preset()` function in `R/rag.R` (after Methodology preset)
-- MODIFY: `R/mod_document_notebook.R` — Add "Gap Analysis" button in preset section
-- MODIFY: `R/mod_search_notebook.R` — Add "Gap Analysis" button in preset section
-
-**New function signature:**
-```r
-generate_gap_analysis_preset <- function(con, config, notebook_id,
-                                         notebook_type = "document",
-                                         session_id = NULL)
-```
-
-**Section filter strategy:**
-```r
-# Same three-level fallback as Conclusions preset
-chunks <- search_chunks_hybrid(
-  con,
-  query = "limitations gaps future research contradictions underexplored",
-  notebook_id = notebook_id,
-  limit = 10,
-  section_filter = c("conclusion", "limitations", "future_work", "discussion"),
-  api_key = api_key,
-  embed_model = embed_model
+div(
+  class = "d-flex flex-wrap gap-2 mb-3",
+  div(
+    checkboxInput(ns("edit_type_article"), NULL, value = TRUE, width = "auto"),
+    tags$label(
+      `for` = ns("edit_type_article"),
+      class = "badge bg-secondary",
+      "Articles"
+    )
+  ),
+  div(
+    checkboxInput(ns("edit_type_review"), NULL, value = TRUE, width = "auto"),
+    tags$label(
+      `for` = ns("edit_type_review"),
+      class = "badge bg-info",
+      "Reviews"
+    )
+  ),
+  # ... repeat for other types
 )
 ```
 
-**Prompt structure:**
+**Option B: Keep current layout, add distribution preview**
 ```r
-system_prompt <- "You are a research synthesis expert. Systematically identify gaps, contradictions, and underexplored areas in the literature."
-
-user_prompt <- sprintf("Sources:\n%s\n\nTask: Analyze research gaps across this corpus. Organize by:
-
-## Methodological Gaps
-[Missing methods, design limitations, measurement issues]
-
-## Population Gaps
-[Underrepresented demographics, geographic regions, contexts]
-
-## Theoretical Gaps
-[Unexplored mechanisms, missing frameworks, unanswered questions]
-
-## Contradictory Findings
-[Where studies disagree or produce inconsistent results]
-
-## Emerging Opportunities
-[New research directions suggested by recent work]
-
-For each gap, cite specific sources that reveal or discuss it. Mark contradictions clearly.", context)
+# Existing checkboxInput widgets (unchanged)
+div(
+  class = "d-flex flex-wrap gap-3",
+  checkboxInput(ns("edit_type_article"), "Articles", ...),
+  checkboxInput(ns("edit_type_review"), "Reviews", ...),
+  # ... other types
+),
+# Distribution panel already exists (lines 1993-2023)
+# MOVE this collapsible panel ABOVE the checkboxes for better UX
 ```
 
-**Data flow:**
-- Identical to Methodology preset flow
-- Difference: Different prompt, different section filter priority, higher inferential nature
+**Recommendation:** Option B (minimal change). Distribution panel shows live counts per type, helping users decide which to include.
 
-**Risk mitigation:**
-- AI disclaimer banner (same as Conclusions preset, line 764-780 in mod_search_notebook.R)
-- OWASP instruction-data separation (already in all presets)
-- Higher hallucination risk acknowledged in Issue #101 — prompt should explicitly request citations
+**Modified component:** Move `output$type_distribution` from bottom of modal to ABOVE checkboxes in lines 1892-1912.
 
-**Why this works:**
-- Same architecture as Conclusions and Methodology presets
-- Section detection already handles "limitations", "discussion", "conclusion" (lines 40-54 in pdf.R)
-- Three-level fallback ensures graceful degradation on older notebooks without section hints
+#### 6. Year Slider + Histogram Alignment Fix
 
----
+**Current:** sliderInput + plotOutput side-by-side (lines 129-153).
 
-## Component Responsibilities (Modified)
+**Issue:** Histogram bars may not align with slider tick positions due to CSS margin/padding differences.
 
-| Component | Current Responsibility | New Additions |
-|-----------|------------------------|---------------|
-| `R/theme_catppuccin.R` | MOCHA/LATTE palette + dark CSS overrides | ADD: Semantic action color policy documentation |
-| `R/rag.R` | RAG retrieval + preset generation (4 presets) | ADD: `generate_methodology_preset()`, `generate_gap_analysis_preset()` |
-| `R/mod_citation_audit.R` | Citation audit UI + async analysis | FIX: Error handling for multi-paper import (#134) |
-| `R/mod_search_notebook.R` | Search notebook UI (papers, filters, chat, presets) | FIX: Abstract refresh reactive (#133), MODIFY: Button theming (#137, #139), ADD: Methodology + Gap buttons |
-| `R/mod_document_notebook.R` | Document notebook UI (PDFs, chat, presets) | ADD: Methodology + Gap buttons |
-| `app.R` | Main UI layout + sidebar | MODIFY: Sidebar button theming (#137) |
+**Solution:** Wrap in a container with explicit width control.
 
-## Data Flow Changes
-
-### New Preset Generation Flow
-
-```
-User clicks "Extract Methods" or "Gap Analysis"
-  ↓
-Shiny input event → observeEvent() in mod_*_notebook.R
-  ↓
-generate_methodology_preset() OR generate_gap_analysis_preset()
-  ↓
-search_chunks_hybrid(section_filter = [...])
-  ↓ (three-level fallback if needed)
-search_chunks_hybrid(section_filter = NULL)
-  ↓ (if still empty)
-Direct DB query for chunks
-  ↓
-build_context(chunks)
-  ↓
-chat_completion(api_key, chat_model, formatted_messages)
-  ↓
-log_cost(con, "chat", chat_model, usage, session_id)
-  ↓
-Return markdown string
-  ↓
-Insert into chat history with AI disclaimer banner
+**Proposed:**
+```r
+div(
+  class = "mb-2",
+  # Year slider
+  div(
+    style = "margin-bottom: -10px;",  # Reduce gap
+    sliderInput(
+      ns("year_range"),
+      "Publication Year",
+      min = 1900,
+      max = 2026,
+      value = c(1900, 2026),
+      step = 1,
+      sep = "",
+      ticks = FALSE,
+      width = "100%"  # Explicit width
+    )
+  ),
+  # Histogram (same width as slider)
+  plotOutput(ns("year_histogram"), height = "60px", width = "100%"),
+  # Unknown year checkbox
+  div(
+    class = "d-flex justify-content-between align-items-center mt-1",
+    checkboxInput(ns("include_unknown_year"), "Include unknown year", value = TRUE),
+    textOutput(ns("unknown_year_count"), inline = TRUE) |>
+      tagAppendAttributes(class = "text-muted small")
+  )
+)
 ```
 
-**Key characteristics:**
-- Synchronous (user waits for LLM response)
-- Cost-tracked (every preset generation logs to `cost_log` table)
-- Section-aware (leverages existing `section_hint` metadata from PDF ingestion)
-- Failsafe (graceful degradation if section hints missing)
+**CSS adjustment (if needed):**
+```css
+/* In www/custom.css or inline */
+#search_notebook-year_range .irs {
+  margin-bottom: 0;
+}
+#search_notebook-year_histogram {
+  margin-top: 0;
+}
+```
 
----
+#### 7. Tooltip Attachment to Buttons
 
-## Build Order Recommendation
+**Current:** `title` attributes used in some places (lines 75, 92, 96, 100), but not bslib tooltips.
 
-### Phase 1: Foundation (Theme Policy)
-**Why first:** Design policy document informs all theming work
+**Proposed:** Use `bslib::tooltip()` for richer tooltips with dark mode support.
 
-1. Define semantic action color policy in `R/theme_catppuccin.R`
-2. Document mapping: action type → Bootstrap class → Catppuccin color
-3. No code changes — pure documentation
+**Implementation:**
+```r
+# Wrap each actionButton with bslib::tooltip()
+actionButton(ns("refresh_search"), NULL, ...) |>
+  bslib::tooltip("Replace results with new search", placement = "bottom")
+```
 
-**Validation:**
-- Design doc complete
-- Developer can reference policy for button styling
+**Fallback for dynamic buttons (rendered in output$):**
+Use `title` attribute with `data-bs-toggle="tooltip"` and initialize via JavaScript.
 
----
+**For dynamic tooltips:**
+```r
+# In uiOutput() render
+output$send_btn_ui <- renderUI({
+  actionButton(ns("send"), NULL, icon = icon_paper_plane(), ...) |>
+    tagAppendAttributes(
+      `data-bs-toggle` = "tooltip",
+      `data-bs-placement` = "top",
+      title = "Send message to AI"
+    )
+})
 
-### Phase 2: Critical Bugs (Citation Audit)
-**Why second:** Blocking issues before new features
+# Add Bootstrap tooltip initialization JS (once per module)
+tags$script(HTML("
+  $(document).ready(function() {
+    $('[data-bs-toggle=\"tooltip\"]').tooltip();
+  });
+"))
+```
 
-1. Fix #134: Citation audit error on multiple papers
-   - Debug `R/mod_citation_audit.R` import flow
-   - Add error handling / defensive SQL
+## Build Order
 
-2. Fix #133: Citation audit papers not appearing in abstract notebook
-   - Fix reactive invalidation in `R/mod_search_notebook.R`
-   - Ensure abstracts reload after import
+### Phase Dependencies
 
-**Validation:**
-- Import multiple papers from citation audit → no error
-- Navigate to target notebook → papers appear immediately
+1. **Phase 1: API Pagination Foundation** (BLOCKING)
+   - Add `search_papers_with_pagination()` to `api_openalex.R`
+   - Test cursor pagination with OpenAlex API
+   - Returns `list(papers, next_cursor, count)`
+   - **Why first:** Required by both Refresh and Load More logic
 
----
+2. **Phase 2: Pagination State Management** (DEPENDS ON: Phase 1)
+   - Add `pagination_state` reactiveValues to `mod_search_notebook_server`
+   - Modify `do_search_refresh()` to use new API function and track cursor
+   - Add `do_load_more()` function
+   - **Why second:** Sets up state layer before UI changes
 
-### Phase 3: Apply Theme (Sidebar + Buttons)
-**Why third:** Policy defined, bugs fixed, now harmonize UI
+3. **Phase 3: Load More Button** (DEPENDS ON: Phase 2)
+   - Add "Load More" button to toolbar
+   - Wire `observeEvent(input$load_more)` to `do_load_more()`
+   - Conditional rendering: disable if `!pagination_state$has_more`
+   - **Why third:** Implements append-mode pagination
 
-1. Apply policy to sidebar buttons (`app.R` lines 160-190)
-   - Standardize outline vs filled, colors per policy
-   - Fix #137: Citation audit button contrast
+4. **Phase 4: Button Bar Restructuring** (DEPENDS ON: Phase 3)
+   - Reorder buttons: Import → Refresh → Load More → Export → Network → Edit
+   - Apply semantic colors (primary, info, success, secondary)
+   - Add icon wrappers (already exist in `theme_catppuccin.R`)
+   - **Why fourth:** Toolbar layout finalized with all buttons present
 
-2. Apply policy to abstract preview buttons (`R/mod_search_notebook.R` lines 1682-1767)
-   - Standardize icon vs icon+label
-   - Fix #139: Abstract button theming
+5. **Phase 5: Tooltip Layer** (DEPENDS ON: Phase 4)
+   - Add `bslib::tooltip()` to static buttons
+   - Add title attributes + JS initialization for dynamic buttons
+   - Test in light and dark mode
+   - **Why fifth:** Visual polish after structure is stable
 
-3. Add dark mode CSS overrides if needed (in `catppuccin_dark_css()`)
+6. **Phase 6: Document Type Filter UX** (INDEPENDENT)
+   - Move type distribution panel above checkboxes in edit modal
+   - Optional: Add badge styling to checkbox labels
+   - **Why sixth:** Independent of pagination, can proceed in parallel
 
-**Validation:**
-- All buttons follow policy
-- WCAG AA contrast in light and dark modes
-- Visual consistency across modules
+7. **Phase 7: Year Slider Alignment Fix** (INDEPENDENT)
+   - Adjust CSS margin/padding between slider and histogram
+   - Test across browser sizes
+   - **Why seventh:** Independent cosmetic fix
 
----
+### Parallel vs Sequential
 
-### Phase 4: Methodology Extractor Preset
-**Why fourth:** Easier preset (factual extraction, lower hallucination risk)
+**Sequential (must be in order):**
+- Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
-1. Add `generate_methodology_preset()` to `R/rag.R`
-   - Clone `generate_conclusions_preset()` structure
-   - Section filter: `c("methods", "introduction", "results")`
-   - Structured prompt for Study Design | Sample | Measures | Analysis
+**Parallel (can run concurrently):**
+- Phase 6 (document type) can start anytime after Phase 1
+- Phase 7 (year slider) can start anytime
 
-2. Add "Extract Methods" button to `R/mod_document_notebook.R`
-   - Same pattern as existing preset buttons (lines 728-791)
-   - Render conditionally based on `rag_available()`
+**Critical path:** Phase 1 → Phase 2 → Phase 3 (pagination foundation)
 
-3. Add "Extract Methods" button to `R/mod_search_notebook.R`
-   - Same pattern as existing preset buttons (lines 728-791)
+## Cursor State Management Pattern
 
-**Validation:**
-- Button appears when RAG available
-- Section-filtered retrieval works (check chunks have methods sections)
-- Fallback to unfiltered works (try on notebook without section hints)
-- Output structured as expected
-- Cost logged correctly
+### Storage Location
 
----
+**Recommendation:** Store cursor in `pagination_state` reactiveValues, NOT in database.
 
-### Phase 5: Gap Analysis Report Preset
-**Why fifth:** More inferential, higher hallucination risk — build after simpler preset
+**Rationale:**
+- Cursor is session-specific (different users may have different page positions)
+- Cursor expires (OpenAlex cursors are time-limited)
+- Refreshing search resets cursor (starts at `"*"`)
+- No cross-session persistence needed
 
-1. Add `generate_gap_analysis_preset()` to `R/rag.R`
-   - Clone `generate_conclusions_preset()` structure
-   - Section filter: `c("conclusion", "limitations", "future_work", "discussion")`
-   - Inferential prompt for gaps, contradictions, opportunities
+**Alternative (NOT recommended):** Store cursor in `notebooks.search_filters` JSON.
+- **Cons:** Cursor becomes stale across sessions, breaks on page load, complicates state management.
 
-2. Add "Gap Analysis" button to `R/mod_document_notebook.R`
-   - Same pattern as Methodology preset
+### Cursor Lifecycle
 
-3. Add "Gap Analysis" button to `R/mod_search_notebook.R`
-   - Same pattern as Methodology preset
+```
+Session starts
+    ↓
+pagination_state$cursor = NULL
+pagination_state$has_more = FALSE
+    ↓
+User creates/opens search notebook
+    ↓
+User clicks "Refresh"
+    ↓
+cursor = "*" (first page)
+    ↓
+API response: next_cursor = "ZjEwMD..."
+    ↓
+pagination_state$cursor = "ZjEwMD..."
+pagination_state$has_more = TRUE
+    ↓
+User clicks "Load More"
+    ↓
+cursor = pagination_state$cursor ("ZjEwMD...")
+    ↓
+API response: next_cursor = "YWJj..." or NULL
+    ↓
+pagination_state$cursor = "YWJj..." or NULL
+pagination_state$has_more = !is.null(next_cursor)
+    ↓
+User clicks "Refresh" again
+    ↓
+cursor = "*" (reset to first page)
+pagination_state$cursor = NULL  # Reset state
+```
 
-**Validation:**
-- Same validation as Methodology preset
-- Verify AI disclaimer banner appears (inferential content)
-- Check prompt requests citations (mitigate hallucination)
+### UI State: Load More Button
 
----
+**Conditional rendering:**
+```r
+output$load_more_btn <- renderUI({
+  if (!pagination_state$has_more) {
+    return(NULL)  # Hide button when no more pages
+  }
+
+  actionButton(ns("load_more"), NULL,
+               class = "btn-sm btn-outline-info",
+               icon = icon_plus_circle()) |>
+    bslib::tooltip(paste0("Load more papers (", pagination_state$total_fetched, " fetched so far)"))
+})
+```
+
+**Alternative:** Always show button, but disable when `!has_more`.
+```r
+actionButton(ns("load_more"), NULL,
+             class = "btn-sm btn-outline-info",
+             icon = icon_plus_circle(),
+             disabled = if (!pagination_state$has_more) "disabled" else NULL)
+```
+
+**Recommendation:** Conditional rendering (hide when unavailable) for cleaner UI.
 
 ## New vs Modified Components
 
-### NEW Components
-- `generate_methodology_preset()` in `R/rag.R`
-- `generate_gap_analysis_preset()` in `R/rag.R`
-- Semantic action color policy documentation in `R/theme_catppuccin.R`
+### New Components
 
-### MODIFIED Components
-- `R/mod_citation_audit.R` — Bug fix for multi-paper import (#134)
-- `R/mod_search_notebook.R` — Bug fix for abstract refresh (#133), button theming (#137, #139), new preset buttons
-- `R/mod_document_notebook.R` — New preset buttons
-- `app.R` — Sidebar button theming (#137)
-- `R/theme_catppuccin.R` — Possibly new dark mode CSS rules for button contrast
+1. **search_papers_with_pagination()** (api_openalex.R)
+   - New function
+   - Returns `list(papers, next_cursor, count)`
 
-### NO CHANGES
-- `R/db.R` — Section-targeted RAG already exists
-- `R/pdf.R` — Section detection already exists
-- `R/rag.R` preset infrastructure — Only adding new functions, not modifying existing
-- Database schema — No new migrations needed
+2. **do_load_more()** (mod_search_notebook_server)
+   - New function
+   - Mirrors `do_search_refresh()` but with cursor continuation
 
----
+3. **pagination_state** (mod_search_notebook_server)
+   - New reactiveValues()
+   - Fields: `cursor`, `has_more`, `total_fetched`
 
-## Risk Assessment
+4. **Load More button** (mod_search_notebook_ui)
+   - New actionButton in toolbar
+   - Conditional rendering based on `has_more`
 
-### Low Risk
-- **Theme policy:** Documentation only, no code
-- **Sidebar theming:** Changing CSS classes, well-tested Bootstrap classes
-- **Methodology preset:** Factual extraction, existing section detection works
+5. **Tooltip layer** (mod_search_notebook_ui)
+   - New: `bslib::tooltip()` wrappers on buttons
 
-### Medium Risk
-- **Citation audit bug fixes:** Debugging without clear reproduction steps (issues lack details)
-- **Gap Analysis preset:** Higher inferential nature → hallucination risk (mitigated with AI disclaimer + citation requirement)
+### Modified Components
 
-### High Risk
-- None — All features extend existing patterns, no architectural changes
+1. **do_search_refresh()** (mod_search_notebook_server)
+   - CHANGE: Call `search_papers_with_pagination()` instead of `search_papers()`
+   - ADD: Update `pagination_state$cursor` and `has_more`
+   - KEEP: Existing paper insertion logic
 
----
+2. **Button bar** (mod_search_notebook_ui, lines 68-102)
+   - REORDER: Import → Refresh → Load More → Export → Network → Edit
+   - CHANGE: Apply semantic color classes (btn-outline-primary, btn-outline-info, etc.)
+   - KEEP: Existing icon wrappers
 
-## Dependencies Between Components
+3. **Year slider section** (mod_search_notebook_ui, lines 129-153)
+   - CHANGE: Adjust margin/padding for histogram alignment
+   - KEEP: Existing sliderInput and plotOutput logic
 
-```
-Theme Policy (Phase 1)
-    ↓ (informs)
-Sidebar/Button Theming (Phase 3)
+4. **Document type filters** (mod_search_notebook_ui, lines 1892-1912)
+   - MOVE: Type distribution panel above checkboxes
+   - OPTIONAL: Add badge styling to labels
+   - KEEP: Existing checkboxInput widgets and reactive logic
 
-Citation Audit Bugs (Phase 2)
-    ↓ (independent of theme, but blocks user workflow)
-[No dependencies on other phases]
+## Color Harmonization with Existing Semantic Wrappers
 
-Methodology Preset (Phase 4)
-    ↓ (depends on)
-Section-Targeted RAG (existing, R/db.R + R/pdf.R)
-    ↓ (independent of)
-Gap Analysis Preset (Phase 5)
-```
+### Current Semantic Policy (from theme_catppuccin.R and PROJECT.md)
 
-**Critical path:**
-1. Theme Policy → Sidebar/Button Theming
-2. Methodology Preset → Gap Analysis Preset (same pattern, validate simpler one first)
+| Role | Color | Mocha Hex | Latte Hex | Usage |
+|------|-------|-----------|-----------|-------|
+| PRIMARY | Lavender | #b4befe | #7287fd | Main actions (Search, Save, Add) |
+| INFO | Sapphire | #74c7ec | #209fb5 | Informational actions (Tooltips, Help) |
+| SUCCESS | Green | #a6e3a1 | #40a02b | Confirmations (Paper Added, Export Complete) |
+| WARNING | Yellow | #f9e2af | #df8e1d | Cautions (API Key Missing, Rate Limit) |
+| DANGER | Red | #f38ba8 | #d20f39 | Destructive (Delete, Remove, Clear) |
+| SECONDARY | Surface | #313244 / #45475a | #ccd0da / #bcc0cc | Less important (Cancel, Close) |
 
-**Parallelizable:**
-- Citation audit bugs (Phase 2) can run parallel to theme work (Phases 1, 3)
-- Methodology and Gap presets share no dependencies with citation audit
+### Sidebar Custom Colors (v10.0)
 
----
+- **Active sidebar items:** Peach (#fab387 Mocha, #fe640b Latte)
+- **Sidebar background:** Sky (#89dceb Mocha, #04a5e5 Latte)
 
-## Testing Strategies
+### Button Color Assignments
 
-### Theme Policy
-- **Manual:** Review policy doc for completeness
-- **Visual:** Screenshot sidebar in light/dark mode, verify contrast
+| Button | Current | Proposed | Rationale |
+|--------|---------|----------|-----------|
+| Import | btn-outline-success | **btn-outline-success** (KEEP) | Adding papers to system = success/growth |
+| Refresh | btn-outline-secondary | **btn-outline-primary** (CHANGE) | Primary action for search notebooks |
+| **Load More** | N/A | **btn-outline-info** | Secondary fetch, distinct from primary refresh |
+| Export | btn-outline-primary | **default** (dropdown neutral) | Utility action, not primary |
+| Network | btn-outline-info | **btn-outline-info** (KEEP) | Exploratory/informational action |
+| Edit | btn-outline-secondary | **btn-outline-secondary** (KEEP) | Utility action |
 
-### Citation Audit Bugs
-- **Unit:** Mock multi-paper import, verify no SQL errors
-- **Integration:** Import papers from audit → navigate to notebook → verify papers appear
-- **Regression:** Ensure single-paper import still works
+**Key changes:**
+- **Refresh:** secondary → primary (lavender) — main action deserves primary color
+- **Load More:** NEW → info (sapphire) — visually distinct from refresh
+- **Export:** No change (dropdown button, neutral)
 
-### Sidebar/Button Theming
-- **Manual:** Visual review of all buttons in light/dark mode
-- **Accessibility:** WCAG AA contrast checker on all button states (hover, active, disabled)
+## Tooltips and Accessibility
 
-### Methodology Preset
-- **Unit:** Test `generate_methodology_preset()` with mock chunks
-- **Integration:** Run on document notebook with PDFs containing methods sections
-- **Fallback:** Test on notebook without section hints (should gracefully degrade)
-- **Cost:** Verify cost logging to `cost_log` table
+### Tooltip Content Guidelines
 
-### Gap Analysis Preset
-- **Same as Methodology preset**
-- **Additional:** Review output for hallucination (do cited sources actually support claims?)
+- **Refresh:** "Replace results with new search" (clarifies destructive-refresh behavior)
+- **Load More:** "Load more papers from search" (clarifies append behavior)
+- **Import:** "Import DOIs from .bib or text"
+- **Export:** (dropdown already labeled)
+- **Network:** "Build citation network from papers"
+- **Edit:** "Edit search query and filters"
 
----
+### Dark Mode Compatibility
 
-## Open Questions for Implementer
+**bslib::tooltip()** supports dark mode automatically via Bootstrap 5.3+ theming.
 
-1. **Citation Audit Bug #134:** Error message not provided in issue — need to reproduce locally first
-2. **Citation Audit Bug #133:** Is reactive invalidation the issue, or does `get_abstracts()` query need fixing?
-3. **Sidebar Theming #137:** "Citation audit hard to read in light mode" — is this a contrast issue or color choice?
-4. **Abstract Buttons #139:** "Convert all to symbols or add text to all" — which direction? (Recommend: icon + text for clarity)
-5. **Preset Applicability:** Should Methodology and Gap Analysis apply to search notebooks, or document notebooks only? (Recommend: Both, since search notebooks have abstracts with methods/limitations sections)
+**Custom title attributes:** Work in both modes but lack styling. Use bslib tooltips for consistency.
 
----
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Storing Cursor in Database
+
+**What people might do:** Add `cursor` column to `notebooks` table to persist across sessions.
+
+**Why it's wrong:**
+- Cursors expire (time-limited by OpenAlex)
+- Different users should have independent page positions
+- Refreshing search invalidates cursor
+- Adds unnecessary complexity to database schema
+
+**Do this instead:** Store cursor in `reactiveValues()` — session-scoped, no persistence needed.
+
+### Anti-Pattern 2: Merging Refresh and Load More Logic
+
+**What people might do:** Single button that "loads more unless first page."
+
+**Why it's wrong:**
+- User loses explicit control over replace vs append
+- Accidental data loss (user expects append, gets replace)
+- Unclear UI affordance
+
+**Do this instead:** Two distinct buttons with clear labels and tooltips.
+
+### Anti-Pattern 3: Tooltip Overload
+
+**What people might do:** Add tooltips to every UI element.
+
+**Why it's wrong:**
+- Clutters interface
+- Self-explanatory controls don't need tooltips
+- Over-reliance on tooltips = poor labeling
+
+**Do this instead:** Tooltips only for:
+- Icon-only buttons (no text label)
+- Actions with non-obvious side effects (Refresh = replace not append)
+- Contextual help (e.g., FWCI metric explanation)
+
+## Scaling Considerations
+
+| Scale | Considerations |
+|-------|----------------|
+| 0-100 papers/notebook | Current pagination strategy works fine. Load More rarely needed. |
+| 100-1000 papers/notebook | Load More becomes essential. Cursor pagination prevents API limits. |
+| 1000+ papers/notebook | Consider adding "Load All" option with progress modal (like bulk import). Infinite scroll NOT recommended (breaks Shiny reactive assumptions). |
+
+**Current max per request:** 200 papers (OpenAlex `per_page` limit).
+
+**10,000-result limit:** OpenAlex basic pagination (offset-based) caps at 10,000 results. Cursor pagination bypasses this limit.
+
+**Recommendation for v11.0:** Implement Load More with manual click, not infinite scroll. Infinite scroll adds complexity (intersection observers, debouncing) and breaks Shiny's reactive model.
+
+## Integration Testing Strategy
+
+### Test Cases
+
+1. **Refresh replaces papers**
+   - Create notebook with 25 papers
+   - Click Refresh
+   - Verify: cursor reset, new papers added, duplicates skipped
+
+2. **Load More appends papers**
+   - Create notebook, click Refresh
+   - Verify Load More button appears
+   - Click Load More
+   - Verify: new papers appended, cursor advanced, no duplicates
+
+3. **Load More disabled at end**
+   - Navigate to last page (cursor returns NULL)
+   - Verify Load More button hidden
+
+4. **Document type filter works**
+   - Select only "Articles" in edit modal
+   - Refresh search
+   - Verify: API filter includes `type:article`
+
+5. **Year slider alignment**
+   - Load search with papers spanning 2000-2025
+   - Verify: histogram bars align with slider range
+
+6. **Tooltips render in dark mode**
+   - Toggle dark mode
+   - Hover over buttons
+   - Verify: tooltips visible and readable
 
 ## Sources
 
-**Existing Codebase:**
-- `app.R` — Main UI structure, sidebar, theme setup
-- `R/theme_catppuccin.R` — Catppuccin palette, dark mode CSS
-- `R/rag.R` — Preset generation functions (existing 3 presets)
-- `R/db.R` — `search_chunks_hybrid()` with section filtering
-- `R/pdf.R` — `detect_section_hint()` keyword heuristics
-- `R/mod_citation_audit.R` — Citation audit module
-- `R/mod_search_notebook.R` — Search notebook module
-- `R/mod_document_notebook.R` — Document notebook module
-
-**GitHub Issues:**
-- #138: Global color theme for buttons/UI
-- #137: Fix sidebar colors + theming
-- #139: UI adjustment to abstract buttons
-- #134: Citation audit shows error when adding multiple papers
-- #133: Citation audit papers do not appear in abstract notebook
-- #100: feat: Methodology Extractor preset
-- #101: feat: Gap Analysis Report preset
-
-**Milestone Context:**
-- `.planning/PROJECT.md` — Project state, tech stack, architectural decisions
-- Milestone v10.0 — Theme Harmonization & AI Synthesis
+- [OpenAlex API Paging Documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
+- [OpenAlex Cursor Pagination Tutorial](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb)
+- Serapeum codebase: `R/mod_search_notebook.R`, `R/api_openalex.R`, `R/theme_catppuccin.R`
+- Catppuccin Design System: `.planning/PROJECT.md` (DSGN-01 Semantic Color Policy)
 
 ---
-
-*Architecture integration research for: Serapeum v10.0 Theme Harmonization & AI Synthesis*
-*Researched: 2026-03-04*
+*Architecture research for: Search Notebook UX Improvements (v11.0)*
+*Researched: 2026-03-06*

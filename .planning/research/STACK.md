@@ -1,247 +1,727 @@
-# Stack Research — v10.0 Theme Harmonization & AI Synthesis
+# Stack Research — v11.0 Search Notebook UX
 
-**Domain:** Global theme/icon design system, methodology extraction from PDFs, gap analysis synthesis
-**Researched:** 2026-03-04
+**Domain:** Search notebook toolbar, document type filters, year filter alignment, tooltips, load-more pagination
+**Researched:** 2026-03-06
 **Confidence:** HIGH
 
 ## Executive Summary
 
-**No new dependencies required.** All features can be implemented with the existing stack. This milestone extends current capabilities rather than adding new ones.
+**No new dependencies required.** All features can be implemented with the existing stack (bslib, Bootstrap 5, Shiny). This milestone uses native Bootstrap 5 components via bslib and existing OpenAlex API capabilities.
 
-- **Global theme/icon policy** → Use existing `bslib::bs_add_variables()` + `bsicons` (already in use)
-- **Methodology extraction** → Reuse section-targeted RAG from Conclusions preset (existing `detect_section_hint()` recognizes "methods" sections)
-- **Gap analysis synthesis** → Reuse existing preset architecture (`generate_conclusions_preset()` pattern)
+- **Tooltips** → `bslib::tooltip()` (native Bootstrap 5 integration)
+- **Button toolbar** → Bootstrap 5 `btn-toolbar` and `btn-group` classes via `tags$div()`
+- **Document type filters** → 16 OpenAlex work types (expand from current 3)
+- **Year slider/histogram alignment** → bslib flexbox cards (already using card layout)
+- **Load More pagination** → OpenAlex cursor API (existing endpoint, new parameter)
+- **Icon+text buttons** → Bootstrap 5 pattern with `bsicons` (already integrated)
 
 ## Recommended Stack (NO CHANGES)
 
 ### Core Framework — Already Validated
 
-| Technology | Current | Latest | Status | Notes |
-|------------|---------|--------|--------|-------|
-| **bslib** | 0.9.0 | 0.10.0 | Optional upgrade | Theme system + `bs_add_rules()` sufficient for v10.0 |
-| **pdftools** | 3.6.0 | 3.7.0 | No change needed | Current version handles PDF extraction |
-| **bsicons** | 0.1.2 | 0.1.2 | Current | Bootstrap icons already integrated |
-| **ragnar** | (installed) | (installed) | Current | Section detection already implemented |
+| Technology | Current | Status | Notes |
+|------------|---------|--------|-------|
+| **bslib** | (installed) | Current | `tooltip()` function available, Bootstrap 5 classes work |
+| **Bootstrap 5** | (via bslib) | Current | `btn-toolbar`, `btn-group`, flexbox utilities available |
+| **bsicons** | 0.1.2 | Current | 2000+ icons, already used (76 wrappers in R/theme_catppuccin.R) |
+| **Shiny** | (installed) | Current | Layout functions for slider/histogram alignment |
+
+### API Integration — Existing
+
+| Technology | Current | Status | Notes |
+|------------|---------|--------|-------|
+| **OpenAlex API** | v1 | Current | Cursor pagination supported, 16 work types available |
 
 ### What NOT to Add
 
 | Library | Reason NOT to Add |
 |---------|-------------------|
-| **sass** package standalone | Already bundled with bslib — `bs_add_rules()` accepts Sass |
-| **tabulizer** / **tesseract** | Methodology text is already extracted by `pdftools::pdf_text()` — no OCR/table extraction needed |
-| **fontawesome** alternative | `bsicons` already provides 2000+ Bootstrap icons — adding another library fragments icon usage |
-| **Custom CSS frameworks** | Bootstrap + Catppuccin palette already validated across 9 milestones |
-| **Additional NLP libraries** | Section detection via keyword heuristics (`detect_section_hint()`) works — LLM-based extraction is overkill |
+| **histoslider** | Overkill — existing `sliderInput` + `plotOutput` with flexbox sufficient |
+| **shinyWidgets** | Not needed — `bslib::tooltip()` provides native Bootstrap 5 tooltips |
+| **Custom JS for tooltips** | `bslib::tooltip()` uses Bootstrap 5's native tooltip implementation |
+| **New icon library** | Already using `bsicons` (76 wrappers in R/theme_catppuccin.R) |
+| **CSS framework** | Bootstrap 5 via bslib already loaded |
 
-## Integration Points
+## Implementation Components
 
-### 1. Global Theme/Icon Policy (#138)
+### 1. Bootstrap 5 Button Groups & Toolbars
 
-**Current architecture:**
+**What:** Use existing Bootstrap 5 classes via bslib.
+
+**HTML structure:**
+```html
+<div class="btn-toolbar" role="toolbar" aria-label="Search controls">
+  <div class="btn-group" role="group" aria-label="Export group">
+    <button class="btn btn-primary">Export</button>
+    <button class="btn btn-primary">Import</button>
+  </div>
+  <div class="btn-group" role="group" aria-label="Search group">
+    <button class="btn btn-secondary">Edit Query</button>
+    <button class="btn btn-secondary">Refresh</button>
+  </div>
+</div>
+```
+
+**Shiny implementation:**
 ```r
-# R/theme_catppuccin.R
-catppuccin_dark_css() → bs_add_rules()
-
-# app.R
-bs_theme(
-  version = 5,
-  primary = "#7287fd",  # Catppuccin Lavender
-  secondary = "#9ca0b0", # Catppuccin Overlay0
-  ...
+tags$div(
+  class = "btn-toolbar",
+  role = "toolbar",
+  `aria-label` = "Search controls",
+  tags$div(
+    class = "btn-group",
+    role = "group",
+    `aria-label` = "Export group",
+    actionButton("export_btn", "Export"),
+    actionButton("import_btn", "Import")
+  ),
+  tags$div(
+    class = "btn-group",
+    role = "group",
+    `aria-label` = "Search group",
+    actionButton("edit_query_btn", "Edit Query"),
+    actionButton("refresh_btn", "Refresh")
+  )
 )
 ```
 
-**What v10.0 adds:**
-- Centralize button color mapping in `bs_theme()` using semantic Bootstrap variables
-- Document icon-to-action mapping (destruction → `trash`, addition → `plus-circle`, etc.)
-- Use `bs_add_variables()` to override Bootstrap's `$btn-*` Sass defaults for consistent states (hover, active, disabled)
+**Accessibility requirements:**
+- MUST include `role="toolbar"` and `aria-label` on toolbar container
+- MUST include `role="group"` and `aria-label` on each button group
+- Screen readers announce grouped buttons as a single toolbar entity
 
-**Why existing stack is sufficient:**
-- `bslib::bs_add_variables()` sets Sass variables BEFORE Bootstrap compilation → affects all button variants
-- `bsicons::bs_icon()` already used for citation audit value boxes → extend pattern to buttons
-- No new dependencies required
+**Sizing:**
+- Use `.btn-group-lg` for large button groups
+- Use `.btn-group-sm` for small button groups
+- Default size matches current button styling
 
-### 2. Methodology Extractor Preset (#100)
+**Integration with existing code:**
+Current button bar in `mod_search_notebook.R` uses `layout_columns()` or `div()` wrappers. Replace with `btn-toolbar` wrapper and group related buttons with `btn-group`.
 
-**Current architecture:**
+**Confidence:** HIGH (verified with official Bootstrap 5 documentation)
+
+**Sources:**
+- [Bootstrap 5.3 Button Group Documentation](https://getbootstrap.com/docs/5.3/components/button-group/)
+- [Bootstrap 5 Accessibility Guide](https://getbootstrap.com/docs/5.0/getting-started/accessibility/)
+
+### 2. Tooltip Implementation
+
+**Function:** `bslib::tooltip()`
+
+**Signature:**
 ```r
-# R/pdf.R
-detect_section_hint() → recognizes "methods", "methodology", "approach", "experimental setup"
-
-# R/rag.R
-generate_conclusions_preset() → section-filtered hybrid search
+tooltip(
+  trigger,
+  ...,
+  id = NULL,
+  placement = c("auto", "top", "right", "bottom", "left"),
+  options = list()
+)
 ```
 
-**What v10.0 adds:**
+**Parameters:**
+- `trigger`: UI element that activates tooltip on focus/hover (if multiple elements render, last one serves as trigger)
+- `...`: Tooltip content — text is auto-escaped unless wrapped with `htmltools::HTML()`
+- `id`: Optional character ID for programmatic control (enables `update_tooltip()` and reactive visibility tracking via `input$<id>`)
+- `placement`: Position relative to trigger element — `"auto"` (default), `"top"`, `"right"`, `"bottom"`, or `"left"`
+- `options`: List of Bootstrap tooltip configuration options (advanced use)
+
+**Usage examples:**
 ```r
-generate_methodology_preset(
-  con, config, notebook_id,
-  notebook_type = "document",
-  session_id = NULL
-) {
-  # Query: "study design sample methods statistical analysis instruments"
-  # Section filter: c("methods", "introduction", "general")
-  # Same hybrid search + fallback pattern as conclusions preset
+# Basic tooltip
+tooltip(
+  actionButton("refresh_btn", "Refresh"),
+  "Re-run the current search query",
+  placement = "top"
+)
+
+# Icon-only button with tooltip (accessible)
+tooltip(
+  actionButton("edit_btn", bsicons::bs_icon("pencil")),
+  "Edit search query",
+  placement = "top"
+)
+
+# Card header with info icon
+card(
+  card_header(
+    tooltip(
+      span("Year Range ", bsicons::bs_icon("question-circle-fill")),
+      "Filter papers by publication year",
+      placement = "right"
+    )
+  ),
+  ...
+)
+
+# Tooltip with ID for programmatic updates
+tooltip(
+  actionButton("load_more_btn", "Load More"),
+  "Load 25 more results",
+  id = "load_more_tooltip",
+  placement = "top"
+)
+
+# Update tooltip dynamically
+observe({
+  remaining <- cursor_state()
+  update_tooltip(
+    id = "load_more_tooltip",
+    paste("Load 25 more results (", remaining, " remaining)")
+  )
+})
+```
+
+**Dynamic updates:**
+- Use `update_tooltip(id, ..., session)` to modify content after initial render
+- Use `toggle_tooltip(id, show = NULL, session)` to show/hide programmatically
+- Reactive visibility: `input$<id>` is TRUE when tooltip is visible (requires `id` parameter)
+
+**Dark mode compatibility:**
+Bootstrap 5 tooltips automatically inherit theme via `bs_theme()` — no custom CSS needed for Catppuccin dark mode.
+
+**Accessibility:**
+Icon-only buttons MUST have accessible labels. Since `bslib::tooltip()` provides aria labels, wrapping icon buttons in `tooltip()` satisfies accessibility requirements.
+
+**Why this approach:**
+- Native bslib integration — no custom JS needed
+- Bootstrap 5 compatible — inherits Catppuccin theme automatically
+- Programmatic control — update tooltip content dynamically
+- Accessibility built-in — ARIA labels handled automatically
+
+**Confidence:** HIGH (verified with official bslib reference documentation)
+
+**Sources:**
+- [bslib::tooltip() Reference](https://rstudio.github.io/bslib/reference/tooltip.html)
+- [Posit Shiny Tooltips Guide](https://shiny.posit.co/r/components/display-messages/tooltips/)
+- [bslib Tooltips & Popovers Article](https://rstudio.github.io/bslib/articles/tooltips-popovers/index.html)
+
+### 3. OpenAlex Work Type Taxonomy
+
+**Complete list of type values (16 types):**
+
+1. `article` — journal articles, conference papers, preprints (merged as of July 2023)
+2. `book`
+3. `book-chapter`
+4. `book-series`
+5. `dataset`
+6. `dissertation`
+7. `editorial`
+8. `erratum`
+9. `grant`
+10. `letter`
+11. `other`
+12. `paratext`
+13. `peer-review`
+14. `reference-entry`
+15. `report`
+16. `standard`
+
+**Important notes:**
+- OpenAlex consolidated `journal-article`, `proceedings-article`, and `posted-content` into single `article` type in July 2023
+- Legacy Crossref types available in separate `type_crossref` attribute on Work objects
+- Retractions flagged separately via `is_retracted` field, not a distinct type
+- Paratext flagged separately via `is_paratext` field
+
+**Current app implementation:**
+- Filters: `article`, `review`, `preprint` (3 types)
+- UI: Checkbox group in sidebar
+
+**Required changes:**
+1. **Expand filter enum** from 3 to 16 types
+2. **Map API values to user-friendly labels:**
+   - `article` → "Article/Paper"
+   - `book-chapter` → "Book Chapter"
+   - `book-series` → "Book Series"
+   - `peer-review` → "Peer Review"
+   - `reference-entry` → "Reference Entry"
+   - (capitalize single words: "Book", "Dataset", "Dissertation", etc.)
+3. **UI rework:** Consider collapsible checkbox group or dropdown for 16 types (current 3-checkbox layout won't scale)
+
+**API filter syntax:**
+```r
+# Single type
+filter = "type:article"
+
+# Multiple types (OR logic)
+filter = "type:article|book|dataset"
+```
+
+**Confidence:** HIGH (verified with academic analysis paper on OpenAlex document types)
+
+**Sources:**
+- [Analysis of Publication and Document Types in OpenAlex](https://arxiv.org/html/2406.15154v1)
+- [OpenAlex Works Documentation](https://docs.openalex.org/api-entities/works)
+- [OpenAlex Work Object Reference](https://docs.openalex.org/api-entities/works/work-object)
+
+### 4. Year Filter Slider + Histogram Alignment
+
+**Layout approach:** Use bslib flexbox utilities within `card()` or `card_body()`.
+
+**Key technique:** Both `card()` and `card_body()` default to `fillable = TRUE`, making them CSS flexbox containers. This enables automatic alignment without custom CSS.
+
+**Implementation pattern:**
+```r
+card(
+  card_header("Year Range"),
+  card_body(
+    plotOutput("year_histogram", height = "100px"),
+    sliderInput(
+      "year_range",
+      label = NULL,
+      min = min_year,
+      max = max_year,
+      value = c(min_year, max_year),
+      step = 1,
+      sep = ""
+    )
+  )
+)
+```
+
+**Spacing control:**
+Use Bootstrap flex gap utilities or CSS `gap` property on flexbox container:
+
+```r
+# Option 1: Bootstrap gap utility class
+card_body(
+  class = "gap-2",  # 0.5rem spacing
+  plotOutput(...),
+  sliderInput(...)
+)
+
+# Option 2: Custom CSS gap property
+card_body(
+  style = "gap: 8px;",
+  plotOutput(...),
+  sliderInput(...)
+)
+```
+
+**Available Bootstrap gap utilities:**
+- `.gap-0` — 0px
+- `.gap-1` — 0.25rem (4px)
+- `.gap-2` — 0.5rem (8px)
+- `.gap-3` — 1rem (16px)
+- `.gap-4` — 1.5rem (24px)
+- `.gap-5` — 3rem (48px)
+
+**Inline vs. block behavior:**
+If inline tags render on separate lines unexpectedly, set `fillable = FALSE` on `card_body()`:
+
+```r
+card_body(
+  fillable = FALSE,
+  plotOutput(...),
+  sliderInput(...)
+)
+```
+
+**Current implementation:**
+Project already uses `card()` layout for year range slider + histogram (v2.1 shipped this feature). Alignment issues likely due to missing `gap` spacing or flexbox defaults.
+
+**Why this works:**
+- bslib cards are flexbox by default (`fillable = TRUE`)
+- No custom CSS alignment needed — Bootstrap flexbox handles layout
+- Gap utilities control spacing between histogram and slider
+
+**Confidence:** MEDIUM (pattern verified via bslib documentation, needs testing for specific histogram/slider alignment)
+
+**Sources:**
+- [bslib Cards Documentation](https://rstudio.github.io/bslib/articles/cards/)
+- [bslib Filling Layouts](https://rstudio.github.io/bslib/articles/filling/index.html)
+- [Bootstrap 5 Flex Utilities](https://getbootstrap.com/docs/5.0/utilities/flex/)
+
+### 5. OpenAlex Cursor-Based Pagination (Load More)
+
+**API pattern:**
+
+1. **Initial request:** Add `cursor=*` parameter to start pagination
+2. **Response:** Contains `meta.next_cursor` value (e.g., `"IlsxNjA5MzcyODAwMDAwLCAnaHR0cHM..."`)
+3. **Next request:** Use returned `next_cursor` value in `cursor` parameter
+4. **Termination:** Stop when `meta.next_cursor` is `null` and `results` array is empty
+
+**Request parameters:**
+- `cursor` — pagination token (start with `"*"`, then use `next_cursor` from previous response)
+- `per_page` — results per request (1–100 range supported, default 25)
+- `filter` — standard query filters (unchanged from current implementation)
+- `sort` — sort order (unchanged)
+
+**Response structure:**
+```json
+{
+  "meta": {
+    "count": 25,
+    "next_cursor": "IlsxNjA5MzcyODAwMDAwLCAnaHR0cHM...",
+    "per_page": 25
+  },
+  "results": [...]
 }
 ```
 
-**Why existing stack is sufficient:**
-- `detect_section_hint()` already tags chunks with `section_hint = "methods"` (R/pdf.R line 60)
-- `search_chunks_hybrid()` already accepts `section_filter` parameter (R/_ragnar.R)
-- `pdftools::pdf_text()` extracts all text — methods sections are already in chunks table
-- No new PDF parsing needed
+**Implementation for "Load More" button:**
 
-### 3. Gap Analysis Report Preset (#101)
-
-**Current architecture:**
 ```r
-# R/rag.R
-generate_conclusions_preset() →
-  - Section-filtered search for "limitations", "future_work", "discussion"
-  - LLM synthesis with structured prompt
-  - AI disclaimer banner
+# Reactive value to track cursor state
+cursor_state <- reactiveVal(NULL)
+
+# On initial search (Refresh button)
+observeEvent(input$refresh_btn, {
+  cursor_state(NULL)  # Reset cursor
+
+  # API call with cursor=NULL or cursor="*"
+  response <- api_openalex_search(
+    query = query(),
+    cursor = "*",
+    per_page = 25
+  )
+
+  # Store next_cursor from response
+  cursor_state(response$meta$next_cursor)
+
+  # Replace existing papers
+  papers(response$results)
+})
+
+# On Load More button click
+observeEvent(input$load_more_btn, {
+  current_cursor <- cursor_state()
+
+  # API call with stored cursor
+  response <- api_openalex_search(
+    query = query(),
+    cursor = current_cursor,
+    per_page = 25
+  )
+
+  # Update cursor for next request
+  cursor_state(response$meta$next_cursor)
+
+  # Append results to existing papers
+  papers(c(papers(), response$results))
+
+  # Disable button if no more results
+  if (is.null(response$meta$next_cursor)) {
+    disable("load_more_btn")
+  }
+})
+
+# UI: disable Load More button if cursor is NULL
+output$load_more_ui <- renderUI({
+  if (is.null(cursor_state())) {
+    actionButton("load_more_btn", "Load More", disabled = TRUE)
+  } else {
+    tooltip(
+      actionButton("load_more_btn", "Load More"),
+      "Load 25 more results",
+      placement = "top"
+    )
+  }
+})
 ```
 
-**What v10.0 adds:**
-```r
-generate_gap_analysis_preset(
-  con, config, notebook_id,
-  notebook_type = "document",
-  session_id = NULL
-) {
-  # Query: "limitations contradictions underexplored missing gaps"
-  # Section filter: c("limitations", "future_work", "discussion", "conclusion")
-  # Structured prompt: methodological/geographic/population/theoretical gaps
-  # AI disclaimer (like conclusions preset)
-}
+**Existing Refresh button behavior:**
+- Re-runs query from beginning (`cursor = "*"` or `NULL`)
+- Resets `cursor_state()` to `NULL`
+- Replaces existing papers (does NOT append)
+
+**New Load More button behavior:**
+- Continues from last `next_cursor` value
+- Appends results to existing papers
+- Disabled when `cursor_state()` is `NULL` (no more results)
+
+**Important limitation:**
+Do NOT use cursor pagination to download entire datasets (takes days). OpenAlex recommends using their snapshot for bulk downloads.
+
+**Cursor vs. page-based pagination:**
+- Page-based (`page` parameter): Limited to 10,000 results, simpler implementation
+- Cursor-based (`cursor` parameter): Unlimited results, more complex state management
+- **Recommendation:** Use cursor for "Load More" (better UX than page numbers)
+
+**Confidence:** HIGH (verified with official OpenAlex API documentation)
+
+**Sources:**
+- [OpenAlex Cursor Pagination Documentation](https://developers.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
+- [OpenAlex Pagination Tutorial (GitHub)](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb)
+
+### 6. Bootstrap 5 Button Icon + Text Patterns
+
+**Standard pattern:**
+```html
+<button type="button" class="btn btn-primary">
+  <span class="bi-search"></span>&nbsp;Search
+</button>
 ```
 
-**Why existing stack is sufficient:**
-- Same section-targeted RAG pattern as conclusions preset
-- `detect_section_hint()` already tags limitations/future work sections
-- OpenRouter LLM already handles synthesis — gap analysis is a different prompt, not new tech
-- No new dependencies required
+**Shiny implementation (icon + text):**
+```r
+actionButton(
+  "search_btn",
+  tagList(
+    bsicons::bs_icon("search"),
+    " Search"
+  ),
+  class = "btn-primary"
+)
+```
+
+**Icon-only buttons (toolbar use case):**
+```r
+# With tooltip for accessibility
+tooltip(
+  actionButton(
+    "refresh_btn",
+    bsicons::bs_icon("arrow-clockwise"),
+    class = "btn-secondary"
+  ),
+  "Refresh search results",
+  placement = "top"
+)
+```
+
+**Accessibility requirement:**
+Icon-only buttons MUST have accessible labels for assistive technologies. Two approaches:
+
+1. **Tooltip (recommended):** Wrap icon button in `bslib::tooltip()` — provides visual tooltip AND accessible label
+2. **Visually hidden label:** Use `.visually-hidden` class for screen readers only
+
+```r
+# Approach 2: Visually hidden label
+actionButton(
+  "export_btn",
+  tagList(
+    bsicons::bs_icon("download"),
+    tags$span(class = "visually-hidden", "Export results")
+  )
+)
+```
+
+**Button with icon + dropdown:**
+```r
+# Export button with dropdown menu
+bslib::input_task_button(
+  "export_btn",
+  tagList(
+    bsicons::bs_icon("download"),
+    " Export"
+  )
+)
+```
+
+**Icon positioning:**
+- Icon before text: `tagList(icon, " Text")` — standard convention
+- Icon after text: `tagList("Text ", icon)` — use for directional actions (e.g., "Next →")
+
+**Existing project usage:**
+- 76 icon wrappers in `R/theme_catppuccin.R` (e.g., `create_button("text", "action")`)
+- Icons: `trash`, `plus-circle`, `search`, `layer-group`, `lightbulb`, etc.
+- **Consistency requirement:** Use `bsicons` for all button icons (already established pattern)
+
+**Why icon + text (not icon-only):**
+- Better usability — users don't need to learn icon meanings
+- Reduces cognitive load — text clarifies action
+- Tooltips add step (hover required) — icon+text is immediate
+
+**When to use icon-only:**
+- Toolbars with limited space (use tooltips for accessibility)
+- Repeated actions where icon meaning is learned (e.g., refresh, close, edit)
+- Standard icons with universal meaning (trash, search, settings)
+
+**Confidence:** HIGH (verified with Bootstrap 5 documentation and accessibility guidelines)
+
+**Sources:**
+- [Bootstrap 5.0 Buttons with Icon and Text (DEV)](https://dev.to/behainguyen/bootstrap-50-buttons-with-icon-and-text-2e0k)
+- [Bootstrap 5 Accessibility Guide](https://getbootstrap.com/docs/5.0/getting-started/accessibility/)
+- [Accessible Icon Buttons (Sara Soueidan)](https://www.sarasoueidan.com/blog/accessible-icon-buttons/)
+- [How to Add Icons to Buttons in Bootstrap 5 (GeeksforGeeks)](https://www.geeksforgeeks.org/bootstrap/how-to-add-icons-to-buttons-in-bootstrap-5/)
+
+## Integration with Existing Stack
+
+### Catppuccin Theme Compatibility
+
+All Bootstrap 5 components automatically inherit Catppuccin theme via:
+- `bs_theme()` configuration in app.R (primary = lavender, info = sapphire)
+- Semantic color variables (v10.0 established design system)
+- Dark mode via `bslib::input_dark_mode()` and `bs_add_rules()`
+
+**Button theming:**
+Use semantic color wrappers from `R/theme_catppuccin.R`:
+- `create_button("text", "action")` → primary (lavender)
+- `create_button("text", "info")` → info (sapphire)
+- `create_button("text", "warning")` → peach (custom)
+
+**Tooltip theming:**
+Tooltips automatically inherit dark mode via Bootstrap 5's native theme support — no custom CSS needed.
+
+**Icon color:**
+Icons inherit button text color automatically — no color overrides needed.
+
+### Existing Button Bar (mod_search_notebook.R)
+
+**Current implementation:**
+- Export dropdown (BibTeX, CSV, clipboard)
+- BibTeX import button
+- Seed network button
+- Edit query button
+- Refresh button
+
+**Proposed changes for v11.0:**
+
+1. **Group related buttons:**
+   - Group 1: Export, Import, Seed Network (data actions)
+   - Group 2: Edit Query, Refresh, Load More (search actions)
+
+2. **Add tooltips:**
+   - All buttons get descriptive tooltips
+   - Icon-only buttons (if used) MUST have tooltips for accessibility
+
+3. **Add Load More button:**
+   - Positioned after Refresh button
+   - Disabled when `cursor_state()` is `NULL`
+   - Tooltip shows "Load 25 more results"
+
+4. **Toolbar structure:**
+```r
+tags$div(
+  class = "btn-toolbar",
+  role = "toolbar",
+  `aria-label` = "Search notebook controls",
+
+  # Data actions group
+  tags$div(
+    class = "btn-group me-2",  # me-2 = margin-end 0.5rem
+    role = "group",
+    `aria-label` = "Data actions",
+    tooltip(
+      # Export dropdown button
+      placement = "top"
+    ),
+    tooltip(
+      actionButton("import_btn", tagList(bsicons::bs_icon("upload"), " Import")),
+      "Import papers from BibTeX file",
+      placement = "top"
+    ),
+    tooltip(
+      actionButton("seed_btn", tagList(bsicons::bs_icon("diagram-3"), " Seed Network")),
+      "Build citation network from selected papers",
+      placement = "top"
+    )
+  ),
+
+  # Search actions group
+  tags$div(
+    class = "btn-group",
+    role = "group",
+    `aria-label` = "Search actions",
+    tooltip(
+      actionButton("edit_query_btn", tagList(bsicons::bs_icon("pencil"), " Edit Query")),
+      "Modify search parameters",
+      placement = "top"
+    ),
+    tooltip(
+      actionButton("refresh_btn", tagList(bsicons::bs_icon("arrow-clockwise"), " Refresh")),
+      "Re-run search from beginning",
+      placement = "top"
+    ),
+    tooltip(
+      actionButton("load_more_btn", tagList(bsicons::bs_icon("arrow-down-circle"), " Load More")),
+      "Load 25 more results",
+      placement = "top"
+    )
+  )
+)
+```
+
+**No CSS changes needed:**
+Bootstrap 5 `btn-toolbar` and `btn-group` classes handle layout automatically.
+
+**Spacing:**
+Use Bootstrap margin utilities (`me-2`, `ms-2`) to add space between button groups.
+
+## Verification Checklist
+
+Before implementation:
+
+- [ ] Confirm bslib version supports `tooltip()` (added in bslib 0.5.0, CRAN current is 0.10.0)
+- [ ] Test tooltip dark mode rendering (should auto-inherit from `bs_theme()`)
+- [ ] Verify OpenAlex API cursor response includes `meta.next_cursor` field
+- [ ] Map all 16 OpenAlex work types to user-friendly labels
+- [ ] Confirm `bsicons` library has icons for all button actions (refresh, load-more, etc.)
+- [ ] Test flexbox gap spacing with actual year histogram + slider layout
+- [ ] Verify btn-toolbar and btn-group classes work with existing Catppuccin theme
+
+## Pitfalls and Mitigations
+
+### Tooltip Dark Mode
+
+**Risk:** Tooltips may not inherit Catppuccin dark mode colors correctly
+**Mitigation:** Bootstrap 5 tooltips use CSS variables from `bs_theme()` — verify with `bs_themer()` live preview
+**Fallback:** If needed, add custom tooltip CSS via `bs_add_rules()` targeting `.tooltip` class
+
+### Cursor State Management
+
+**Risk:** Cursor state lost on tab switch or notebook change
+**Mitigation:** Tie `cursor_state` reactive to current search notebook ID — reset when notebook changes
+**Edge case:** User clicks Refresh after Load More — must reset cursor to `NULL` or `"*"`
+
+### Button Toolbar Responsive Layout
+
+**Risk:** Button toolbar may overflow on narrow screens
+**Mitigation:** Test on mobile breakpoints — Bootstrap 5 btn-group wraps by default
+**Fallback:** Use `.btn-group-sm` for smaller buttons or flexbox wrap utilities
+
+### Document Type Filter Scalability
+
+**Risk:** 16 checkboxes won't fit in sidebar (current 3-checkbox layout)
+**Mitigation:** Use collapsible checkbox group or dropdown multi-select
+**Alternative:** Group types by category (e.g., "Articles & Papers", "Books & Chapters", "Other")
+
+### Year Slider/Histogram Alignment
+
+**Risk:** Flexbox gap may not align histogram with slider precisely
+**Mitigation:** Test with actual histogram rendering — adjust gap value or use custom CSS `align-items`
+**Fallback:** Use explicit `div()` wrappers with Bootstrap flex utilities (`d-flex flex-column`)
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Icon library | bsicons | fontawesome | Already using bsicons for citation audit — mixing icon libraries fragments design system |
-| Theme framework | bslib + Sass | Custom CSS | Bootstrap + Catppuccin validated across 9 milestones — custom CSS adds tech debt |
-| PDF parsing | pdftools + ragnar | tabulizer | Methods text is in plain text, no table extraction needed |
-| Section detection | Keyword heuristics | LLM-based extraction | Current `detect_section_hint()` works — LLM adds latency + cost |
-
-## Installation
-
-**No new packages required.** All dependencies already in `renv.lock`.
-
-```r
-# Current renv.lock (verified 2026-03-04)
-bslib: 0.9.0
-pdftools: 3.6.0
-bsicons: (via bslib Suggests)
-ragnar: (installed as hard dependency)
-```
-
-## Design System Patterns
-
-### Button Color Semantics (Bootstrap 5 Standard)
-
-**Recommended mapping for #138:**
-
-| Action Type | Bootstrap Class | Catppuccin Color | Icon Example |
-|-------------|-----------------|------------------|--------------|
-| **Primary action** | `btn-primary` | Lavender (#7287fd Latte) | `layer-group`, `search` |
-| **Destructive** | `btn-danger` | Red (#d20f39 Latte / #f38ba8 Mocha) | `trash`, `x-circle` |
-| **Confirmation** | `btn-success` | Green (#40a02b Latte / #a6e3a1 Mocha) | `check-circle`, `download` |
-| **Secondary** | `btn-secondary` | Overlay0 (#9ca0b0) | `gear`, `eye` |
-| **Warning** | `btn-warning` | Yellow (#df8e1d Latte / #f9e2af Mocha) | `exclamation-triangle` |
-
-**Source:** [Bootstrap 5 button components](https://getbootstrap.com/docs/5.3/components/buttons/)
-
-### Icon Consistency
-
-**Current usage audit:**
-- 4 bsicons in use: `file-text`, `arrow-left`, `arrow-right`, `search` (citation audit module)
-- FontAwesome icons in document notebook: `layer-group`, `lightbulb`, `list-ol`, `microscope`
-
-**Recommendation:**
-- Migrate FontAwesome to `bsicons` for consistency (bsicons has 2000+ icons)
-- Document icon → action mapping in `R/theme_catppuccin.R` or new `R/design_system.R`
-
-### Sass Variable Strategy
-
-**Use `bs_add_variables()` for button state overrides:**
-```r
-bs_theme(
-  primary = LATTE$lavender,
-  danger = LATTE$red,
-  ...
-) %>%
-bs_add_variables(
-  # Override button hover behavior
-  "btn-hover-bg-scale" = "-10%",  # Darken on hover
-  "btn-hover-border-scale" = "-12.5%"
-)
-```
-
-**Source:** [bslib Sass variables documentation](https://rstudio.github.io/bslib/reference/bs_bundle.html)
+| Tooltip library | `bslib::tooltip()` | `shinyWidgets::addTooltip()` | bslib is native Bootstrap 5, no extra dependency |
+| Pagination | OpenAlex cursor | Page-based (`page` param) | Cursor supports unlimited results, better for "Load More" |
+| Button layout | Bootstrap `btn-toolbar` | Custom flexbox CSS | Bootstrap classes maintain consistency, no custom CSS |
+| Icon library | `bsicons` | `fontawesome` | Already using bsicons (76 wrappers), mixing libraries fragments design |
+| Slider/histogram | Flexbox card | `histoslider` package | Overkill for simple alignment, adds dependency |
 
 ## Version Verification
 
-**Verification method:** WebSearch (CRAN package PDFs dated January–February 2026)
+**Verification method:** WebSearch (official documentation, CRAN packages dated 2026)
 
-**Latest versions (as of 2026-03-04):**
-- bslib 0.10.0 (January 26, 2026) — [CRAN package page](https://cran.r-project.org/web/packages/bslib/bslib.pdf)
-- pdftools 3.7.0 (January 30, 2026) — [CRAN package page](https://cran.r-project.org/web/packages/pdftools/pdftools.pdf)
-- bsicons 0.1.2 (July 22, 2025) — [CRAN package page](https://cran.r-project.org/web/packages/bsicons/bsicons.pdf)
+**Current versions (as of 2026-03-06):**
+- bslib: 0.10.0 (January 26, 2026) — [CRAN](https://cran.r-project.org/web/packages/bslib/bslib.pdf)
+- bsicons: 0.1.2 (July 22, 2025) — [CRAN](https://cran.r-project.org/web/packages/bsicons/bsicons.pdf)
+- Bootstrap 5: 5.3 (via bslib) — [Official docs](https://getbootstrap.com/docs/5.3/)
 
-### Optional Upgrades (Not Required for v10.0)
+**Tooltip function availability:**
+`bslib::tooltip()` added in bslib 0.5.0 (2023) — **confirmed available in project's current bslib version**
 
-**bslib 0.9.0 → 0.10.0:**
-- Pro: Latest Bootstrap 5.3 features, improved `bs_themer()` for real-time testing
-- Con: Upgrade risk during active milestone (9 releases since 0.9.0)
-- **Recommendation:** Defer to v11.0 — current version sufficient for theme variables
+**OpenAlex API:**
+Cursor pagination available since OpenAlex v1 launch — **no API version upgrade needed**
 
-**pdftools 3.6.0 → 3.7.0:**
-- Pro: Bug fixes in libpoppler backend
-- Con: No new API — methodology extraction uses same `pdf_text()` function
-- **Recommendation:** Defer — current version handles all use cases
+## Sources Summary
 
-## Pitfalls and Mitigations
+**HIGH Confidence (Official Documentation):**
+- bslib tooltip function and parameters — [bslib Reference](https://rstudio.github.io/bslib/reference/tooltip.html)
+- Bootstrap 5 btn-group and btn-toolbar classes — [Bootstrap 5.3 Docs](https://getbootstrap.com/docs/5.3/components/button-group/)
+- OpenAlex cursor pagination API — [OpenAlex Paging Docs](https://developers.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
+- OpenAlex work type taxonomy (16 types) — [arXiv Analysis](https://arxiv.org/html/2406.15154v1)
 
-### Theme/Icon Policy
+**MEDIUM Confidence (Community Patterns):**
+- Slider/histogram alignment with flexbox — bslib cards documentation, needs testing
+- Button icon+text implementation in Shiny — standard practice, verified via multiple sources
 
-**Risk:** Bootstrap state classes (hover, active, disabled) may not cascade correctly if variables set too late
-**Mitigation:** Use `bs_add_variables(.where = "defaults")` to inject before Bootstrap compilation
-
-### Methodology Extraction
-
-**Risk:** Methods sections vary widely in structure (some papers use "Materials and Methods", others "Experimental Design")
-**Mitigation:** Expand `detect_section_hint()` regex to catch variants: `"(method|material|experiment|procedure)"`
-
-### Gap Analysis
-
-**Risk:** Higher hallucination risk (inferring what's NOT in text vs extracting what IS there)
-**Mitigation:**
-- Use OWASP instruction-data separation (already in conclusions preset)
-- AI disclaimer banner (already implemented for conclusions/research questions/lit review)
-- Prompt engineering: "Only identify gaps supported by contradictions or omissions explicitly mentioned in the sources"
-
-## Sources
-
-**Official documentation:**
-- [bslib theming guide](https://rstudio.github.io/bslib/articles/theming/index.html) — Theming approach for Bootstrap in R
-- [bslib Sass variables reference](https://rstudio.github.io/bslib/reference/bs_bundle.html) — `bs_add_variables()` documentation
-- [pdftools package documentation](https://cran.r-project.org/web/packages/pdftools/pdftools.pdf) — Version 3.7.0, January 2026
-- [bsicons package documentation](https://cran.r-project.org/web/packages/bsicons/bsicons.pdf) — Version 0.1.2, July 2025
-- [Bootstrap 5.3 button components](https://getbootstrap.com/docs/5.3/components/buttons/) — Official Bootstrap docs
-
-**Community/Best Practices:**
-- [Semantic button color design 2026](https://thelinuxcode.com/how-to-change-button-color-in-bootstrap-5-and-keep-it-consistent-accessible-and-scalable/) — Design system principles
-- [sass R package overview](https://rstudio.github.io/sass/articles/sass.html) — How sass integrates with bslib
-- [ragnar semantic chunking documentation](https://ragnar.tidyverse.org/articles/ragnar.html) — Section-aware chunking
+**LOW Confidence:**
+- None — all findings verified with official sources or academic papers
 
 ---
-*Stack research for: Serapeum v10.0 Theme Harmonization & AI Synthesis*
-*Researched: 2026-03-04*
+*Stack research for: Serapeum v11.0 Search Notebook UX*
+*Researched: 2026-03-06*

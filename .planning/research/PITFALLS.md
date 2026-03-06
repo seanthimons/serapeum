@@ -1,421 +1,371 @@
-# Pitfalls Research
+# Pitfalls Research: v11.0 Search Notebook UX
 
-**Domain:** Adding global design system + AI synthesis presets to existing R/Shiny research assistant
-**Researched:** 2026-03-04
+**Domain:** Shiny reactive programming + OpenAlex API integration + Bootstrap UI enhancements
+**Researched:** 2026-03-06
 **Confidence:** HIGH
 
 ## Critical Pitfalls
 
-### Pitfall 1: CSS Specificity Wars — !important Cascade Hell
+### Pitfall 1: Reactive Invalidation Loop from Load-More State
 
 **What goes wrong:**
-Custom CSS rules intended to enforce the global design system fail to override existing Bootstrap/bslib styles, leading developers to use `!important` repeatedly. This creates a cascade of specificity conflicts where each fix requires higher specificity, eventually making the CSS unmaintainable. Dark mode overrides break, component theming becomes unpredictable, and seemingly unrelated changes cause visual regressions across modules.
+When splitting "Refresh" into "Refresh" + "Load More," developers often create a cursor state reactive value that both triggers UI re-renders AND is modified by the same observer. This creates an infinite invalidation loop where: cursor changes → UI updates → observer fires → cursor changes → infinite loop.
 
 **Why it happens:**
-Bootstrap compiles Sass variables at build time with high specificity. When adding design system rules post-compilation via `bs_add_rules()`, the new rules have lower specificity unless carefully crafted. Developers reach for `!important` as the quickest fix without understanding the cascade implications. With 18 production modules touching UI elements, each adding their own overrides, specificity conflicts compound exponentially.
+Shiny's reactive graph invalidates all downstream dependents when a reactive value changes. If `cursor_state` is used in `renderUI()` to show the Load More button AND modified by `observeEvent(input$load_more)` that reads `cursor_state`, you create a circular dependency.
 
 **How to avoid:**
-1. Use `bs_add_variables()` to set Bootstrap Sass variables BEFORE compilation, not `bs_add_rules()` for runtime CSS injection
-2. Leverage Bootstrap semantic classes (`bg-body-secondary`, `bg-body-tertiary`) that adapt to themes automatically
-3. When runtime CSS is unavoidable, use selector specificity (`.custom-class .btn-primary`) rather than `!important`
-4. Document specificity hierarchy: Bootstrap defaults < theme variables < component overrides < state overrides
-5. Audit existing `!important` usage (v6.0 added `!important` for value box text) — replace with proper specificity before adding more
+1. Use `isolate()` when reading cursor state inside the load-more observer: `observeEvent(input$load_more, { cursor <- isolate(cursor_state()); ... })`
+2. Store cursor in a non-reactive variable and only update `paper_refresh()` trigger after modifying papers
+3. Use `bindEvent()` pattern instead of `observe()` to ensure explicit event sources
+4. Keep pagination state separate from display state — cursor is data, paper_refresh is UI trigger
 
 **Warning signs:**
-- CSS rules work in isolation but break when other modules load
-- Same style defined multiple times with increasing specificity
-- Dark mode toggle causes styles to "snap back" to defaults
-- Developer tools show 3+ overridden declarations per property
-- "It works in light mode but not dark mode" bug reports
+- App hangs or becomes unresponsive when clicking Load More
+- Console shows repeated "Listening for messages" or reactive invalidation messages
+- Observer fires multiple times for single button click
+- Memory usage climbs steadily after Load More clicks
 
 **Phase to address:**
-Phase 1 (Design System Foundation) — Establish CSS specificity hierarchy and audit existing overrides before touching any module code. Create migration guide: "Bootstrap variable overrides → semantic classes → scoped selectors → never !important"
+Phase 1 (Refresh/Load-More split) — must establish cursor state isolation pattern before implementing Load More button
 
 ---
 
-### Pitfall 2: Icon Library Fragmentation — Mixed Visual Languages
+### Pitfall 2: OpenAlex Cursor State Invalidation on Filter Changes
 
 **What goes wrong:**
-The codebase uses a mix of fontawesome icons and bsicons inconsistently across modules, with some buttons using semantic naming (e.g., `fa("floppy-disk")` for save) while others use visual naming (e.g., `bs_icon("circle-fill")` for status). Adding a global icon policy reveals dozens of inconsistencies: save buttons with different icons, download actions using both `fa("download")` and `bs_icon("cloud-arrow-down")`, or icons chosen based on what library the original developer preferred. Users perceive the app as unpolished; accessibility suffers because semantic meaning is lost.
+Developer stores cursor from previous API call, user changes year filter or document type, then clicks "Load More" — app sends cursor with NEW filters, OpenAlex returns inconsistent results or error because cursor is bound to original query context. Results appear duplicated or out of order.
 
 **Why it happens:**
-bslib recommends bsicons as Bootstrap-native, but fontawesome has broader icon coverage (16,000+ vs 2,000+). Developers pick whichever library has the icon they need without checking if an equivalent exists. No icon naming convention exists, so some developers name icons by visual appearance ("circle with X") while others name by semantic meaning ("error indicator"). With 18 modules developed incrementally, no one audited for consistency. Known issue: bsicons requires `tags$i()` wrapper for `nav_panel()` integration (GitHub issue #639).
+OpenAlex cursors are opaque tokens tied to the specific query parameters (filters, sort order) that generated them. Changing filters invalidates the cursor, but the app doesn't reset cursor state when filters change.
 
 **How to avoid:**
-1. Choose ONE primary icon library for the design system (recommend bsicons for Bootstrap consistency)
-2. Document fontawesome as fallback ONLY when bsicons lacks required icon
-3. Create `R/icons.R` with semantic wrapper functions: `icon_save()`, `icon_download()`, `icon_error()` that return correct library call
-4. Enforce naming convention: icons named by semantic meaning, not visual appearance
-5. Audit all existing icon calls: `grep -r "fa(" R/ | wc -l` and `grep -r "bs_icon(" R/ | wc -l` — map each to semantic name
-6. Document nav_panel icon integration issue (bsicons requires `tags$i()` wrapper)
-7. Always add accessibility: `bslib::tooltip()` for icon-only buttons, `aria-label` attributes
+1. Reset `cursor_state(NULL)` in ALL filter change observers: `observeEvent(input$year_range, { cursor_state(NULL); ... })`
+2. Reset cursor when Edit Search is saved: `observeEvent(input$save_search, { cursor_state(NULL); ... })`
+3. Reset cursor when keyword filters change (via composable filter chain)
+4. Hide/disable Load More button when cursor is NULL (i.e., after filter change before Refresh)
+5. Document that Refresh = fresh query (cursor reset), Load More = append with cursor
 
 **Warning signs:**
-- Same action (e.g., "Export") has different icons across modules
-- Icon sizing inconsistent (some 1em, some 1.2em, some raw pixel values)
-- Accessibility warnings about missing titles on icon-only buttons
-- Git history shows icon swaps: "changed fa() to bs_icon() to match other buttons"
-- User feedback: "The UI feels inconsistent"
+- Load More returns papers outside year range
+- Papers appear in wrong sort order after Load More
+- Duplicate papers appear after changing filters and clicking Load More
+- OpenAlex returns 400 error with cursor after filter change
 
 **Phase to address:**
-Phase 1 (Design System Foundation) — Complete icon audit and create semantic wrappers BEFORE touching buttons or sidebar theming. Phase 2+ inherits consistent icons.
+Phase 2 (OpenAlex cursor pagination) — cursor reset logic must be co-located with filter state management
 
 ---
 
-### Pitfall 3: Module Theme State Desynchronization
+### Pitfall 3: Document Type Filter Checkboxes Breaking Composable Filter Chain
 
 **What goes wrong:**
-With 18 Shiny modules rendering UI independently, applying the global design system causes theme state mismatches. Module A redraws with new button styling, but Module B still shows old styles because its reactive UI regeneration logic doesn't trigger. When users toggle dark mode, some panels update immediately while others lag or never update. Saved networks load with old tooltip HTML, citation graphs use outdated color schemes, and settings page shows mixed button variants. Users see a "half-migrated" UI, eroding trust.
+Adding more document type checkboxes (dataset, editorial, letter, paratext) changes the filtered papers reactive but breaks the keyword → journal quality → display composable filter chain. Papers disappear unexpectedly or keyword filtering stops working.
 
 **Why it happens:**
-Shiny modules have independent reactive contexts. If modules cache UI elements or use conditional rendering (`if (initialized) ...`), they won't detect external theme changes. The app sets `bs_theme()` globally, but modules that build UI strings (e.g., visNetwork tooltip_html) don't automatically regenerate when theme changes. With multiple modules calling `renderUI()`, `renderPlot()`, and `htmlwidgets::onRender()`, each needs explicit theme reactivity wiring.
+The composable filter chain (`keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)`) expects `papers_data()` to be stable across refreshes. If document type filtering happens AFTER keyword filtering, the chain breaks — keywords are filtered on the full set, but document types remove papers that keywords already processed.
 
 **How to avoid:**
-1. Audit all modules for cached UI elements — search for `renderUI()` with conditional logic
-2. Make theme reactive using `session$getCurrentTheme()` if supporting dynamic switching
-3. For htmlwidgets (visNetwork tooltips), store theme variables in reactive values and regenerate widget on change
-4. Test theme consistency by: apply design system → reload saved network → toggle dark mode → check all modules
-5. Document modules that CAN'T react to runtime theme changes (e.g., saved tooltip HTML) — plan migration strategy
-6. Consider theme version field in database (e.g., `theme_version: 2`) to flag outdated saved content
+1. Document type filtering must happen in `papers_data()` reactive BEFORE passing to keyword filter module
+2. Use `filtered_papers <- reactive({ papers <- papers_data(); filter_by_year(filter_by_type(papers)) })` pattern
+3. DO NOT add document type filtering to `journal_filtered_papers` or between modules
+4. Maintain filter order: API filters (OpenAlex query) → year range → document type → keyword → journal quality → display
+5. Test with: select one keyword → uncheck all document types → verify empty list, not error
 
 **Warning signs:**
-- "Old tooltips show after network reload" (known: v9.0 fixed old HTML with `strip_llm_yaml()` pattern)
-- Dark mode toggle updates navbar but not modal dialogs
-- Settings page shows new button style, but search notebook shows old style
-- Saved content (networks, chats) renders differently than freshly generated content
-- Git blame shows theme changes in `R/app.R` but not in individual `mod_*.R` files
+- Keyword badges show counts but paper list is empty
+- Unchecking all document types shows "no papers" but keyword panel shows keywords
+- Journal quality filter toggle has no effect after document type change
+- Error: "object 'work_type' not found" in reactive chain
 
 **Phase to address:**
-Phase 2 (Button/Sidebar Theming) — After design system foundation is set, audit modules for theme reactivity BEFORE applying new button styles. Phase 3+ can assume consistent propagation.
+Phase 3 (Document type filter expansion) — must verify composable chain integrity before expanding filter UI
 
 ---
 
-### Pitfall 4: Section-Targeted RAG Brittleness — Keyword Heuristic Failures
+### Pitfall 4: bslib Tooltips Not Appearing on Dynamic renderUI Elements
 
 **What goes wrong:**
-New AI synthesis presets (Methodology Extractor, Gap Analysis Report) rely on section-targeted RAG retrieval to pull relevant chunks. The existing heuristic matches keywords like "method" or "approach" in chunk text to identify methodology sections. This works for standard academic papers but fails on preprints, review articles, or papers with non-standard structure ("Experimental Design", "Study Protocol", "Materials and Procedures"). Presets return generic abstracts instead of methodology details. Gap Analysis retrieves conclusions instead of future work sections. Users get incorrect synthesis outputs, blame the LLM, and lose trust in AI features.
+Wrapping icon-only buttons with `bslib::tooltip()` in `renderUI()` output — tooltip doesn't appear on hover, or appears on first render but disappears after re-render (e.g., after filter change).
 
 **Why it happens:**
-Academic papers lack standardized section headers. IMRAD structure (Intro, Methods, Results, Discussion) is common but not universal. The current heuristic uses content-based matching (check chunk text for keywords), which is more robust than heading-based matching but still brittle. With two new presets targeting different sections (methodology, future work/limitations), the keyword lists grow complex and risk false positives. Known tech debt: section_hint not encoded in PDF ragnar origins (#118), limiting fallback options.
-
-Research shows keyword-based retrieval is brittle for natural language questions and has poor recall for descriptive queries. Static retrievers fail on complex tasks needing iterative lookups. As paper count grows, RAG systems make progressively more mistakes due to distracting information, with error rates increasing ~1% per 5 additional documents.
+bslib tooltips use Bootstrap 5's JavaScript tooltip plugin, which initializes on page load. When `renderUI()` replaces DOM content, the JavaScript bindings are lost and tooltips are never re-initialized. Unlike static UI elements, dynamic content needs explicit reinitialization.
 
 **How to avoid:**
-1. Expand section keyword dictionaries for new preset types: methodology ("method", "approach", "design", "procedure", "protocol", "experimental"), future work ("future work", "future research", "limitations", "gap", "open question", "further research", "remaining challenges")
-2. Implement multi-tier retrieval fallback: section-filtered → keyword-boosted unfiltered → direct vector search
-3. Test on diverse paper types: journal articles, preprints, reviews, conference papers, non-IMRAD structures
-4. Add retrieval diagnostics: log which tier succeeded, how many chunks matched section filter, keyword match confidence
-5. Consider ML-based section classifier as future enhancement (out of scope for v10.0, but document limitation)
-6. Address #118 (section_hint in PDF origins) during Phase 3 or defer as known limitation with workaround
-7. Document retrieval quality in preset disclaimers: "Works best on papers with standard structure"
+1. Use static UI elements with `conditionalPanel()` instead of `renderUI()` where possible
+2. For truly dynamic content, use HTML `title` attribute (native browser tooltip) instead of bslib tooltip
+3. If bslib tooltip is required, add custom JavaScript message handler to reinitialize tooltips after renderUI
+4. For icon-only buttons in loops (e.g., paper list), use `title` attribute pattern already in codebase (line 76-97 in mod_search_notebook.R)
+5. Test tooltip persistence: hover → trigger re-render → hover again → verify tooltip still appears
 
 **Warning signs:**
-- Methodology Extractor returns abstract/intro instead of methods
-- Gap Analysis Report repeats paper conclusions without identifying gaps
-- Retrieval diagnostics show high fallback rates (>30% falling to unfiltered tier)
-- Preset quality varies dramatically by paper source (works on Nature, fails on arXiv)
-- User feedback: "The methodology summary is just the paper summary again"
+- Tooltip appears once, then never again after UI update
+- Console shows "Tooltip is not defined" JavaScript error
+- Tooltip works in static UI but not in uiOutput/renderUI sections
+- Icon-only button with no visual feedback on hover (accessibility issue)
 
 **Phase to address:**
-Phase 4 (Methodology Extractor Preset) — Develop and test section targeting for methodology BEFORE writing preset prompt. Phase 5 (Gap Analysis Report Preset) reuses and extends the pattern.
+Phase 4 (Tooltip addition) — establish tooltip strategy (title vs bslib) BEFORE implementing across UI
 
 ---
 
-### Pitfall 5: Prompt Template Coupling — Static Context Bloat
+### Pitfall 5: Bootstrap Grid Column Width Mismatch Between Slider and Histogram
 
 **What goes wrong:**
-New AI presets (Methodology Extractor, Gap Analysis Report) duplicate prompt components already present in existing presets (Overview, Research Question Generator, Literature Review Table). Each preset hardcodes instruction-data separation, RAG citation format, paper metadata structure, and output formatting guidelines. When OpenRouter changes API behavior or citation format needs adjustment, developers must update 7 preset prompts identically. Inconsistencies creep in: Gap Analysis uses "Source: [Author, Year]" while Methodology uses "[Author Year]". Maintenance cost scales O(n) with preset count.
+Year slider and histogram render in separate grid columns — slider shows 1950-2025 range but histogram bars align to 1900-2050, creating visual misalignment where bars don't match slider thumb positions.
 
 **Why it happens:**
-Existing preset architecture treats each preset as a monolithic prompt string. No shared prompt component library exists. Developers copy-paste from similar presets and modify the task-specific portion, unintentionally duplicating the boilerplate. Decision log shows standalone `generate_research_questions()` was kept separate from `generate_preset()` due to different prompt structure, suggesting no unified template system. As preset count grows from 5 to 7 (and epic suggests more to come), technical debt compounds.
-
-Research shows this is a common LLM app mistake: ambiguous prompts cause drift and hallucinations, and trying to make one prompt perform multiple tasks degrades all performance. Best practice is structured prompts separating static context from dynamic context with placeholders filled at runtime.
+`sliderInput()` and `plotOutput()` are separate UI elements with independent width calculations. Bootstrap grid columns use flexbox which can cause fractional pixel widths. ggplot2 plot margins add padding that shifts histogram bars relative to slider track.
 
 **How to avoid:**
-1. Extract shared prompt components into reusable functions: `prompt_header()`, `prompt_rag_context()`, `prompt_citation_format()`, `prompt_safety_constraints()`
-2. Presets compose task-specific instructions + shared components: `glue(prompt_header(), task_instructions, prompt_rag_context(), format_spec)`
-3. Centralize OWASP instruction-data separation template (v2.1 decision) for all presets
-4. Document differences: why Research Question Generator needs paper metadata enrichment but Methodology doesn't
-5. Version prompt components: if citation format changes, bump `prompt_citation_format()` version and update all presets
-6. Test matrix: each preset × citation format change = automated test verifying format compliance
-7. Use prompt template variables with runtime substitution: `{RAG_CONTEXT}`, `{TASK_INSTRUCTIONS}`, `{FORMAT_SPEC}`
+1. Wrap slider + histogram in single `div()` with explicit width: `div(style = "width: 100%", ...)`
+2. Use ggplot2 `theme(plot.margin = margin(0,0,0,0))` to eliminate padding (already done line 995)
+3. Set histogram `width = 0.8` in `geom_col()` for slight bar shrinkage (already done line 990)
+4. Ensure slider and histogram use same parent column in `layout_columns()` — NOT sibling columns
+5. Test with: narrow browser window → verify slider thumb aligns with histogram bar when dragging
 
 **Warning signs:**
-- New preset PRs show large prompt string diffs that mostly duplicate existing presets
-- Bug fix to citation format requires changes across 5+ files
-- Preset outputs show inconsistent citation styles
-- Developers write "TODO: make this consistent with other presets" comments
-- Prompt length grows unbounded as safety constraints accumulate
+- Histogram bars visibly offset from slider range (bars start/end outside slider track)
+- Responsive resize causes histogram to jump relative to slider
+- Bar for year 2020 appears at position that corresponds to 2018 on slider
+- Bootstrap column gutters create gap between slider and histogram
 
 **Phase to address:**
-Phase 3 (AI Preset Foundation Refactor) — Extract shared components BEFORE adding Methodology and Gap Analysis presets. Phases 4-5 compose presets from components, not monolithic strings.
+Phase 5 (Year filter alignment fix) — must establish shared container pattern before adjusting layout
 
 ---
 
-### Pitfall 6: Citation Audit Race Conditions — Multiple Paper Concurrent Writes
+### Pitfall 6: Button Reordering Breaking Existing Input Observers
 
 **What goes wrong:**
-When adding multiple papers to citation audit simultaneously (batch import, multi-select), concurrent database writes cause foreign key constraint violations, duplicate cache entries, or lost audit results. User imports 5 papers, citation audit modal shows "4/5 completed", but database contains partial results for all 5 with corrupt references. Refreshing the page shows missing papers (#133) or duplicate entries. The bug manifests intermittently, frustrating users and making debugging difficult. This is the root cause of #134 (citation audit error when adding multiple papers).
+Reordering toolbar buttons changes DOM order but doesn't update `observeEvent()` bindings — buttons appear to stop working or trigger wrong actions. Example: moving "Edit Search" button after "Refresh" causes Edit Search click to trigger refresh behavior.
 
 **Why it happens:**
-mirai workers run in isolated processes with independent DuckDB connections. v7.0 established pattern: create import_run in main session, pass `db_path` to worker for independent connection. However, citation audit flow likely follows different pattern: create paper entry → launch mirai audit task → write audit results. If multiple papers launch concurrent mirai tasks, workers race to write to `citation_audit_cache` table. DuckDB's file-based locking may not prevent write conflicts across processes. Known tech debt: connection leak in `search_chunks_hybrid()` (#117) and secondary ragnar leak in `ensure_ragnar_store()` suggest connection management discipline issues.
-
-Citation research shows ~20% of citations contain errors, with consistency issues common when managing large bibliographies. Automated tools are prone to matching errors without human review.
+Shiny input bindings are stable regardless of DOM order, but developer confusion about which `ns("action")` corresponds to which visual button. The real risk is copy-paste errors when restructuring UI — duplicate IDs or wrong observer names.
 
 **How to avoid:**
-1. Batch citation audits: queue papers → single mirai task processes all → write results atomically
-2. If per-paper parallelism required, use DuckDB transactions with SERIALIZABLE isolation level
-3. Implement retry logic with exponential backoff for constraint violations
-4. Add import_run_id to citation_audit_cache to track audit batch provenance
-5. Test concurrent writes explicitly: `for i in 1..10; add_paper_$i & done` and verify database integrity
-6. Fix connection leaks (#117, #119) BEFORE adding citation audit fixes to prevent compounding issues
-7. Consider connection pooling if not already implemented (DuckDB supports single-writer, multiple readers)
+1. Keep input IDs and observer names in sync: `actionButton(ns("refresh_search"), ...)` → `observeEvent(input$refresh_search, ...)`
+2. Use unique, descriptive IDs: NOT `btn1`, `btn2` — USE `edit_search`, `refresh_search`, `seed_citation_network`
+3. After reordering UI, search codebase for all references to moved button ID
+4. Test every button after reordering: click each button and verify expected modal/action
+5. Use browser dev tools to verify button `id` attribute matches expected namespace
 
 **Warning signs:**
-- Citation audit completion percentage inconsistent across UI refreshes
-- Foreign key constraint errors in logs during batch operations
-- Database query shows more rows than expected (duplicates)
-- Database query shows fewer rows than expected (lost writes)
-- "Paper added but not showing in abstract notebook" (#133) — suggests write lost or FK broken
-- Intermittent bugs that pass in isolation but fail under concurrent load
+- Button click has no effect (observer never fires)
+- Wrong modal appears when clicking button
+- Console shows "input$X is undefined" after clicking button
+- Button disables but action never completes
 
 **Phase to address:**
-Phase 2 (Citation Audit Bug Fixes) — Audit and fix concurrent write patterns BEFORE touching any citation audit code. Add integration test for multi-paper concurrent audits.
+Phase 6 (Toolbar button reordering) — verification phase AFTER reordering, before color changes
 
 ---
 
-### Pitfall 7: Dark Mode Collision — Browser Preference vs. App Toggle
+### Pitfall 7: Color Harmonization Touching Secondary Ragnar Store Leak
 
 **What goes wrong:**
-Users with OS-level dark mode preference enabled visit the app. The app detects `prefers-color-scheme: dark` and applies Catppuccin Mocha theme. User clicks `bslib::input_dark_mode()` toggle to switch to light mode, but some components (custom CSS panels, vis.js canvas) ignore the toggle because they're bound to CSS media query, not app state. The toggle shows "Light" but components remain dark. Browser refresh resets toggle to dark, losing user preference. Users with OS light + app dark preference have no persistence across sessions.
+Changing button classes from `btn-outline-secondary` to `btn-outline-info` across modules inadvertently modifies the re-index button styling. This triggers developer to read `ensure_ragnar_store()` code, discovering the known secondary ragnar leak (PROJECT.md line 249). Developer "fixes" the leak during color refactor, introducing breaking changes in a cosmetic phase.
 
 **Why it happens:**
-CSS `prefers-color-scheme` media query and JavaScript-driven theme toggles operate independently. User agent preference takes precedence over OS-level preference in the browser's evaluation order. bslib `input_dark_mode()` sets theme via JavaScript, but custom CSS using `@media (prefers-color-scheme: dark)` responds to browser preference, not app state. v6.0 switched from custom JS toggle to `bslib::input_dark_mode()` for thematic integration, but didn't audit all custom CSS. vis.js dark canvas (v6.0: COMP-02) uses rgba borders to work in both modes, which is workaround not true theme reactivity. No localStorage persistence for user preference.
+Scope creep during cosmetic changes. Color harmonization SEEMS safe, but searching for `btn-outline-secondary` reveals critical code paths. The ragnar leak is known tech debt deferred to future milestone — fixing it mid-refactor creates untested changes in production code.
 
 **How to avoid:**
-1. Audit ALL CSS for `@media (prefers-color-scheme: dark)` — replace with class-based targeting (`.dark-mode .component`)
-2. Use `input_dark_mode(..., mode = "light")` to set default independent of OS preference
-3. Add server-side observer for dark mode toggle: `observeEvent(input$dark_mode, { session$setCurrentTheme(...) })`
-4. Consider three-mode toggle: "System" (follow OS), "Light", "Dark" — current binary toggle lacks "System" option
-5. Test matrix: OS light + app dark, OS dark + app light, toggle during active session, refresh browser
-6. Document components that can't reactively switch: saved network tooltips, exported HTML, slide decks
-7. Add localStorage persistence: `session$userData$dark_mode_preference <- input$dark_mode` + restore on session start
-8. Use priority-based CSS: define custom properties for both themes, wrap dark styles in media query, add `.light-theme` class override inside
+1. Color changes should ONLY modify CSS classes, never touch reactive logic
+2. Before changing class on buttons near reactive code, verify observer doesn't depend on that class
+3. Document known tech debt in phase plan to avoid "helpful" fixes during wrong phase
+4. If tech debt is discovered during refactor, add TODO comment and move on — do not fix
+5. Use git grep to find all uses of class being changed, verify none are in observer conditions
 
 **Warning signs:**
-- Toggle changes navbar but not modal dialogs or custom panels
-- Browser refresh resets toggle state
-- "Dark mode toggle doesn't work" but only for users with OS dark mode enabled
-- Components using `prefers-color-scheme` media queries in custom CSS
-- Git history shows theme detection code removed/replaced without auditing CSS dependencies
+- Cosmetic phase PR includes changes to `.R` files in server logic
+- Phase plan says "button color" but diff shows `observeEvent()` modifications
+- Test failures after "simple CSS change"
+- Developer comment "while I was here, I also fixed..."
 
 **Phase to address:**
-Phase 2 (Sidebar/Button Theming) — Audit and fix dark mode reactivity BEFORE applying new theming. Phase 1 should document which components are media-query-bound vs app-state-bound.
+Phase 7 (Color harmonization) — establish "CSS-only" rule before starting work
 
 ---
 
-### Pitfall 8: Connection Leak Amplification — Design System Rendering Load
+### Pitfall 8: OpenAlex Cursor Format Assumptions in Pagination Logic
 
 **What goes wrong:**
-Applying the global design system increases UI rendering frequency as modules redraw with new button styles, icon wrappers, and theme variables. Known connection leaks (#117: `search_chunks_hybrid()`, secondary ragnar leak in `ensure_ragnar_store()`) amplify under increased load. Database connections exhaust, app slows to crawl, users see "unable to connect to database" errors. Memory usage climbs steadily across session. The leaks existed before but were manageable at low render frequency; design system refactor triggers them constantly.
+Developer assumes cursor is a simple integer offset or base64-encoded JSON. Code attempts to parse, increment, or validate cursor format. OpenAlex changes cursor encoding, app breaks with "invalid cursor" errors.
 
 **Why it happens:**
-Connection leaks occur when database handles aren't closed after use. `search_chunks_hybrid()` leak suggests missing `on.exit(dbDisconnect(con))` pattern. v3.0 established lifecycle management: "Connection lifecycle with on.exit cleanup (TEST-02)", but audit found leaks remain. Design system refactor increases module redraw frequency, calling leaked functions more often. DuckDB is single-writer, so leaked connections block new writes. With async tasks (mirai) creating additional connections (`db_path` pattern), leak impact compounds. DuckDB documentation warns about garbage collection warnings when connections aren't explicitly closed.
+Cursor is documented as "opaque encoded string" but developers treat it like structured data. Temptation to add "smart" pagination logic (e.g., "show page X of Y") requires parsing cursor, which breaks when API changes encoding.
 
 **How to avoid:**
-1. FIX connection leaks (#117, #119) in Phase 0 or Phase 1 BEFORE any design system work begins
-2. Audit all database connection patterns: `grep -r "dbConnect" R/` → verify every call has `on.exit(dbDisconnect(...), add = TRUE)`
-3. Audit ragnar store connections: `ragnar::connect_ragnar()` → verify `store@con` always closed
-4. Use `DBI::dbDisconnect(store@con)` for S7 ragnar stores (v3.0 decision: "DBI::dbDisconnect(store@con) for S7 objects")
-5. Add connection leak detection test: count open connections before/after module render, assert delta = 0
-6. Monitor memory usage during development: `pryr::mem_used()` before/after design system rendering
-7. Document connection ownership: who opens, who closes, when to use connection pooling
-8. Use `dbDisconnect(con, shutdown = TRUE)` for DuckDB to avoid garbage collection warnings
+1. Treat cursor as completely opaque — never parse, decode, or validate format
+2. Only three cursor operations: store cursor from response, pass cursor to next request, set to NULL on reset
+3. DO NOT display "page number" or "X of Y results" — cursor pagination doesn't support this
+4. DO NOT check if cursor is "valid" before sending — let OpenAlex return error if invalid
+5. Store cursor as-is in reactiveVal: `cursor_state(api_response$meta$next_cursor)`
 
 **Warning signs:**
-- App performance degrades over session lifetime (slow initially fast operations)
-- Database locks preventing writes: "database is locked" errors
-- Memory usage climbs without corresponding data growth
-- DuckDB warnings about unclosed connections in logs
-- Tests fail intermittently with "too many open files" or connection errors
-- Git history shows fixes to connection leaks, but new leaks introduced in other modules
+- Code contains `base64_decode(cursor)` or `jsonlite::fromJSON(cursor)`
+- UI shows "Page 3 of 12" with cursor-based pagination
+- Code checks `is.character(cursor) && nchar(cursor) > 0` before API call
+- Cursor is modified or transformed before passing to API
 
 **Phase to address:**
-Phase 0 (Tech Debt Cleanup) — Fix connection leaks BEFORE Phase 1 design system work. Add leak detection tests to CI.
+Phase 2 (OpenAlex cursor pagination) — API client implementation, prevent future maintenance burden
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable but create long-term problems.
-
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Using `!important` in custom CSS | Overrides Bootstrap quickly without understanding specificity | CSS becomes unmaintainable; dark mode breaks; refactoring requires full rewrite | Never — always use proper selector specificity or Bootstrap variables |
-| Hardcoding icon calls (`fa("icon")`) in modules | Fast development, no abstraction needed | Icon inconsistency across app; changing icon library requires 100+ line changes | Acceptable for MVP only; refactor to semantic wrappers by v10.0 |
-| Copy-paste preset prompts | New preset ships in 1 hour instead of 4 | Maintenance cost scales O(n) with preset count; inconsistencies accumulate | Acceptable until 3rd preset; refactor to component architecture by 4th |
-| Module-local theme overrides | Module renders correctly in isolation | Theme desync across modules; dark mode toggle only works in some panels | Never in production — use global theme only |
-| Skipping connection leak fixes | Ship design system features faster | App stability degrades; leaks amplify under increased render load; emergency hotfix required | Never — fix leaks before increasing load |
-| Deferring section_hint encoding (#118) | PDF ingestion works "well enough" | Section-targeted RAG fallback unavailable; new presets have lower quality | Acceptable if fallback tiers compensate; revisit when RAG quality SLA needed |
-| Using `prefers-color-scheme` media queries in custom CSS | Works for users who don't toggle | Toggle ignored by media-query-bound components; user preference lost on refresh | Never after adding `input_dark_mode()` — use class-based targeting |
-| Single-tier section keyword matching | Simple heuristic, easy to understand | Brittle across paper structure variations; preset quality inconsistent | Acceptable for MVP if disclaimer warns "works best on standard papers"; add fallback tiers for production |
+| Using `observe()` instead of `observeEvent()` for button handlers | Saves 2 lines (no explicit event) | Reactive invalidation loop risk, hard to debug | Never — always use `observeEvent()` for user actions |
+| Storing cursor in notebook database | Preserves pagination across sessions | Cursor expiry (unknown TTL) causes stale state bugs | Never — cursors are ephemeral, reset on session start |
+| Tooltip via `title` attribute instead of bslib | Works in dynamic renderUI, no JS needed | Less polished UX, no customization, no dark mode support | Acceptable for icon buttons in loops (performance trade-off) |
+| Hardcoding per_page=25 instead of using config | One less setting to manage | Can't adjust without code change | Never — already in config (PROJECT.md line 2214) |
+| Skipping cursor reset on filter change | Simpler filter observer code | Produces invalid results, confuses users | Never — breaks core functionality |
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external services.
-
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| OpenRouter LLM API | Assuming all models accept same prompt structure (instructions vs messages API) | Test each new model with preset prompts; document model-specific quirks (v7.0: Gemini Flash vs Claude Sonnet syntax differences) |
-| ragnar vector stores | Treating ragnar store connection as disposable (no cleanup) | Always close store connection: `on.exit(DBI::dbDisconnect(store@con), add = TRUE)` for S7 objects |
-| DuckDB async tasks | Sharing connection across main session and mirai workers | Pass `db_path` to worker, create independent connection (v7.0 pattern) |
-| bslib theme system | Injecting CSS via `bs_add_rules()` for theme variables | Use `bs_add_variables()` to set Sass variables before compilation; reserve `bs_add_rules()` for truly runtime-specific CSS |
-| visNetwork htmlwidget | Expecting widget to reactively update when Shiny theme changes | Store theme variables in reactive values, regenerate entire widget on theme change |
-| bsicons in nav_panel | Passing `bs_icon()` directly to `icon` argument | Wrap with `tags$i()`: `icon = tags$i(bs_icon("star"))` (GitHub issue #639) |
+| OpenAlex cursor pagination | Assuming cursor survives filter changes | Reset cursor to NULL when ANY filter changes (year, type, keywords, journal quality) |
+| OpenAlex per_page limit | Using per_page > 200 to "get all results faster" | OpenAlex docs say 1-100 range, codebase uses 25 default (line 2214) — verify 200 is max |
+| bslib tooltip + renderUI | Wrapping dynamic UI with `tooltip()` and expecting it to persist | Use `title` attribute for dynamic content OR add JS reinit handler |
+| Bootstrap grid alignment | Placing slider and histogram in sibling columns | Place in same container `div()`, use `theme(plot.margin = margin(0,0,0,0))` |
+| Shiny module namespacing | Forgetting `ns()` when adding new inputs to module UI | Always wrap input IDs: `actionButton(ns("new_button"), ...)` |
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as usage grows.
-
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Regenerating all module UI on theme change | App lags when toggling dark mode | Only regenerate theme-reactive components; cache static UI elements | >10 modules with complex UI |
-| N+1 RAG retrieval calls for multi-section presets | Preset generation takes 5-10 seconds | Batch retrieve all sections in single call; filter/group in-memory | >3 section targets per preset |
-| Per-icon render calls without wrapper cache | Button-heavy modules (settings, sidebar) render slowly | Cache icon HTML in module initialization: `icon_cache$save <- bs_icon("save")` | >20 icons per module |
-| Individual citation audit API calls | Batch import of 50 papers takes 10+ minutes | Batch audit requests where API supports it; parallelize with rate limiting | >10 papers per import |
-| Module-level CSS specificity overrides | CSS file grows unbounded; selectors nest 5+ levels deep | Flatten specificity hierarchy; use Bootstrap utilities and semantic classes | >5000 LOC CSS |
-| Section keyword matching on full paper text | RAG retrieval latency increases with paper length | Pre-chunk papers with section boundaries; search within chunk metadata first | Papers >50 pages |
-
-## Security Mistakes
-
-Domain-specific security issues beyond general web security.
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Including RAG retrieved text directly in prompts without delimiter | Prompt injection via malicious paper content | Use OWASP instruction-data separation (v2.1): `<instructions>...</instructions> <data>...</data>` |
-| Displaying LLM raw output as HTML without sanitization | XSS via malicious LLM output (code blocks with script tags) | Sanitize LLM output with `commonmark::markdown_html(... extensions = FALSE)` or HTML escaper |
-| Storing API keys in app state without encryption | Keys leaked via error messages, logs, or debug dumps | Use `keyring` package; never store in reactiveValues; redact from logs |
-| Allowing user-supplied SQL in filters (even indirectly via LLM) | SQL injection via crafted paper metadata | Parameterize all queries; validate LLM filter outputs against allowlist (v1.0 decision) |
-| Trusting paper DOIs without validation | Cache poisoning via fake DOI entries | Validate DOI format (`10.xxxx/yyyy`); check OpenAlex response status; handle missing papers gracefully |
-| Embedding user content without attribution | Copyright violation, license non-compliance | Store paper license metadata; display attribution in exports; block embedding of retracted papers |
+| Re-rendering entire paper list on cursor append | UI flickers, slow response on Load More | Use `insertUI()` to append new papers instead of re-rendering full list | >100 papers in list |
+| Tooltip initialization on every renderUI | Lag when switching filters, memory leak | Use `title` attribute for frequently re-rendered elements | >20 tooltips in dynamic UI |
+| 400ms year slider debounce too aggressive | Users drag slider, release, wait 400ms, THEN histogram updates | Use 200ms debounce for visual feedback, 400ms for API calls | Never — 400ms is good |
+| Keyword filter reactive chain firing on every keystroke | Lag when typing in search box | Already debounced — DO NOT remove debounce | N/A (already prevented) |
 
 ## UX Pitfalls
 
-Common user experience mistakes in this domain.
-
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Inconsistent button variants (primary vs secondary) across modules | Cognitive load increases; users unsure which actions are primary | Document button hierarchy in design system: primary (1 per context), secondary (multiple ok), tertiary (destructive); audit all modules |
-| Icon-only buttons without tooltips or aria-labels | Screen reader users can't identify button purpose; visual users guess | Always pair icon buttons with tooltip: `bslib::tooltip(actionButton(..., icon = icon_save()), "Save notebook")` |
-| Dark mode toggle without persistence | Users must re-toggle every session | Store preference in localStorage or user settings database table |
-| AI preset outputs without disclaimers | Users trust incorrect LLM summaries; cite app in papers inappropriately | Add disclaimer header (v2.1): "AI-generated content. Verify accuracy before use." |
-| Citation audit errors silently ignored | Users assume audit succeeded, miss critical references | Show error modal with details; log failed DOIs; offer "Retry Failed" button |
-| Design system applied gradually (module-by-module) | Users see "half-migrated" UI; perceive app as broken | Apply design system atomically: all modules in single release; feature flag if phased rollout required |
-| Methodology Extractor returns abstract when section not found | Users trust wrong content; "Methodology" label misleads | Show retrieval diagnostics: "Could not locate methodology section. Showing abstract." |
-| No visual feedback during long-running preset generation | Users think app froze; click button multiple times | Show progress indicator; disable button during generation; display estimated time |
+| Load More button visible when cursor is NULL | User clicks, gets "no more results" — confusing because Refresh just ran | Conditionally render Load More only when cursor exists: `if (!is.null(cursor_state())) { ... }` |
+| No visual distinction between Refresh and Load More | User confuses "get new papers" with "append more of same query" | Use different icons: Refresh = rotate, Load More = circle-plus; add tooltips explaining difference |
+| Year histogram updates but slider stays static after Load More | User expects slider range to expand when older/newer papers load | Update slider bounds after Load More: `updateSliderInput(session, "year_range", min = new_min, max = new_max)` |
+| Document type filters show 6 checkboxes, all checked by default | Visual clutter, user doesn't know they're filtering | Default to "all types" (no filter), add "Customize types" collapsible section |
+| Icon-only buttons without tooltips or aria-labels | Screen reader users can't identify button purpose; visual users guess | Always pair icon buttons with tooltip: `actionButton(..., title = "Seed Citation Network")` OR `bslib::tooltip(actionButton(...), "Save notebook")` |
 
 ## "Looks Done But Isn't" Checklist
 
-Things that appear complete but are missing critical pieces.
-
-- [ ] **Design System CSS:** Often missing dark mode compatibility — verify all custom CSS works in both Catppuccin Latte and Mocha
-- [ ] **Icon Library Migration:** Often missing semantic wrapper functions — verify all icon calls use `icon_*()` wrappers, not raw `fa()` or `bs_icon()`
-- [ ] **Button Theming:** Often missing state variants (hover, active, disabled) — verify design system defines all states and all modules implement them
-- [ ] **Module Theme Reactivity:** Often missing `session$getCurrentTheme()` wiring — verify modules redraw when dark mode toggles
-- [ ] **AI Preset Prompts:** Often missing OWASP instruction-data separation — verify all new presets use delimiter pattern from v2.1
-- [ ] **Section-Targeted RAG:** Often missing fallback tiers — verify preset doesn't fail silently when section not found
-- [ ] **Citation Audit Concurrency:** Often missing transaction handling or retry logic — verify batch imports don't corrupt database
-- [ ] **Connection Lifecycle:** Often missing `on.exit()` cleanup — verify every `dbConnect()` or `connect_ragnar()` has paired cleanup
-- [ ] **Accessibility:** Often missing aria-labels or keyboard navigation — verify design system components meet WCAG AA (Catppuccin palette does, but interactive elements need testing)
-- [ ] **Export Consistency:** Often missing theme compatibility — verify exported HTML/slides use theme variables, not hardcoded colors
+- [ ] **Load More button:** Often missing cursor reset on filter change — verify cursor_state(NULL) in ALL filter observers (year_range, document types, Edit Search save, keyword changes)
+- [ ] **Cursor pagination:** Often missing NULL cursor check before rendering Load More — verify button only shows when `!is.null(cursor_state())`
+- [ ] **Document type filters:** Often missing work_type column existence check — verify graceful degradation if column missing (existing pattern line 1997-2006)
+- [ ] **Tooltip accessibility:** Often missing title attribute on icon-only buttons in dynamic UI — verify every icon button has title or bslib tooltip
+- [ ] **Composable filter chain:** Often breaks when new filter added between modules — verify order: papers_data → keyword → journal → display, NO filters between keyword and journal
+- [ ] **Year slider alignment:** Often misaligned with histogram due to plot margins — verify `theme(plot.margin = margin(0,0,0,0))` and same container div
+- [ ] **Button observer bindings:** Often copy-pasted with wrong IDs after reordering — verify each button ID matches its observer name
+- [ ] **Reactive invalidation loops:** Often created by reading reactive value inside observer that modifies same value — verify `isolate()` used when reading cursor_state inside load-more observer
 
 ## Recovery Strategies
 
-When pitfalls occur despite prevention, how to recover.
-
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| CSS specificity wars | HIGH | 1. Audit all `!important` usage; 2. Rebuild CSS using Bootstrap variable overrides; 3. Regression test all modules light+dark; 4. Document specificity hierarchy |
-| Icon library fragmentation | MEDIUM | 1. Create icon mapping table (existing → semantic name); 2. Build wrapper functions; 3. Search-replace all calls; 4. Visual regression test |
-| Module theme desync | LOW | 1. Add `observeEvent(session$getCurrentTheme(), ...)` to affected modules; 2. Invalidate cached UI elements; 3. Test dark mode toggle |
-| Section RAG brittleness | MEDIUM | 1. Add fallback tier retrieval; 2. Expand keyword dictionaries; 3. Test on diverse paper corpus; 4. Add retrieval diagnostics UI |
-| Prompt template coupling | HIGH | 1. Extract shared components to functions; 2. Refactor all presets to use components; 3. Test matrix (presets × format changes); 4. Version components |
-| Citation audit race conditions | HIGH | 1. Add database transactions with SERIALIZABLE isolation; 2. Implement retry logic; 3. Add integration test for concurrent writes; 4. Check foreign key integrity |
-| Dark mode collision | MEDIUM | 1. Replace media queries with class-based selectors; 2. Add localStorage persistence; 3. Set explicit default mode; 4. Test OS preference matrix |
-| Connection leak amplification | HIGH | 1. Fix all connection leaks immediately; 2. Add leak detection tests; 3. Monitor memory during CI; 4. Document connection ownership |
+| Reactive invalidation loop from cursor state | LOW | 1. Add `isolate(cursor_state())` in load-more observer; 2. Restart Shiny app; 3. Test Load More button |
+| Cursor state not reset on filter change | LOW | 1. Add `cursor_state(NULL)` to filter observer; 2. Test: change filter → verify Load More hidden → click Refresh → verify Load More appears if results > per_page |
+| Composable filter chain broken by document type filter | MEDIUM | 1. Move document type filtering into `papers_data()` reactive; 2. Test keyword → journal quality → display chain; 3. Verify "no papers" state with all filters active |
+| bslib tooltip not appearing on dynamic UI | LOW | 1. Replace `bslib::tooltip()` with `title` attribute; 2. Test tooltip appears after re-render; 3. Add aria-label for screen readers |
+| Year slider/histogram misalignment | LOW | 1. Wrap both in single container div; 2. Verify ggplot2 uses `theme(plot.margin = margin(0,0,0,0))`; 3. Test responsive resize |
+| Button reordering breaks observer | LOW | 1. Search codebase for button ID; 2. Verify observer name matches; 3. Click button to test; 4. Check browser console for errors |
+| Color change touches ragnar leak code | HIGH | 1. Revert all logic changes; 2. Keep ONLY CSS class changes; 3. Re-run full test suite; 4. Defer ragnar leak fix to future milestone |
+| OpenAlex cursor parsing breaks on format change | MEDIUM | 1. Remove all cursor parsing logic; 2. Store cursor as-is; 3. Remove "page X of Y" UI; 4. Test pagination with opaque cursor |
 
 ## Pitfall-to-Phase Mapping
 
-How roadmap phases should address these pitfalls.
-
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| CSS specificity wars | Phase 1: Design System Foundation | All custom CSS uses Bootstrap variables or semantic classes; no `!important` added |
-| Icon library fragmentation | Phase 1: Design System Foundation | All icon calls use `icon_*()` wrappers; audit script shows 0 raw `fa()` or `bs_icon()` calls |
-| Module theme desync | Phase 2: Button/Sidebar Theming | Dark mode toggle updates all modules; saved content flagged if outdated; no visual regressions |
-| Section RAG brittleness | Phase 4: Methodology Extractor | Retrieval diagnostics show <30% fallback rate on test corpus; works on journal + preprint papers |
-| Prompt template coupling | Phase 3: AI Preset Foundation Refactor | New presets compose from shared components; citation format change requires 1-file edit |
-| Citation audit race conditions | Phase 2: Citation Audit Bugs | Integration test passes: 10 concurrent paper additions result in correct database state |
-| Dark mode collision | Phase 2: Sidebar/Button Theming | No components use `prefers-color-scheme` media queries; toggle works regardless of OS preference |
-| Connection leak amplification | Phase 0: Tech Debt Cleanup | Leak detection test passes; memory usage stable across 100-module-render session |
+| Reactive invalidation loop from cursor state | Phase 1 (Refresh/Load-More split) | Click Load More 5 times → verify no infinite loop, paper count increases by per_page each time |
+| Cursor state invalidation on filter change | Phase 2 (OpenAlex cursor pagination) | Change year filter → verify Load More hidden → click Refresh → verify Load More appears if cursor exists |
+| Document type filter breaking composable chain | Phase 3 (Document type expansion) | Select keyword → uncheck all types → verify empty list; toggle journal quality → verify filter still works |
+| bslib tooltip not appearing on dynamic UI | Phase 4 (Tooltip addition) | Hover button → trigger re-render → hover again → verify tooltip still appears |
+| Year slider/histogram misalignment | Phase 5 (Year filter alignment) | Resize browser to 768px → verify bars align with slider; drag slider → verify bars update in sync |
+| Button reordering breaking observers | Phase 6 (Toolbar reordering) | Click every button in toolbar after reorder → verify correct modal/action fires |
+| Color harmonization touching ragnar leak | Phase 7 (Color harmonization) | Run git diff before commit → verify ONLY class attribute changes, no .R server logic changes |
+| OpenAlex cursor format assumptions | Phase 2 (OpenAlex cursor pagination) | Code review: search for "cursor" → verify no parsing/decoding/validation logic, only store/pass/reset |
+
+## Additional Shiny-Specific Pitfalls
+
+### Pitfall 9: Year Slider Debounce Losing Last Value on Rapid Interaction
+
+**What goes wrong:**
+User drags year slider rapidly, releases at 2018, but 400ms debounce means the slider value that triggers reactive is 2019 (the second-to-last position during drag). Histogram and paper list show 2019, but slider thumb shows 2018.
+
+**Why it happens:**
+`debounce(year_range_raw, 400)` delays reactive invalidation by 400ms. During rapid drag, multiple values queue up, and debounce only fires for the value that was set 400ms ago, not the final value.
+
+**How to avoid:**
+1. Current implementation is CORRECT (line 974): `year_range <- debounce(year_range_raw, 400)`
+2. DO NOT reduce debounce below 200ms — creates reactive storm
+3. Accept minor UX quirk: debounce is necessary to prevent histogram re-render on every slider step
+4. Alternative: use Apply Filter button (like citation network Phase 24) for deliberate interaction
+
+**Warning signs:**
+- User reports "slider shows 2018 but papers are from 2019"
+- Histogram updates before user finishes dragging (debounce too short)
+- App becomes unresponsive during slider drag (no debounce)
+
+**Phase to address:**
+Phase 5 (Year filter alignment) — verify debounce value is appropriate, document UX trade-off in plan
+
+---
+
+### Pitfall 10: Module Namespace Collision When Adding Tooltips to Nested Modules
+
+**What goes wrong:**
+Adding tooltips with IDs to buttons inside keyword filter module — tooltip IDs collide when multiple search notebooks are open (Shiny Server multi-session scenario). Tooltip for "Include" button in Notebook A triggers when hovering button in Notebook B.
+
+**Why it happens:**
+Shiny module namespacing (`ns()`) creates unique IDs per module instance, but if tooltip ID is hardcoded or not namespaced, it becomes global. bslib's `tooltip(..., id = "keyword_tooltip")` needs `id = ns("keyword_tooltip")` inside module.
+
+**How to avoid:**
+1. Always use `ns()` for tooltip IDs inside modules: `tooltip(..., id = ns("tooltip_id"))`
+2. Test with two search notebooks open: hover button in Notebook 1, verify tooltip doesn't appear in Notebook 2
+3. If tooltip doesn't need programmatic updates, omit `id` parameter (auto-generated unique ID)
+4. Use browser dev tools to verify tooltip `id` has module prefix: `search_notebook_1-keyword_filter-tooltip_id`
+
+**Warning signs:**
+- Tooltip appears in wrong notebook when hovering
+- JavaScript console shows "Tooltip with id X already exists"
+- Tooltip update via `update_tooltip()` affects wrong module instance
+
+**Phase to address:**
+Phase 4 (Tooltip addition) — namespace verification for tooltips in keyword/journal filter modules
+
+---
 
 ## Sources
 
-### R/Shiny and bslib Documentation
-- [bslib Theming Documentation](https://rstudio.github.io/bslib/articles/theming/index.html)
-- [bslib Dark Mode Input Control](https://rstudio.github.io/bslib/reference/input_dark_mode.html)
-- [Shiny Modules Tutorial (datanovia)](https://www.datanovia.com/learn/tools/shiny-apps/advanced-concepts/modules.html)
-- [Mastering Shiny: Modules Chapter](https://mastering-shiny.org/scaling-modules.html)
-- [Engineering Production-Grade Shiny Apps: Project Structure](https://engineering-shiny.org/structuring-project.html)
-- [Shiny - bslib v0.9.0 brings branded theming to Shiny for R](https://shiny.posit.co/blog/posts/bslib-0.9.0/)
+### OpenAlex API Documentation
+- [Paging | OpenAlex technical documentation](https://developers.openalex.org/how-to-use-the-api/get-lists-of-entities/paging) — cursor pagination mechanics, per_page limits (1-100)
+- [OpenAlex API Tutorials](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb) — cursor usage examples
+- OpenAlex documentation explicitly warns cursors are opaque and should not be parsed
 
-### CSS and Design Systems
-- [MDN: CSS Specificity](https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity)
-- [How To Override Bootstrap 5 CSS Styles (ThemeSelection)](https://themeselection.com/override-bootstrap-css-styles/)
-- [Troubleshooting Bootstrap CSS Overrides (Mindful Chase)](https://www.mindfulchase.com/explore/troubleshooting-tips/troubleshooting-bootstrap-css-overrides-fixing-unintended-style-conflicts.html)
-- [Design System Naming Conventions (DesignRush)](https://www.designrush.com/best-designs/apps/trends/design-system-naming-conventions)
-- [Iconography Guide (designsystems.com)](https://www.designsystems.com/iconography-guide/)
-- [Iconography In Design Systems: Troubleshooting And Maintenance (Smashing Magazine)](https://www.smashingmagazine.com/2024/04/iconography-design-systems-troubleshooting-maintenance/)
+### Shiny Reactive Programming
+- [Chapter 16 Escaping the graph | Mastering Shiny](https://mastering-shiny.org/reactivity-components.html) — `isolate()` and `observeEvent()` patterns
+- [Chapter 15 Common Application Caveats | Engineering Production-Grade Shiny Apps](https://engineering-shiny.org/common-app-caveats.html) — reactive invalidation loops, observe vs observeEvent
+- [Event handler — observeEvent • shiny](https://rstudio.github.io/shiny/reference/observeEvent.html) — handler expression executed within isolate() scope
 
-### Dark Mode Implementation
-- [Dark Mode Toggle and prefers-color-scheme (DEV Community)](https://dev.to/abbeyperini/dark-mode-toggle-and-prefers-color-scheme-4f3m)
-- [MDN: prefers-color-scheme](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme)
-- [The prefers-color-scheme media query (Kau-Boys)](https://kau-boys.com/3958/web-development/the-prefers-color-scheme-media-query)
-- [The CSS prefers-color-scheme user query and order of preference (Sara Soueidan)](https://www.sarasoueidan.com/blog/prefers-color-scheme-browser-vs-os/)
+### bslib Tooltips
+- [Tooltips & Popovers • bslib](https://rstudio.github.io/bslib/articles/tooltips-popovers/index.html) — dynamic UI pattern with renderUI, update_tooltip() usage
+- [Shiny - Shiny for R updates: tooltips, popovers, a new theme, and more](https://shiny.posit.co/blog/posts/bslib-tooltips/) — combining tooltips with dynamic UI
+- Bslib docs confirm tooltips need reinitialization after renderUI, recommend `title` attribute for dynamic content
 
-### RAG and LLM Prompt Engineering
-- [Prompt Engineering for RAG Pipelines (StackAI)](https://www.stackai.com/blog/prompt-engineering-for-rag-pipelines-the-complete-guide-to-prompt-engineering-for-retrieval-augmented-generation)
-- [Seven Failure Points When Engineering a RAG System (arXiv)](https://arxiv.org/pdf/2401.05856)
-- [Advanced RAG Techniques (Meilisearch)](https://www.meilisearch.com/blog/rag-techniques)
-- [Ultimate Prompt Engineering Guide 2026 (Sariful Islam)](https://sarifulislam.com/blog/prompt-engineering-2026/)
-- [10 Common LLM Prompt Mistakes (GoInsight.ai)](https://www.goinsight.ai/blog/llm-prompt-mistake/)
-- [Towards Understanding Retrieval Accuracy and Prompt Quality in RAG Systems (arXiv)](https://arxiv.org/html/2411.19463v1)
-
-### Testing and Code Quality
-- [Testing Legacy Shiny Apps (Jakub Sobolewski)](https://jakubsobolewski.com/blog/testing-legacy-shiny/)
-- [How to Write Tests with shiny::testServer (Appsilon)](https://www.appsilon.com/post/how-to-write-tests-with-shiny-testserver)
-- [Mastering Shiny: Testing Chapter](https://mastering-shiny.org/scaling-testing.html)
-
-### Database and Async Operations
-- [mirai Documentation (CRAN)](https://cran.r-project.org/web/packages/mirai/readme/README.html)
-- [A simple workflow for async Shiny with mirai (R-bloggers)](https://www.r-bloggers.com/2024/01/a-simple-workflow-for-async-shiny-with-mirai/)
-- [DuckDB Memory Behavior Issue #464](https://github.com/duckdb/duckdb/issues/464)
-- [Option to silence warning "Database is garbage-collected" (GitHub Issue #34)](https://github.com/duckdb/duckdb-r/issues/34)
-
-### Citation and Bibliography
-- [Citation Errors in Scientific Research (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10307651/)
-- [5 Common Citation Mistakes (Sourcely)](https://www.sourcely.net/resources/5-common-citation-mistakes-and-how-to-fix-them-instantly)
-- [10 Common Citation Mistakes (Bibliography.com)](https://www.bibliography.com/citations/10-common-citation-mistakes-and-how-to-ensure-you-avoid-them/)
-
-### Icon Libraries
-- [Bootstrap 5 icons vs Font Awesome (Themesberg)](https://themesberg.com/blog/bootstrap/bootstrap-icons-vs-fontawesome)
-- [bsicons GitHub Issue #639 (nav_panel integration)](https://github.com/rstudio/bslib/issues/639)
-- [Font Awesome Accessibility Docs](https://fontawesome.com/v5/docs/web/other-topics/accessibility)
+### Bootstrap 5 Grid System
+- [Grid system · Bootstrap v5.3](https://getbootstrap.com/docs/5.3/layout/grid/) — flexbox column alignment, responsive gutters
+- [Columns · Bootstrap v5.0](https://getbootstrap.com/docs/5.0/layout/columns/) — column width calculations, alignment utilities
 
 ### Project-Specific Context
-- Serapeum PROJECT.md (v1.0–v9.0 decision log, known tech debt)
-- GitHub issues #117 (connection leak), #118 (section_hint encoding), #119 (dead code), #133 (citation audit papers not appearing), #134 (citation audit error multiple papers), #137 (sidebar colors), #138 (global design system), #139 (abstract buttons)
+- `.planning/PROJECT.md` lines 249, 2214 — secondary ragnar leak known tech debt, abstracts_per_search config
+- `R/mod_search_notebook.R` lines 794-798, 974, 1997-2006 — composable filter chain, year debounce, work_type column check
+- `R/api_openalex.R` lines 293-376 — search_papers() implementation, per_page parameter
 
 ---
-*Pitfalls research for: Adding global design system + AI synthesis presets to existing R/Shiny research assistant*
-*Researched: 2026-03-04*
+
+*Pitfalls research for: v11.0 Search Notebook UX improvements (toolbar, filters, pagination, tooltips, alignment)*
+*Researched: 2026-03-06*

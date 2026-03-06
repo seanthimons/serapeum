@@ -1,237 +1,207 @@
 # Project Research Summary
 
-**Project:** Serapeum v10.0 Theme Harmonization & AI Synthesis
-**Domain:** R/Shiny Research Assistant UI Design System + AI Synthesis Presets
-**Researched:** 2026-03-04
+**Project:** Serapeum v11.0 Search Notebook UX Milestone
+**Domain:** Academic search interface with toolbar improvements, pagination, filtering enhancements
+**Researched:** 2026-03-06
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone extends Serapeum's existing R/Shiny research assistant with a global design system policy and two new AI synthesis presets (Methodology Extractor, Gap Analysis Report). The research reveals **excellent architectural alignment** — all features integrate cleanly with existing patterns. Theme policy extends the established Catppuccin system, new presets reuse section-targeted RAG from v2.1, and critical bugs are self-contained fixes to existing modules. No new dependencies required, no architectural changes needed.
+This milestone refines the search notebook interface with seven targeted UX improvements: toolbar button reorganization with semantic colors, Load More pagination to replace single-page results, expanded document type filters (16 OpenAlex types vs current 3), year slider/histogram alignment fixes, comprehensive tooltip coverage for accessibility, and visual harmonization with Catppuccin theme. Research confirms all features can be implemented with the existing stack (bslib, Bootstrap 5, Shiny, OpenAlex API) — no new dependencies required.
 
-The recommended approach is **foundation-first, bugs-second, features-third**: establish design system policy before touching any UI code, fix citation audit race conditions before increasing rendering load, then build on this stable foundation with new presets. This ordering prevents CSS specificity wars (pitfall #1), connection leak amplification (pitfall #8), and module theme desynchronization (pitfall #3).
+The recommended approach is sequential implementation following dependency order: (1) establish OpenAlex cursor pagination in API layer, (2) implement pagination state management in server, (3) add Load More UI, (4) restructure toolbar with semantic colors, (5) add tooltips for accessibility, (6) enhance document type filter UX, (7) fix year slider alignment. This order ensures stable foundation before cosmetic refinements. Icon+text buttons outperform icon-only for comprehension in academic tools where users are infrequent (not daily power users), and Load More buttons provide better control than infinite scroll for goal-oriented search workflows.
 
-Key risks center on **consistency and brittleness**: icon library fragmentation across 18 modules, section-targeted RAG keyword heuristics failing on non-standard papers, and prompt template coupling as preset count grows from 5 to 7. All are preventable with proper phasing: audit icons before harmonizing buttons, test retrieval on diverse paper types before writing preset prompts, and refactor shared prompt components before adding new presets.
+Key risks center on reactive programming pitfalls: cursor state invalidation loops if Load More observer isn't properly isolated, cursor becoming stale when filters change if reset logic is incomplete, and bslib tooltips disappearing on dynamic UI re-renders. Mitigations include strict reactive hygiene (isolate() for cursor reads, cursor reset on ALL filter changes), tooltip strategy (title attributes for dynamic content, bslib for static buttons), and composable filter chain integrity (document type filtering before keyword/journal modules). Color harmonization must remain CSS-only to avoid scope creep into known tech debt (secondary ragnar leak).
 
 ## Key Findings
 
 ### Recommended Stack
 
-**No new dependencies required.** All v10.0 features can be implemented with the existing stack (bslib 0.9.0, pdftools 3.6.0, bsicons 0.1.2, ragnar). The milestone extends current capabilities rather than adding new ones.
+**No new dependencies required.** All v11.0 features use existing capabilities: bslib 0.10.0 provides `tooltip()` with Bootstrap 5 dark mode integration, OpenAlex API v1 supports cursor pagination via `cursor` parameter and `meta.next_cursor` response field, Bootstrap 5 `btn-toolbar` and `btn-group` classes handle button layout, and bsicons 0.1.2 provides 2000+ icons (76 wrappers already in `R/theme_catppuccin.R`).
 
-**Core technologies (unchanged):**
-- **bslib 0.9.0** — Bootstrap 5 theming with Catppuccin palette; `bs_add_variables()` handles semantic color mapping for design system
-- **bsicons 0.1.2** — Bootstrap-native icon library with 2000+ icons; already used for citation audit, extend to all modules for consistency
-- **pdftools 3.6.0** — PDF text extraction; methods sections already extracted, methodology preset reuses existing chunks
-- **ragnar** — Section-aware chunking with `detect_section_hint()`; recognizes "methods", "limitations", "discussion" sections for targeted retrieval
-
-**Optional upgrades (not required):**
-- bslib 0.10.0 (latest) deferred to v11.0 — current version sufficient for theme variables, upgrade during active milestone risky
-- pdftools 3.7.0 (latest) deferred — no new API, methodology extraction uses same `pdf_text()` function
+**Core technologies:**
+- **bslib 0.10.0**: Native Bootstrap 5 tooltips via `tooltip()`, flexbox cards for slider/histogram alignment — already installed, no upgrade needed
+- **OpenAlex API v1**: Cursor pagination (`cursor` param, returns `meta.next_cursor`), 16 work type taxonomy — existing endpoint, new parameter usage
+- **Bootstrap 5.3**: `btn-toolbar`, `btn-group`, flexbox utilities, tooltip JavaScript — available via bslib, no custom framework
+- **bsicons 0.1.2**: Icon library for button icons (arrow-clockwise, plus-circle, download) — already integrated with 76 semantic wrappers
 
 **What NOT to add:**
-- sass package standalone — already bundled with bslib
-- tabulizer/tesseract — methods text already extracted by pdftools, no OCR needed
-- fontawesome as alternative — stick to bsicons for consistency, avoid library fragmentation
+- histoslider package (overkill for simple alignment)
+- shinyWidgets (bslib tooltips sufficient)
+- Custom tooltip JavaScript (Bootstrap 5 native support)
+- New icon library (bsicons established, mixing libraries fragments design)
 
 ### Expected Features
 
 **Must have (table stakes):**
-- **Consistent button semantics** — primary (main action), secondary (alternative), danger (destructive) with uniform colors/meanings across app
-- **Dark mode compatibility** — all UI elements readable in both Catppuccin Latte/Mocha without manual switching
-- **AI output disclaimers** — warnings when content is AI-generated (research integrity, already in v2.1)
-- **Structured output format** — research synthesis as tables/lists, not prose walls (validated in Literature Review Table v4.0)
+- Icon+text for toolbar buttons — text labels reduce ambiguity, icon-only increases cognitive load and fails on touch devices (no hover)
+- Load More button at result set end — academic search is goal-oriented, users need control over loading vs infinite scroll
+- Tooltips for icon-only buttons — WCAG 2.2 requirement (1.4.13), keyboard-accessible
+- Distinct Refresh vs Load More — different actions require different affordances (Refresh = retry/replace, Load More = expand/append)
+- Disable Load More when exhausted — prevents confusion, shows "all results loaded" state
+- Checkboxes for multi-select document types — standard faceted search pattern
 
-**Should have (competitive differentiators):**
-- **Methodology Extractor preset** — auto-extract methods sections using PICO/IMRAD framework, section-targeted RAG, structured output
-- **Gap Analysis Report preset** — cross-paper synthesis using PICOS framework to identify under-researched areas, conflicting findings, methodological gaps
-- **Design token system** — single source of truth for colors/spacing/icons documented as policy (not just scattered CSS)
-- **Preset icon system** — consistent icons per preset type (already implemented for Overview, Research Questions, Literature Review; extend to new presets)
+**Should have (competitive):**
+- Icon+text with brand colors — Topics button pattern (icon + label + semantic color) already established in v10.0
+- Result count in Load More tooltip — "Load More (50 available)" sets expectation for batch size
+- Active filter chips for document types — modern faceted search UI, helps users track active filters
+- Button grouping with visual separators — groups related actions (Import|Edit vs Export|Network)
+- Consistent icon position (left-of-text) — dominant 2026 pattern, visual rhythm
 
-**Defer (v2+ / anti-features):**
-- Custom color themes (breaks accessibility, maintenance burden)
-- Per-preset color customization (conflicts with semantic color meaning)
-- Global "Regenerate All" button (expensive, slow, unclear UX)
-- Gap analysis on single paper (gaps are comparative, require 3-5+ papers)
-- Live theme preview in settings (adds complexity, fixed palette means preview unnecessary)
+**Defer (v2+):**
+- Adaptive labels (mobile collapse to icon-only) — responsive design complexity, not needed for desktop app
+- Batch size control for Load More — adds UI complexity, unclear user demand
+- Sticky Load More — mobile pattern, less useful for desktop scroll
+- Keyboard shortcut hints in tooltips — power user feature
+- Expanded document types beyond current 6 — low priority until user requests
 
 ### Architecture Approach
 
-All new features integrate with existing patterns through pure extension — no architectural changes required. Theme policy extends `R/theme_catppuccin.R` with documentation. Presets extend `R/rag.R` by cloning `generate_conclusions_preset()` architecture. Citation audit fixes touch `R/mod_citation_audit.R` and `R/mod_search_notebook.R` with defensive SQL and reactive invalidation. Build order: design policy (foundation) → bug fixes (critical path) → sidebar/button theming (apply policy) → methodology preset → gap analysis preset.
+The composable filter chain pattern (papers_data → keyword_filter → journal_filter → display) must be preserved when adding document type filtering. Pagination state lives in `reactiveValues()` (cursor, has_more, total_fetched) rather than database — cursors are ephemeral, session-scoped, and expire. OpenAlex cursor pagination requires new `search_papers_with_pagination()` function returning `list(papers, next_cursor, count)`. Tooltip strategy splits: static buttons use `bslib::tooltip()`, dynamic renderUI elements use `title` attributes (JavaScript reinitialization complexity avoided).
 
-**Major components (modified/new):**
-1. **R/theme_catppuccin.R** — ADD semantic action color policy documentation (e.g., danger=destructive, primary=main action)
-2. **R/rag.R** — ADD `generate_methodology_preset()` and `generate_gap_analysis_preset()` using section-targeted RAG with three-level fallback
-3. **R/mod_citation_audit.R** — FIX multi-paper import error (#134) with defensive SQL/error handling
-4. **R/mod_search_notebook.R** — FIX abstract refresh reactive (#133), apply button theming (#137, #139), add preset buttons
-5. **R/mod_document_notebook.R** — ADD methodology + gap analysis preset buttons following existing pattern
-6. **app.R** — APPLY design policy to sidebar buttons (#137)
-
-**Key patterns leveraged:**
-- **Shiny module pattern** — 14 production modules with namespace isolation, reactive communication
-- **Preset function pattern** — RAG retrieval → prompt building → LLM call → cost logging (established in v2.1)
-- **Section-targeted RAG** — `detect_section_hint()` + `search_chunks_hybrid(section_filter)` with three-level fallback (graceful degradation)
-- **Theme system** — Catppuccin LATTE/MOCHA via `bs_theme()` + `bs_add_rules()`, applied in app.R
+**Major components:**
+1. **API pagination layer** (api_openalex.R) — `search_papers_with_pagination()` adds cursor parameter, extracts `meta.next_cursor` from response, treats cursor as opaque string (never parse/decode)
+2. **Pagination state management** (mod_search_notebook_server) — `pagination_state` reactiveValues tracks cursor/has_more, reset on ALL filter changes (year, type, Edit Search save), `do_load_more()` mirrors Refresh but with cursor continuation
+3. **Toolbar restructuring** (mod_search_notebook_ui) — reorder to Import → Refresh → Load More → Export → Network → Edit, apply semantic colors (primary=lavender for Refresh, info=sapphire for Load More/Network), add tooltips via `bslib::tooltip()` for static buttons
+4. **Document type filter** (Edit Search modal) — move type distribution panel above checkboxes for better UX, keep existing checkboxInput pattern (scalable to 16 types with collapsible sections)
+5. **Year slider alignment** (card layout) — wrap slider + histogram in single container div, `theme(plot.margin = margin(0,0,0,0))` eliminates ggplot2 padding, Bootstrap gap utilities control spacing
+6. **Tooltip layer** — `bslib::tooltip()` for toolbar buttons (static), `title` attributes for dynamic UI (keyword/journal filter buttons), test dark mode inheritance from `bs_theme()`
 
 ### Critical Pitfalls
 
-1. **CSS Specificity Wars** — Custom design system rules fail to override Bootstrap, developers use `!important` repeatedly creating cascade hell. **Prevention:** Use `bs_add_variables()` for Sass variables BEFORE compilation, leverage Bootstrap semantic classes (`bg-body-secondary`), document specificity hierarchy, audit existing `!important` usage before adding more.
+1. **Reactive invalidation loop from Load More state** — Cursor state reactive triggers UI re-render which fires observer that modifies cursor, creating infinite loop. **Avoid:** Use `isolate(cursor_state())` when reading cursor inside load-more observer, keep pagination state separate from display state (cursor is data, paper_refresh is UI trigger). **Warning signs:** App hangs on Load More click, repeated "Listening for messages" in console, memory climbs steadily.
 
-2. **Icon Library Fragmentation** — Mixed fontawesome/bsicons usage across 18 modules with inconsistent semantic naming. **Prevention:** Choose bsicons as primary library, create `R/icons.R` with semantic wrappers (`icon_save()`, `icon_download()`), audit all existing icon calls, document nav_panel integration issue (bsicons requires `tags$i()` wrapper).
+2. **OpenAlex cursor invalidation on filter changes** — Storing cursor from previous API call, user changes year filter or document type, then clicks Load More — app sends cursor with NEW filters, OpenAlex returns inconsistent results or error. **Avoid:** Reset `cursor_state(NULL)` in ALL filter change observers (year_range, document type checkboxes, Edit Search save, keyword filter module). Hide/disable Load More button when cursor is NULL. **Warning signs:** Load More returns papers outside year range, duplicate papers after filter change, OpenAlex 400 error.
 
-3. **Module Theme State Desynchronization** — Design system applied to some modules but not others causes "half-migrated" UI, saved content uses old theme. **Prevention:** Audit modules for cached UI elements, test theme consistency after design system → reload saved network → toggle dark mode, document components that can't react to runtime theme changes.
+3. **Document type filtering breaking composable filter chain** — Adding document type filtering AFTER keyword filtering breaks chain because keywords process full set, then types remove papers keywords already filtered. **Avoid:** Document type filtering must happen in `papers_data()` reactive BEFORE passing to keyword filter module. Maintain filter order: API filters (OpenAlex query) → year range → document type → keyword → journal quality → display. **Warning signs:** Keyword badges show counts but paper list empty, unchecking all types shows "no papers" but keyword panel shows keywords, journal quality filter has no effect.
 
-4. **Section-Targeted RAG Brittleness** — Keyword heuristics fail on non-standard papers (preprints, reviews, non-IMRAD structure), presets return wrong sections. **Prevention:** Expand keyword dictionaries for methodology/future work, implement multi-tier fallback (section-filtered → keyword-boosted → direct vector search), test on diverse paper types (journal, preprint, conference), add retrieval diagnostics.
+4. **bslib tooltips disappearing on dynamic renderUI** — Wrapping buttons with `bslib::tooltip()` in `renderUI()` output — tooltip doesn't appear after re-render because Bootstrap 5 JavaScript bindings lost. **Avoid:** Use static UI with `conditionalPanel()` instead of `renderUI()` where possible, use `title` attributes for truly dynamic content, add JavaScript reinitialization handler if bslib tooltip required. **Warning signs:** Tooltip works once then disappears after UI update, "Tooltip is not defined" JavaScript error, icon-only button with no hover feedback.
 
-5. **Prompt Template Coupling** — Duplicated prompt components across 7 presets scale O(n) maintenance cost, inconsistencies accumulate. **Prevention:** Extract shared components to reusable functions (`prompt_header()`, `prompt_rag_context()`, `prompt_citation_format()`), presets compose task instructions + shared components, version prompt components, test matrix for format compliance.
-
-6. **Citation Audit Race Conditions** — Concurrent multi-paper imports cause foreign key violations, lost writes, duplicate entries. **Prevention:** Batch citation audits in single mirai task, use DuckDB transactions with SERIALIZABLE isolation, implement retry logic with exponential backoff, fix connection leaks (#117, #119) before adding citation audit fixes.
-
-7. **Dark Mode Collision** — Browser `prefers-color-scheme` media queries compete with app `input_dark_mode()` toggle, some components ignore toggle. **Prevention:** Replace `@media (prefers-color-scheme: dark)` with class-based targeting, set explicit default mode independent of OS preference, add localStorage persistence for user preference.
-
-8. **Connection Leak Amplification** — Design system rendering load triggers existing connection leaks in `search_chunks_hybrid()` and ragnar stores, database exhausts. **Prevention:** FIX connection leaks (#117, #119) in Phase 0 before any design system work, audit all `dbConnect()` calls for paired `on.exit(dbDisconnect())`, add leak detection tests to CI.
+5. **Button reordering breaking observer bindings** — Reordering toolbar buttons changes DOM order, developer confusion about which `ns("action")` corresponds to which visual button leads to copy-paste errors. **Avoid:** Keep input IDs and observer names in sync, use unique descriptive IDs (edit_search, refresh_search, NOT btn1, btn2), search codebase for all references after reordering, test every button click. **Warning signs:** Button click has no effect, wrong modal appears, "input$X is undefined" in console.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, suggested phase structure follows dependency order with critical path through pagination foundation (Phases 1-3):
 
-### Phase 0: Tech Debt Cleanup (BLOCKER)
-**Rationale:** Connection leaks (#117, #119) amplify under design system rendering load. Fix before increasing load prevents database exhaustion, app crashes, emergency hotfixes.
-**Delivers:** All database connections properly closed with `on.exit()`, leak detection test in CI, stable foundation for design system work.
-**Addresses:** Pitfall #8 (connection leak amplification), prevents pitfall #6 (citation audit race conditions) from compounding.
-**Avoids:** App performance degradation, database locks, memory usage climbing.
+### Phase 1: API Pagination Foundation
+**Rationale:** Cursor pagination is blocking for both Refresh and Load More logic. Must establish API contract before UI/server changes.
+**Delivers:** `search_papers_with_pagination()` function in `api_openalex.R` returning `list(papers, next_cursor, count)`
+**Uses:** OpenAlex API cursor parameter, `meta.next_cursor` response field (STACK.md §5)
+**Avoids:** Pitfall #8 (cursor format assumptions) — treat cursor as opaque string, never parse/decode/validate
 
-### Phase 1: Design System Foundation
-**Rationale:** Policy document defines semantics before touching any UI code. Prevents CSS specificity wars, icon fragmentation, inconsistent implementations across 18 modules.
-**Delivers:** Semantic action color policy in `R/theme_catppuccin.R`, icon library audit + semantic wrapper functions in `R/icons.R`, CSS specificity hierarchy documentation.
-**Addresses:** Features — design token system (differentiator); Pitfalls #1 (CSS specificity), #2 (icon fragmentation).
-**Avoids:** Developers making inconsistent choices, Bootstrap override cascade hell, mixing icon libraries.
+### Phase 2: Pagination State Management
+**Rationale:** Server-side state layer required before UI implementation, enables both Refresh and Load More patterns.
+**Delivers:** `pagination_state` reactiveValues (cursor, has_more, total_fetched), modified `do_search_refresh()` to track cursor, new `do_load_more()` function
+**Depends on:** Phase 1 (uses search_papers_with_pagination)
+**Avoids:** Pitfall #1 (reactive loops) via `isolate()` pattern, Pitfall #2 (cursor invalidation) via reset logic in ALL filter observers
 
-### Phase 2: Citation Audit Bug Fixes
-**Rationale:** Critical blockers (#134, #133) before new features. Race conditions must be fixed before increasing complexity.
-**Delivers:** Multi-paper import works without errors, papers appear immediately in abstract notebook after import, defensive SQL + reactive invalidation.
-**Addresses:** GitHub issues #134, #133; Pitfall #6 (citation audit race conditions).
-**Avoids:** Database corruption, lost writes, user workflow blocked.
+### Phase 3: Load More Button
+**Rationale:** Implements append-mode pagination UI with conditional rendering based on cursor state.
+**Delivers:** Load More button in toolbar, `observeEvent(input$load_more)` wired to `do_load_more()`, conditional rendering when `pagination_state$has_more`
+**Addresses:** Table stakes Load More feature (FEATURES.md Pattern 2), distinct from Refresh mental model (FEATURES.md Pattern 6)
+**Depends on:** Phase 2 (uses pagination_state)
+**Avoids:** UX pitfall (Load More visible when cursor NULL) via conditional rendering
 
-### Phase 3: Sidebar & Button Theming
-**Rationale:** Policy defined (Phase 1), bugs fixed (Phase 2), now harmonize UI. Apply design system atomically across all modules to avoid "half-migrated" appearance.
-**Delivers:** All buttons follow semantic policy, sidebar icons consistent, WCAG AA contrast in both themes, dark mode toggle works across all components.
-**Addresses:** Features — consistent button semantics, dark mode compatibility; Issues #137, #139; Pitfall #3 (module theme desync), #7 (dark mode collision).
-**Avoids:** Users seeing inconsistent UI, accessibility violations, theme toggle ignored by some components.
+### Phase 4: Button Bar Restructuring
+**Rationale:** Toolbar layout finalized with all buttons present before applying colors/tooltips.
+**Delivers:** Reordered buttons (Import → Refresh → Load More → Export → Network → Edit), semantic color classes (btn-outline-primary, btn-outline-info, btn-outline-success)
+**Uses:** Bootstrap 5 btn-toolbar, btn-group classes (STACK.md §1), Catppuccin semantic colors (ARCHITECTURE.md color table)
+**Addresses:** Button grouping table stakes (FEATURES.md Pattern 5), color harmonization differentiator
+**Depends on:** Phase 3 (Load More button exists)
+**Avoids:** Pitfall #6 (observer binding breaks) via verification after reorder
 
-### Phase 4: AI Preset Foundation Refactor
-**Rationale:** Extract shared prompt components BEFORE adding new presets. Prevents prompt template coupling as preset count grows from 5 to 7.
-**Delivers:** Reusable prompt component functions (`prompt_header()`, `prompt_rag_context()`, `prompt_citation_format()`), existing 5 presets refactored to use components, test matrix for format compliance.
-**Addresses:** Pitfall #5 (prompt template coupling), prepares for methodology + gap analysis presets.
-**Avoids:** Maintenance cost scaling O(n) with presets, inconsistent citation formats, bug fixes requiring 7-file edits.
+### Phase 5: Tooltip Layer
+**Rationale:** Visual polish after structure stable, accessibility requirement for icon-only buttons.
+**Delivers:** `bslib::tooltip()` wrappers on static toolbar buttons, `title` attributes on dynamic buttons (keyword/journal filter), dark mode testing
+**Uses:** bslib tooltip() function (STACK.md §2)
+**Addresses:** WCAG 2.2 tooltips table stakes (FEATURES.md Pattern 1 & 4), under-15-word content guideline
+**Depends on:** Phase 4 (toolbar buttons finalized)
+**Avoids:** Pitfall #4 (dynamic UI tooltips) via title attribute strategy, Pitfall #10 (namespace collision) via `ns()` for tooltip IDs
 
-### Phase 5: Methodology Extractor Preset
-**Rationale:** Easier preset first (factual extraction, lower hallucination risk). Validates section-targeted RAG pattern reuse on new section type (methods vs conclusions).
-**Delivers:** `generate_methodology_preset()` in R/rag.R with PICO/IMRAD structured output, section filter for methods/introduction/results, buttons in document + search notebooks, AI disclaimer banner.
-**Addresses:** Features — methodology extractor (differentiator); Pitfall #4 (section RAG brittleness) with expanded keyword dictionary + multi-tier fallback.
-**Avoids:** RAG retrieval failures on non-standard papers, preset returning abstract instead of methods.
+### Phase 6: Document Type Filter UX
+**Rationale:** Independent of pagination, can proceed in parallel with Phases 4-5, enhances discoverability.
+**Delivers:** Type distribution panel moved above checkboxes in Edit Search modal, optional badge styling for labels
+**Addresses:** Expanded document types differentiator (FEATURES.md Pattern 3), 16 OpenAlex work types (STACK.md §3)
+**Avoids:** Pitfall #3 (composable chain break) by verifying type filtering happens in `papers_data()` before keyword module
+**Independent:** Can start after Phase 1 (no pagination dependency)
 
-### Phase 6: Gap Analysis Report Preset
-**Rationale:** More complex preset last (inferential, higher hallucination risk). Build after simpler methodology preset validates retrieval pattern.
-**Delivers:** `generate_gap_analysis_preset()` in R/rag.R with PICOS framework for cross-paper synthesis, section filter for limitations/future work/discussion, minimum 3-paper validation, AI disclaimer.
-**Addresses:** Features — gap analysis (unique differentiator); Issue #101; Pitfall #4 (section RAG brittleness) on future work/limitations sections.
-**Avoids:** Hallucinated gaps not supported by sources, single-paper "gap analysis" confusion.
+### Phase 7: Year Slider Alignment Fix
+**Rationale:** Independent cosmetic fix, no functional dependencies, pure CSS/layout.
+**Delivers:** Adjusted CSS margin/padding between slider and histogram, shared container div with explicit width
+**Uses:** bslib flexbox cards, Bootstrap gap utilities (STACK.md §4)
+**Avoids:** Pitfall #5 (grid misalignment) via `theme(plot.margin = margin(0,0,0,0))` and container strategy, Pitfall #7 (color harmonization scope creep) by keeping changes CSS-only
+**Independent:** Can start anytime
 
 ### Phase Ordering Rationale
 
-**Critical path dependencies:**
-1. **Phase 0 → all other phases** — Connection leaks must be fixed before increasing rendering load
-2. **Phase 1 → Phase 3** — Design policy informs button/sidebar theming implementation
-3. **Phase 4 → Phases 5, 6** — Shared prompt components prevent preset coupling
-4. **Phase 5 → Phase 6** — Simpler preset validates retrieval pattern before complex preset
-
-**Parallelizable work:**
-- Phase 2 (citation audit bugs) can run parallel to Phase 1 (design policy writing) — independent concerns
-- Phases 5, 6 (presets) independent of citation audit (Phase 2) — different modules
-
-**Why this ordering avoids pitfalls:**
-- Foundation-first (Phase 1) prevents specificity wars (#1) and icon fragmentation (#2)
-- Bugs-second (Phase 2) prevents race conditions (#6) from blocking user workflow
-- Refactor-before-extend (Phase 4 before 5, 6) prevents prompt coupling (#5)
-- Simple-before-complex (Phase 5 before 6) validates RAG brittleness fixes (#4) on easier use case
-- Tech debt cleanup (Phase 0) before load increase prevents leak amplification (#8)
+- **Sequential critical path (1 → 2 → 3 → 4 → 5):** API changes must precede state management, state must exist before UI, UI structure must finalize before polish. Breaking this order causes rework (e.g., adding Load More before pagination state requires UI rewrite when state added).
+- **Parallel opportunities:** Phase 6 (document types) and Phase 7 (year slider) are independent, can proceed alongside Phases 4-5 to compress schedule.
+- **Pitfall avoidance:** Order explicitly prevents Pitfall #1 (reactive loops established before UI triggers them), Pitfall #2 (cursor reset logic co-located with filter state in Phase 2), Pitfall #3 (composable chain verified in Phase 6 before expanding filters), Pitfall #7 (color harmonization deferred to Phase 4 after structure stable, CSS-only rule enforced).
+- **Architecture patterns:** Follows ARCHITECTURE.md build order (§ "Build Order") — foundation before features, features before polish.
 
 ### Research Flags
 
 **Phases with standard patterns (skip research-phase):**
-- **Phase 0:** Tech debt cleanup — known connection leak locations, standard `on.exit()` pattern
-- **Phase 1:** Design system foundation — Bootstrap 5 documentation authoritative, Catppuccin palette already validated
-- **Phase 2:** Citation audit bugs — debugging task, not research task
-- **Phase 3:** Sidebar/button theming — applies documented policy, bslib semantic classes well-documented
-- **Phase 4:** Preset refactor — code reorganization, not new functionality
-- **Phase 5, 6:** AI presets — reuse section-targeted RAG pattern from v2.1, PICO/PICOS frameworks documented in systematic review literature
+- **Phase 1:** OpenAlex cursor pagination well-documented with official tutorials, straightforward API parameter addition
+- **Phase 4:** Bootstrap 5 button groups are standard pattern, bslib integration proven in existing codebase (76 icon wrappers)
+- **Phase 5:** bslib tooltips documented with examples, title attribute fallback is standard HTML
+- **Phase 7:** CSS flexbox alignment is standard technique, ggplot2 margin removal already implemented in codebase
 
-**Phases needing validation (not deep research, but testing):**
-- **Phase 4:** Test section-targeted RAG on diverse paper corpus (journal, preprint, conference, review) to validate keyword expansion
-- **Phase 5, 6:** Test prompt engineering on real papers to verify structured output quality
+**Phases needing extra validation (not research, but testing focus):**
+- **Phase 2:** Reactive invalidation loops are subtle — allocate time for thorough testing with multiple filter changes + Load More clicks
+- **Phase 3:** Cursor state conditional rendering needs cross-browser testing (especially dark mode tooltip rendering)
+- **Phase 6:** Composable filter chain integrity requires end-to-end testing with all filter combinations (keyword + type + journal quality)
 
-**Overall:** No phases require `/gsd:research-phase`. All patterns established in prior milestones (v2.1 section RAG, v4.0 structured output, v6.0 Catppuccin theming, v7.0 mirai async). This is **execution-focused milestone**, not discovery-focused.
+**No phases require deeper research** — all patterns have HIGH confidence from official documentation (OpenAlex API docs, Bootstrap 5 reference, bslib package docs, Shiny reactive programming guides).
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | No new dependencies, bslib/pdftools/bsicons versions verified from CRAN PDFs (Jan-Feb 2026), all patterns tested in v1.0-v9.0 |
-| Features | MEDIUM-HIGH | Bootstrap/bslib docs authoritative (HIGH), AI tool feature landscape from web search (MEDIUM), gap analysis methodology from systematic review literature (HIGH) |
-| Architecture | HIGH | Existing codebase (~20,000 LOC) analyzed, all integration points verified in app.R/R/rag.R/R/mod_*.R, pure extension pattern confirmed |
-| Pitfalls | HIGH | Pitfalls sourced from official docs (MDN CSS specificity, bslib dark mode, Bootstrap overrides), arXiv RAG research papers, project tech debt (#117, #118, #119), milestone decision logs |
+| Stack | HIGH | All technologies verified with official docs (bslib CRAN, OpenAlex API, Bootstrap 5.3), no version upgrades needed |
+| Features | HIGH | UX patterns sourced from NN/G research, WCAG 2.2 spec, design system documentation (PatternFly, Cloudscape) |
+| Architecture | HIGH | Composable filter chain exists in codebase (lines 794-798), pagination state pattern proven in Shiny apps, cursor lifecycle documented by OpenAlex |
+| Pitfalls | HIGH | Reactive loops documented in Mastering Shiny Ch16, cursor invalidation confirmed in OpenAlex tutorials, tooltip dynamic UI issue verified in bslib docs |
 
 **Overall confidence:** HIGH
 
-Research converges on clear recommendations with minimal uncertainty. Stack requires no changes, architecture is pure extension, pitfalls are well-documented with prevention strategies. Only uncertainty is MEDIUM on AI tool competitive feature landscape (web search coverage incomplete), but this doesn't affect technical implementation — design system and presets are based on validated patterns regardless of competitor features.
+Research is verified with authoritative sources (OpenAlex official docs, Bootstrap 5 reference, bslib package documentation, Shiny reactive programming guides). Architecture leverages existing codebase patterns (composable filters, semantic colors, icon wrappers). Only LOW confidence area addressed in research was Load More batch size (50 vs 25 vs 100) — defaulted to existing config value of 25 per PROJECT.md line 2214.
 
 ### Gaps to Address
 
-**Gap: Section-targeted RAG recall on non-standard papers**
-- Research shows keyword heuristics are brittle, error rates increase ~1% per 5 documents
-- **Mitigation:** Test methodology/gap presets on diverse paper corpus during Phase 4-5, expand keyword dictionaries iteratively, document retrieval diagnostics in preset disclaimers
-- **Future enhancement:** ML-based section classifier (out of scope for v10.0, but document as known limitation with workaround)
+**Load More batch size preference:** Research found community consensus on 50 items per load for general web apps, but no scholarly-specific guidance. **Resolution:** Use existing config value (`abstracts_per_search = 25` from PROJECT.md) for consistency, defer optimization to user feedback in v11.0.
 
-**Gap: Citation audit race condition root cause**
-- Issue #134 lacks error message details, can't confirm if foreign key violation or other concurrency issue
-- **Mitigation:** Reproduce locally in Phase 2, add integration test for concurrent writes, implement transactions + retry logic regardless of specific error type
+**Button ordering frequency analysis:** Proposed order (Import → Refresh → Load More → Export → Network → Edit) follows workflow sequence, but lacks usage analytics to confirm Import is more frequent than Edit. **Resolution:** Implement workflow order per FEATURES.md Pattern 5, collect analytics in v11.0 for potential reorder in v12.0.
 
-**Gap: Prompt template component boundary**
-- Research shows prompt coupling is common mistake, but which components to extract requires codebase-specific judgment
-- **Mitigation:** Start with obvious duplicates (instruction-data separation, RAG citation format, safety constraints), iterate based on actual preset diff analysis in Phase 4
+**Document type usage distribution:** Expanding from 3 to 16 types assumes users need books/datasets/editorials, but no Serapeum-specific data on which types are requested. **Resolution:** Phase 6 moves distribution panel above checkboxes to show live counts, helping users discover which types are available in their query results. Defer further UI changes (e.g., type grouping) until usage patterns emerge.
 
-**Gap: Icon coverage between bsicons (2000+) vs fontawesome (16,000+)**
-- bsicons recommended for consistency, but may lack specific icons needed
-- **Mitigation:** Audit current icon usage (grep for `fa()` and `bs_icon()`), map to bsicons equivalents, document fontawesome as fallback ONLY when bsicons lacks required icon, handle nav_panel integration issue (bsicons requires `tags$i()` wrapper)
-
-**Gap: Theme persistence across sessions**
-- Dark mode toggle doesn't persist to localStorage, users re-toggle every session
-- **Mitigation:** Add in Phase 3 sidebar theming: `observeEvent(input$dark_mode, { # store in localStorage or DB })`, restore on session start
+**Year slider debounce value:** 400ms debounce prevents reactive storm but may lose final value on rapid drag (Pitfall #9). **Resolution:** Accept UX trade-off per ARCHITECTURE.md — debounce necessary for performance, alternative is Apply Filter button (deferred to future milestone).
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- **Existing codebase** — app.R (sidebar, theme), R/theme_catppuccin.R (Catppuccin palette), R/rag.R (preset functions), R/db.R (section-targeted RAG), R/pdf.R (section detection), R/mod_*.R (18 modules)
-- **bslib documentation** — [Theming guide](https://rstudio.github.io/bslib/articles/theming/index.html), [Sass variables](https://rstudio.github.io/bslib/reference/bs_bundle.html), [Dark mode input](https://rstudio.github.io/bslib/reference/input_dark_mode.html), [Sidebars](https://rstudio.github.io/bslib/articles/sidebars/index.html)
-- **Bootstrap 5 documentation** — [Buttons](https://getbootstrap.com/docs/5.3/components/buttons/), [Color modes](https://getbootstrap.com/docs/5.3/customize/color-modes/)
-- **CRAN package PDFs** — bslib 0.10.0 (Jan 2026), pdftools 3.7.0 (Jan 2026), bsicons 0.1.2 (Jul 2025)
-- **ragnar documentation** — [Semantic chunking](https://ragnar.tidyverse.org/articles/ragnar.html)
-- **Project context** — .planning/PROJECT.md (decision log v1.0-v9.0), GitHub issues #133, #134, #137, #138, #139, #100, #101
+- [OpenAlex Cursor Pagination Documentation](https://developers.openalex.org/how-to-use-the-api/get-lists-of-entities/paging) — cursor parameter mechanics, per_page limits, opaque cursor warning
+- [OpenAlex API Tutorials (GitHub)](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb) — cursor usage examples with Python code
+- [Bootstrap 5.3 Button Group Documentation](https://getbootstrap.com/docs/5.3/components/button-group/) — btn-toolbar, btn-group classes, accessibility (role, aria-label)
+- [bslib::tooltip() Reference](https://rstudio.github.io/bslib/reference/tooltip.html) — function signature, placement, dynamic updates, dark mode compatibility
+- [bslib Tooltips & Popovers Article](https://rstudio.github.io/bslib/articles/tooltips-popovers/index.html) — dynamic UI pattern with renderUI, reinitialization requirements
+- [Mastering Shiny Ch16: Escaping the graph](https://mastering-shiny.org/reactivity-components.html) — isolate(), observeEvent() patterns, reactive invalidation loops
+- [NN/G Icon Usability](https://www.nngroup.com/articles/icon-usability/) — "labels always win" guidance, cognitive load of icon-only
+- [WCAG 2.2 1.4.13 Content on Hover or Focus](https://www.wcag.com/authors/1-4-13-content-on-hover-or-focus/) — tooltip accessibility requirements, keyboard navigation
 
 ### Secondary (MEDIUM confidence)
-- **RAG pitfalls** — [Seven Failure Points When Engineering a RAG System (arXiv)](https://arxiv.org/pdf/2401.05856) — keyword brittleness, error rates scaling with document count
-- **Prompt engineering** — [Prompt Engineering for RAG Pipelines (StackAI)](https://www.stackai.com/blog/prompt-engineering-for-rag-pipelines-the-complete-guide-to-prompt-engineering-for-retrieval-augmented-generation), [10 Common LLM Prompt Mistakes (GoInsight.ai)](https://www.goinsight.ai/blog/llm-prompt-mistake/) — prompt template coupling anti-pattern
-- **CSS specificity** — [MDN: CSS Specificity](https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity), [How To Override Bootstrap 5 CSS (ThemeSelection)](https://themeselection.com/override-bootstrap-css-styles/)
-- **Dark mode** — [Dark Mode Toggle and prefers-color-scheme (DEV Community)](https://dev.to/abbeyperini/dark-mode-toggle-and-prefers-color-scheme-4f3m), [prefers-color-scheme browser vs OS (Sara Soueidan)](https://www.sarasoueidan.com/blog/prefers-color-scheme-browser-vs-os/)
-- **Icon systems** — [Iconography In Design Systems (Smashing Magazine)](https://www.smashingmagazine.com/2024/04/iconography-design-systems-troubleshooting-maintenance/), [bsicons GitHub Issue #639](https://github.com/rstudio/bslib/issues/639) (nav_panel integration)
-- **Citation errors** — [Citation Errors in Scientific Research (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10307651/) — ~20% citations contain errors, automated tools prone to matching errors
-- **Systematic review methodology** — [Framework for Determining Research Gaps (NCBI)](https://www.ncbi.nlm.nih.gov/books/NBK126702/), [IMRAD Structure Classification (Semantic Scholar)](https://www.semanticscholar.org/paper/Discovering-IMRaD-Structure-with-Different-Ribeiro-Yao/be2ef84f950edf665924cbb7d24545eeb319dffd) — PICO/PICOS frameworks, 81% accuracy for IMRAD classification
+- [Analysis of Publication and Document Types in OpenAlex (arXiv)](https://arxiv.org/html/2406.15154v1) — 16 work type taxonomy, article consolidation (July 2023)
+- [PatternFly Filter Guidelines](https://www.patternfly.org/patterns/filters/design-guidelines/) — checkbox multi-select for facets, active filter chips with remove buttons
+- [NN/G Tooltip Guidelines](https://www.nngroup.com/articles/tooltip-guidelines/) — under-15-word guideline, describe action not UI
+- [Pagination vs Infinite Scroll vs Load More (Medium)](https://ashishmisal.medium.com/pagination-vs-infinite-scroll-vs-load-more-data-loading-ux-patterns-in-react-53534e23244d) — Load More works well for goal-oriented search
+- [UI Cheat Sheet: Pagination, infinite scroll, and the load more button (UX Collective)](https://uxdesign.cc/ui-cheat-sheet-pagination-infinite-scroll-and-the-load-more-button-e5c452e279a8) — position awareness, user control
 
-### Tertiary (LOW confidence)
-- **AI research tool competitors** — [Elicit](https://elicit.com/), [Paperguide](https://paperguide.ai/), [11 Best AI Tools for Scientific Literature Review (Cypris)](https://www.cypris.ai/insights/11-best-ai-tools-for-scientific-literature-review-in-2026) — feature landscape (methodology extraction table stakes, gap analysis differentiator), needs validation
-- **Design system patterns** — [Design Patterns For AI Interfaces (Smashing Magazine)](https://www.smashingmagazine.com/2025/07/design-patterns-ai-interfaces/) — general patterns, not R/Shiny-specific
-- **DuckDB concurrency** — [DuckDB Memory Behavior Issue #464](https://github.com/duckdb/duckdb/issues/464), [Garbage-collected warning (GitHub Issue #34)](https://github.com/duckdb/duckdb-r/issues/34) — connection leak symptoms, transaction behavior inferred
+### Project-Specific Context
+- `.planning/PROJECT.md` lines 249 (secondary ragnar leak), 2214 (abstracts_per_search config)
+- `R/mod_search_notebook.R` lines 68-102 (button bar), 129-153 (year slider), 794-798 (composable filter chain), 974 (year debounce), 1892-1912 (document type filters), 1997-2006 (work_type column check)
+- `R/theme_catppuccin.R` — 76 icon wrappers (icon_rotate, icon_plus_circle, icon_file_import, etc.)
+- `R/api_openalex.R` lines 293-376 — search_papers() implementation, per_page parameter
 
 ---
-*Research completed: 2026-03-04*
+*Research completed: 2026-03-06*
 *Ready for roadmap: yes*

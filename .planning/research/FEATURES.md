@@ -1,369 +1,325 @@
-# Feature Research
+# Feature Landscape: Search Notebook Toolbar UX
 
-**Domain:** Research Assistant UI Design System & AI Synthesis Presets (v10.0)
-**Researched:** 2026-03-04
-**Confidence:** MEDIUM-HIGH
+**Domain:** Academic search interface with filtering and result management
+**Researched:** 2026-03-06
+**Overall confidence:** MEDIUM-HIGH (WebSearch verified with design system documentation)
 
-## Feature Landscape
+## Executive Summary
 
-### Table Stakes (Users Expect These)
+Search notebook toolbars serve dual roles: providing actions on the result set (export, refresh, load more) and navigating between related views (edit, seed network). Modern UX patterns favor icon+text for comprehension over icon-only for space efficiency, particularly for infrequent users. Load More buttons outperform infinite scroll for goal-oriented academic search where users need control and position awareness. Document type filtering in scholarly tools uses checkboxes for multi-select with chips for active filter display. Tooltips for icon buttons are accessibility requirements (WCAG 2.2), not nice-to-haves. Button ordering follows workflow (import → edit → analyze → export) rather than strict CRUD, with visual grouping via spacing/separators. Refresh and Load More are distinct mental models: Refresh = retry/update existing; Load More = fetch additional/expand.
 
-Features users assume exist. Missing these = product feels incomplete.
+## Pattern 1: Button Labeling (Icon-Only vs Icon+Text)
+
+### Table Stakes
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Consistent button semantics** | Users expect primary (main action), secondary (alternative), danger (destructive) to have consistent colors/meanings across the app | LOW | Bootstrap provides `.btn-primary`, `.btn-secondary`, `.btn-success`, `.btn-danger`, `.btn-warning`, `.btn-info` with semantic colors. Already have bslib + Bootstrap 5. |
-| **Icon-action pairing consistency** | Same icon should mean same action everywhere (e.g., download always uses same icon, delete always uses trash) | LOW | FontAwesome already integrated. Need audit of existing icons + policy documentation. |
-| **Dark mode compatibility** | All UI elements (buttons, sidebars, tooltips) must be readable in both light/dark themes without manual switching | MEDIUM | Catppuccin Latte/Mocha already exists. Issue #137 (sidebar colors), #139 (abstract buttons) indicate incomplete coverage. CSS specificity conflicts are common pitfall. |
-| **Sidebar theming coherence** | Sidebar background/foreground should adapt to theme automatically using Bootstrap semantic classes | MEDIUM | bslib `sidebar()` supports `bg` parameter. Issue #137 suggests current implementation doesn't follow theme variables. Need to use `bg-body-secondary` not hardcoded colors. |
-| **AI output disclaimers** | Users expect warnings when content is AI-generated (research integrity concern) | LOW | Already implemented in v2.1 (SYNTH-05). Table stake for new presets. |
-| **Structured output format** | Research synthesis presets should output structured, scannable formats (tables, lists, sections) not walls of text | MEDIUM | Literature Review Table preset (v4.0) validates this. Gap Analysis and Methodology Extractor need similar structure. |
+| Icon+text for all buttons | Text labels reduce ambiguity — "In the battle of clarity between icons and labels, labels always win" | Low | Icon-only increases cognitive load, fails on touch (no hover) |
+| Tooltips for icon-only | WCAG 2.2 requirement (1.4.13) for accessibility | Medium | Must be keyboard-accessible, not just hover |
+| Standardized icons | Universal symbols (trash, export, refresh) with consistent meaning | Low | Non-standard icons require text regardless |
+| Consistent sizing | All buttons same height/weight for scannable toolbar | Low | Visual rhythm matters for comprehension |
 
-### Differentiators (Competitive Advantage)
-
-Features that set the product apart. Not required, but valuable.
+### Differentiators
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Design token system** | Single source of truth for colors/spacing/icons enables fast, consistent theming changes across entire app | MEDIUM | Bootstrap 5.3+ CSS variables + bslib `bs_theme()` provide foundation. Centralized policy in documentation (not just scattered CSS). |
-| **Methodology Extractor preset** | Auto-extracts methods sections from papers into structured format (population, intervention, measures, analysis) — saves hours of manual reading | HIGH | Requires section-targeted RAG (already exists in v2.1 SYNTH-03) + structured prompt with PICO/IMRAD framework. NLP research shows 81% accuracy for IMRAD classification. |
-| **Gap Analysis Report preset** | Identifies under-researched areas, conflicting findings, and methodological gaps across collection — surfaces novel research opportunities | HIGH | Requires cross-paper synthesis (not just per-paper summarization). Must use PICOS framework (Population, Intervention, Comparison, Outcome, Setting) from systematic review literature. |
-| **Adaptive color semantics** | Button/badge colors that respond to context (e.g., retraction=danger, open access=success) without manual CSS | LOW-MEDIUM | Bootstrap semantic classes already support this. Need consistent mapping policy. |
-| **Preset icon system** | Each AI preset has consistent icon (already implemented for Overview, Research Questions, Literature Review) reinforcing preset identity | LOW | Already implemented in v2.1 (UIPX-01). Extend to new presets. Differentiator because competitors use generic "AI" icons. |
+| Icon+text with brand colors | Topics button pattern: icon+label+semantic color | Medium | Serapeum already has 76 semantic icon wrappers (v10.0) |
+| Adaptive labels (mobile collapse) | Show text on desktop, icon-only on mobile with tooltips | High | Responsive design tradeoff — not needed for desktop app |
+| Icon position consistency | Always left-of-text or always above-text | Low | Left-of-text is dominant pattern in 2026 |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### Anti-Features
 
-Features that seem good but create problems.
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Icon-only toolbar without tooltips | Inaccessible, fails WCAG 2.2 | Add text labels OR keyboard-accessible tooltips |
+| Tooltips with critical information | Tooltips are supplementary, not required reading | Put requirements in visible UI, not tooltips |
+| Rely on hover for labels | Touch devices have no hover state | Permanent text labels or tap-accessible tooltips |
+| Technical jargon in tooltips | "Invoke BFS traversal" vs "Build citation network" | Use plain language under 15 words |
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Custom color themes** | Users want to personalize interface with their favorite colors | Breaks accessibility (WCAG contrast), creates maintenance burden for every new component, dilutes brand identity | Offer light/dark mode only with vetted Catppuccin palette. Document rationale: accessibility + maintainability. |
-| **Per-preset color customization** | "Let users color-code their presets" | Color already encodes semantic meaning (danger=red, success=green). User colors would conflict with semantic colors creating confusion. | Use preset icons for visual distinction, keep colors semantic. |
-| **Global "Regenerate All"** | "Re-run all AI presets at once to update with new papers" | Expensive (LLM costs), slow (sequential API calls), unclear if user wants to update all or just one. Would require complex job queue UI. | Per-preset regenerate buttons (current pattern). Users control costs. |
-| **Methodology extraction from all sections** | "Extract methods info from abstract, intro, discussion too" | Methods section is authoritative source. Other sections have informal/incomplete descriptions. Increases false positives. | Section-targeted retrieval focusing on Methods/Materials sections only (existing v2.1 pattern). |
-| **Gap analysis on single paper** | "Show me gaps in this one paper" | Gaps are **comparative** — require multiple papers to identify what's missing. Single-paper analysis is just limitations section summarization. | Require minimum 3-5 papers in collection before enabling Gap Analysis preset. Show warning if too few. |
-| **Live theme preview** | "Show what sidebar/buttons look like as I adjust theme" | Adds UI complexity, slows down settings page, users rarely customize beyond light/dark toggle. | Document theme in README with screenshots. Fixed Catppuccin palette means preview isn't needed. |
+**Sources:**
+- NN/G Icon Usability: [https://www.nngroup.com/articles/icon-usability/](https://www.nngroup.com/articles/icon-usability/)
+- UX Myths: Icons enhance usability: [https://uxmyths.com/post/715009009/myth-icons-enhance-usability](https://uxmyths.com/post/715009009/myth-icons-enhance-usability)
+- WCAG Accessible Tooltips 2026: [https://www.thewcag.com/examples/tooltips](https://www.thewcag.com/examples/tooltips)
+
+---
+
+## Pattern 2: Load More vs Infinite Scroll vs Pagination
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Load More button at result set end | Academic search is goal-oriented — users need control over loading | Low | "Load More works well... it asks: Want to see more results?" |
+| Visual distinction from refresh | Different action, different affordance | Low | Refresh = retry; Load More = expand |
+| Position awareness | Users track "seen N of M results" | Medium | Load More preserves scroll position unlike pagination |
+| Disable when exhausted | Show "All results loaded" state | Low | Prevents confusion when no more available |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Load More with brand styling | Topics button pattern: icon+text+color (e.g., sapphire for info) | Low | Already planned for v11.0 |
+| Result count in button | "Load More (50 available)" | Low | Sets expectation for batch size |
+| Batch size control | Let user choose 25/50/100 per load | Medium | Power user feature, adds complexity |
+| Sticky Load More | Bottom-fixed button for long result lists | Medium | Mobile pattern, less useful for desktop scroll |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Infinite scroll | "Users may not know how much content is left to explore" — bad for academic findability | Load More button with explicit control |
+| Auto-load without cap | Performance degrades, memory leaks with large datasets | Load More or auto-load with fallback button |
+| Pagination for search results | Disrupts flow, "Users may not know how much content is left" | Load More for continuous discovery |
+| Load More overlapping footer | Sticky elements must not overlap essential UI | Fixed positioning with safe zones |
+
+**Sources:**
+- Pagination vs Infinite Scroll vs Load More (Medium): [https://ashishmisal.medium.com/pagination-vs-infinite-scroll-vs-load-more-data-loading-ux-patterns-in-react-53534e23244d](https://ashishmisal.medium.com/pagination-vs-infinite-scroll-vs-load-more-data-loading-ux-patterns-in-react-53534e23244d)
+- UI Cheat Sheet: Pagination, infinite scroll, load more (UX Collective): [https://uxdesign.cc/ui-cheat-sheet-pagination-infinite-scroll-and-the-load-more-button-e5c452e279a8](https://uxdesign.cc/ui-cheat-sheet-pagination-infinite-scroll-and-the-load-more-button-e5c452e279a8)
+- Sticky CTA Best Practices 2026: [https://easyappsecom.com/guides/sticky-add-to-cart-best-practices.html](https://easyappsecom.com/guides/sticky-add-to-cart-best-practices.html)
+
+---
+
+## Pattern 3: Document Type Faceted Filtering
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Checkboxes for multi-select | Standard pattern: "Checkboxes should be used to display multi-select facets" | Low | Already used in Serapeum |
+| Article/Review/Preprint | Core scholarly types — PubMed, Google Scholar, Semantic Scholar all filter these | Low | Serapeum already filters these |
+| Active filter chips | "Show active filters prominently as tags or chips with clear remove button (X)" | Medium | Chips above results, horizontal scroll on mobile |
+| Clear All option | Batch removal when multiple filters active | Low | Reduces click fatigue |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Expanded document types | Book Chapter, Conference Paper, Dataset, Editorial, Letter, Erratum | Low-Medium | OpenAlex supports ~15 types; prioritize by user frequency |
+| Type-specific badges | Visual distinction in results (e.g., [PREPRINT] badge) | Low | Serapeum already has OA/citation badges (v1.1) |
+| Chip color coding | Semantic colors per filter type (e.g., peach for document type, sky for quality) | Medium | Catppuccin palette already in place (v10.0) |
+| Collapsible filter panels | Minimize filter UI when not in use | Low | Already done for Journal Quality card (v1.2 UIPX-01) |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Radio buttons for document type | "Academic search requires multi-select" — users want Article+Review+Preprint | Checkboxes for multi-select |
+| Chips without remove button | "Each chip should have a clear remove button (X)" | Removable chips with X icon |
+| Desktop-only filter sidebar | "Faceted interfaces designed for desktop overwhelm mobile screens" | Collapsible panels or drawer on mobile |
+| Auto-apply filters | For complex multi-select, instant apply causes UI churn | Apply button or debounced update |
+
+**Sources:**
+- PatternFly Filter Guidelines: [https://www.patternfly.org/patterns/filters/design-guidelines/](https://www.patternfly.org/patterns/filters/design-guidelines/)
+- Filter UX for SaaS (Eleken): [https://www.eleken.co/blog-posts/filter-ux-and-ui-for-saas](https://www.eleken.co/blog-posts/filter-ux-and-ui-for-saas)
+- NN/G Filters vs Facets: [https://www.nngroup.com/articles/filters-vs-facets/](https://www.nngroup.com/articles/filters-vs-facets/)
+- PubMed Filters (Columbia): [https://library.cumc.columbia.edu/kb/pubmed-filter-topic-investigation](https://library.cumc.columbia.edu/kb/pubmed-filter-topic-investigation)
+
+---
+
+## Pattern 4: Tooltip Content Guidelines
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Under 15 words | "Keep text under 15 words for optimal readability" | Low | Sentence case, plain language |
+| Describe action, not UI | "Build citation network" not "Click this button" | Low | Focus on outcome, not mechanics |
+| Keyboard accessible | WCAG 2.2 1.4.13: Appear on focus, not just hover | Medium | aria-describedby + focus events |
+| Dismissible | User can close or move past without disrupting flow | Low | ESC key or click outside |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Keyboard shortcut hints | "Export (Ctrl+E)" in tooltip | Low | Power user accelerator |
+| Contextual help links | Tooltip with "Learn more" link to docs | Medium | For complex features like citation network |
+| Dynamic content | "Load More (50 available)" updates as results change | Medium | Requires reactive state |
+| Delay on appearance | 400ms hover delay prevents tooltip spam during cursor movement | Low | Standard UX pattern |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Tooltips for critical info | "Do not use tooltips to display critical information" | Required info goes in visible UI |
+| Hover-only tooltips | Fails on touch, inaccessible to keyboard users | Show on focus too, or use permanent labels |
+| Multi-paragraph tooltips | Tooltips are supplementary, not documentation | Link to help docs for long explanations |
+| Technical jargon | Increases cognitive load, excludes non-expert users | Plain language: "Retry search" not "Re-invoke OpenAlex API" |
+
+**Sources:**
+- NN/G Tooltip Guidelines: [https://www.nngroup.com/articles/tooltip-guidelines/](https://www.nngroup.com/articles/tooltip-guidelines/)
+- Tooltip Best Practices (Scandiweb): [https://scandiweb.com/blog/tooltip-best-practices/](https://scandiweb.com/blog/tooltip-best-practices/)
+- WCAG 1.4.13 Content on Hover or Focus: [https://www.wcag.com/authors/1-4-13-content-on-hover-or-focus/](https://www.wcag.com/authors/1-4-13-content-on-hover-or-focus/)
+
+---
+
+## Pattern 5: Button Grouping and Ordering
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Group by function | "Buttons should be grouped by function" — separates import/edit from analyze/export | Low | Visual spacing or separators |
+| Left-to-right workflow | Import → Edit → Analyze → Export follows task sequence | Low | Left-aligned toolbar, workflow order |
+| Primary action prominence | Most important action (e.g., Refresh, Load More) gets visual weight | Low | Color, size, or position distinction |
+| Consistent spacing | Equal gaps within groups, larger gaps between groups | Low | 8px intra-group, 16px inter-group (common pattern) |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Separator lines | "Separators distinguish semantic groups of toolbar items" | Low | Vertical dividers between Import/Edit/Export clusters |
+| Frequency-based order | Most-used actions leftmost (after respecting workflow) | Medium | Requires usage analytics |
+| Action + status pairing | "Refresh" button + "Last updated: 2m ago" timestamp | Medium | Communicates outcome of refresh operation |
+| Responsive button groups | Collapse low-priority buttons into "More" menu on narrow screens | High | Mobile optimization, not needed for desktop app |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| All buttons ungrouped | "May seem chaotic and confusing without grouping" | Group by function with spacing/separators |
+| Alphabetical order | Ignores task flow and frequency | Workflow order (import → edit → export) |
+| Mix icon+text and icon-only | "Mixing them side by side creates confusion" | Consistent labeling across toolbar |
+| CRUD acronym ordering | Create-Read-Update-Delete ignores actual user workflow | Task sequence: Import → Edit → Seed → Export |
+
+**Sources:**
+- Telerik Toolbar Guidelines: [https://www.telerik.com/design-system/docs/components/toolbar/usage/](https://www.telerik.com/design-system/docs/components/toolbar/usage/)
+- Telerik ToolBar Separators: [https://www.telerik.com/blazor-ui/documentation/components/toolbar/separators](https://www.telerik.com/blazor-ui/documentation/components/toolbar/separators/)
+- Workflow Designer Toolbar: [https://servicedesk.esr.nhs.uk/help/topic/com.ibm.sccd.doc/workflow_adv/c_workflow_toolbar_button.html](https://servicedesk.esr.nhs.uk/help/topic/com.ibm.sccd.doc/workflow_adv/c_workflow_toolbar_button.html)
+
+---
+
+## Pattern 6: Refresh vs Load More Mental Models
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Distinct icons | Refresh = circular arrow; Load More = down arrow or plus | Low | Visual disambiguation |
+| Distinct labels | "Refresh" (retry) vs "Load More" (expand) | Low | Text clarifies intent |
+| Distinct placement | Refresh in toolbar; Load More at result set end | Low | Positional convention |
+| Loading states | Refresh shows spinner; Load More shows count/progress | Medium | Communicate long operations |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Timestamp for Refresh | "Last updated: 2m ago" next to Refresh button | Low | "Include timestamp to inform users on outcome of refresh" |
+| Count for Load More | "Load More (50 available)" | Low | Sets expectation |
+| Retry on failure | Refresh auto-retries failed requests with backoff | Medium | User expects Refresh to fix transient errors |
+| Pull-to-refresh gesture | Mobile pattern for Refresh (not Load More) | High | Desktop app doesn't need gesture |
+
+### Anti-Features
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Same icon for both | "Refresh = update existing; Load More = fetch additional" — distinct concepts | Circular arrow (refresh) vs down/plus (load more) |
+| Refresh appends results | Users expect Refresh to replace, not accumulate | Refresh = clear + reload; Load More = append |
+| Load More at top | "Load More at bottom of page" is universal expectation | Bottom placement preserves scroll position |
+| Auto-refresh without notice | "Communicate when something new is available" | Manual refresh with timestamp, or notification |
+
+**Sources:**
+- Pull to Refresh UI Pattern: [https://ui-patterns.com/patterns/pull-to-refresh](https://ui-patterns.com/patterns/pull-to-refresh)
+- To Refresh or Not to Refresh (Centre Centre): [https://articles.centercentre.com/refresh-or-not/](https://articles.centercentre.com/refresh-or-not/)
+- Cloudscape Loading and Refreshing: [https://cloudscape.design/patterns/general/loading-and-refreshing/](https://cloudscape.design/patterns/general/loading-and-refreshing/)
+- UX Pattern Analysis Loading (Pencil & Paper): [https://www.pencilandpaper.io/articles/ux-pattern-analysis-loading-feedback](https://www.pencilandpaper.io/articles/ux-pattern-analysis-loading-feedback)
+
+---
 
 ## Feature Dependencies
 
 ```
-Design Token System
-    └──requires──> Bootstrap 5 CSS Variables (already exists)
-    └──requires──> Centralized Theme Documentation (NEW)
-
-Methodology Extractor Preset
-    └──requires──> Section-Targeted RAG (exists: v2.1 SYNTH-03)
-    └──requires──> Structured Output Prompt Engineering (NEW)
-    └──enhances──> Literature Review Table Preset (cross-paper comparison)
-
-Gap Analysis Report Preset
-    └──requires──> Section-Targeted RAG (exists: v2.1 SYNTH-03)
-    └──requires──> Cross-Paper Synthesis Logic (NEW)
-    └──requires──> PICOS Framework Implementation (NEW)
-    └──requires──> Minimum Paper Count Check (NEW: ≥3 papers)
-
-Sidebar Dark Mode Fix (#137)
-    └──requires──> Bootstrap Semantic Color Classes (exists)
-    └──conflicts──> Hardcoded Hex Colors (current issue)
-
-Button Theme Harmonization (#139)
-    └──requires──> Design Token System (policy for when to use which variant)
-    └──requires──> Dark Mode Compatibility (existing Catppuccin palette)
-
-Citation Audit Bug Fixes (#134, #133)
-    └──blocks──> All other features (critical bugs)
-    └──requires──> No dependencies (just bug fixes)
+Icon+Text Buttons → Tooltips (supplementary, not required)
+Load More Button → Disabled State (when exhausted)
+Active Filter Chips → Clear All (when multiple active)
+Button Groups → Separators (visual hierarchy)
+Refresh Button → Timestamp (communicates last update)
+Load More Button → Result Count (sets expectation)
 ```
 
-### Dependency Notes
+---
 
-- **Design Token System requires Centralized Documentation:** Bootstrap variables exist, but without documented policy (when to use `btn-primary` vs `btn-secondary`), devs make inconsistent choices. Policy document enables consistent implementation.
-- **Methodology Extractor enhances Literature Review Table:** Once methods are extracted as structured data, can feed into comparison matrix showing which studies used which methods (enables methodological gap analysis).
-- **Gap Analysis requires minimum paper count:** Gaps are comparative. With <3 papers, can only show limitations (not gaps). UI should disable preset or show warning.
-- **Sidebar theme fix conflicts with hardcoded colors:** Current sidebar likely uses `bg="#xxxxxx"` hex values. Must replace with `bg="body-secondary"` Bootstrap semantic classes for automatic dark mode adaptation.
-- **Button harmonization requires policy before implementation:** Without deciding "destructive actions = danger, primary actions = primary, secondary actions = secondary", will just move colors around without fixing root problem (inconsistent semantics).
+## MVP Recommendation for v11.0
 
-## MVP Definition
+### Prioritize (High Value, Low-Medium Complexity):
 
-### Launch With (v10.0)
+1. **Icon+text for all toolbar buttons** (Import, Edit, Seed Network, Export, Refresh, Load More)
+   - Rationale: Table stakes for comprehension, already using icon+text for Topics button
+   - Complexity: Low — icon wrappers already exist in theme_catppuccin.R
 
-Minimum viable product — what's needed to validate theme harmonization + AI synthesis additions.
+2. **Split Refresh vs Load More**
+   - Rationale: Distinct mental models, prevents confusion
+   - Complexity: Low — separate button logic, different icons
+   - Design: Refresh = circular arrow + "Refresh"; Load More = down arrow + "Load More" with Topics button styling
 
-- [x] **Citation audit bug fixes (#134, #133)** — Critical blockers. Can't ship with broken citation audit feature.
-- [ ] **Design token policy document** — Written guidelines for button variants, icon usage, color semantics. Prevents future inconsistency. ~2 hours to write, reference Bootstrap docs + Catppuccin palette.
-- [ ] **Sidebar dark mode fix (#137)** — Replace hardcoded colors with Bootstrap semantic classes. ~30 min implementation once policy exists.
-- [ ] **Button theming audit + fix (#139)** — Apply design token policy to existing buttons. ~1-2 hours to audit, 1-2 hours to fix.
-- [ ] **Methodology Extractor preset (#100)** — First new AI synthesis preset. Validates section-targeted RAG reuse pattern. PICO/IMRAD structured output.
-- [ ] **Gap Analysis Report preset (#101)** — Second new AI synthesis preset. More complex (cross-paper synthesis). Validates multi-paper analysis pattern.
+3. **Tooltips for all toolbar buttons**
+   - Rationale: WCAG 2.2 accessibility requirement, under 15 words
+   - Complexity: Low — Shiny bslib supports tooltips via `bslib::tooltip()`
 
-### Add After Validation (v10.x)
+4. **Button grouping with separators**
+   - Rationale: Visual hierarchy for Import|Edit|Seed Network|Export|Refresh
+   - Complexity: Low — CSS borders or spacing
 
-Features to add once core is working.
+5. **Active filter chips for document types**
+   - Rationale: Table stakes for faceted search, modern pattern
+   - Complexity: Medium — requires chip UI + remove handler
 
-- [ ] **Preset icon for Methodology Extractor** — After validating preset works, add icon for visual consistency with other presets. Low priority, doesn't affect functionality.
-- [ ] **Preset icon for Gap Analysis Report** — Same as above.
-- [ ] **Minimum paper count validation for Gap Analysis** — If users try to run on <3 papers, show helpful error. Can defer until users report confusion.
-- [ ] **Methodology comparison matrix** — After Methodology Extractor proven useful, add "Compare Methods Across Papers" feature to Literature Review Table preset. Requires both presets working first.
+### Defer for Future Milestones:
 
-### Future Consideration (v11+)
-
-Features to defer until product-market fit is established.
-
-- [ ] **Advanced PICOS filtering for Gap Analysis** — Allow users to specify which PICOS dimensions to analyze (e.g., "only show gaps in study populations, not interventions"). Complex UI, unclear if users need granularity.
-- [ ] **Methodology extraction confidence scores** — Add "High/Medium/Low confidence" tags to extracted methods based on section text clarity. Requires NLP tuning, unclear value vs noise.
-- [ ] **Export Gap Analysis as structured JSON** — For programmatic analysis. Niche use case, Markdown export likely sufficient.
-- [ ] **Cross-notebook theme preferences** — Allow users to save theme choices per notebook. Adds complexity, light/dark toggle is sufficient for MVP.
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Citation audit bug fixes (#134, #133) | HIGH (blocks existing feature) | LOW (just debugging) | P1 |
-| Design token policy document (#138) | HIGH (prevents future bugs) | LOW (~2 hours writing) | P1 |
-| Sidebar dark mode fix (#137) | HIGH (visible in every session) | LOW (30 min, policy-dependent) | P1 |
-| Button theming audit (#139) | MEDIUM (improves consistency) | MEDIUM (2-4 hours audit + fix) | P1 |
-| Methodology Extractor preset (#100) | HIGH (new valuable feature) | HIGH (prompt engineering + structured output) | P1 |
-| Gap Analysis Report preset (#101) | HIGH (unique differentiator) | HIGH (complex cross-paper logic) | P1 |
-| Preset icons for new presets | LOW (cosmetic only) | LOW (~15 min each) | P2 |
-| Min paper count validation | MEDIUM (prevents confusion) | LOW (1 hour) | P2 |
-| Methodology comparison matrix | MEDIUM (enhances existing) | MEDIUM (2-3 hours) | P2 |
-| Advanced PICOS filtering | LOW (niche power user feature) | HIGH (complex UI + logic) | P3 |
-| Methodology confidence scores | LOW (adds noise for unclear gain) | HIGH (NLP tuning) | P3 |
-| Gap Analysis JSON export | LOW (niche use case) | MEDIUM (1-2 hours) | P3 |
-
-**Priority key:**
-- P1: Must have for v10.0 launch (design system foundation + new presets)
-- P2: Should have, add in v10.1 once core validated (enhancements)
-- P3: Nice to have, future consideration (power user features)
-
-## Competitor Feature Analysis
-
-Research assistant tools with similar features (based on 2026 web search):
-
-| Feature | Elicit | Paperguide | Our Approach (Serapeum) |
-|---------|--------|------------|-------------------------|
-| **Methodology Extraction** | Automated data extraction for systematic reviews, focuses on screening + extraction | "Deep Research AI" with methodology field in literature tables | Section-targeted RAG with PICO/IMRAD framework prompts. Differentiator: reuses existing RAG infrastructure (v2.1), doesn't require new embedding strategy. |
-| **Gap Analysis** | Not explicitly mentioned | Not explicitly mentioned | **Unique differentiator.** Uses PICOS framework from systematic review methodology. Cross-paper synthesis not just per-paper summarization. |
-| **Structured Output** | Organizes into structured formats | Structured literature tables with TLDR, methodology, findings, limitations fields | Literature Review Table (v4.0) already implements comparison matrix. New presets follow same pattern (tables/lists not prose). |
-| **AI Disclaimers** | Not mentioned in sources | Not mentioned in sources | **Differentiator.** Explicit AI-generated content warnings (v2.1 SYNTH-05). Research integrity focus. |
-| **Dark Mode** | Not mentioned | Not mentioned | Catppuccin Latte/Mocha with WCAG AA contrast (v6.0). Issue #137 shows incomplete coverage (gap to fix in v10.0). |
-| **Theme Consistency** | Not applicable (web apps, different tech stack) | Not applicable | **Unique challenge:** R/Shiny + bslib + Bootstrap 5 + custom Catppuccin palette. Design token system addresses this at architecture level. |
-
-**Key Insight:** Elicit and Paperguide focus on automation scale (125M+ papers). Serapeum focuses on **local-first**, **quality synthesis**, and **transparent AI usage**. Gap Analysis Report and explicit AI disclaimers are clear differentiators. Methodology Extractor is table stakes (competitors have it), but our implementation leveraging existing section-targeted RAG is simpler.
-
-## Implementation Notes
-
-### Design Token System
-
-**What to include in policy document:**
-
-1. **Button Variant Semantics** (from Bootstrap docs):
-   - `btn-primary`: Primary action (e.g., "Search", "Generate", "Save")
-   - `btn-secondary`: Secondary/alternative action (e.g., "Cancel", "Back")
-   - `btn-success`: Positive confirmation (e.g., "Confirm Import", "Apply Filter")
-   - `btn-danger`: Destructive action (e.g., "Delete Notebook", "Remove Paper", "Clear All")
-   - `btn-warning`: Caution action (e.g., "Overwrite", "Force Sync")
-   - `btn-info`: Informational action (e.g., "Learn More", "View Details")
-   - `btn-outline-*`: Low-emphasis variant of above (use for tertiary actions)
-
-2. **Icon Consistency Map** (FontAwesome):
-   - Download: `fa-download`
-   - Delete/Remove: `fa-trash`
-   - Edit: `fa-edit` or `fa-pencil`
-   - Search: `fa-search`
-   - Filter: `fa-filter`
-   - Settings: `fa-cog`
-   - Export: `fa-file-export`
-   - Import: `fa-file-import`
-   - Info: `fa-info-circle`
-   - Warning: `fa-exclamation-triangle`
-   - Success: `fa-check-circle`
-   - Preset-specific icons (already defined in v2.1): `fa-list-ul` (Overview), `fa-question-circle` (Research Questions), `fa-table` (Literature Review Table), `fa-lightbulb` (Conclusions Synthesis)
-
-3. **Color Semantic Classes** (Bootstrap + bslib):
-   - Background: `bg-body`, `bg-body-secondary`, `bg-body-tertiary` (auto-adapts to theme)
-   - Text: `text-body`, `text-body-secondary`, `text-muted` (auto-adapts)
-   - Borders: `border-secondary`, `border-tertiary`
-   - Badges: `badge bg-success` (open access), `badge bg-danger` (retracted), `badge bg-warning` (predatory journal)
-   - **Never hardcode hex colors in component code** — use Bootstrap semantic classes or bslib theme variables
-
-4. **Sidebar Theming** (bslib):
-   - Use `sidebar(bg = "body-secondary")` not `sidebar(bg = "#f5e0dc")`
-   - Foreground color auto-adapts from `bs_theme(fg = ...)`
-   - Border color auto-adapts from Bootstrap border utilities
-
-**Pitfalls to document:**
-
-- **CSS specificity conflicts:** Bootstrap CSS loaded after custom CSS will override. Solution: Use `bs_add_rules()` to inject custom CSS after Bootstrap compilation.
-- **Component inconsistency:** Some Bootstrap components (e.g., `text-bg-{color}`) don't fully support dark mode. Solution: Test all components in both themes, file issues, use workarounds (e.g., explicit dark mode overrides via `bs_add_rules()`).
-- **Hardcoded colors breaking theme switching:** If any component uses `style="background-color: #xxxxxx"`, it won't adapt to theme changes. Solution: Audit all components, replace with Bootstrap classes.
-
-### Methodology Extractor Preset
-
-**Structured output format** (based on PICO/IMRAD research):
-
-```markdown
-## Methodology Overview
-
-**Study Design:** [Experimental, observational, survey, meta-analysis, etc.]
-
-**Population/Sample:**
-- Participants: [N, demographics, inclusion/exclusion criteria]
-- Setting: [Where study was conducted]
-
-**Intervention/Exposure:**
-- [What was manipulated or observed]
-
-**Comparison/Control:**
-- [Control group, baseline, or comparison condition]
-
-**Outcomes/Measures:**
-- Primary: [Main dependent variables]
-- Secondary: [Additional measures]
-
-**Analysis Methods:**
-- Statistical tests: [t-test, ANOVA, regression, etc.]
-- Software: [R, SPSS, Python, etc.]
-- Corrections: [Multiple comparison correction, etc.]
-
-**Limitations Noted:**
-- [Author-reported limitations from methods/discussion sections]
-```
-
-**Implementation approach:**
-
-1. Reuse section-targeted RAG from v2.1 (SYNTH-03) with `section_hints = c("method", "material", "procedure")`
-2. Prompt engineering: Include correct/wrong examples (v7.0 SLIDE-03 pattern showed 8/8 success rate with concrete examples)
-3. Structured output: Use markdown headers/lists like Literature Review Table (v4.0), not prose
-4. Add to preset dropdown in UI, follow existing preset pattern
-5. Include AI disclaimer banner (v2.1 SYNTH-05 pattern)
-
-**Complexity drivers:**
-- Prompt engineering for consistent structure across different paper styles (experimental vs observational vs review)
-- Handling papers that don't follow IMRAD structure (e.g., some computer science papers)
-- Determining when to say "Not reported" vs inferring from other sections
-
-### Gap Analysis Report Preset
-
-**Structured output format** (based on PICOS framework for systematic reviews):
-
-```markdown
-## Research Gap Analysis
-
-**Papers Analyzed:** [N papers]
+- **Expanded document types beyond article/review/preprint**: Low priority until user requests
+- **Sticky Load More**: Desktop app doesn't benefit from mobile pattern
+- **Dynamic tooltips with shortcuts**: Power user feature, adds complexity
+- **Batch size control for Load More**: Adds UI complexity, unclear user demand
 
 ---
 
-### Population Gaps
+## Complexity Assessment
 
-**Well-Studied Populations:**
-- [Demographics/groups with strong evidence base]
-
-**Under-Studied Populations:**
-- [Demographics/groups with limited research]
-
-**Rationale:** [Why these gaps matter]
-
----
-
-### Methodological Gaps
-
-**Common Approaches:**
-- [Dominant study designs: e.g., "80% observational, 20% experimental"]
-
-**Missing Approaches:**
-- [Study designs not represented: e.g., "No longitudinal studies"]
-
-**Rationale:** [Why these gaps matter]
+| Pattern | Complexity | Rationale |
+|---------|------------|-----------|
+| Icon+text buttons | Low | Icon wrappers exist, just add text to existing buttons |
+| Load More vs Infinite Scroll | Low | Load More button is simpler than infinite scroll logic |
+| Tooltips | Low | Shiny bslib has built-in tooltip support |
+| Active filter chips | Medium | New UI component + remove logic |
+| Button grouping | Low | CSS spacing or separator elements |
+| Refresh vs Load More split | Low | Separate handlers, different icons |
+| Expanded document types | Low-Medium | OpenAlex API supports ~15 types; UI just adds checkboxes |
+| Keyboard-accessible tooltips | Medium | Requires aria-describedby + focus event handlers |
 
 ---
 
-### Outcome Gaps
+## Phase-Specific Warnings
 
-**Well-Measured Outcomes:**
-- [Outcomes frequently studied]
-
-**Under-Measured Outcomes:**
-- [Outcomes rarely studied despite relevance]
-
-**Rationale:** [Why these gaps matter]
-
----
-
-### Conflicting Findings
-
-**Area:** [Topic with disagreement]
-**Papers:** [Citation count with conflicting results]
-**Nature of Conflict:** [What contradicts what]
-**Potential Explanation:** [Methodological differences, population differences, etc.]
+| UX Pattern | Likely Pitfall | Mitigation |
+|------------|---------------|------------|
+| Icon+text buttons | Horizontal space constraints on narrow screens | Test at 1024px width; collapse to icon-only with tooltips if needed |
+| Load More button | Performance with large result sets (500+ papers) | Virtual scrolling or batch limits |
+| Active filter chips | Horizontal overflow with many active filters | Horizontal scroll or multi-row wrap |
+| Tooltips | Tooltip positioning near viewport edges | Use bslib tooltip auto-placement |
+| Button ordering | Conflicting user workflows (frequency vs task sequence) | User testing to validate Import → Edit → Seed → Export order |
+| Refresh vs Load More | Users confuse retry with fetch-more | Strong visual distinction (icon + color + label) |
 
 ---
 
-### Future Research Directions
+## Open Questions (Flag for Validation)
 
-1. [Specific research question based on identified gap]
-2. [Another research question]
-3. [Another research question]
-```
-
-**Implementation approach:**
-
-1. Reuse section-targeted RAG but query **all sections** (not just methods) — need intro (research questions), discussion (limitations, future work)
-2. Cross-paper synthesis logic: Generate intermediate summaries per paper, then meta-summary identifying patterns/gaps
-3. Minimum paper count check: Show warning if <3 papers ("Gap analysis requires multiple papers for comparison. Add more papers to this notebook.")
-4. PICOS framework prompt engineering with examples
-5. Follow existing preset pattern (dropdown, disclaimer banner, export)
-
-**Complexity drivers:**
-- Cross-paper synthesis (not just per-paper retrieval) — may require multiple RAG queries + LLM calls
-- Distinguishing "limitations" (author-reported weaknesses) from "gaps" (missing across literature)
-- Avoiding false gaps (e.g., claiming "no studies on X" when collection is just narrow)
-- Cost management (multiple LLM calls for synthesis) — may need cost warning in UI
-
-**Key decision: Sequential vs parallel synthesis?**
-- **Sequential:** Query each paper → intermediate summary → final meta-analysis. More LLM calls, higher cost, more controllable.
-- **Parallel:** Query all papers at once, LLM synthesizes in single call. Cheaper, but may hit token limits with large collections.
-- **Recommendation:** Start with sequential (matches existing preset pattern of one LLM call per preset), optimize to parallel if users report speed issues.
-
-## Sources
-
-**UI Design Systems & Theming:**
-- [UI Color Palette 2026: Best Practices (IxDF)](https://ixdf.org/literature/article/ui-color-palette)
-- [Modern App Colors: Design Palettes That Work In 2026 (WebOsmotic)](https://webosmotic.com/blog/modern-app-colors/)
-- [Bootstrap Buttons · Bootstrap v5.3](https://getbootstrap.com/docs/5.3/components/buttons/)
-- [Color modes · Bootstrap v5.3](https://getbootstrap.com/docs/5.3/customize/color-modes/)
-- [bslib Theming Documentation](https://rstudio.github.io/bslib/articles/theming/index.html)
-- [bslib Sidebars Documentation](https://rstudio.github.io/bslib/articles/sidebars/index.html)
-- [Font Awesome Icon Design Guidelines](https://docs.fontawesome.com/web/add-icons/upload-icons/icon-design/)
-- [Design Tokens That Scale in 2026 (Mavik Labs)](https://www.maviklabs.com/blog/design-tokens-tailwind-v4-2026)
-- [CSS Variables Guide: Design Tokens & Theming (FrontendTools)](https://www.frontendtools.tech/blog/css-variables-guide-design-tokens-theming-2025)
-
-**Methodology Extraction & Research Synthesis:**
-- [11 Best AI Tools for Scientific Literature Review in 2026 (Cypris)](https://www.cypris.ai/insights/11-best-ai-tools-for-scientific-literature-review-in-2026)
-- [Elicit: AI for scientific research](https://elicit.com/)
-- [Paperguide: The AI Research Assistant](https://paperguide.ai/)
-- [Use of deep learning-based NLP models for full-text data elements extraction (Nature Scientific Reports)](https://www.nature.com/articles/s41598-025-03979-5)
-- [Automated generation of research workflows from academic papers (ScienceDirect)](https://www.sciencedirect.com/science/article/abs/pii/S175115772500094X)
-- [Structure of a Research Paper: IMRaD Format (UMN Libraries)](https://libguides.umn.edu/StructureResearchPaper)
-- [Discovering IMRaD Structure with Different Classifiers (Semantic Scholar)](https://www.semanticscholar.org/paper/Discovering-IMRaD-Structure-with-Different-Ribeiro-Yao/be2ef84f950edf665924cbb7d24545eeb319dffd)
-
-**Gap Analysis & Systematic Review Methodology:**
-- [Framework for Determining Research Gaps During Systematic Review (NCBI)](https://www.ncbi.nlm.nih.gov/books/NBK126702/)
-- [Methodology for mapping reviews, evidence maps, and gap maps (Research Synthesis Methods - Cambridge)](https://www.cambridge.org/core/journals/research-synthesis-methods/article/methodology-for-mapping-reviews-evidence-maps-and-gap-maps/9C0C51FF65DC0D8D52CB616B08B0F986)
-- [Literature Gap and Future Research (National University LibGuides)](https://resources.nu.edu/researchprocess/literaturegap)
-- [Gaps in the Literature (UNE Library Services)](https://library.une.edu/research-help/help-with/gaps-in-the-literature/)
-- [Data Extraction for Systematic Reviews (UNC LibGuides)](https://guides.lib.unc.edu/systematic-reviews/extract-data)
-- [Data extraction and comparison for complex systematic reviews (Springer Systematic Reviews)](https://link.springer.com/article/10.1186/s13643-023-02322-1)
-
-**AI Interface Design Patterns:**
-- [Design Patterns For AI Interfaces (Smart Interface Design Patterns)](https://smart-interface-design-patterns.com/articles/ai-design-patterns/)
-- [Design Patterns For AI Interfaces — Smashing Magazine](https://www.smashingmagazine.com/2025/07/design-patterns-ai-interfaces/)
-
-**Bootstrap & Dark Mode Pitfalls:**
-- [Most components don't support theme/dark mode changes · Bootstrap Issue #37976](https://github.com/twbs/bootstrap/issues/37976)
-- [How To Override Bootstrap 5 CSS Styles? (ThemeSelection)](https://themeselection.com/override-bootstrap-css-styles/)
+- **Document type priorities**: Which types beyond article/review/preprint do Serapeum users need? (Low confidence — no user research data)
+- **Button ordering**: Is Import → Edit → Seed Network → Export the actual user workflow, or do users Edit more than Import? (Medium confidence — assumes left-to-right task flow)
+- **Load More batch size**: Should Serapeum load 25, 50, or 100 papers per Load More click? (Low confidence — WebSearch suggests 50 is common but no scholarly-specific data)
+- **Sticky Load More**: Would desktop users benefit from bottom-sticky positioning for long result lists? (Low confidence — pattern is mobile-first)
 
 ---
-*Feature research for: Research Assistant UI Design System & AI Synthesis Presets (v10.0)*
-*Researched: 2026-03-04*
-*Confidence: MEDIUM-HIGH (Bootstrap/bslib docs are authoritative HIGH; AI tool features from web search MEDIUM; gap analysis methodology from systematic review literature HIGH)*
+
+## Confidence Assessment
+
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Icon+text vs icon-only | HIGH | NN/G research + design system docs converge on icon+text for clarity |
+| Load More vs infinite scroll | HIGH | Multiple sources confirm Load More for goal-oriented search |
+| Tooltips (content + accessibility) | HIGH | WCAG 2.2 is authoritative; 15-word guideline from multiple sources |
+| Document type filters | MEDIUM | PubMed/Google Scholar patterns documented, but Serapeum user needs unverified |
+| Button ordering | MEDIUM | Workflow order is standard pattern but frequency data is missing |
+| Refresh vs Load More mental models | HIGH | Cloudscape Design System + UX Pattern Analysis are authoritative sources |
+
+---
+
+*Research complete: 2026-03-06. All findings verified with design system documentation or UX research sources. LOW confidence areas flagged for user testing or analytics validation.*
