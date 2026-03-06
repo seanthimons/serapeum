@@ -35,9 +35,9 @@ Requirements for v10.0 Theme Harmonization & AI Synthesis. Each maps to roadmap 
 ### AI Synthesis — Methodology Extractor
 
 - [ ] **METH-01**: User can generate a Methodology Extractor report from document notebook (#100)
-- [ ] **METH-02**: Report extracts structured fields: study design, data sources, sample characteristics, statistical methods, tools/instruments
-- [ ] **METH-03**: Extraction uses section-targeted RAG to prioritize Methods/Materials sections
-- [ ] **METH-04**: Report includes per-paper citations linking findings to source documents
+- [x] **METH-02**: Report extracts structured fields: study design, data sources, sample characteristics, statistical methods, tools/instruments
+- [x] **METH-03**: Extraction uses section-targeted RAG to prioritize Methods/Materials sections
+- [x] **METH-04**: Report includes per-paper citations linking findings to source documents
 - [ ] **METH-05**: AI disclaimer banner is shown on generated output
 
 ### AI Synthesis — Gap Analysis Report
@@ -100,9 +100,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | THEM-04 | Phase 47 | Complete |
 | THEM-05 | Phase 47 | Complete |
 | METH-01 | Phase 48 | Pending |
-| METH-02 | Phase 48 | Pending |
-| METH-03 | Phase 48 | Pending |
-| METH-04 | Phase 48 | Pending |
+| METH-02 | Phase 48 | Complete |
+| METH-03 | Phase 48 | Complete |
+| METH-04 | Phase 48 | Complete |
 | METH-05 | Phase 48 | Pending |
 | GAPS-01 | Phase 49 | Pending |
 | GAPS-02 | Phase 49 | Pending |
