@@ -25,9 +25,6 @@ Valuable features requiring more investment, or moderate-impact improvements.
 | [#120](https://github.com/seanthimons/serapeum/issues/120) | UI for viewing/editing prompts for research outputs | Medium | Medium |
 | [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
 | [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | High | High |
-| [#104](https://github.com/seanthimons/serapeum/issues/104) | feat: Argument Map / Claims Network preset | High | Medium |
-| [#105](https://github.com/seanthimons/serapeum/issues/105) | feat: Annotated Bibliography export (APA/MLA) | Medium | Medium |
-| [#106](https://github.com/seanthimons/serapeum/issues/106) | feat: Teaching Materials Generator | Low-Medium | Medium |
 | [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging — *spinners done (Phase 29), modal messaging remaining* | Medium | Medium |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + vice versa | High | Medium |
 | [#8](https://github.com/seanthimons/serapeum/issues/8) | dev: Local model support | High | High |
@@ -64,7 +61,7 @@ Nice-to-have features and research tasks.
 
 | Issue | Title | Sub-issues Status |
 |-------|-------|-------------------|
-| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 7/10 complete (#88, #98, #99, #100, #101, #102, #103) |
+| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 10/10 complete — **CLOSED** |
 | [#142](https://github.com/seanthimons/serapeum/issues/142) | epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals — 6 phases) — [plan](docs/plans/2026-03-06-advanced-retrieval-pipeline.md) | Phase 1-5 planned |
 | [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete — **CLOSED** |
 | [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 4/4 complete — **CLOSED** |
