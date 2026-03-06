@@ -276,7 +276,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
     chunks <- tryCatch({
       search_chunks_hybrid(
         con,
-        query = "conclusions limitations future work research gaps directions",
+        query = "conclusions results findings discussion agreements",
         notebook_id = notebook_id,
         limit = 10,
         section_filter = c("conclusion", "limitations", "future_work", "discussion", "late_section"),
@@ -293,7 +293,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
       chunks <- tryCatch({
         search_chunks_hybrid(
           con,
-          query = "conclusions limitations future work research gaps directions",
+          query = "conclusions results findings discussion agreements",
           notebook_id = notebook_id,
           limit = 10,
           api_key = api_key, embed_model = embed_model
@@ -308,7 +308,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
     chunks <- tryCatch({
       search_chunks_hybrid(
         con,
-        query = "conclusions limitations future work research gaps",
+        query = "conclusions results findings discussion agreements",
         notebook_id = notebook_id,
         limit = 10,
         api_key = api_key, embed_model = embed_model
@@ -362,7 +362,6 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
   system_prompt <- "You are a research synthesis assistant. Your task is to:
 1. Summarize the key conclusions across the provided research sources
 2. Identify common themes, agreements, and divergent positions
-3. Propose future research directions based on identified gaps and limitations
 
 IMPORTANT: Base your synthesis ONLY on the provided sources. Do not invent findings or cite sources not provided. If sources conflict, note the disagreement explicitly.
 
@@ -371,16 +370,13 @@ OUTPUT FORMAT:
 [Synthesized conclusions with citations using [Source Name] format]
 
 ## Agreements & Disagreements
-[Where sources agree and diverge]
-
-## Research Gaps & Future Directions
-[Proposed directions based on limitations and gaps identified in the sources]"
+[Where sources agree and diverge, with specific citations]"
 
   user_prompt <- sprintf("===== BEGIN RESEARCH SOURCES =====
 %s
 ===== END RESEARCH SOURCES =====
 
-Synthesize the conclusions and future research directions from the sources above.", context)
+Synthesize the key conclusions and identify where sources agree or diverge.", context)
 
   messages <- format_chat_messages(system_prompt, user_prompt)
 
