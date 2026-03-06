@@ -116,7 +116,15 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-(No active requirements — define with `/gsd:new-milestone`)
+## Current Milestone: v11.0 Search Notebook UX
+
+**Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency.
+
+**Target features:**
+- Fix year filter slider/histogram alignment (#143)
+- Rework document type filters with expanded types and better UI (#125)
+- Button bar overhaul: labels, reordering, color harmonization, tooltips
+- Split Refresh into Refresh + Load More with distinct semantics
 
 ### Out of Scope
 
@@ -233,7 +241,7 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 **Latest shipped:** v10.0 Theme Harmonization & AI Synthesis (2026-03-06)
 **Total milestones:** 13 shipped (v1.0–v10.0)
 **Total phases:** 49 complete across 86 plans
-**Next:** Define with `/gsd:new-milestone`
+**Current:** v11.0 Search Notebook UX
 
 **v10.0 shipped:** Catppuccin design system with semantic color policy and 76 icon wrappers. Sidebar and button theming harmonized. Citation audit multi-paper import fixed. Two new AI presets: Methodology Extractor (section-targeted RAG into GFM tables) and Gap Analysis Report (cross-paper synthesis with contradiction detection).
 
@@ -244,4 +252,4 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-06 after v10.0 milestone*
+*Last updated: 2026-03-06 after v11.0 milestone start*
