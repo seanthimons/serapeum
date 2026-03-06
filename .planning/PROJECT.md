@@ -151,6 +151,7 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 - **Dependencies**: igraph, visNetwork, commonmark (v2.0), ragnar (v3.0), thematic (v6.0), bib2df (v7.0) — ragnar is a hard requirement
 - **RAG**: ragnar is the sole retrieval backend — no legacy cosine similarity fallback
 - **Theme**: Catppuccin palette only — no custom color schemes or multiple theme variants
+- **Design system**: Semantic color policy + icon wrappers in R/theme_catppuccin.R — primary=lavender, info=sapphire (Phase 45)
 
 ## Key Decisions
 
@@ -223,6 +224,9 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 | Custom tooltip via htmlwidgets::onRender (v9.0) | vis.js title uses textContent not innerHTML | ✓ Good — HTML rendering, containment, dark mode |
 | tooltip_html column + title=NA pattern (v9.0) | Separate custom data from vis.js default tooltip | ✓ Good — no dual-tooltip conflict |
 | Adaptive citation percentile for trim (v9.0) | Different thresholds for different network sizes | ✓ Good — balanced filtering |
+| Lavender for primary, not blue (v10.0) | Blue too plain in light mode; lavender has more character | ✓ Good — matches existing theme, no breaking change |
+| Info semantic color: blue → sapphire (v10.0) | Better visual distinction from primary lavender | Pending — Phase 47 will apply |
+| Semantic icon wrappers in theme_catppuccin.R (v10.0) | Centralized icon-to-action mapping for consistency | ✓ Good — 20 wrappers, color-neutral |
 
 ---
 ## Current Milestone: v10.0 Theme Harmonization & AI Synthesis
@@ -240,8 +244,8 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 
 **Latest shipped:** v9.0 Network Graph Polish (2026-03-04)
 **Total milestones:** 12 shipped (v1.0–v9.0)
-**Total phases:** 43 complete across 76 plans
-**Current:** v10.0 Theme Harmonization & AI Synthesis
+**Total phases:** 45 complete across 78 plans
+**Current:** v10.0 Theme Harmonization & AI Synthesis (Phase 45 done — design system foundation)
 
 **v9.0 shipped:** Physics singularity collapse fix + ambient drift for small networks, dynamic year filter bounds + trim-to-influential with bridge preservation, custom HTML tooltips with dark mode support and container containment.
 
@@ -254,4 +258,4 @@ Known tech debt: connection leak in search_chunks_hybrid (#117), section_hint no
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-04 after v10.0 milestone start*
+*Last updated: 2026-03-05 after Phase 45 (Design System Foundation) complete*
