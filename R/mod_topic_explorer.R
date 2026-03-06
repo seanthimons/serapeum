@@ -10,7 +10,7 @@ mod_topic_explorer_ui <- function(id) {
       uiOutput(ns("cache_status")),
 
       # Refresh topics link button
-      actionLink(ns("refresh_topics"), "Refresh Topics", icon = icon("refresh"),
+      actionLink(ns("refresh_topics"), "Refresh Topics", icon = icon_refresh(),
                  class = "small text-muted"),
 
       hr(),
@@ -53,8 +53,8 @@ mod_topic_explorer_ui <- function(id) {
       actionButton(
         ns("create_notebook_btn"),
         "Explore This Topic",
-        class = "btn-success w-100",
-        icon = icon("book")
+        class = "btn-primary w-100",
+        icon = icon_book()
       )
     )
   )

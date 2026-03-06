@@ -153,8 +153,8 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 
 - [x] **Phase 44: Tech Debt Cleanup** - Fix connection leaks before increasing rendering load (completed 2026-03-04)
 - [x] **Phase 45: Design System Foundation** - Define semantic color/icon policy and validate with visual swatch sheet (completed 2026-03-05)
-- [ ] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync
-- [ ] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics
+- [x] **Phase 46: Citation Audit Bug Fixes** - Fix multi-paper import errors and abstract notebook sync (completed 2026-03-05)
+- [x] **Phase 47: Sidebar & Button Theming** - Apply design system to all UI elements with consistent semantics (completed 2026-03-05)
 - [ ] **Phase 48: Methodology Extractor Preset** - Section-targeted RAG extraction of research methods
 - [ ] **Phase 49: Gap Analysis Report Preset** - Cross-paper synthesis identifying methodological and topical gaps
 
@@ -193,14 +193,14 @@ Plans:
 **Depends on**: Phase 44 (connection leaks fixed first)
 **Requirements**: BUGF-01, BUGF-02
 **Success Criteria** (what must be TRUE):
-  1. User can add multiple papers via citation audit without database errors
-  2. Papers added via citation audit immediately appear in abstract notebook
-  3. Defensive SQL handles concurrent imports with transactions
-  4. Reactive invalidation triggers abstract notebook refresh
-**Plans**: TBD
+  1. User can add multiple papers via citation audit without database errors ✅
+  2. Papers added via citation audit immediately appear in abstract notebook ✅
+  3. Defensive SQL handles concurrent imports with transactions ✅
+  4. Reactive invalidation triggers abstract notebook refresh ✅
+**Plans**: 1/1 complete
 
 Plans:
-- [ ] 46-01: Fix multi-paper citation audit import and abstract sync
+- [x] 46-01-PLAN.md — Fix import_audit_papers skipped_count, observer pattern, and notebook_refresh wiring (completed 2026-03-05)
 
 ### Phase 47: Sidebar & Button Theming
 **Goal**: Apply design system policy to all buttons, sidebar, and icons across entire app
@@ -228,13 +228,14 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can generate Methodology Extractor report from document notebook
   2. Report extracts structured fields: study design, data sources, sample characteristics, statistical methods, tools/instruments
-  3. Extraction uses section-targeted RAG prioritizing Methods/Materials/Introduction sections
+  3. Extraction uses section-targeted RAG prioritizing Methods/Materials sections
   4. Report includes per-paper citations linking findings to source documents
   5. AI disclaimer banner is shown on generated output
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 48-01: Implement Methodology Extractor preset with section-targeted RAG
+- [ ] 48-01-PLAN.md — Create generate_methodology_extractor() backend function and icon_flask wrapper
+- [ ] 48-02-PLAN.md — Wire UI: two-row preset bar, Methods button handler, is_synthesis update
 
 ### Phase 49: Gap Analysis Report Preset
 **Goal**: Add AI preset identifying methodological and topical gaps through cross-paper synthesis
@@ -261,11 +262,11 @@ Phases execute in numeric order: 44 -> 45 -> 46 -> 47 -> 48 -> 49
 |-------|----------------|--------|-----------|
 | 44. Tech Debt Cleanup | 1/1 | Complete    | 2026-03-04 |
 | 45. Design System Foundation | 1/1 | Complete   | 2026-03-05 |
-| 46. Citation Audit Bug Fixes | 0/1 | Not started | - |
-| 47. Sidebar & Button Theming | 0/3 | Not started | - |
-| 48. Methodology Extractor Preset | 0/1 | Not started | - |
+| 46. Citation Audit Bug Fixes | 0/1 | Complete    | 2026-03-05 |
+| 47. Sidebar & Button Theming | 3/3 | Complete    | 2026-03-05 |
+| 48. Methodology Extractor Preset | 0/2 | Not started | - |
 | 49. Gap Analysis Report Preset | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-05 — Phase 47 planned (3 plans in 2 waves)*
+*Last updated: 2026-03-05 — Phase 48 planned (2 plans)*

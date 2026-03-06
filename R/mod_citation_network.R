@@ -65,7 +65,7 @@ mod_citation_network_ui <- function(id) {
             ns("build_network"),
             "Build Network",
             class = "btn-primary",
-            icon = icon("diagram-project")
+            icon = icon_diagram()
           )
         ),
 
@@ -76,7 +76,7 @@ mod_citation_network_ui <- function(id) {
             ns("save_network"),
             "Save Network",
             class = "btn-outline-success",
-            icon = icon("save")
+            icon = icon_save()
           )
         )
       ),
@@ -150,9 +150,9 @@ mod_citation_network_ui <- function(id) {
             ),
             div(
               class = "mt-2",
-              icon("star", class = "text-warning"), " = Seed Paper", br(),
-              icon("diamond", class = "text-info"), " = Multi-Seed Overlap", br(),
-              icon("circle", class = "text-muted"), " = Regular Paper"
+              icon_star(class = "text-warning"), " = Seed Paper", br(),
+              icon_diamond(class = "text-info"), " = Multi-Seed Overlap", br(),
+              icon_circle(class = "text-muted"), " = Regular Paper"
             ),
             tags$hr(),
             bslib::input_switch(
@@ -372,7 +372,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           div(
             class = "pt-3",
             actionButton(ns("apply_year_filter"), "Apply Year Filter",
-                         class = "btn-outline-primary btn-sm", icon = icon("filter")),
+                         class = "btn-outline-primary btn-sm", icon = icon_filter()),
             uiOutput(ns("year_filter_preview"))
           )
         )
@@ -496,7 +496,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Show progress modal
       showModal(modalDialog(
-        title = tagList(icon("spinner", class = "fa-spin"), modal_title),
+        title = tagList(icon_spinner(class = "fa-spin"), modal_title),
         tags$div(
           class = "progress",
           style = "height: 25px;",
@@ -516,7 +516,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           class = "text-muted mt-2",
           "Initializing..."
         ),
-        footer = actionButton(session$ns("cancel_build"), "Stop", class = "btn-warning", icon = icon("stop")),
+        footer = actionButton(session$ns("cancel_build"), "Stop", class = "btn-warning", icon = icon_stop()),
         easyClose = FALSE,
         size = "m"
       ))
@@ -1083,7 +1083,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       if (is.null(node_id)) {
         return(div(
           class = "text-muted p-3 text-center",
-          icon("mouse-pointer"),
+          icon_mouse_pointer(),
           br(), br(),
           "Click a node to see paper details"
         ))
@@ -1099,8 +1099,8 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       tagList(
         div(
           class = "d-flex justify-content-between align-items-center mb-3",
-          h5(class = "mb-0", icon("file-alt"), " Paper Details"),
-          actionLink(ns("close_panel"), icon("times"))
+          h5(class = "mb-0", icon_file_alt(), " Paper Details"),
+          actionLink(ns("close_panel"), icon_times())
         ),
 
         h5(node$paper_title),
@@ -1144,7 +1144,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
               href = paste0("https://doi.org/", node$doi),
               target = "_blank",
               node$doi,
-              icon("external-link-alt", class = "ms-1 small")
+              icon_external_link_alt(class = "ms-1 small")
             )
           )
         },
@@ -1170,7 +1170,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             ns("explore_from_node"),
             "Explore from here",
             class = "btn-primary",
-            icon = icon("diagram-project")
+            icon = icon_diagram()
           )
         )
       )
@@ -1232,7 +1232,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       mp <- missing_papers_data()
       if (is.null(mp) || nrow(mp) == 0) {
         return(div(class = "text-muted p-3",
-          icon("circle-check", class = "text-success"),
+          icon_check_circle(class = "text-success"),
           " All network papers are already in your notebook."
         ))
       }
@@ -1261,7 +1261,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
                     "Shiny.setInputValue('%s', '%s', {priority: 'event'});",
                     ns("import_missing_paper"), paper$paper_id
                   ),
-                  icon("plus"), " Import"
+                  icon_add(), " Import"
                 )
               ),
               div(class = "small text-muted", paper$authors),

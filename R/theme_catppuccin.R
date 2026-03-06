@@ -227,6 +227,385 @@ icon_book <- function(...) shiny::icon("book", ...)
 #' @return Icon tag
 icon_paper <- function(...) shiny::icon("file-lines", ...)
 
+# =============================================================================
+# Decorative/Status Icons
+# =============================================================================
+
+#' Coins icon (cost display)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_coins <- function(...) shiny::icon("coins", ...)
+
+#' Dollar sign icon (cost details)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_dollar <- function(...) shiny::icon("dollar-sign", ...)
+
+#' Brain icon (AI/LLM actions)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_brain <- function(...) shiny::icon("brain", ...)
+
+#' Seedling icon (discover from paper)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_seedling <- function(...) shiny::icon("seedling", ...)
+
+#' Compass icon (explore topics)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_compass <- function(...) shiny::icon("compass", ...)
+
+#' Wand magic sparkles icon (query builder)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_wand <- function(...) shiny::icon("wand-magic-sparkles", ...)
+
+#' Diagram project icon (citation network)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_diagram <- function(...) shiny::icon("diagram-project", ...)
+
+#' Magnifying glass chart icon (citation audit)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_audit <- function(...) shiny::icon("magnifying-glass-chart", ...)
+
+#' File import icon (import papers)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_import <- function(...) shiny::icon("file-import", ...)
+
+#' File PDF icon (document notebook)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_pdf <- function(...) shiny::icon("file-pdf", ...)
+
+#' File PowerPoint icon (slides)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_powerpoint <- function(...) shiny::icon("file-powerpoint", ...)
+
+#' Layer group icon (overview preset)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_layer_group <- function(...) shiny::icon("layer-group", ...)
+
+#' Table cells icon (lit review)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_table <- function(...) shiny::icon("table-cells", ...)
+
+#' List check icon (key points)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_key_points <- function(...) shiny::icon("list-check", ...)
+
+#' Shield halved icon (quality filters)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_shield <- function(...) shiny::icon("shield-halved", ...)
+
+#' Check icon (checkmark)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_check <- function(...) shiny::icon("check", ...)
+
+#' Circle check icon (status OK)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_check_circle <- function(...) shiny::icon("circle-check", ...)
+
+#' Circle xmark icon (status error)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_circle_xmark <- function(...) shiny::icon("circle-xmark", ...)
+
+#' Stop icon (cancel/stop)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_stop <- function(...) shiny::icon("stop", ...)
+
+#' Play icon (start/run)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_play <- function(...) shiny::icon("play", ...)
+
+#' Times icon (small close)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_times <- function(...) shiny::icon("times", ...)
+
+#' Book open icon (app branding)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_book_open <- function(...) shiny::icon("book-open", ...)
+
+#' Paper plane icon (send message)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_paper_plane <- function(...) shiny::icon("paper-plane", ...)
+
+#' Spinner icon (loading)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_spinner <- function(...) shiny::icon("spinner", ...)
+
+#' Question icon (help)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_question <- function(...) shiny::icon("circle-question", ...)
+
+#' Link icon (URLs)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_link <- function(...) shiny::icon("link", ...)
+
+#' External link icon (external links)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_external_link <- function(...) shiny::icon("arrow-up-right-from-square", ...)
+
+#' Chevron down icon (dropdowns)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_chevron_down <- function(...) shiny::icon("chevron-down", ...)
+
+#' Bars icon (menu)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_bars <- function(...) shiny::icon("bars", ...)
+
+#' Robot icon (AI preset indicator)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_robot <- function(...) shiny::icon("robot", ...)
+
+#' Quote left icon (research questions)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_quote <- function(...) shiny::icon("quote-left", ...)
+
+#' Clipboard icon (copy to clipboard)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_clipboard <- function(...) shiny::icon("clipboard", ...)
+
+#' File arrow down icon (download file)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_arrow_down <- function(...) shiny::icon("file-arrow-down", ...)
+
+#' Circle info icon (about/info)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_circle_info <- function(...) shiny::icon("info-circle", ...)
+
+#' Microscope icon (research presets)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_microscope <- function(...) shiny::icon("microscope", ...)
+
+#' Lightbulb icon (suggestions)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_lightbulb <- function(...) shiny::icon("lightbulb", ...)
+
+#' GitHub icon (external links)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_github <- function(...) shiny::icon("github", ...)
+
+#' Wrench icon (advanced features)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_wrench <- function(...) shiny::icon("wrench", ...)
+
+#' Arrow left icon (navigation)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_arrow_left <- function(...) shiny::icon("arrow-left", ...)
+
+#' Arrow right icon (navigation)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_arrow_right <- function(...) shiny::icon("arrow-right", ...)
+
+#' File code icon (code/technical)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_code <- function(...) shiny::icon("file-code", ...)
+
+#' File CSV icon (data export)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_csv <- function(...) shiny::icon("file-csv", ...)
+
+#' List icon (list view)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_list <- function(...) shiny::icon("list", ...)
+
+#' List ordered icon (numbered list)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_list_ol <- function(...) shiny::icon("list-ol", ...)
+
+#' Check double icon (verified/confirmed)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_check_double <- function(...) shiny::icon("check-double", ...)
+
+#' Ban icon (blocked/disabled)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_ban <- function(...) shiny::icon("ban", ...)
+
+#' Rotate icon (refresh/reload)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_rotate <- function(...) shiny::icon("rotate", ...)
+
+#' Rotate right icon (refresh/reload)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_rotate_right <- function(...) shiny::icon("rotate-right", ...)
+
+#' Trash can icon (delete)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_trash_can <- function(...) shiny::icon("trash-can", ...)
+
+#' Broom icon (clear/clean)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_broom <- function(...) shiny::icon("broom", ...)
+
+#' Fingerprint icon (uniqueness)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_fingerprint <- function(...) shiny::icon("fingerprint", ...)
+
+#' Star icon (favorites)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_star <- function(...) shiny::icon("star", ...)
+
+#' Diamond icon (quality)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_diamond <- function(...) shiny::icon("diamond", ...)
+
+#' Circle icon (general marker)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_circle <- function(...) shiny::icon("circle", ...)
+
+#' File text icon (text document)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_text <- function(...) shiny::icon("file-text", ...)
+
+#' File alt icon (alternative file)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_alt <- function(...) shiny::icon("file-alt", ...)
+
+#' File circle question icon (unknown file)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_file_question <- function(...) shiny::icon("file-circle-question", ...)
+
+#' External link alt icon (external link alternative)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_external_link_alt <- function(...) shiny::icon("external-link-alt", ...)
+
+#' Mouse pointer icon (selection)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_mouse_pointer <- function(...) shiny::icon("mouse-pointer", ...)
+
+#' Circle pause icon (pause)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_circle_pause <- function(...) shiny::icon("circle-pause", ...)
+
+#' Comments icon (discussion)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_comments <- function(...) shiny::icon("comments", ...)
+
+#' Chart bar icon (statistics)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_chart_bar <- function(...) shiny::icon("chart-bar", ...)
+
+#' Database icon (data storage)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_database <- function(...) shiny::icon("database", ...)
+
+#' Share nodes icon (network sharing)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_share_nodes <- function(...) shiny::icon("share-nodes", ...)
+
+#' Box icon (container)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_box <- function(...) shiny::icon("box", ...)
+
+#' Key icon (access/security)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_key <- function(...) shiny::icon("key", ...)
+
+#' Sliders icon (settings/adjustments)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_sliders <- function(...) shiny::icon("sliders", ...)
+
+#' Wallet icon (billing/payment)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_wallet <- function(...) shiny::icon("wallet", ...)
+
+#' Save icon (alternative name)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_floppy_disk <- function(...) shiny::icon("floppy-disk", ...)
+
+#' Arrow down icon (download direction)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_arrow_down <- function(...) shiny::icon("arrow-down", ...)
+
+#' Arrow up icon (upload direction)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_arrow_up <- function(...) shiny::icon("arrow-up", ...)
+
+#' Scale balanced icon (comparison)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_scale_balanced <- function(...) shiny::icon("scale-balanced", ...)
+
+#' Minus icon (remove/subtract)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_minus <- function(...) shiny::icon("minus", ...)
+
+#' Window maximize icon (expand window)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_window_maximize <- function(...) shiny::icon("window-maximize", ...)
+
+#' Arrow right to bracket icon (enter/login)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_arrow_right_bracket <- function(...) shiny::icon("arrow-right-to-bracket", ...)
+
 # Generate all dark mode CSS overrides as a single string
 # Injected via bslib::bs_add_rules() for centralized dark mode (DARK-05)
 catppuccin_dark_css <- function() {
@@ -258,8 +637,8 @@ catppuccin_dark_css <- function() {
   --bs-danger-rgb: ', hex_to_rgb(MOCHA$red), ';
   --bs-warning: ', MOCHA$yellow, ';
   --bs-warning-rgb: ', hex_to_rgb(MOCHA$yellow), ';
-  --bs-info: ', MOCHA$blue, ';
-  --bs-info-rgb: ', hex_to_rgb(MOCHA$blue), ';
+  --bs-info: ', MOCHA$sapphire, ';
+  --bs-info-rgb: ', hex_to_rgb(MOCHA$sapphire), ';
 
   /* Borders */
   --bs-border-color: ', MOCHA$surface2, ';

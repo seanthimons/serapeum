@@ -158,3 +158,75 @@
 [data-bs-theme="dark"] .hover-bg-light:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* =============================================================================
+ * Custom Catppuccin Button Colors (Phase 47-02)
+ * ============================================================================= */
+
+/* Peach outline button — for Import Papers (distinct from semantic colors) */
+.btn-outline-peach,
+.btn-outline-peach.btn-default,
+.btn.btn-outline-peach {
+  background-color: transparent !important;
+  border-color: #fe640b !important;  /* LATTE$peach */
+  color: #fe640b !important;
+}
+
+.btn-outline-peach:hover {
+  background-color: #fe640b !important;
+  border-color: #fe640b !important;
+  color: #eff1f5 !important;  /* LATTE$base - light text on hover */
+}
+
+[data-bs-theme="dark"] .btn-outline-peach,
+[data-bs-theme="dark"] .btn-outline-peach.btn-default,
+[data-bs-theme="dark"] .btn.btn-outline-peach {
+  border-color: #fab387 !important;  /* MOCHA$peach */
+  color: #fab387 !important;
+}
+
+[data-bs-theme="dark"] .btn-outline-peach:hover {
+  background-color: #fab387 !important;
+  border-color: #fab387 !important;
+  color: #1e1e2e !important;  /* MOCHA$base - dark text on hover */
+}
+
+/* Sky outline button — for Citation Audit (readable in light mode) */
+.btn-outline-sky,
+.btn-outline-sky.btn-default,
+.btn.btn-outline-sky {
+  background-color: transparent !important;
+  border-color: #04a5e5 !important;  /* LATTE$sky */
+  color: #04a5e5 !important;
+}
+
+.btn-outline-sky:hover {
+  background-color: #04a5e5 !important;
+  border-color: #04a5e5 !important;
+  color: #eff1f5 !important;  /* LATTE$base - light text on hover */
+}
+
+[data-bs-theme="dark"] .btn-outline-sky,
+[data-bs-theme="dark"] .btn-outline-sky.btn-default,
+[data-bs-theme="dark"] .btn.btn-outline-sky {
+  border-color: #89dceb !important;  /* MOCHA$sky */
+  color: #89dceb !important;
+}
+
+[data-bs-theme="dark"] .btn-outline-sky:hover {
+  background-color: #89dceb !important;
+  border-color: #89dceb !important;
+  color: #1e1e2e !important;  /* MOCHA$base - dark text on hover */
+}
+
+/* Boost outline-secondary visibility in light mode (Catppuccin Latte) */
+.btn-outline-secondary {
+  border-color: #7c7f93 !important;  /* LATTE$overlay1 — more visible than default */
+  color: #7c7f93 !important;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #7c7f93 !important;
+  border-color: #7c7f93 !important;
+  color: #eff1f5 !important;
+}

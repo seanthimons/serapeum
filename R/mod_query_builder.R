@@ -16,7 +16,7 @@ mod_query_builder_ui <- function(id) {
         ns("generate_btn"),
         "Generate Query",
         class = "btn-primary",
-        icon = icon("wand-magic-sparkles")
+        icon = icon_wand()
       ),
       hr(),
       uiOutput(ns("query_preview"))
@@ -173,7 +173,7 @@ OUTPUT (valid JSON only, no markdown, no code fences):
         actionButton(
           ns("execute_btn"),
           "Create Search Notebook",
-          class = "btn-success w-100"
+          class = "btn-primary w-100"
         )
       )
     })

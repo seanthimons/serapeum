@@ -9,7 +9,7 @@ mod_citation_audit_ui <- function(id) {
       # Header
       div(
         class = "d-flex align-items-center gap-2 mb-3",
-        icon("magnifying-glass-chart", class = "fa-2x text-primary"),
+        icon_audit(class = "fa-2x text-primary"),
         div(
           h3("Citation Audit", class = "mb-0"),
           p(class = "text-muted mb-0 small",
@@ -28,7 +28,7 @@ mod_citation_audit_ui <- function(id) {
             div(
               class = "d-flex align-items-end gap-2 h-100",
               actionButton(ns("run_audit"), "Run Analysis",
-                           icon = icon("play"), class = "btn-primary"),
+                           icon = icon_play(), class = "btn-primary"),
               uiOutput(ns("last_analyzed_text"))
             ),
             div(
@@ -137,7 +137,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       if (is.null(run) || run$status != "cancelled") return(NULL)
       div(
         class = "alert alert-warning d-flex align-items-center mb-3",
-        icon("triangle-exclamation", class = "me-2"),
+        icon_warning(class = "me-2"),
         "Results may be incomplete -- analysis was cancelled or encountered errors."
       )
     })
@@ -152,25 +152,25 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         value_box(
           title = "Papers Analyzed",
           value = format(run$total_papers, big.mark = ","),
-          showcase = bsicons::bs_icon("file-text"),
+          showcase = icon_file_text(),
           theme = "primary"
         ),
         value_box(
           title = "Backward Refs",
           value = format(run$backward_count, big.mark = ","),
-          showcase = bsicons::bs_icon("arrow-left"),
+          showcase = icon_arrow_left(),
           theme = "info"
         ),
         value_box(
           title = "Forward Citations",
           value = format(run$forward_count, big.mark = ","),
-          showcase = bsicons::bs_icon("arrow-right"),
+          showcase = icon_arrow_right(),
           theme = "info"
         ),
         value_box(
           title = "Missing Papers Found",
           value = format(run$missing_found, big.mark = ","),
-          showcase = bsicons::bs_icon("search"),
+          showcase = icon_search(),
           theme = "success"
         )
       )
@@ -238,7 +238,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
 
       # Show progress modal
       showModal(modalDialog(
-        title = tagList(icon("spinner", class = "fa-spin"), "Analyzing Citations"),
+        title = tagList(icon_spinner(class = "fa-spin"), "Analyzing Citations"),
         div(
           class = "mb-3",
           div(
@@ -255,7 +255,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         ),
         p(id = ns("audit_msg"), class = "text-muted", "Initializing..."),
         footer = actionButton(ns("cancel_audit"), "Cancel",
-                              class = "btn-warning", icon = icon("stop")),
+                              class = "btn-warning", icon = icon_stop()),
         size = "m",
         easyClose = FALSE
       ))
@@ -438,7 +438,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
               tagList(
                 span(class = "badge bg-primary", paste(length(sel), "selected")),
                 actionButton(ns("batch_import"), "Import Selected",
-                             class = "btn-sm btn-success", icon = icon("download"))
+                             class = "btn-sm btn-success", icon = icon_download())
               )
             },
             checkboxInput(ns("select_all"), "Select All", value = FALSE, width = "auto")
@@ -516,7 +516,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
                     } else {
                       actionButton(ns(paste0("imp_", wid)), "Import",
                                    class = "btn-sm btn-outline-success",
-                                   icon = icon("plus"))
+                                   icon = icon_add())
                     }
                   )
                 )
@@ -557,18 +557,28 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
     })
 
     # --- Single import handler ---
+    # Track which observers have been created to avoid duplicates
+    created_observers <- reactiveVal(character(0))
+
     observe({
       results <- audit_results()
       if (is.null(results) || nrow(results) == 0) return()
+
+      already <- created_observers()
 
       for (wid in results$work_id) {
         local({
           my_wid <- wid
           btn_id <- paste0("imp_", my_wid)
+          if (btn_id %in% already) return()  # Skip if already created
+
           observeEvent(input[[btn_id]], {
             cfg <- config_r()
             email <- get_setting(cfg, "openalex", "email")
             api_key <- get_setting(cfg, "openalex", "api_key")
+
+            # Show progress notification
+            notif_id <- showNotification("Importing paper...", duration = NULL, closeButton = FALSE, type = "message")
 
             result <- import_audit_papers(
               work_ids = my_wid,
@@ -578,20 +588,32 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
               con = con
             )
 
+            removeNotification(notif_id)
+
             if (result$imported_count > 0) {
-              showNotification("Paper imported successfully", type = "message")
-              # Refresh results
-              latest <- get_latest_audit_run(con, input$notebook_id)
-              if (!is.null(latest)) {
-                check_audit_imports(con, latest$id, input$notebook_id)
-                audit_results(get_audit_results(con, latest$id))
+              showNotification("Paper imported successfully", type = "message", duration = 5)
+              # Trigger notebook refresh so abstract notebook updates
+              if (!is.null(notebook_refresh)) {
+                notebook_refresh(notebook_refresh() + 1)
               }
+            } else if (result$skipped_count > 0) {
+              showNotification("Paper already exists in notebook", type = "warning", duration = 5)
             } else {
-              showNotification("Import failed", type = "error")
+              showNotification("Import failed", type = "error", duration = 5)
             }
-          }, ignoreInit = TRUE, once = TRUE)
+
+            # Refresh audit results to update imported status
+            latest <- get_latest_audit_run(con, input$notebook_id)
+            if (!is.null(latest)) {
+              check_audit_imports(con, latest$id, input$notebook_id)
+              audit_results(get_audit_results(con, latest$id))
+            }
+          }, ignoreInit = TRUE)
         })
       }
+
+      # Track all created observers
+      created_observers(unique(c(already, paste0("imp_", results$work_id))))
     })
 
     # --- Batch import handler ---
@@ -605,7 +627,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         footer = tagList(
           modalButton("Cancel"),
           actionButton(ns("confirm_batch"), "Import",
-                       class = "btn-success", icon = icon("download"))
+                       class = "btn-success", icon = icon_download())
         )
       ))
     })
@@ -619,21 +641,49 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       email <- get_setting(cfg, "openalex", "email")
       api_key <- get_setting(cfg, "openalex", "api_key")
 
-      # For small batches, run synchronously
-      withProgress(message = paste("Importing", length(sel), "papers..."), {
-        result <- import_audit_papers(
-          work_ids = sel,
-          notebook_id = input$notebook_id,
-          email = email,
-          api_key = api_key,
-          con = con
-        )
-      })
+      # Show progress notification with updating count
+      notif_id <- showNotification(
+        paste0("Importing papers... 0/", length(sel)),
+        duration = NULL,
+        closeButton = FALSE,
+        type = "message"
+      )
+
+      result <- import_audit_papers(
+        work_ids = sel,
+        notebook_id = input$notebook_id,
+        email = email,
+        api_key = api_key,
+        con = con,
+        progress_callback = function(current, total) {
+          showNotification(
+            paste0("Importing papers... ", current, "/", total),
+            duration = NULL,
+            closeButton = FALSE,
+            type = "message",
+            id = notif_id
+          )
+        }
+      )
+
+      removeNotification(notif_id)
+
+      # Build summary message
+      msg_parts <- c()
+      if (result$imported_count > 0) {
+        msg_parts <- c(msg_parts, paste("Added", result$imported_count, "papers"))
+      }
+      if (result$skipped_count > 0) {
+        msg_parts <- c(msg_parts, paste(result$skipped_count, "already existed"))
+      }
+      if (result$failed_count > 0) {
+        msg_parts <- c(msg_parts, paste(result$failed_count, "failed"))
+      }
 
       showNotification(
-        paste0("Imported ", result$imported_count, " papers",
-               if (result$failed_count > 0) paste0(" (", result$failed_count, " failed)") else ""),
-        type = if (result$imported_count > 0) "message" else "warning"
+        paste(msg_parts, collapse = ", "),
+        type = if (result$imported_count > 0) "message" else "warning",
+        duration = 5
       )
 
       # Refresh results
@@ -644,7 +694,10 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       }
       selected_ids(character(0))
 
-      # Navigate to notebook if callback provided
+      # Trigger notebook refresh and navigate if callback provided
+      if (!is.null(notebook_refresh) && result$imported_count > 0) {
+        notebook_refresh(notebook_refresh() + 1)
+      }
       if (!is.null(navigate_to_notebook) && result$imported_count > 0) {
         navigate_to_notebook(input$notebook_id)
       }

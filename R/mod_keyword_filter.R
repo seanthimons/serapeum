@@ -107,8 +107,8 @@ mod_keyword_filter_server <- function(id, papers_data) {
 
           badge_icon <- switch(state,
             "neutral" = NULL,
-            "include" = icon("plus", class = "me-1"),
-            "exclude" = icon("minus", class = "me-1"),
+            "include" = icon_add(class = "me-1"),
+            "exclude" = icon_minus(class = "me-1"),
             NULL
           )
 
@@ -174,14 +174,14 @@ mod_keyword_filter_server <- function(id, papers_data) {
         class = "small text-muted mb-1",
         if (include_count > 0) {
           span(
-            icon("check", class = "text-success me-1"),
+            icon_check(class = "text-success me-1"),
             paste0(include_count, " included")
           )
         },
         if (include_count > 0 && exclude_count > 0) " | ",
         if (exclude_count > 0) {
           span(
-            icon("xmark", class = "text-danger me-1"),
+            icon_close(class = "text-danger me-1"),
             paste0(exclude_count, " excluded")
           )
         }

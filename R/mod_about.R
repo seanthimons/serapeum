@@ -13,7 +13,7 @@ mod_about_ui <- function(id) {
       # Header
       div(
         class = "text-center mb-4",
-        icon("book-open", class = "fa-3x text-primary mb-3"),
+        icon_book_open(class = "fa-3x text-primary mb-3"),
         h2("About Serapeum"),
         p(class = "lead text-muted",
           "A local-first, self-hosted research assistant inspired by NotebookLM")
@@ -28,7 +28,7 @@ mod_about_ui <- function(id) {
         # Left column - Built With
         div(
           style = "overflow-wrap: break-word;",
-          h4(icon("wrench"), " Built With"),
+          h4(icon_wrench(), " Built With"),
           div(
             class = "d-flex flex-wrap gap-2 mb-4",
             span(class = "badge bg-primary fs-6", "R"),
@@ -42,22 +42,22 @@ mod_about_ui <- function(id) {
             class = "list-unstyled",
             tags$li(
               class = "mb-2",
-              icon("database", class = "text-primary me-2"),
+              icon_database(class = "text-primary me-2"),
               tags$strong("DuckDB"), " - Embedded analytical database with vector search"
             ),
             tags$li(
               class = "mb-2",
-              icon("robot", class = "text-primary me-2"),
+              icon_robot(class = "text-primary me-2"),
               tags$strong("OpenRouter"), " - Unified API for multiple LLM providers"
             ),
             tags$li(
               class = "mb-2",
-              icon("magnifying-glass", class = "text-primary me-2"),
+              icon_search(class = "text-primary me-2"),
               tags$strong("OpenAlex"), " - Free academic paper search API (240M+ works)"
             ),
             tags$li(
               class = "mb-2",
-              icon("file-pdf", class = "text-danger me-2"),
+              icon_file_pdf(class = "text-danger me-2"),
               tags$strong("pdftools"), " - PDF text extraction"
             )
           )
@@ -66,7 +66,7 @@ mod_about_ui <- function(id) {
         # Right column - Key Packages
         div(
           style = "overflow-wrap: break-word;",
-          h4(icon("box"), " Key Packages"),
+          h4(icon_box(), " Key Packages"),
           div(
             class = "row g-2",
 
@@ -180,20 +180,20 @@ mod_about_ui <- function(id) {
         # Source
         div(
           class = "text-center",
-          icon("github", class = "fa-2x mb-2"),
+          icon_github(class = "fa-2x mb-2"),
           h5("Source Code"),
           tags$a(
             href = "https://github.com/seanthimons/serapeum",
             target = "_blank",
             class = "btn btn-outline-secondary",
-            icon("github"), " View on GitHub"
+            icon_github(), " View on GitHub"
           )
         ),
 
         # Inspiration
         div(
           class = "text-center",
-          icon("lightbulb", class = "fa-2x mb-2 text-warning"),
+          icon_lightbulb(class = "fa-2x mb-2 text-warning"),
           h5("Inspiration"),
           p(class = "text-muted small mb-1", "Inspired by"),
           tags$a(
@@ -206,7 +206,7 @@ mod_about_ui <- function(id) {
         # Data Sources
         div(
           class = "text-center",
-          icon("database", class = "fa-2x mb-2 text-info"),
+          icon_database(class = "fa-2x mb-2 text-info"),
           h5("Data Sources"),
           p(class = "small mb-0",
             tags$a(href = "https://openalex.org/", target = "_blank", "OpenAlex"), " for papers"
@@ -222,7 +222,7 @@ mod_about_ui <- function(id) {
       # Disclaimer
       div(
         class = "alert alert-warning",
-        h5(class = "alert-heading", icon("triangle-exclamation"), " Important Disclaimer"),
+        h5(class = "alert-heading", icon_warning(), " Important Disclaimer"),
         p(class = "mb-2", tags$strong("Serapeum is a research tool powered by AI language models.")),
         tags$ul(
           class = "small mb-0",

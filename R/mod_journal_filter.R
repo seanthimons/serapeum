@@ -115,7 +115,7 @@ mod_journal_filter_server <- function(id, papers_data, con) {
 
       div(
         class = "small text-muted mb-2",
-        icon("triangle-exclamation", class = "text-warning me-1"),
+        icon_warning(class = "text-warning me-1"),
         paste0(flagged_count, " of ", nrow(papers), " papers flagged")
       )
     })
@@ -133,7 +133,7 @@ mod_journal_filter_server <- function(id, papers_data, con) {
 
       div(
         class = "small text-muted",
-        icon("ban", class = "text-danger me-1"),
+        icon_ban(class = "text-danger me-1"),
         paste0(blocked_count, " journal", if (blocked_count != 1) "s", " blocked"),
         " | ",
         actionLink(ns("manage_blocklist"), "Manage", class = "small")

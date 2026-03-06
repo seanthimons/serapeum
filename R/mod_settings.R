@@ -7,7 +7,7 @@ mod_settings_ui <- function(id) {
     fill = FALSE,
     card_header(
       class = "d-flex justify-content-between align-items-center",
-      span(icon("gear"), "Settings"),
+      span(icon_settings(), "Settings"),
       actionButton(ns("save"), "Save Settings", class = "btn-primary")
     ),
     card_body(
@@ -16,7 +16,7 @@ mod_settings_ui <- function(id) {
 
         # Left column: API Keys + Advanced + Search + Citation Networks
         div(
-          h5(icon("key"), " API Keys"),
+          h5(icon_key(), " API Keys"),
           div(
             class = "d-flex align-items-end gap-2",
             div(
@@ -44,7 +44,7 @@ mod_settings_ui <- function(id) {
             tags$a(href = "https://openalex.org/settings/api",
                    target = "_blank", "openalex.org")),
           hr(),
-          h5(icon("sliders"), " Advanced"),
+          h5(icon_sliders(), " Advanced"),
           numericInput(ns("chunk_size"), "Chunk Size (words)",
                        value = 500, min = 100, max = 2000, step = 50),
           numericInput(ns("chunk_overlap"), "Chunk Overlap (words)",
@@ -53,13 +53,13 @@ mod_settings_ui <- function(id) {
             "Chunk settings affect how documents are split for processing. ",
             "Changes only apply to newly uploaded documents."),
           hr(),
-          h5(icon("magnifying-glass"), " Search"),
+          h5(icon_search(), " Search"),
           numericInput(ns("abstracts_per_search"), "Abstracts per Search",
                        value = 25, min = 5, max = 100, step = 5),
           p(class = "text-muted small",
             "Number of paper abstracts to fetch from OpenAlex per search (max 100)."),
           hr(),
-          h5(icon("diagram-project"), " Citation Networks"),
+          h5(icon_diagram(), " Citation Networks"),
           selectInput(ns("network_palette"), "Color Palette",
                       choices = c(
                         "Viridis (Default)" = "viridis",
@@ -75,7 +75,7 @@ mod_settings_ui <- function(id) {
 
         # Right column: Models + Quality Data + DOI Management
         div(
-          h5(icon("robot"), " Models"),
+          h5(icon_robot(), " Models"),
           div(
             class = "d-flex align-items-end gap-2",
             div(
@@ -85,7 +85,7 @@ mod_settings_ui <- function(id) {
                              selected = "moonshotai/kimi-k2.5")
             ),
             actionButton(ns("refresh_chat_models"), NULL,
-                         icon = icon("refresh"),
+                         icon = icon_refresh(),
                          class = "btn-outline-secondary btn-sm mb-3",
                          title = "Refresh model list")
           ),
@@ -104,34 +104,34 @@ mod_settings_ui <- function(id) {
                              ))
             ),
             actionButton(ns("refresh_embed_models"), NULL,
-                         icon = icon("refresh"),
+                         icon = icon_refresh(),
                          class = "btn-outline-secondary btn-sm mb-3",
                          title = "Refresh model list")
           ),
           hr(),
-          h5(icon("shield-halved"), " Quality Data"),
+          h5(icon_shield(), " Quality Data"),
           p(class = "text-muted small",
             "Download lists of predatory journals/publishers and retracted papers ",
             "to flag questionable sources in search results."),
           uiOutput(ns("quality_data_status")),
           actionButton(ns("download_quality_data"), "Download Quality Data",
                        class = "btn-outline-secondary btn-sm mt-2",
-                       icon = icon("download")),
+                       icon = icon_download()),
           hr(),
-          h5(icon("fingerprint"), " DOI Management"),
+          h5(icon_fingerprint(), " DOI Management"),
           p(class = "text-muted small",
             "Backfill missing DOIs for legacy papers by fetching from OpenAlex."),
           uiOutput(ns("doi_status")),
           actionButton(ns("backfill_dois"), "Backfill Missing DOIs",
                        class = "btn-outline-primary btn-sm mt-2",
-                       icon = icon("rotate")),
+                       icon = icon_rotate()),
           hr(),
-          h5(icon("broom"), " Maintenance"),
+          h5(icon_broom(), " Maintenance"),
           p(class = "text-muted small",
             "Remove orphaned search index files left over from failed notebook deletions."),
           actionButton(ns("cleanup_orphans"), "Clean Up Orphaned Indexes",
                        class = "btn-outline-secondary btn-sm",
-                       icon = icon("trash-can")),
+                       icon = icon_trash_can()),
           textOutput(ns("cleanup_status"))
         )
       )
@@ -446,9 +446,9 @@ mod_settings_server <- function(id, con, config_rv) {
           tier_badge
         ),
         div(class = "text-muted",
-          icon("window-maximize", class = "me-1"), "Context: ", ctx_display,
+          icon_window_maximize(class = "me-1"), "Context: ", ctx_display,
           span(class = "mx-2", "|"),
-          icon("arrow-right-to-bracket", class = "me-1"),
+          icon_arrow_right_bracket(class = "me-1"),
           sprintf("$%.2f/M in", row$prompt_price),
           span(class = "mx-1", "/"),
           sprintf("$%.2f/M out", row$completion_price)
@@ -519,7 +519,7 @@ mod_settings_server <- function(id, con, config_rv) {
       if (status$is_empty) {
         return(div(
           class = "alert alert-warning py-2 small",
-          icon("triangle-exclamation"), " No quality data downloaded yet."
+          icon_warning(), " No quality data downloaded yet."
         ))
       }
 
