@@ -2213,7 +2213,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         # Get configured abstracts per search
         abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 25
 
-        papers <- tryCatch({
+        result <- tryCatch({
           search_papers(
             nb$search_query,
             email,
@@ -2225,7 +2225,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             is_oa = filters$is_oa %||% FALSE,
             min_citations = filters$min_citations,
             exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE,
-            work_types = filters$work_types
+            work_types = filters$work_types,
+            cursor = NULL
           )
         }, error = function(e) {
           if (inherits(e, "api_error")) {
@@ -2234,8 +2235,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             err <- classify_api_error(e, "OpenAlex")
             show_error_toast(err$message, err$details, err$severity)
           }
-          return(list())
+          return(list(papers = list(), next_cursor = NULL, count = 0))
         })
+        papers <- result$papers
 
         if (length(papers) == 0) {
           showNotification("No papers found", type = "warning")
