@@ -181,11 +181,14 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 **Depends on**: Nothing (first phase)
 **Requirements**: PAGE-06
 **Success Criteria** (what must be TRUE):
-  1. `search_papers_with_pagination()` function accepts cursor parameter and returns `list(papers, next_cursor, count)`
+  1. `search_papers()` accepts cursor parameter (default NULL) and sort parameter (default "relevance_score") and returns `list(papers, next_cursor, count)`
   2. Cursor is treated as opaque string (never parsed or decoded)
   3. API client extracts `meta.next_cursor` from OpenAlex response for pagination continuation
   4. First search (cursor=NULL) and paginated search (cursor provided) both return valid paper lists
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 50-01-PLAN.md — Add cursor pagination, retry logic, and update caller
 
 ### Phase 51: Pagination State Management
 **Goal**: Server-side state layer tracks pagination cursor and enables distinct Refresh vs Load More behaviors
@@ -257,7 +260,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 50. API Pagination Foundation | 0/? | Not started | - |
+| 50. API Pagination Foundation | 0/1 | Planned | - |
 | 51. Pagination State Management | 0/? | Not started | - |
 | 52. Load More Button | 0/? | Not started | - |
 | 53. Toolbar Restructuring | 0/? | Not started | - |
@@ -267,4 +270,4 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-06 — v11.0 milestone started*
+*Last updated: 2026-03-07 — Phase 50 planned (1 plan)*
