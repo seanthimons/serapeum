@@ -106,7 +106,13 @@ build_openalex_request <- function(endpoint, email = NULL, api_key = NULL) {
     req <- req |> req_url_query(api_key = api_key)
   }
 
-  req |> req_timeout(30)
+  req |>
+    req_timeout(30) |>
+    req_retry(
+      max_tries = 3,
+      is_transient = \(resp) httr2::resp_status(resp) %in% c(429, 503),
+      backoff = \(i) 2^(i - 1)
+    )
 }
 
 #' Reconstruct abstract from inverted index
@@ -278,6 +284,26 @@ parse_openalex_work <- function(work) {
   )
 }
 
+#' Parse OpenAlex search response body into structured format
+#' @param body Parsed JSON response body from OpenAlex API
+#' @return List with papers (list), next_cursor (string or NULL), count (integer)
+parse_search_response <- function(body) {
+  if (is.null(body$meta) || is.null(body$results)) {
+    stop("Unexpected OpenAlex response format: missing 'meta' or 'results' field")
+  }
+
+  next_cursor <- body$meta$next_cursor
+  count <- body$meta$count %||% 0L
+
+  papers <- if (length(body$results) > 0) {
+    lapply(body$results, parse_openalex_work)
+  } else {
+    list()
+  }
+
+  list(papers = papers, next_cursor = next_cursor, count = count)
+}
+
 #' Search for papers
 #' @param query Search query
 #' @param email User email
@@ -290,12 +316,14 @@ parse_openalex_work <- function(work) {
 #' @param min_citations Minimum citation count (optional)
 #' @param exclude_retracted Exclude retracted papers (boolean)
 #' @param work_types Character vector of work types to include (e.g., c("article", "review"))
-#' @return List of parsed works
+#' @param cursor Pagination cursor (NULL initiates pagination, string continues)
+#' @param sort Sort order (default "relevance_score")
+#' @return List with papers (list), next_cursor (string or NULL), count (integer)
 search_papers <- function(query, email, api_key = NULL,
                           from_year = NULL, to_year = NULL, per_page = 25,
                           search_field = "default", is_oa = FALSE,
                           min_citations = NULL, exclude_retracted = TRUE,
-                          work_types = NULL) {
+                          work_types = NULL, cursor = NULL, sort = "relevance_score") {
 
   # Build filter components
   filters <- c("has_abstract:true")
@@ -357,7 +385,9 @@ search_papers <- function(query, email, api_key = NULL,
 
   req <- req |> req_url_query(
     filter = filter_str,
-    per_page = per_page
+    per_page = per_page,
+    sort = sort,
+    cursor = if (is.null(cursor)) "*" else cursor
   )
 
   resp <- tryCatch({
@@ -367,12 +397,7 @@ search_papers <- function(query, email, api_key = NULL,
   })
 
   body <- resp_body_json(resp)
-
-  if (is.null(body$results)) {
-    return(list())
-  }
-
-  lapply(body$results, parse_openalex_work)
+  parse_search_response(body)
 }
 
 #' Build API query preview string (for UI display)
