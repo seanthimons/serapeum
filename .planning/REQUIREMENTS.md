@@ -23,7 +23,7 @@ Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
 - [ ] **PAGE-03**: Load More styled like Topics button (icon+text+sapphire color)
 - [ ] **PAGE-04**: Load More hidden when no more results available
 - [ ] **PAGE-05**: Cursor state resets when search query or filters change
-- [ ] **PAGE-06**: OpenAlex cursor-based pagination in API client (replaces offset-based)
+- [x] **PAGE-06**: OpenAlex cursor-based pagination in API client (replaces offset-based)
 
 ### Document Types
 
@@ -69,7 +69,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | PAGE-03 | Phase 52 | Pending |
 | PAGE-04 | Phase 52 | Pending |
 | PAGE-05 | Phase 51 | Pending |
-| PAGE-06 | Phase 50 | Pending |
+| PAGE-06 | Phase 50 | Complete |
 | DTYPE-01 | Phase 55 | Pending |
 | DTYPE-02 | Phase 55 | Pending |
 | DTYPE-03 | Phase 55 | Pending |

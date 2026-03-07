@@ -166,7 +166,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 **Milestone Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency
 
-- [ ] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client
+- [x] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client (completed 2026-03-07)
 - [ ] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics
 - [ ] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering
 - [ ] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization
@@ -185,7 +185,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   2. Cursor is treated as opaque string (never parsed or decoded)
   3. API client extracts `meta.next_cursor` from OpenAlex response for pagination continuation
   4. First search (cursor=NULL) and paginated search (cursor provided) both return valid paper lists
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 50-01-PLAN.md — Add cursor pagination, retry logic, and update caller
@@ -260,7 +260,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 50. API Pagination Foundation | 0/1 | Planned | - |
+| 50. API Pagination Foundation | 1/1 | Complete   | 2026-03-07 |
 | 51. Pagination State Management | 0/? | Not started | - |
 | 52. Load More Button | 0/? | Not started | - |
 | 53. Toolbar Restructuring | 0/? | Not started | - |
