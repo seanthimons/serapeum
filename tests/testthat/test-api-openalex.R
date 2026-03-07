@@ -200,3 +200,86 @@ test_that("parse_openalex_work returns all 21 fields including new ones", {
   }
   expect_equal(length(result), 21)
 })
+
+# --- Phase 50: Cursor pagination ---
+
+test_that("parse_search_response returns list with papers, next_cursor, count", {
+  # Mock API response body
+  body <- list(
+    meta = list(
+      count = 42,
+      next_cursor = "IlsxNjc4OTEyMDAwMDAwLCAnV2lkXzk5OTknXSI="
+    ),
+    results = list(
+      make_mock_work(list(id = "https://openalex.org/W1", title = "Paper 1")),
+      make_mock_work(list(id = "https://openalex.org/W2", title = "Paper 2"))
+    )
+  )
+
+  result <- parse_search_response(body)
+
+  expect_true("papers" %in% names(result))
+  expect_true("next_cursor" %in% names(result))
+  expect_true("count" %in% names(result))
+  expect_equal(length(result$papers), 2)
+  expect_equal(result$next_cursor, "IlsxNjc4OTEyMDAwMDAwLCAnV2lkXzk5OTknXSI=")
+  expect_equal(result$count, 42)
+})
+
+test_that("parse_search_response throws on missing meta field", {
+  body <- list(
+    results = list(make_mock_work())
+  )
+
+  expect_error(
+    parse_search_response(body),
+    "Unexpected OpenAlex response format: missing 'meta' or 'results' field"
+  )
+})
+
+test_that("parse_search_response throws on missing results field", {
+  body <- list(
+    meta = list(count = 0, next_cursor = NULL)
+  )
+
+  expect_error(
+    parse_search_response(body),
+    "Unexpected OpenAlex response format: missing 'meta' or 'results' field"
+  )
+})
+
+test_that("parse_search_response returns empty structure when no results", {
+  body <- list(
+    meta = list(count = 0, next_cursor = NULL),
+    results = list()
+  )
+
+  result <- parse_search_response(body)
+
+  expect_equal(length(result$papers), 0)
+  expect_null(result$next_cursor)
+  expect_equal(result$count, 0)
+})
+
+test_that("parse_search_response handles NULL next_cursor", {
+  body <- list(
+    meta = list(count = 5, next_cursor = NULL),
+    results = list(make_mock_work())
+  )
+
+  result <- parse_search_response(body)
+
+  expect_null(result$next_cursor)
+  expect_equal(result$count, 5)
+})
+
+test_that("parse_search_response defaults count to 0 when NULL", {
+  body <- list(
+    meta = list(next_cursor = NULL),
+    results = list()
+  )
+
+  result <- parse_search_response(body)
+
+  expect_equal(result$count, 0)
+})
