@@ -168,7 +168,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 - [x] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client (completed 2026-03-07)
 - [x] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics (completed 2026-03-09)
-- [ ] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering
+- [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
 - [ ] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization
 - [ ] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility
 - [ ] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout
@@ -269,7 +269,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 50. API Pagination Foundation | 1/1 | Complete    | 2026-03-07 |
 | 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
-| 52. Load More Button | 0/1 | Planned | - |
+| 52. Load More Button | 1/1 | Complete   | 2026-03-09 |
 | 53. Toolbar Restructuring | 0/? | Not started | - |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
