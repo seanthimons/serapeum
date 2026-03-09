@@ -18,11 +18,11 @@ Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
 
 ### Pagination
 
-- [ ] **PAGE-01**: Refresh button retries current search (replaces results, resets cursor)
+- [x] **PAGE-01**: Refresh button retries current search (replaces results, resets cursor)
 - [ ] **PAGE-02**: Load More button fetches next page of results (appends, advances cursor)
 - [ ] **PAGE-03**: Load More styled like Topics button (icon+text+sapphire color)
 - [ ] **PAGE-04**: Load More hidden when no more results available
-- [ ] **PAGE-05**: Cursor state resets when search query or filters change
+- [x] **PAGE-05**: Cursor state resets when search query or filters change
 - [x] **PAGE-06**: OpenAlex cursor-based pagination in API client (replaces offset-based)
 
 ### Document Types
@@ -64,11 +64,11 @@ Deferred to future release. Tracked but not in current roadmap.
 | TOOL-04 | Phase 53 | Pending |
 | TOOL-05 | Phase 54 | Pending |
 | TOOL-06 | Phase 53 | Pending |
-| PAGE-01 | Phase 51 | Pending |
+| PAGE-01 | Phase 51 | Complete |
 | PAGE-02 | Phase 52 | Pending |
 | PAGE-03 | Phase 52 | Pending |
 | PAGE-04 | Phase 52 | Pending |
-| PAGE-05 | Phase 51 | Pending |
+| PAGE-05 | Phase 51 | Complete |
 | PAGE-06 | Phase 50 | Complete |
 | DTYPE-01 | Phase 55 | Pending |
 | DTYPE-02 | Phase 55 | Pending |
