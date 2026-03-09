@@ -2341,7 +2341,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           )
 
           # Create chunk for abstract if available
-          if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+          if (!is.null(paper$abstract) && !is.na(paper$abstract) && nchar(paper$abstract) > 0) {
             create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
           }
 
@@ -2484,7 +2484,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             )
 
             # Create chunk for abstract if available
-            if (!is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+            if (!is.null(paper$abstract) && !is.na(paper$abstract) && nchar(paper$abstract) > 0) {
               create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
             }
 
