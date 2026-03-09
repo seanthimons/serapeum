@@ -214,7 +214,10 @@ Plans:
   2. Clicking Load More appends next page of results to existing paper list
   3. Load More button disappears when `pagination_state$has_more` is FALSE
   4. Papers fetched via Load More persist until Refresh is clicked or filters change
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 52-01-PLAN.md — Load More button UI, server logic, icon wrapper, and unit tests
 
 ### Phase 53: Toolbar Restructuring
 **Goal**: Toolbar buttons follow intuitive workflow order with semantic color harmony
@@ -265,8 +268,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 50. API Pagination Foundation | 1/1 | Complete    | 2026-03-07 |
-| 51. Pagination State Management | 0/1 | Complete    | 2026-03-09 |
-| 52. Load More Button | 0/? | Not started | - |
+| 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
+| 52. Load More Button | 0/1 | Planned | - |
 | 53. Toolbar Restructuring | 0/? | Not started | - |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
@@ -274,4 +277,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-09 — Phase 51 planned (1 plan)*
+*Last updated: 2026-03-09 — Phase 52 planned (1 plan)*
