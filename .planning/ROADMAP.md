@@ -162,13 +162,13 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 </details>
 
-### 🚧 v11.0 Search Notebook UX (In Progress)
+### v11.0 Search Notebook UX (In Progress)
 
 **Milestone Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency
 
 - [x] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client (completed 2026-03-07)
 - [x] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics (completed 2026-03-09)
-- [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
+- [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
 - [ ] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization
 - [ ] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility
 - [ ] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout
@@ -200,7 +200,7 @@ Plans:
   3. `pagination_state` reactiveValues tracks cursor, has_more, and total_fetched without reactive loops
   4. All filter change observers (year, type, Edit Search) include cursor reset logic
 **Plans**: 1/1 plans complete
-**Status**: ✅ COMPLETED 2026-03-09
+**Status**: COMPLETED 2026-03-09
 
 Plans:
 - [x] 51-01-PLAN.md — Pagination state, cursor reset, client-side sort, result count display (2 tasks, 282s)
@@ -218,6 +218,16 @@ Plans:
 
 Plans:
 - [ ] 52-01-PLAN.md — Load More button UI, server logic, icon wrapper, and unit tests
+
+### Phase 52.1: Fix search refresh and load more (INSERTED)
+
+**Goal:** Fix Refresh triple-toast bug and Load More silent failure by consolidating duplicate search functions into unified do_search(mode)
+**Requirements**: BUG-01, BUG-02, CONSOL-01, CONSOL-02
+**Depends on:** Phase 52
+**Plans:** 1 plan
+
+Plans:
+- [ ] 52.1-01-PLAN.md — Consolidate search functions, fix error handling, add tests
 
 ### Phase 53: Toolbar Restructuring
 **Goal**: Toolbar buttons follow intuitive workflow order with semantic color harmony
@@ -270,6 +280,7 @@ Plans:
 | 50. API Pagination Foundation | 1/1 | Complete    | 2026-03-07 |
 | 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
 | 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
+| 52.1. Fix Search Refresh + Load More | 0/1 | Planned | - |
 | 53. Toolbar Restructuring | 0/? | Not started | - |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
@@ -277,4 +288,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-09 — Phase 52 planned (1 plan)*
+*Last updated: 2026-03-09 — Phase 52.1 planned (1 plan)*
