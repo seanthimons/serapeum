@@ -339,7 +339,8 @@ search_papers <- function(query, email, api_key = NULL,
   if (isTRUE(is_oa)) {
     filters <- c(filters, "is_oa:true")
   }
-
+  # Coerce min_citations — jsonlite may parse as list from filter JSON
+  if (is.list(min_citations)) min_citations <- if (length(min_citations) > 0) as.numeric(min_citations[[1]]) else NULL
   # Citation count filter
   if (!is.null(min_citations) && !is.na(min_citations) && min_citations > 0) {
     filters <- c(filters, paste0("cited_by_count:>", as.integer(min_citations) - 1))
@@ -349,7 +350,6 @@ search_papers <- function(query, email, api_key = NULL,
   if (isTRUE(exclude_retracted)) {
     filters <- c(filters, "is_retracted:false")
   }
-
   # Work type filter (e.g., article, review, preprint)
   if (!is.null(work_types) && length(work_types) > 0) {
     # OpenAlex uses pipe for OR: type:article|review
@@ -430,6 +430,8 @@ build_query_preview <- function(query, from_year = NULL, to_year = NULL,
     filters <- c(filters, "is_oa:true")
   }
 
+  # Coerce min_citations — jsonlite may parse as list from filter JSON
+  if (is.list(min_citations)) min_citations <- if (length(min_citations) > 0) as.numeric(min_citations[[1]]) else NULL
   # Citation count filter
   if (!is.null(min_citations) && !is.na(min_citations) && min_citations > 0) {
     filters <- c(filters, paste0("cited_by_count:>", as.integer(min_citations) - 1))

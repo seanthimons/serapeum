@@ -2260,17 +2260,18 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       # Common config and cursor setup
       cfg <- config()
-      newly_added <- 0L
+      count_before <- nrow(list_abstracts(con(), nb_id))
       cursor <- if (mode == "refresh") NULL else pagination_state$cursor
       progress_msg <- if (mode == "refresh") "Searching OpenAlex..." else "Loading more papers..."
 
       # BUG-01 FIX: Wrap entire withProgress in tryCatch, error handler returns early
       tryCatch({
         withProgress(message = progress_msg, value = 0, {
+
           email <- get_setting(cfg, "openalex", "email") %||% ""
           api_key <- get_setting(cfg, "openalex", "api_key")
 
-          filters <- if (!is.null(nb$search_filters) && !is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+          filters <- if (!is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
             tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
           } else {
             list()
@@ -2278,7 +2279,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
           abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 25
 
-          incProgress(0.2, detail = if (mode == "refresh") "Querying API" else "Fetching next page")
 
           # API call (no internal tryCatch - outer one handles errors)
           result <- search_papers(
@@ -2296,6 +2296,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             cursor = cursor
           )
 
+
           # Update pagination state
           pagination_state$cursor <- result$next_cursor
           pagination_state$has_more <- !is.null(result$next_cursor)
@@ -2312,6 +2313,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           incProgress(0.4, detail = paste("Found", length(papers), "papers"))
 
           incProgress(0.6, detail = if (mode == "refresh") "Processing papers..." else "Saving papers...")
+
 
           # Filter out excluded papers
           nb <- get_notebook(con(), nb_id)
@@ -2335,6 +2337,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               return()
             }
           }
+
 
           # Save papers — track newly added vs duplicates
           for (paper in papers) {
@@ -2365,7 +2368,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
             }
 
-            newly_added <<- newly_added + 1L
           }
 
           # NOTE: Embedding is now deferred - user must click "Embed Papers" button
@@ -2373,11 +2375,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           incProgress(1.0, detail = "Done")
         })
 
+
         # Post-withProgress (only reached on success)
         paper_refresh(paper_refresh() + 1)
 
         total_in_nb <- nrow(list_abstracts(con(), nb_id))
         pagination_state$total_fetched <- total_in_nb
+        newly_added <- total_in_nb - count_before
 
         # Mode-specific success toast
         if (mode == "refresh") {
@@ -2444,7 +2448,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Programmatic refresh (from save_search)
     observeEvent(search_refresh_trigger(), {
-      do_search_refresh()
+      do_search("refresh")
     }, ignoreInit = TRUE)
 
     # Sync total_fetched with DB when papers change (delete, import, etc.) (Phase 51)
