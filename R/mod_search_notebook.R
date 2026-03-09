@@ -917,7 +917,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb$type == "search")
 
       # Parse stored filters
-      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+      filters <- if (!is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
         tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
       } else {
         list()
@@ -937,7 +937,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb$type == "search")
 
       # Parse existing filters
-      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+      filters <- if (!is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
         tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
       } else {
         list()
@@ -974,7 +974,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       # BUGF-01 Part B: Pin seed paper to row 1 for seed-discovery notebooks
       if (nrow(papers) > 1) {
         nb <- tryCatch(get_notebook(con(), nb_id), error = function(e) NULL)
-        if (!is.null(nb) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        if (!is.null(nb) && !is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
           filters <- tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
           seed_id <- filters$seed_paper_id
           if (!is.null(seed_id) && !is.na(seed_id) && nchar(seed_id) > 0) {
@@ -1260,7 +1260,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             # Add to exclusion list
             nb <- get_notebook(con(), notebook_id())
             existing_excluded <- tryCatch({
-              if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+              if (!is.null(nb$excluded_paper_ids) && !is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
                 jsonlite::fromJSON(nb$excluded_paper_ids)
               } else {
                 character()
@@ -1879,7 +1879,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb$type == "search")
 
       # Parse existing filters
-      filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+      filters <- if (!is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
         tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
       } else {
         list()
@@ -2172,7 +2172,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       # Get existing filters to preserve has_abstract setting
       nb <- get_notebook(con(), nb_id)
-      existing_filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+      existing_filters <- if (!is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
         tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
       } else {
         list()
@@ -2270,7 +2270,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           email <- get_setting(cfg, "openalex", "email") %||% ""
           api_key <- get_setting(cfg, "openalex", "api_key")
 
-          filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+          filters <- if (!is.null(nb$search_filters) && !is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
             tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
           } else {
             list()
@@ -2316,7 +2316,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           # Filter out excluded papers
           nb <- get_notebook(con(), nb_id)
           excluded_ids <- tryCatch({
-            if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
+            if (!is.null(nb$excluded_paper_ids) && !is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
               jsonlite::fromJSON(nb$excluded_paper_ids)
             } else {
               character()
