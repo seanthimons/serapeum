@@ -323,7 +323,7 @@ search_papers <- function(query, email, api_key = NULL,
                           from_year = NULL, to_year = NULL, per_page = 25,
                           search_field = "default", is_oa = FALSE,
                           min_citations = NULL, exclude_retracted = TRUE,
-                          work_types = NULL, cursor = NULL, sort = "relevance_score") {
+                          work_types = NULL, cursor = NULL, sort = NULL) {
 
   # Build filter components
   filters <- c("has_abstract:true")
@@ -386,9 +386,12 @@ search_papers <- function(query, email, api_key = NULL,
   req <- req |> req_url_query(
     filter = filter_str,
     per_page = per_page,
-    sort = sort,
     cursor = if (is.null(cursor)) "*" else cursor
   )
+
+  if (!is.null(sort)) {
+    req <- req |> req_url_query(sort = sort)
+  }
 
   resp <- tryCatch({
     req_perform(req)
