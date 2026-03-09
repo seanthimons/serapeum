@@ -2225,180 +2225,48 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       search_refresh_trigger(search_refresh_trigger() + 1)
     })
 
-    # Extract refresh logic into a local function
-    do_search_refresh <- function() {
+    # Unified search function for both Refresh and Load More (Phase 52.1)
+    do_search <- function(mode = c("refresh", "load_more")) {
+      mode <- match.arg(mode)
+
+      # Common preamble
       nb_id <- notebook_id()
       req(nb_id)
 
       nb <- get_notebook(con(), nb_id)
       req(nb$type == "search")
-      req(!is.null(nb$search_query) && nchar(nb$search_query) > 0)
 
-      cfg <- config()
-
-      newly_added <- 0L
-
-      withProgress(message = "Searching OpenAlex...", value = 0, {
-        email <- get_setting(cfg, "openalex", "email") %||% ""
-        api_key <- get_setting(cfg, "openalex", "api_key")
-
-        filters <- if (!is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
-          tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
-        } else {
-          list()
-        }
-
-        incProgress(0.2, detail = "Querying API")
-
-        # Get configured abstracts per search
-        abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 25
-
-        result <- tryCatch({
-          search_papers(
-            nb$search_query,
-            email,
-            api_key,
-            from_year = filters$from_year,
-            to_year = filters$to_year,
-            per_page = abstracts_count,
-            search_field = filters$search_field %||% "default",
-            is_oa = filters$is_oa %||% FALSE,
-            min_citations = filters$min_citations,
-            exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE,
-            work_types = filters$work_types,
-            cursor = NULL
-          )
-        }, error = function(e) {
-          if (inherits(e, "api_error")) {
-            show_error_toast(e$message, e$details, e$severity)
-          } else {
-            err <- classify_api_error(e, "OpenAlex")
-            show_error_toast(err$message, err$details, err$severity)
-          }
-          return(list(papers = list(), next_cursor = NULL, count = 0))
-        })
-        papers <- result$papers
-
-        # Update pagination state after successful fetch (Phase 51)
-        pagination_state$cursor <- result$next_cursor
-        pagination_state$has_more <- !is.null(result$next_cursor)
-        pagination_state$api_total <- result$count
-
-        if (length(papers) == 0) {
-          showNotification("No papers found", type = "warning")
+      # Mode-specific guards (BEFORE common logic)
+      if (mode == "refresh") {
+        req(!is.null(nb$search_query) && nchar(nb$search_query) > 0)
+      } else {
+        # load_more mode
+        # BUG-02 FIX: Use isTRUE() instead of bare req() to catch NULL has_more
+        if (!isTRUE(pagination_state$has_more)) {
+          showNotification("No more results available", type = "message")
           return()
         }
+        req(!is_processing())
+        is_processing(TRUE)
 
-        incProgress(0.4, detail = paste("Found", length(papers), "papers"))
+        # Swap icon to spinner with guaranteed restore via on.exit()
+        updateActionButton(session, "load_more", icon = icon_spinner())
 
-        incProgress(0.6, detail = "Processing papers...")
-
-        # Filter out excluded papers
-        nb <- get_notebook(con(), nb_id)
-        excluded_ids <- tryCatch({
-          if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
-            jsonlite::fromJSON(nb$excluded_paper_ids)
-          } else {
-            character()
-          }
-        }, error = function(e) character())
-
-        if (length(excluded_ids) > 0) {
-          original_count <- length(papers)
-          papers <- Filter(function(p) !(p$paper_id %in% excluded_ids), papers)
-          excluded_count <- original_count - length(papers)
-          if (excluded_count > 0) {
-            message("Filtered out ", excluded_count, " previously excluded papers")
-          }
-          if (length(papers) == 0) {
-            showNotification("All papers were previously excluded", type = "warning")
-            return()
-          }
-        }
-
-        # Save papers — track how many are newly added vs skipped as duplicates
-        for (paper in papers) {
-          # Check if already exists
-          existing <- dbGetQuery(con(), "
-            SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?
-          ", list(nb_id, paper$paper_id))
-
-          if (nrow(existing) > 0) next
-
-          abstract_id <- create_abstract(
-            con(), nb_id, paper$paper_id, paper$title,
-            paper$authors, paper$abstract,
-            paper$year, paper$venue, paper$pdf_url,
-            keywords = paper$keywords,
-            work_type = paper$work_type,
-            work_type_crossref = paper$work_type_crossref,
-            oa_status = paper$oa_status,
-            is_oa = paper$is_oa,
-            cited_by_count = paper$cited_by_count,
-            referenced_works_count = paper$referenced_works_count,
-            fwci = paper$fwci,
-            doi = paper$doi
-          )
-
-          # Create chunk for abstract if available
-          if (!is.null(paper$abstract) && !is.na(paper$abstract) && nchar(paper$abstract) > 0) {
-            create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
-          }
-
-          newly_added <<- newly_added + 1L
-        }
-
-        # NOTE: Embedding is now deferred - user must click "Embed Papers" button
-        # Old auto-embedding code removed (2026-02-06)
-
-        incProgress(1.0, detail = "Done")
-      })
-
-      paper_refresh(paper_refresh() + 1)
-
-      # BUGF-04: Show count of newly-added papers, not raw API response count
-      total_in_nb <- nrow(list_abstracts(con(), nb_id))
-
-      # Update total_fetched from actual DB count (Phase 51)
-      pagination_state$total_fetched <- total_in_nb
-
-      if (newly_added == 0L) {
-        showNotification("No new papers found", type = "message")
-      } else {
-        showNotification(
-          paste0("Added ", newly_added, " new paper", if (newly_added != 1L) "s" else "",
-                 " (", total_in_nb, " total in notebook)"),
-          type = "message"
-        )
+        on.exit({
+          updateActionButton(session, "load_more", icon = icon_angles_down())
+          is_processing(FALSE)
+        })
       }
-    }
 
-    # Extract Load More logic into a local function
-    do_load_more <- function() {
-      nb_id <- notebook_id()
-      req(nb_id)
-      req(pagination_state$has_more)
-      req(!is_processing())
-
-      is_processing(TRUE)
-
-      # Swap icon to spinner
-      updateActionButton(session, "load_more", icon = icon_spinner())
-
-      on.exit({
-        # Always restore icon and processing state
-        updateActionButton(session, "load_more", icon = icon_angles_down())
-        is_processing(FALSE)
-      })
-
-      nb <- get_notebook(con(), nb_id)
-      req(nb$type == "search")
-
+      # Common config and cursor setup
       cfg <- config()
       newly_added <- 0L
+      cursor <- if (mode == "refresh") NULL else pagination_state$cursor
+      progress_msg <- if (mode == "refresh") "Searching OpenAlex..." else "Loading more papers..."
 
+      # BUG-01 FIX: Wrap entire withProgress in tryCatch, error handler returns early
       tryCatch({
-        withProgress(message = "Loading more papers...", value = 0, {
+        withProgress(message = progress_msg, value = 0, {
           email <- get_setting(cfg, "openalex", "email") %||% ""
           api_key <- get_setting(cfg, "openalex", "api_key")
 
@@ -2410,8 +2278,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
           abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 25
 
-          incProgress(0.2, detail = "Fetching next page")
+          incProgress(0.2, detail = if (mode == "refresh") "Querying API" else "Fetching next page")
 
+          # API call (no internal tryCatch - outer one handles errors)
           result <- search_papers(
             nb$search_query,
             email,
@@ -2424,7 +2293,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             min_citations = filters$min_citations,
             exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE,
             work_types = filters$work_types,
-            cursor = pagination_state$cursor
+            cursor = cursor
           )
 
           # Update pagination state
@@ -2435,13 +2304,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           papers <- result$papers
 
           if (length(papers) == 0) {
-            showNotification("No more papers found", type = "message")
+            msg <- if (mode == "refresh") "No papers found" else "No more papers found"
+            showNotification(msg, type = "warning")
             return()
           }
 
           incProgress(0.4, detail = paste("Found", length(papers), "papers"))
 
+          incProgress(0.6, detail = if (mode == "refresh") "Processing papers..." else "Saving papers...")
+
           # Filter out excluded papers
+          nb <- get_notebook(con(), nb_id)
           excluded_ids <- tryCatch({
             if (!is.na(nb$excluded_paper_ids) && nchar(nb$excluded_paper_ids) > 0) {
               jsonlite::fromJSON(nb$excluded_paper_ids)
@@ -2451,17 +2324,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           }, error = function(e) character())
 
           if (length(excluded_ids) > 0) {
+            original_count <- length(papers)
             papers <- Filter(function(p) !(p$paper_id %in% excluded_ids), papers)
+            excluded_count <- original_count - length(papers)
+            if (excluded_count > 0) {
+              message("Filtered out ", excluded_count, " previously excluded papers")
+            }
             if (length(papers) == 0) {
               showNotification("All papers were previously excluded", type = "warning")
               return()
             }
           }
 
-          incProgress(0.6, detail = "Saving papers...")
-
-          # Save papers with dedup (same pattern as do_search_refresh)
+          # Save papers — track newly added vs duplicates
           for (paper in papers) {
+            # Check if already exists
             existing <- dbGetQuery(con(), "
               SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?
             ", list(nb_id, paper$paper_id))
@@ -2488,47 +2365,63 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
               create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
             }
 
-            newly_added <- newly_added + 1L
+            newly_added <<- newly_added + 1L
           }
+
+          # NOTE: Embedding is now deferred - user must click "Embed Papers" button
 
           incProgress(1.0, detail = "Done")
         })
 
-        # Trigger paper list re-read
+        # Post-withProgress (only reached on success)
         paper_refresh(paper_refresh() + 1)
 
-        # Update total_fetched from actual DB count
         total_in_nb <- nrow(list_abstracts(con(), nb_id))
         pagination_state$total_fetched <- total_in_nb
 
-        if (newly_added > 0L) {
-          showNotification(
-            paste0("Loaded ", newly_added, " more paper", if (newly_added != 1L) "s" else "",
-                   " (", total_in_nb, " total)"),
-            type = "message"
-          )
+        # Mode-specific success toast
+        if (mode == "refresh") {
+          if (newly_added == 0L) {
+            showNotification("No new papers found", type = "message")
+          } else {
+            showNotification(
+              paste0("Added ", newly_added, " new paper", if (newly_added != 1L) "s" else "",
+                     " (", total_in_nb, " total in notebook)"),
+              type = "message"
+            )
+          }
         } else {
-          showNotification("No new papers (all duplicates)", type = "message")
+          # load_more mode
+          if (newly_added > 0L) {
+            showNotification(
+              paste0("Loaded ", newly_added, " more paper", if (newly_added != 1L) "s" else "",
+                     " (", total_in_nb, " total)"),
+              type = "message"
+            )
+          } else {
+            showNotification("No new papers (all duplicates)", type = "message")
+          }
         }
       }, error = function(e) {
+        # BUG-01 FIX: Show error toast then return() - no downstream toasts
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenAlex")
           show_error_toast(err$message, err$details, err$severity)
         }
-        showNotification("Failed to load more — try again", type = "error")
+        return()
       })
     }
 
     # Explicit refresh button - use ignoreInit = TRUE and also ignoreNULL = TRUE
     observeEvent(input$refresh_search, {
-      do_search_refresh()
+      do_search("refresh")
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Load More button
     observeEvent(input$load_more, {
-      do_load_more()
+      do_search("load_more")
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Seed citation network button
