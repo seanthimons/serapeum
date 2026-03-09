@@ -224,7 +224,7 @@ Plans:
 **Goal:** Fix Refresh triple-toast bug and Load More silent failure by consolidating duplicate search functions into unified do_search(mode)
 **Requirements**: BUG-01, BUG-02, CONSOL-01, CONSOL-02
 **Depends on:** Phase 52
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 52.1-01-PLAN.md — Consolidate search functions, fix error handling, add tests
@@ -280,7 +280,7 @@ Plans:
 | 50. API Pagination Foundation | 1/1 | Complete    | 2026-03-07 |
 | 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
 | 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
-| 52.1. Fix Search Refresh + Load More | 0/1 | Planned | - |
+| 52.1. Fix Search Refresh + Load More | 1/1 | Complete   | 2026-03-09 |
 | 53. Toolbar Restructuring | 0/? | Not started | - |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
