@@ -33,6 +33,16 @@ show_error_toast <- function(message, details = NULL, severity = "error", durati
   showNotification(content, type = type, duration = duration)
 }
 
+#' Format result count for display (Phase 51)
+#' @param fetched Total papers in notebook
+#' @param total Total matching results from API
+#' @return Character string like "25 of 100 results" or ""
+format_result_count <- function(fetched, total) {
+  if (is.null(total) || total == 0) return("")
+  if (fetched >= total) return(paste(total, "results"))
+  paste(fetched, "of", total, "results")
+}
+
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
@@ -97,7 +107,8 @@ mod_search_notebook_ui <- function(id) {
                          title = "Edit Search"),
             actionButton(ns("refresh_search"), "Refresh",
                          class = "btn-sm btn-outline-secondary",
-                         icon = icon_rotate())
+                         icon = icon_rotate()),
+            span(class = "text-muted small ms-2 align-self-center", textOutput(ns("result_count"), inline = TRUE))
           )
         ),
         card_body(
@@ -362,6 +373,14 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Track block/unblock journal observers to prevent duplicates
     block_journal_observers <- reactiveValues()
     unblock_journal_observers <- reactiveValues()
+
+    # Phase 51: Pagination state for cursor-based pagination
+    pagination_state <- reactiveValues(
+      cursor = NULL,          # NULL = page 1, string = continuation token
+      has_more = FALSE,       # TRUE if next_cursor was non-NULL in last response
+      total_fetched = 0L,     # Total papers in notebook (from DB count)
+      api_total = 0L          # Total matching papers from OpenAlex meta.count
+    )
 
     # Phase 38: Batch import state
     batch_import_interrupt <- reactiveVal(NULL)
@@ -933,7 +952,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       req(nb_id)
       sort_by <- input$sort_by %||% "year"
-      papers <- list_abstracts(con(), nb_id, sort_by = sort_by)
+      # Always fetch with default DB sort (Phase 51)
+      papers <- list_abstracts(con(), nb_id, sort_by = "year")
+
+      # Client-side re-sort if user selected different sort (Phase 51)
+      # Sort dropdown is display-only, does not affect API cursor
+      if (nrow(papers) > 0 && sort_by != "year") {
+        papers <- switch(sort_by,
+          cited_by_count = papers[order(papers$cited_by_count, decreasing = TRUE, na.last = TRUE), ],
+          fwci = papers[order(papers$fwci, decreasing = TRUE, na.last = TRUE), ],
+          referenced_works_count = papers[order(papers$referenced_works_count, decreasing = TRUE, na.last = TRUE), ],
+          papers
+        )
+        rownames(papers) <- NULL
+      }
 
       # BUGF-01 Part B: Pin seed paper to row 1 for seed-discovery notebooks
       if (nrow(papers) > 1) {
@@ -2181,6 +2213,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         notebook_refresh(notebook_refresh() + 1)
       }
 
+      # Reset pagination cursor — API query is changing (Phase 51)
+      pagination_state$cursor <- NULL
+      pagination_state$has_more <- FALSE
+
       # Trigger search refresh
       search_refresh_trigger(search_refresh_trigger() + 1)
     })
@@ -2238,6 +2274,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           return(list(papers = list(), next_cursor = NULL, count = 0))
         })
         papers <- result$papers
+
+        # Update pagination state after successful fetch (Phase 51)
+        pagination_state$cursor <- result$next_cursor
+        pagination_state$has_more <- !is.null(result$next_cursor)
+        pagination_state$api_total <- result$count
 
         if (length(papers) == 0) {
           showNotification("No papers found", type = "warning")
@@ -2313,6 +2354,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       # BUGF-04: Show count of newly-added papers, not raw API response count
       total_in_nb <- nrow(list_abstracts(con(), nb_id))
+
+      # Update total_fetched from actual DB count (Phase 51)
+      pagination_state$total_fetched <- total_in_nb
+
       if (newly_added == 0L) {
         showNotification("No new papers found", type = "message")
       } else {
@@ -2351,6 +2396,19 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observeEvent(search_refresh_trigger(), {
       do_search_refresh()
     }, ignoreInit = TRUE)
+
+    # Sync total_fetched with DB when papers change (delete, import, etc.) (Phase 51)
+    observeEvent(paper_refresh(), {
+      nb_id <- notebook_id()
+      if (!is.null(nb_id)) {
+        pagination_state$total_fetched <- nrow(list_abstracts(con(), nb_id))
+      }
+    }, ignoreInit = TRUE)
+
+    # Result count display (Phase 51)
+    output$result_count <- renderText({
+      format_result_count(pagination_state$total_fetched, pagination_state$api_total)
+    })
 
     # Handle embed button click (embeds only filtered papers)
     observeEvent(input$embed_papers, {
