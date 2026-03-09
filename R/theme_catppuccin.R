@@ -466,6 +466,11 @@ icon_ban <- function(...) shiny::icon("ban", ...)
 #' @return Icon tag
 icon_rotate <- function(...) shiny::icon("rotate", ...)
 
+#' Angles down icon (double chevron down — load more)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_angles_down <- function(...) shiny::icon("angles-down", ...)
+
 #' Rotate right icon (refresh/reload)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
