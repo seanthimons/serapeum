@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 52-load-more-button
 source: [52-01-SUMMARY.md]
 started: 2026-03-09T17:45:00Z
-updated: 2026-03-09T17:45:00Z
+updated: 2026-03-09T21:00:00Z
 ---
 
 ## Current Test
@@ -51,7 +51,7 @@ skipped: 0
 ## Gaps
 
 - truth: "Load More button matches icon-only toolbar style established by UI passover"
-  status: failed
+  status: resolved
   reason: "User reported: Load More button has text label but all other toolbar buttons are icon-only with tooltips. Doesn't match the established UI pattern."
   severity: cosmetic
   test: 1
@@ -60,7 +60,7 @@ skipped: 0
   missing: []
   debug_session: ""
 - truth: "Clicking Load More fetches next page and appends papers to existing list"
-  status: failed
+  status: resolved
   reason: "User reported: Triple modals - error says 'missing value where TRUE/FALSE needed'. OpenAlex request failed toast, 'No papers found' toast, 'No new papers found' toast all appear simultaneously. Partial fixes applied (sort param, NULL guard) but issue persists in both Refresh and Load More."
   severity: blocker
   test: 2
