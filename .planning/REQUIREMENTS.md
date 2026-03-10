@@ -9,12 +9,12 @@ Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
 
 ### Toolbar
 
-- [ ] **TOOL-01**: All toolbar buttons display icon+text labels (no icon-only buttons)
-- [ ] **TOOL-02**: Buttons reordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
-- [ ] **TOOL-03**: Buttons harmonized with Catppuccin semantic color system (primary=lavender, info=sapphire, etc.)
-- [ ] **TOOL-04**: Visual grouping with separators between action groups (import/edit, discovery, export, data)
+- [x] **TOOL-01**: All toolbar buttons display icon+text labels (no icon-only buttons)
+- [x] **TOOL-02**: Buttons reordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
+- [x] **TOOL-03**: Buttons harmonized with Catppuccin semantic color system (primary=lavender, info=sapphire, etc.)
+- [x] **TOOL-04**: Visual grouping with separators between action groups (import/edit, discovery, export, data)
 - [ ] **TOOL-05**: Every toolbar button has a bslib tooltip (max 15 words, keyboard-accessible)
-- [ ] **TOOL-06**: "Papers" label removed from toolbar area
+- [x] **TOOL-06**: "Papers" label removed from toolbar area
 
 ### Pagination
 
@@ -58,12 +58,12 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 53 | Pending |
-| TOOL-02 | Phase 53 | Pending |
-| TOOL-03 | Phase 53 | Pending |
-| TOOL-04 | Phase 53 | Pending |
+| TOOL-01 | Phase 53 | Complete |
+| TOOL-02 | Phase 53 | Complete |
+| TOOL-03 | Phase 53 | Complete |
+| TOOL-04 | Phase 53 | Complete |
 | TOOL-05 | Phase 54 | Pending |
-| TOOL-06 | Phase 53 | Pending |
+| TOOL-06 | Phase 53 | Complete |
 | PAGE-01 | Phase 51 | Complete |
 | PAGE-02 | Phase 52 | Complete |
 | PAGE-03 | Phase 52 | Complete |
