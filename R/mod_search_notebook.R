@@ -43,6 +43,16 @@ format_result_count <- function(fetched, total) {
   paste(fetched, "of", total, "results")
 }
 
+#' Format large number for display (Phase 53)
+#' @param n Number to format
+#' @return Character string like "1.6M" or "234K"
+format_large_number <- function(n) {
+  if (is.null(n) || is.na(n) || n <= 0) return("0")
+  if (n >= 1e6) return(paste0(round(n / 1e6, 1), "M"))
+  if (n >= 1e3) return(paste0(round(n / 1e3, 1), "K"))
+  as.character(n)
+}
+
 #' Search Notebook Module UI
 #' @param id Module ID
 mod_search_notebook_ui <- function(id) {
@@ -72,53 +82,55 @@ mod_search_notebook_ui <- function(id) {
     ", ns("send")))),
 
     layout_columns(
-      col_widths = c(4, 8),
+      col_widths = c(5, 7),
       # Left: Paper list
       card(
         card_header(
-          class = "d-flex justify-content-between align-items-center",
-          span("Papers"),
+          # Row 1: Import | Edit Search | Citation Network
+          div(
+            class = "d-flex gap-2 mb-1",
+            actionButton(ns("open_bulk_import"), "Import",
+                         class = "btn-sm btn-outline-primary flex-fill",
+                         icon = icon_file_import()),
+            actionButton(ns("edit_search"), "Edit Search",
+                         class = "btn-sm btn-outline-secondary flex-fill",
+                         icon = icon_edit()),
+            actionButton(ns("seed_citation_network"), "Citation Network",
+                         class = "btn-sm btn-outline-primary flex-fill",
+                         icon = icon_share_nodes())
+          ),
+          # Row 2: Export | Refresh | Load More
           div(
             class = "d-flex gap-2",
-            actionButton(ns("open_bulk_import"), NULL,
-                         class = "btn-sm btn-outline-success",
-                         icon = icon_file_import(),
-                         title = "Import DOIs"),
+            # Export dropdown
             div(
-              class = "btn-group btn-group-sm",
-              tags$button(
-                class = "btn btn-outline-primary dropdown-toggle",
-                `data-bs-toggle` = "dropdown",
-                icon_download(), " Export"
-              ),
-              tags$ul(
-                class = "dropdown-menu",
-                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
-                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
+              class = "flex-fill",
+              div(
+                class = "btn-group btn-group-sm w-100",
+                tags$button(
+                  class = "btn btn-outline-primary dropdown-toggle w-100",
+                  `data-bs-toggle` = "dropdown",
+                  icon_download(), " Export"
+                ),
+                tags$ul(
+                  class = "dropdown-menu",
+                  tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
+                  tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
+                )
               )
             ),
-            actionButton(ns("seed_citation_network"), NULL,
-                         class = "btn-sm btn-outline-info",
-                         icon = icon_share_nodes(),
-                         title = "Seed Citation Network"),
-            actionButton(ns("edit_search"), NULL,
-                         class = "btn-sm btn-outline-secondary",
-                         icon = icon_edit(),
-                         title = "Edit Search"),
             actionButton(ns("refresh_search"), "Refresh",
-                         class = "btn-sm btn-outline-secondary",
+                         class = "btn-sm btn-outline-secondary flex-fill",
                          icon = icon_rotate()),
             actionButton(ns("load_more"), "Load More",
-                         class = "btn-sm btn-outline-info",
-                         icon = icon_angles_down(),
-                         title = "Fetch next page of search results"),
-            span(class = "text-muted small ms-2 align-self-center", textOutput(ns("result_count"), inline = TRUE))
+                         class = "btn-sm btn-outline-primary flex-fill",
+                         icon = icon_angles_down())
           )
         ),
         card_body(
           # Sort controls
           div(
-            class = "mb-2",
+            class = "d-flex justify-content-around mb-2",
             radioButtons(
               ns("sort_by"),
               NULL,
@@ -813,8 +825,18 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
     })
 
+    # Phase 53: Remaining count reactive for keyword filter
+    remaining_count <- reactive({
+      total <- pagination_state$api_total
+      fetched <- pagination_state$total_fetched
+      if (is.null(total) || total == 0) return(NULL)
+      remaining <- total - fetched
+      if (remaining <= 0) return(NULL)
+      remaining
+    })
+
     # Keyword filter module - returns filtered papers reactive
-    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data)
+    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
 
     # Journal filter module - returns filtered papers reactive + block_journal function
     journal_filter_result <- mod_journal_filter_server("journal_filter", keyword_filtered_papers, con)
@@ -2459,10 +2481,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
     }, ignoreInit = TRUE)
 
-    # Result count display (Phase 51)
-    output$result_count <- renderText({
-      format_result_count(pagination_state$total_fetched, pagination_state$api_total)
-    })
+    # Result count display moved to keyword filter in Phase 53
+    # output$result_count <- renderText({
+    #   format_result_count(pagination_state$total_fetched, pagination_state$api_total)
+    # })
 
     # Enable/disable Load More based on pagination state
     observe({
