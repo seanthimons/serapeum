@@ -236,10 +236,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. All toolbar buttons display icon+text labels (no icon-only buttons remain)
   2. Buttons ordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
-  3. Button colors harmonized with Catppuccin semantic system (primary=lavender, info=sapphire)
-  4. Visual separators group related actions (import/edit, discovery, export, data)
+  3. Button colors harmonized with Catppuccin semantic system (primary=lavender, secondary=gray)
+  4. Visual separators group related actions (row 1: input/discovery, row 2: output/data)
   5. "Papers" label removed from toolbar area
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 53-01-PLAN.md — Restructure toolbar to 3x2 grid, relocate result count, widen paper panel
 
 ### Phase 54: Tooltip Layer
 **Goal**: Every toolbar button has accessible, keyboard-navigable tooltips describing its action
@@ -281,11 +284,11 @@ Plans:
 | 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
 | 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
 | 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
-| 53. Toolbar Restructuring | 0/? | Not started | - |
+| 53. Toolbar Restructuring | 0/1 | Planned | - |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-09 — Phase 52.1 planned (1 plan)*
+*Last updated: 2026-03-10 — Phase 53 planned (1 plan)*
