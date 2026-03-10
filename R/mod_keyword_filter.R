@@ -18,7 +18,8 @@ mod_keyword_filter_ui <- function(id) {
 #' Keyword Filter Module Server
 #' @param id Module ID
 #' @param papers_data Reactive returning data.frame with keywords column (JSON-encoded)
-mod_keyword_filter_server <- function(id, papers_data) {
+#' @param remaining_count Optional reactive returning remaining result count from pagination
+mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactive(NULL)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -70,11 +71,24 @@ mod_keyword_filter_server <- function(id, papers_data) {
     output$summary <- renderUI({
       papers <- papers_data()
       keywords <- all_keywords()
+      remaining <- remaining_count()
 
-      div(
-        class = "mb-2 text-muted small",
-        paste0(nrow(papers), " papers | ", nrow(keywords), " keywords")
-      )
+      base_text <- paste0(nrow(papers), " papers | ", nrow(keywords), " keywords")
+
+      if (!is.null(remaining) && remaining > 0) {
+        div(
+          class = "mb-2 text-muted small",
+          HTML(paste0(
+            base_text, " | ",
+            "<strong>", format_large_number(remaining), " remaining</strong>"
+          ))
+        )
+      } else {
+        div(
+          class = "mb-2 text-muted small",
+          base_text
+        )
+      }
     })
 
     # Keyword badges
