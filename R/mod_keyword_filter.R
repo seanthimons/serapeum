@@ -25,9 +25,6 @@ mod_keyword_filter_server <- function(id, papers_data) {
     # Reactively store keyword states: "neutral", "include", "exclude"
     keyword_states <- reactiveValues()
 
-    # Track which keyword observers are active
-    observer_tracking <- reactiveValues(active = list())
-
     # Aggregate keywords from papers_data
     all_keywords <- reactive({
       papers <- papers_data()
@@ -58,13 +55,14 @@ mod_keyword_filter_server <- function(id, papers_data) {
       head(kw_df, 30)
     })
 
-    # Reset keyword states when papers_data changes (new search results)
+    # Initialize keyword states for new keywords only (preserve existing include/exclude)
     observe({
       keywords <- all_keywords()
 
-      # Reset all states to neutral
       for (kw in keywords$keyword) {
-        keyword_states[[kw]] <- "neutral"
+        if (is.null(keyword_states[[kw]])) {
+          keyword_states[[kw]] <- "neutral"
+        }
       }
     })
 
@@ -91,8 +89,7 @@ mod_keyword_filter_server <- function(id, papers_data) {
         class = "d-flex flex-wrap gap-1 mb-2",
         lapply(seq_len(nrow(keywords)), function(i) {
           kw <- keywords[i, ]
-          sanitized_id <- gsub("[^a-zA-Z0-9]", "_", kw$keyword)
-          input_id <- paste0("kw_", sanitized_id)
+          input_id <- paste0("kw_", i)
 
           # Get current state
           state <- keyword_states[[kw$keyword]] %||% "neutral"
@@ -125,29 +122,36 @@ mod_keyword_filter_server <- function(id, papers_data) {
       )
     })
 
-    # Handle keyword clicks with observe() + lapply() pattern
+    # Handle keyword clicks — teardown old observers before creating new ones
+    keyword_observers <- list()
+
     observe({
       keywords <- all_keywords()
+
+      # Destroy previous observers
+      for (obs in keyword_observers) {
+        obs$destroy()
+      }
+      keyword_observers <<- list()
+
       if (nrow(keywords) == 0) return()
 
-      lapply(seq_len(nrow(keywords)), function(i) {
-        kw <- keywords[i, ]
-        sanitized_id <- gsub("[^a-zA-Z0-9]", "_", kw$keyword)
-        input_id <- paste0("kw_", sanitized_id)
+      keyword_observers <<- lapply(seq_len(nrow(keywords)), function(i) {
+        kw_name <- keywords$keyword[i]
+        input_id <- paste0("kw_", i)
 
         observeEvent(input[[input_id]], {
-          # Get current state
-          current_state <- keyword_states[[kw$keyword]] %||% "neutral"
+          current_state <- keyword_states[[kw_name]] %||% "neutral"
 
           # Cycle: neutral -> include -> exclude -> neutral
           new_state <- switch(current_state,
             "neutral" = "include",
             "include" = "exclude",
             "exclude" = "neutral",
-            "include"  # fallback
+            "include"
           )
 
-          keyword_states[[kw$keyword]] <- new_state
+          keyword_states[[kw_name]] <- new_state
         }, ignoreInit = TRUE)
       })
     })
