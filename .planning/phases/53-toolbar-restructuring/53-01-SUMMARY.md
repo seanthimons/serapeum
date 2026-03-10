@@ -45,8 +45,8 @@ Improve toolbar usability by making buttons discoverable (icon+text), logically 
 
 - Changed panel split from `c(4, 8)` to `c(5, 7)` for better paper title visibility
 - Replaced single-row button strip with 3x2 grid using two flex rows
-- All 6 buttons now display icon + text labels (Import, Edit Search, Citation Network, Export, Refresh, Load More)
-- Applied semantic colors: lavender (btn-outline-primary) on Import, Citation Network, Export, Load More; gray (btn-outline-secondary) on Edit Search, Refresh
+- All 6 buttons now display icon + text labels (Import, Edit Search, Cit Network, Export, Refresh, Load More)
+- Applied semantic colors: lavender (btn-outline-primary) on Import, Cit Network, Export, Load More; gray (btn-outline-secondary) on Edit Search, Refresh
 - Removed "Papers" span from card header
 - Removed result_count textOutput from card header (relocated to keywords panel)
 - Added format_large_number() helper function for K/M suffix formatting
@@ -101,7 +101,7 @@ All verification criteria met:
 
 All success criteria met:
 - [x] TOOL-01: All 6 buttons have icon+text labels (no icon-only buttons)
-- [x] TOOL-02: Buttons ordered Import, Edit Search, Citation Network, Export, Refresh, Load More
+- [x] TOOL-02: Buttons ordered Import, Edit Search, Cit Network, Export, Refresh, Load More
 - [x] TOOL-03: Primary actions use lavender (btn-outline-primary), support actions use gray (btn-outline-secondary)
 - [x] TOOL-04: 3x2 grid provides visual grouping (row 1 = input/discovery, row 2 = output/data)
 - [x] TOOL-06: "Papers" label removed, result count relocated to keywords panel
