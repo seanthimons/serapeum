@@ -86,51 +86,49 @@ mod_search_notebook_ui <- function(id) {
       # Left: Paper list
       card(
         card_header(
-          # Row 1: Import | Edit Search | Citation Network
+          # 3x2 button grid — single CSS grid for perfect column alignment
           div(
-            class = "d-flex gap-2 mb-1",
+            style = "display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;",
             actionButton(ns("open_bulk_import"), "Import",
-                         class = "btn-sm btn-outline-primary flex-fill",
+                         class = "btn-sm btn-outline-primary",
+                         style = "white-space: nowrap;",
                          icon = icon_file_import()),
             actionButton(ns("edit_search"), "Edit Search",
-                         class = "btn-sm btn-outline-secondary flex-fill",
+                         class = "btn-sm btn-outline-secondary",
+                         style = "white-space: nowrap;",
                          icon = icon_edit()),
-            actionButton(ns("seed_citation_network"), "Citation Network",
-                         class = "btn-sm btn-outline-primary flex-fill",
-                         icon = icon_share_nodes())
-          ),
-          # Row 2: Export | Refresh | Load More
-          div(
-            class = "d-flex gap-2",
-            # Export dropdown
+            actionButton(ns("seed_citation_network"), "Cit Network",
+                         class = "btn-sm btn-outline-primary",
+                         style = "white-space: nowrap;",
+                         icon = icon_share_nodes()),
+            # Row 2: Export | Refresh | Load More
             div(
-              class = "flex-fill",
-              div(
-                class = "btn-group btn-group-sm w-100",
-                tags$button(
-                  class = "btn btn-outline-primary dropdown-toggle w-100",
-                  `data-bs-toggle` = "dropdown",
-                  icon_download(), " Export"
-                ),
-                tags$ul(
-                  class = "dropdown-menu",
-                  tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
-                  tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
-                )
+              class = "btn-group btn-group-sm w-100",
+              tags$button(
+                class = "btn btn-outline-primary dropdown-toggle w-100",
+                `data-bs-toggle` = "dropdown",
+                icon_download(), " Export"
+              ),
+              tags$ul(
+                class = "dropdown-menu",
+                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
+                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
               )
             ),
             actionButton(ns("refresh_search"), "Refresh",
-                         class = "btn-sm btn-outline-secondary flex-fill",
+                         class = "btn-sm btn-outline-secondary",
+                         style = "white-space: nowrap;",
                          icon = icon_rotate()),
             actionButton(ns("load_more"), "Load More",
-                         class = "btn-sm btn-outline-primary flex-fill",
+                         class = "btn-sm btn-outline-primary",
+                         style = "white-space: nowrap;",
                          icon = icon_angles_down())
           )
         ),
         card_body(
           # Sort controls
           div(
-            class = "d-flex justify-content-around mb-2",
+            class = "d-flex flex-wrap justify-content-around mb-2",
             radioButtons(
               ns("sort_by"),
               NULL,
