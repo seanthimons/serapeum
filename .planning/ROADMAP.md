@@ -171,7 +171,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
 - [x] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization (completed 2026-03-10)
 - [x] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility (completed 2026-03-11)
-- [ ] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout
+- [x] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout (completed 2026-03-11)
 - [ ] **Phase 56: Year Slider Alignment Fix** - CSS alignment for histogram and slider
 
 ## Phase Details
@@ -303,7 +303,7 @@ Plans:
 | 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
 | 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
 | 54. Tooltip Layer | 1/1 | Complete    | 2026-03-11 |
-| 55. Document Type Filter UX | 0/1 | Planned     | - |
+| 55. Document Type Filter UX | 1/1 | Complete   | 2026-03-11 |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
 
 ---

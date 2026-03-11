@@ -27,9 +27,9 @@ Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
 
 ### Document Types
 
-- [ ] **DTYPE-01**: Full 16-type OpenAlex taxonomy exposed as filter options
-- [ ] **DTYPE-02**: Distribution panel showing type counts moved above filter checkboxes
-- [ ] **DTYPE-03**: Type badge styling for each document type in search results
+- [x] **DTYPE-01**: Full 16-type OpenAlex taxonomy exposed as filter options
+- [x] **DTYPE-02**: Distribution panel showing type counts moved above filter checkboxes
+- [x] **DTYPE-03**: Type badge styling for each document type in search results
 
 ### Year Filter
 
@@ -70,9 +70,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | PAGE-04 | Phase 52 | Complete |
 | PAGE-05 | Phase 51 | Complete |
 | PAGE-06 | Phase 50 | Complete |
-| DTYPE-01 | Phase 55 | Pending |
-| DTYPE-02 | Phase 55 | Pending |
-| DTYPE-03 | Phase 55 | Pending |
+| DTYPE-01 | Phase 55 | Complete |
+| DTYPE-02 | Phase 55 | Complete |
+| DTYPE-03 | Phase 55 | Complete |
 | YEAR-01 | Phase 56 | Pending |
 
 **Coverage:**
