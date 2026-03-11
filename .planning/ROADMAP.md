@@ -295,7 +295,7 @@ Plans:
 | 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
 | 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
 | 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
-| 53.1. Import History Bug Fix | 1/1 | Complete   | 2026-03-11 |
+| 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
