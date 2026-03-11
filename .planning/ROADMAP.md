@@ -263,7 +263,10 @@ Plans:
   2. Dynamic buttons (keyword/journal filters) use `title` attributes for tooltip fallback
   3. Tooltips remain visible and readable in both light and dark modes
   4. Tooltips accessible via keyboard navigation (WCAG 2.2 compliant)
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 54-01-PLAN.md — Wrap 12 static buttons with bslib::tooltip(), add title attributes to keyword badges
 
 ### Phase 55: Document Type Filter UX
 **Goal**: Users can filter by full OpenAlex 16-type taxonomy with clear distribution preview
@@ -296,10 +299,10 @@ Plans:
 | 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
 | 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
 | 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
-| 54. Tooltip Layer | 0/? | Not started | - |
+| 54. Tooltip Layer | 0/1 | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-11 — Phase 53.1 planned (1 plan)*
+*Last updated: 2026-03-11 — Phase 54 planned (1 plan)*
