@@ -4,13 +4,13 @@ milestone: v11.0
 milestone_name: Search Notebook UX
 status: executing
 stopped_at: Phase 53.1 context gathered
-last_updated: "2026-03-10T21:07:40.826Z"
+last_updated: "2026-03-11T14:47:13.279Z"
 last_activity: 2026-03-10 — Completed Phase 53 Plan 01
 progress:
   total_phases: 9
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 6
+  total_plans: 6
+  completed_plans: 6
 ---
 
 ---
@@ -129,27 +129,27 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 
 ## Current Position
 
-Phase: 53 of 56 (Toolbar Restructuring)
+Phase: 53.1 of 56 (Import Run Dialog UI Fix)
 Plan: 1 of 1 complete
-Status: Phase 53 complete
-Last activity: 2026-03-10 — Completed Phase 53 Plan 01
+Status: Phase 53.1 complete
+Last activity: 2026-03-11 — Completed Phase 53.1 Plan 01
 
-Progress: [██████████] 100% Phase 53 (1/1 plans) | [█████░░░░░] 62.5% v11.0 (5/8 phases complete)
+Progress: [██████████] 100% Phase 53.1 (1/1 plans) | [██████░░░░] 66.7% v11.0 (6/9 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 91 (86 previous + 5 in v11.0)
-- Total phases completed: 53 (49 previous + 4 in v11.0)
+- Total plans completed: 92 (86 previous + 6 in v11.0)
+- Total phases completed: 54 (49 previous + 5 in v11.0)
 - Milestones shipped: 13 (v1.0-v10.0)
 
 **Recent Execution:**
+- Phase 53.1-01: 210s (3m 30s), 2 tasks, 3 files modified
 - Phase 53-01: 4s, 3 tasks, 2 files modified
 - Phase 52.1-01: 184s (3m 4s), 2 tasks, 2 files modified
-- Phase 52-01: 203s (3m 23s), 2 tasks, 3 files modified
 
 **v11.0 Roadmap:**
-- 8 phases planned (50-56, plus 52.1 inserted)
+- 9 phases planned (50-56, plus 52.1 and 53.1 inserted)
 - 16 requirements (100% coverage)
 - Granularity: Standard (5-8 phases)
 
@@ -160,6 +160,10 @@ Progress: [██████████] 100% Phase 53 (1/1 plans) | [██�
 Decisions are logged in PROJECT.md Key Decisions table.
 
 Recent decisions affecting v11.0:
+- [Phase 53.1-01]: Move history into modal footer instead of page-level uiOutput
+- [Phase 53.1-01]: Remove delete functionality from history cards (read-only audit trail)
+- [Phase 53.1-01]: Limit displayed runs to 5 most recent (prevents footer bloat)
+- [Phase 53.1-01]: Collapsed by default (history is reference, not primary workflow)
 - [Phase 53-01]: CSS Grid for perfect column alignment (switched from two flex rows after checkpoint feedback)
 - [Phase 53-01]: format_large_number() helper for K/M suffixes on remaining count
 - [Phase 53-01]: Panel split changed from 4/8 to 5/7 for better paper title visibility
@@ -187,8 +191,8 @@ Recent decisions affecting v11.0:
 
 ### Roadmap Evolution
 
-- Phase 52.1 inserted after Phase 52: Fix search refresh and load more (URGENT)
-- Phase 53.1 inserted after Phase 53: Import run dialog appearing at bottom of abstract notebook (URGENT)
+- Phase 52.1 inserted after Phase 52: Fix search refresh and load more (URGENT) — COMPLETE
+- Phase 53.1 inserted after Phase 53: Import run dialog appearing at bottom of abstract notebook (URGENT) — COMPLETE
 
 ### Blockers/Concerns
 
@@ -196,8 +200,8 @@ None. All v11.0 phases use existing stack (no new dependencies).
 
 ## Session Continuity
 
-Last session: 2026-03-10T21:07:40.823Z
-Stopped at: Phase 53.1 context gathered
+Last session: 2026-03-11T14:46:10Z
+Stopped at: Completed Phase 53.1 Plan 01
 Next: Phase 54: Tooltip Layer (next in v11.0 roadmap)
 
 ---

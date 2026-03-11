@@ -249,7 +249,7 @@ Plans:
 **Goal:** Fix import history rendering as unstyled page content by moving it into the import modal as a collapsible section with show_history parameterization
 **Requirements**: HIST-01, HIST-02, HIST-03, HIST-04, HIST-05, HIST-06
 **Depends on:** Phase 53
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 53.1-01-PLAN.md — Parameterize bulk import module, relocate history into modal footer, remove delete handlers
@@ -295,7 +295,7 @@ Plans:
 | 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
 | 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
 | 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
-| 53.1. Import History Bug Fix | 0/1 | Planned     | - |
+| 53.1. Import History Bug Fix | 1/1 | Complete   | 2026-03-11 |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
