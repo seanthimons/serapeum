@@ -349,7 +349,13 @@ server <- function(input, output, session) {
   effective_config <- mod_settings_server("settings", con_r, config_file_r)
 
   # Cost tracker module
-  mod_cost_tracker_server("cost_tracker", con_r, reactive(session_id), effective_config)
+  mod_cost_tracker_server(
+    "cost_tracker",
+    con_r,
+    reactive(session_id),
+    effective_config,
+    reactive(input$dark_mode)
+  )
 
   # BUGF-03: Fetch live model pricing at startup so non-default models show accurate costs
   observeEvent(effective_config(), {

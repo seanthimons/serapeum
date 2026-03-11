@@ -22,6 +22,35 @@ pricing_env$MODEL_PRICING <- list(
 # Default pricing for unknown models (conservative estimate)
 DEFAULT_PRICING <- list(prompt = 1.00, completion = 3.00)
 
+#' Cost operation display metadata
+#'
+#' Centralized here so the cost tracker UI does not duplicate stale switch blocks.
+COST_OPERATION_META <- list(
+  "chat" = list(label = "Chat", icon_fun = "icon_comments", accent_class = "text-info"),
+  "embedding" = list(label = "Embeddings", icon_fun = "icon_brain", accent_class = "text-secondary"),
+  "query_build" = list(label = "Query Builder", icon_fun = "icon_wand", accent_class = "text-warning"),
+  "slide_generation" = list(label = "Slide Generation", icon_fun = "icon_file_powerpoint", accent_class = "text-danger"),
+  "slide_healing" = list(label = "Slide Healing", icon_fun = "icon_wrench", accent_class = "text-warning"),
+  "conclusion_synthesis" = list(label = "Conclusion Synthesis", icon_fun = "icon_microscope", accent_class = "text-primary"),
+  "overview" = list(label = "Overview", icon_fun = "icon_layer_group", accent_class = "text-primary"),
+  "overview_summary" = list(label = "Overview Summary", icon_fun = "icon_clipboard", accent_class = "text-info"),
+  "overview_keypoints" = list(label = "Overview Key Points", icon_fun = "icon_key_points", accent_class = "text-success"),
+  "research_questions" = list(label = "Research Questions", icon_fun = "icon_lightbulb", accent_class = "text-warning"),
+  "lit_review_table" = list(label = "Literature Review Table", icon_fun = "icon_table", accent_class = "text-success"),
+  "methodology_extractor" = list(label = "Methodology Extractor", icon_fun = "icon_flask", accent_class = "text-danger"),
+  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info")
+)
+
+KNOWN_MODEL_LABELS <- c(
+  "openai/gpt-4o-mini" = "GPT-4o mini",
+  "openai/gpt-4o" = "GPT-4o",
+  "anthropic/claude-sonnet-4" = "Claude Sonnet 4",
+  "google/gemini-2.0-flash-001" = "Gemini 2.0 Flash",
+  "google/gemini-2.5-flash-preview-05-20" = "Gemini 2.5 Flash",
+  "openai/text-embedding-3-small" = "Text Embedding 3 Small",
+  "openai/text-embedding-3-large" = "Text Embedding 3 Large"
+)
+
 #' Update model pricing from live data
 #'
 #' @param models_df Data frame with columns: id, prompt_price, completion_price
@@ -57,6 +86,69 @@ estimate_cost <- function(model, prompt_tokens, completion_tokens = 0) {
   completion_cost <- (completion_tokens / 1000000) * pricing$completion
 
   prompt_cost + completion_cost
+}
+
+#' Get display metadata for a logged cost operation
+#'
+#' @param operation Operation key stored in cost_log
+#' @return Named list with label, icon_fun, and accent_class
+get_cost_operation_meta <- function(operation) {
+  operation <- as.character(operation %||% "")
+  operation <- operation[1]
+
+  if (is.na(operation) || !nzchar(trimws(operation))) {
+    return(list(
+      label = "Unknown Operation",
+      icon_fun = "icon_dollar",
+      accent_class = "text-secondary"
+    ))
+  }
+
+  meta <- COST_OPERATION_META[[operation]]
+  if (!is.null(meta)) {
+    return(meta)
+  }
+
+  label <- gsub("_", " ", operation, fixed = TRUE)
+  label <- tools::toTitleCase(label)
+
+  list(
+    label = label,
+    icon_fun = "icon_dollar",
+    accent_class = "text-secondary"
+  )
+}
+
+#' Format a cost operation key for display
+#'
+#' @param operation Operation key stored in cost_log
+#' @return Human-friendly label string
+format_cost_operation_name <- function(operation) {
+  get_cost_operation_meta(operation)$label
+}
+
+#' Format a model ID for display
+#'
+#' @param model Full model ID
+#' @return Human-friendly label string
+format_cost_model_name <- function(model) {
+  model <- as.character(model %||% "")
+  model <- model[1]
+
+  if (is.na(model) || !nzchar(trimws(model))) {
+    return("Unknown Model")
+  }
+
+  known <- unname(KNOWN_MODEL_LABELS[model])
+  if (length(known) == 1 && !is.na(known)) {
+    return(known)
+  }
+
+  stripped <- sub("^[^/]+/", "", model)
+  stripped <- gsub("-preview-[0-9-]+$", "", stripped)
+  stripped <- gsub("-latest$", "", stripped)
+  stripped <- gsub("-", " ", stripped)
+  tools::toTitleCase(stripped)
 }
 
 #' Log a cost record to the database
@@ -146,6 +238,43 @@ get_cost_history <- function(con, days = 30) {
   ", list(as.character(cutoff_date)))
 }
 
+#' Get cost history grouped for interactive chart segments
+#'
+#' @param con DuckDB connection
+#' @param days Number of days to look back (default 30)
+#' @return Data frame grouped by date, operation, and model
+get_cost_history_segments <- function(con, days = 30) {
+  cutoff_date <- Sys.Date() - days
+
+  segments <- dbGetQuery(con, "
+    SELECT
+      DATE(created_at) as date,
+      operation,
+      model,
+      SUM(estimated_cost) as total_cost,
+      COUNT(*) as request_count,
+      SUM(prompt_tokens) as prompt_tokens,
+      SUM(completion_tokens) as completion_tokens,
+      SUM(total_tokens) as total_tokens
+    FROM cost_log
+    WHERE DATE(created_at) >= ?
+    GROUP BY DATE(created_at), operation, model
+    ORDER BY date ASC, total_cost DESC, operation ASC, model ASC
+  ", list(as.character(cutoff_date)))
+
+  if (nrow(segments) == 0) {
+    segments$operation_label <- character(0)
+    segments$model_label <- character(0)
+    return(segments)
+  }
+
+  segments$date <- as.Date(segments$date)
+  segments$operation_label <- vapply(segments$operation, format_cost_operation_name, character(1))
+  segments$model_label <- vapply(segments$model, format_cost_model_name, character(1))
+
+  segments
+}
+
 #' Get cost breakdown by operation type
 #'
 #' @param con DuckDB connection
@@ -153,16 +282,60 @@ get_cost_history <- function(con, days = 30) {
 #' @return Data frame with columns: operation, total_cost, request_count, avg_cost_per_request
 get_cost_by_operation <- function(con, days = 30) {
   cutoff_date <- Sys.Date() - days
-
-  dbGetQuery(con, "
+  rows <- dbGetQuery(con, "
     SELECT
       operation,
+      model,
       SUM(estimated_cost) as total_cost,
       COUNT(*) as request_count,
-      AVG(estimated_cost) as avg_cost_per_request
+      SUM(total_tokens) as total_tokens
     FROM cost_log
     WHERE DATE(created_at) >= ?
-    GROUP BY operation
-    ORDER BY total_cost DESC
+    GROUP BY operation, model
+    ORDER BY operation ASC, total_cost DESC, model ASC
   ", list(as.character(cutoff_date)))
+
+  if (nrow(rows) == 0) {
+    return(data.frame(
+      operation = character(0),
+      operation_label = character(0),
+      total_cost = numeric(0),
+      request_count = integer(0),
+      avg_cost_per_request = numeric(0),
+      total_tokens = numeric(0),
+      model_count = integer(0),
+      models_used = character(0),
+      top_models = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  rows$operation_label <- vapply(rows$operation, format_cost_operation_name, character(1))
+  rows$model_label <- vapply(rows$model, format_cost_model_name, character(1))
+
+  summarized <- lapply(split(rows, rows$operation), function(group) {
+    group <- group[order(-group$total_cost, group$model_label), ]
+    total_cost <- sum(group$total_cost)
+    request_count <- sum(group$request_count)
+
+    data.frame(
+      operation = group$operation[1],
+      operation_label = group$operation_label[1],
+      total_cost = total_cost,
+      request_count = request_count,
+      avg_cost_per_request = if (request_count > 0) total_cost / request_count else 0,
+      total_tokens = sum(group$total_tokens),
+      model_count = length(unique(group$model)),
+      models_used = paste(group$model_label, collapse = ", "),
+      top_models = paste(
+        head(sprintf("%s ($%.4f)", group$model_label, group$total_cost), 3),
+        collapse = " | "
+      ),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  summary_df <- do.call(rbind, summarized)
+  rownames(summary_df) <- NULL
+  summary_df[order(summary_df$total_cost, decreasing = TRUE), ]
 }

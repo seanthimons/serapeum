@@ -1,3 +1,247 @@
+#' Cost tracker palette by operation
+COST_OPERATION_COLORS <- c(
+  "chat" = "#2AA198",
+  "embedding" = "#6C7086",
+  "query_build" = "#B58900",
+  "slide_generation" = "#FF6B00",
+  "slide_healing" = "#8C7BFF",
+  "conclusion_synthesis" = "#C061CB",
+  "overview" = "#5B8DEF",
+  "overview_summary" = "#00B8D9",
+  "overview_keypoints" = "#2FBF71",
+  "research_questions" = "#F59F00",
+  "lit_review_table" = "#7CB342",
+  "methodology_extractor" = "#E11D48",
+  "gap_analysis" = "#16A3FF"
+)
+
+format_cost_currency <- function(value) {
+  sprintf("$%.4f", value)
+}
+
+format_compact_integer <- function(value) {
+  format(as.integer(value), big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+get_cost_operation_color <- function(operation) {
+  color <- unname(COST_OPERATION_COLORS[operation])
+  if (length(color) == 1 && !is.na(color)) {
+    return(color)
+  }
+
+  LATTE$lavender
+}
+
+render_cost_operation_icon <- function(operation, class = "small") {
+  meta <- get_cost_operation_meta(operation)
+  icon_fun <- get(meta$icon_fun, mode = "function")
+  do.call(icon_fun, list(class = paste(class, meta$accent_class)))
+}
+
+build_cost_history_chart_data <- function(segments) {
+  if (nrow(segments) == 0) {
+    return(data.frame())
+  }
+
+  grouped <- stats::aggregate(
+    cbind(total_cost, request_count, total_tokens) ~ date + operation + operation_label,
+    data = segments,
+    FUN = sum
+  )
+  day_totals <- stats::aggregate(total_cost ~ date, data = grouped, FUN = sum)
+  names(day_totals)[2] <- "day_total"
+
+  grouped <- merge(grouped, day_totals, by = "date", all.x = TRUE, sort = TRUE)
+
+  present_ops <- unique(grouped$operation)
+  op_levels <- c(
+    intersect(names(COST_OPERATION_COLORS), present_ops),
+    setdiff(sort(present_ops), names(COST_OPERATION_COLORS))
+  )
+  grouped$operation <- factor(grouped$operation, levels = op_levels)
+  grouped$operation_label <- factor(
+    grouped$operation_label,
+    levels = vapply(op_levels, format_cost_operation_name, character(1))
+  )
+
+  grouped <- grouped[order(grouped$date, grouped$operation), ]
+  date_levels <- sort(unique(grouped$date))
+  grouped$date_label <- factor(format(grouped$date, "%m/%d"), levels = format(date_levels, "%m/%d"))
+  grouped$x_position <- match(grouped$date, date_levels)
+  grouped$ymin <- ave(grouped$total_cost, grouped$date, FUN = function(values) c(0, head(cumsum(values), -1)))
+  grouped$ymax <- ave(grouped$total_cost, grouped$date, FUN = cumsum)
+
+  grouped
+}
+
+locate_cost_history_segment <- function(chart_data, hover, tolerance = 0.45) {
+  if (
+    is.null(hover$x) || is.null(hover$y) ||
+    nrow(chart_data) == 0
+  ) {
+    return(NULL)
+  }
+
+  candidates <- chart_data[
+    abs(chart_data$x_position - hover$x) <= tolerance &
+      hover$y >= chart_data$ymin &
+      hover$y <= chart_data$ymax &
+      chart_data$total_cost > 0,
+    ,
+    drop = FALSE
+  ]
+
+  if (nrow(candidates) == 0) {
+    return(NULL)
+  }
+
+  candidates <- candidates[order(candidates$ymax - candidates$ymin, decreasing = TRUE), , drop = FALSE]
+  candidates[1, , drop = FALSE]
+}
+
+build_cost_history_tooltip <- function(segment_row, chart_data, segments) {
+  operation_key <- as.character(segment_row$operation[1])
+  segment_models <- segments[
+    segments$date == segment_row$date[1] & segments$operation == operation_key,
+    ,
+    drop = FALSE
+  ]
+  segment_models <- segment_models[order(-segment_models$total_cost, segment_models$model_label), , drop = FALSE]
+
+  day_rows <- chart_data[chart_data$date == segment_row$date[1], , drop = FALSE]
+  day_rows <- day_rows[order(-day_rows$total_cost), , drop = FALSE]
+
+  tags$div(
+    class = "cost-history-tooltip-card",
+    tags$div(
+      class = "d-flex justify-content-between align-items-start gap-3 mb-2",
+      div(
+        class = "d-flex align-items-center gap-2",
+        render_cost_operation_icon(operation_key, class = "small"),
+        div(
+          tags$div(class = "fw-semibold", as.character(segment_row$operation_label[1])),
+          tags$div(
+            class = "small text-muted",
+            paste(format(segment_row$date[1], "%b %d, %Y"), "total", format_cost_currency(segment_row$day_total[1]))
+          )
+        )
+      ),
+      tags$span(class = "fw-semibold text-nowrap", format_cost_currency(segment_row$total_cost[1]))
+    ),
+    tags$div(
+      class = "d-flex flex-wrap gap-3 small mb-3",
+      tags$span(tags$strong("Requests:"), format_compact_integer(segment_row$request_count[1])),
+      tags$span(tags$strong("Tokens:"), format_compact_integer(segment_row$total_tokens[1]))
+    ),
+    tags$div(
+      class = "cost-tooltip-section",
+      tags$div(class = "cost-tooltip-section-title", "Model Breakdown"),
+      if (nrow(segment_models) == 0) {
+        tags$div(class = "small text-muted", "No model detail available")
+      } else {
+        tagList(lapply(seq_len(nrow(segment_models)), function(i) {
+          row <- segment_models[i, ]
+          tags$div(
+            class = "cost-tooltip-row",
+            tags$span(class = "text-truncate", row$model_label),
+            tags$span(class = "text-nowrap", format_cost_currency(row$total_cost))
+          )
+        }))
+      }
+    ),
+    tags$div(
+      class = "cost-tooltip-section mt-3",
+      tags$div(class = "cost-tooltip-section-title", "Day Breakdown"),
+      tagList(lapply(seq_len(nrow(day_rows)), function(i) {
+        row <- day_rows[i, ]
+        tags$div(
+          class = "cost-tooltip-row",
+          tags$span(as.character(row$operation_label)),
+          tags$span(class = "text-nowrap", format_cost_currency(row$total_cost))
+        )
+      }))
+    )
+  )
+}
+
+build_cost_operation_table <- function(df) {
+  if (nrow(df) == 0) {
+    return(tags$p(class = "text-muted mb-0", "No operations yet"))
+  }
+
+  tags$table(
+    class = "table table-sm align-middle mb-0 cost-operation-table",
+    tags$thead(
+      tags$tr(
+        tags$th("Operation"),
+        tags$th("Models Used"),
+        tags$th(class = "text-end", "Requests"),
+        tags$th(class = "text-end", "Total Cost"),
+        tags$th(class = "text-end", "Avg Cost")
+      )
+    ),
+    tags$tbody(lapply(seq_len(nrow(df)), function(i) {
+      row <- df[i, ]
+      model_badges <- strsplit(row$models_used, ", ", fixed = TRUE)[[1]]
+      tags$tr(
+        tags$td(
+          div(
+            class = "d-flex align-items-start gap-2",
+            tags$span(class = "cost-operation-icon", render_cost_operation_icon(row$operation)),
+            div(
+              tags$div(class = "fw-semibold", row$operation_label),
+              tags$div(class = "small text-muted", row$top_models)
+            )
+          )
+        ),
+        tags$td(
+          div(
+            class = "d-flex flex-wrap gap-1",
+            lapply(model_badges, function(model_label) {
+              tags$span(class = "badge rounded-pill text-bg-light cost-model-badge", model_label)
+            })
+          )
+        ),
+        tags$td(class = "text-end text-nowrap", format_compact_integer(row$request_count)),
+        tags$td(class = "text-end text-nowrap fw-semibold", format_cost_currency(row$total_cost)),
+        tags$td(class = "text-end text-nowrap", format_cost_currency(row$avg_cost_per_request))
+      )
+    }))
+  )
+}
+
+build_cost_tooltip_panel_style <- function(theme_mode) {
+  base_style <- paste(
+    "position: absolute;",
+    "top: 24px;",
+    "right: 24px;",
+    "left: auto;",
+    "max-width: 360px;",
+    "width: calc(100% - 48px);",
+    "z-index: 1050;",
+    "box-sizing: border-box;",
+    "overflow: hidden;"
+  )
+
+  if (identical(theme_mode, "dark")) {
+    paste(
+      base_style,
+      "background: rgba(49, 50, 68, 0.98);",
+      "border: 1px solid #6c7086;",
+      "border-radius: 0;",
+      "box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);"
+    )
+  } else {
+    paste(
+      base_style,
+      "background: rgba(245, 244, 237, 0.98);",
+      "border: 1px solid #bcc0cc;",
+      "border-radius: 0;",
+      "box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);"
+    )
+  }
+}
+
 #' Cost Tracker Module UI
 #' @param id Module ID
 mod_cost_tracker_ui <- function(id) {
@@ -8,9 +252,7 @@ mod_cost_tracker_ui <- function(id) {
     card_header("Cost Tracker"),
     card_body(
       fillable = FALSE,
-      # OpenRouter balance
       uiOutput(ns("openrouter_balance")),
-      # Session summary value box
       value_box(
         title = "Session Cost",
         value = textOutput(ns("session_total"), inline = TRUE),
@@ -19,14 +261,12 @@ mod_cost_tracker_ui <- function(id) {
         theme = "primary"
       ),
       hr(),
-      # Recent requests table
       h6("Recent Requests"),
       div(
         style = "max-height: 300px; overflow-y: auto;",
         tableOutput(ns("recent_requests"))
       ),
       hr(),
-      # Cost history section (collapsible)
       tags$details(
         tags$summary(
           class = "fw-semibold mb-2",
@@ -34,11 +274,24 @@ mod_cost_tracker_ui <- function(id) {
           "Cost History (Last 30 Days)"
         ),
         div(
-          plotOutput(ns("cost_history_plot"), height = "200px"),
-          hr(),
-          h6("Cost by Operation"),
-          tableOutput(ns("cost_by_operation"))
-        )
+          class = "small text-muted mb-2",
+          "Click a stack segment to inspect operation and model spend."
+        ),
+        div(
+          class = "cost-history-chart-wrap",
+          plotOutput(
+            ns("cost_history_plot"),
+            height = "280px",
+            click = clickOpts(ns("cost_history_click"), clip = TRUE)
+          ),
+          div(
+            class = "cost-history-tooltip-layer",
+            uiOutput(ns("cost_history_tooltip"))
+          )
+        ),
+        hr(),
+        h6("Cost by Operation"),
+        uiOutput(ns("cost_by_operation"))
       )
     )
   )
@@ -49,16 +302,13 @@ mod_cost_tracker_ui <- function(id) {
 #' @param con_r Reactive database connection
 #' @param session_id_r Reactive session ID
 #' @param config_r Reactive effective config (from mod_settings)
-mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
+#' @param theme_mode_r Reactive theme mode value
+mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL, theme_mode_r = NULL) {
   moduleServer(id, function(input, output, session) {
 
-    # Reactive timer for session data (poll every 10 seconds)
     session_timer <- reactiveTimer(10000)
-
-    # Reactive timer for history data (poll every 60 seconds)
     history_timer <- reactiveTimer(60000)
 
-    # OpenRouter balance (poll every 60 seconds)
     credits_data <- reactive({
       history_timer()
       req(config_r)
@@ -89,7 +339,6 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
       )
     })
 
-    # Session total reactive
     session_total <- reactive({
       session_timer()
       req(con_r(), session_id_r())
@@ -98,14 +347,11 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
       attr(costs, "total_cost") %||% 0
     })
 
-    # Recent requests reactive
     recent_requests <- reactive({
       session_timer()
       req(con_r(), session_id_r())
 
       costs <- get_session_costs(con_r(), session_id_r())
-
-      # Return top 20
       if (nrow(costs) > 20) {
         costs <- costs[1:20, ]
       }
@@ -113,15 +359,30 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
       costs
     })
 
-    # Cost history reactive
-    cost_history <- reactive({
+    cost_history_segments <- reactive({
       history_timer()
       req(con_r())
 
-      get_cost_history(con_r(), 30)
+      get_cost_history_segments(con_r(), 30)
     })
 
-    # Cost by operation reactive
+    cost_history_chart <- reactive({
+      build_cost_history_chart_data(cost_history_segments())
+    })
+
+    theme_mode <- reactive({
+      if (is.null(theme_mode_r)) {
+        return("light")
+      }
+
+      mode <- theme_mode_r()
+      if (isTRUE(mode) || identical(mode, "dark")) {
+        return("dark")
+      }
+
+      "light"
+    })
+
     cost_by_operation <- reactive({
       history_timer()
       req(con_r())
@@ -129,13 +390,13 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
       get_cost_by_operation(con_r(), 30)
     })
 
-    # Render session total
+    selected_cost_segment <- reactiveVal(NULL)
+
     output$session_total <- renderText({
       total <- session_total()
-      sprintf("$%.4f", total)
+      format_cost_currency(total)
     })
 
-    # Render recent requests table
     output$recent_requests <- renderTable({
       df <- recent_requests()
 
@@ -143,7 +404,6 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
         return(data.frame(Message = "No requests yet"))
       }
 
-      # Format for display
       data.frame(
         Time = vapply(df$created_at, function(t) {
           diff <- as.numeric(difftime(Sys.time(), t, units = "mins"))
@@ -152,71 +412,97 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL) {
           else if (diff < 1440) sprintf("%dh ago", round(diff / 60))
           else sprintf("%dd ago", round(diff / 1440))
         }, character(1)),
-        Operation = vapply(df$operation, function(op) {
-          switch(op,
-                 "chat" = "\U1F4AC Chat",
-                 "embedding" = "\U1F9E0 Embed",
-                 "query_build" = "\U2728 Query",
-                 "slide_generation" = "\U1F4CA Slides",
-                 op)
-        }, character(1)),
-        Model = vapply(df$model, function(m) {
-          # Shorten model names
-          gsub("^(openai|anthropic|google)/", "", m)
-        }, character(1)),
+        Operation = vapply(df$operation, format_cost_operation_name, character(1)),
+        Model = vapply(df$model, format_cost_model_name, character(1)),
         Tokens = df$total_tokens,
-        Cost = sprintf("$%.4f", df$estimated_cost),
+        Cost = format_cost_currency(df$estimated_cost),
         stringsAsFactors = FALSE
       )
     }, striped = TRUE, hover = TRUE, bordered = FALSE, spacing = "xs", width = "100%")
 
-    # Render cost history plot
     output$cost_history_plot <- renderPlot({
-      history <- cost_history()
+      chart <- cost_history_chart()
 
-      if (nrow(history) == 0) {
+      if (nrow(chart) == 0) {
         plot.new()
         text(0.5, 0.5, "No cost data yet", cex = 1.2, col = "gray")
         return()
       }
 
-      # Create bar plot
-      par(mar = c(3, 4, 2, 1))
-      barplot(
-        height = history$total_cost,
-        names.arg = format(as.Date(history$date), "%m/%d"),
-        col = LATTE$lavender,
-        border = NA,
-        las = 2,
-        ylab = "Cost (USD)",
-        main = "Daily Costs"
+      present_ops <- unique(as.character(chart$operation))
+      op_levels <- c(
+        intersect(names(COST_OPERATION_COLORS), present_ops),
+        setdiff(sort(present_ops), names(COST_OPERATION_COLORS))
+      )
+      label_levels <- vapply(op_levels, format_cost_operation_name, character(1))
+      chart$operation_label <- factor(as.character(chart$operation_label), levels = label_levels)
+
+      palette <- setNames(
+        vapply(op_levels, get_cost_operation_color, character(1)),
+        label_levels
+      )
+
+      dark_mode <- identical(theme_mode(), "dark")
+      axis_color <- if (dark_mode) MOCHA$text else LATTE$text
+      grid_color <- if (dark_mode) MOCHA$surface1 else LATTE$surface1
+      legend_text_color <- if (dark_mode) MOCHA$text else LATTE$text
+      plot_bg <- if (dark_mode) MOCHA$base else LATTE$base
+
+      ggplot2::ggplot(
+        chart,
+        ggplot2::aes(x = date_label, y = total_cost, fill = operation_label)
+      ) +
+        ggplot2::geom_col(width = 0.72, color = NA) +
+        ggplot2::scale_fill_manual(values = palette, drop = FALSE) +
+        ggplot2::scale_y_continuous(labels = function(values) sprintf("$%.3f", values)) +
+        ggplot2::labs(x = NULL, y = NULL, fill = NULL) +
+        ggplot2::guides(fill = ggplot2::guide_legend(nrow = 2, byrow = TRUE)) +
+        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme(
+          plot.background = ggplot2::element_rect(fill = plot_bg, color = NA),
+          panel.background = ggplot2::element_rect(fill = plot_bg, color = NA),
+          panel.grid.minor = ggplot2::element_blank(),
+          panel.grid.major.x = ggplot2::element_blank(),
+          panel.grid.major.y = ggplot2::element_line(color = grid_color, linewidth = 0.35),
+          axis.text.x = ggplot2::element_text(color = axis_color, angle = 35, hjust = 1, size = 12),
+          axis.text.y = ggplot2::element_text(color = axis_color, size = 12),
+          legend.position = "bottom",
+          legend.title = ggplot2::element_blank(),
+          legend.text = ggplot2::element_text(color = legend_text_color, size = 12),
+          legend.key.size = grid::unit(14, "pt"),
+          plot.margin = ggplot2::margin(8, 8, 8, 8)
+        )
+    }, bg = "transparent")
+
+    observeEvent(input$cost_history_click, {
+      click <- input$cost_history_click
+      chart <- cost_history_chart()
+      req(!is.null(click), nrow(chart) > 0)
+
+      segment_row <- locate_cost_history_segment(chart, click)
+      if (is.null(segment_row)) {
+        selected_cost_segment(NULL)
+      } else {
+        selected_cost_segment(list(segment_row = segment_row))
+      }
+    })
+
+    output$cost_history_tooltip <- renderUI({
+      selected <- selected_cost_segment()
+      chart <- cost_history_chart()
+      segments <- cost_history_segments()
+
+      req(!is.null(selected), nrow(chart) > 0)
+
+      tags$div(
+        class = "cost-history-tooltip-panel",
+        style = build_cost_tooltip_panel_style(theme_mode()),
+        build_cost_history_tooltip(selected$segment_row, chart, segments)
       )
     })
 
-    # Render cost by operation table
-    output$cost_by_operation <- renderTable({
-      df <- cost_by_operation()
-
-      if (nrow(df) == 0) {
-        return(data.frame(Message = "No operations yet"))
-      }
-
-      # Format for display
-      data.frame(
-        Operation = vapply(df$operation, function(op) {
-          switch(op,
-                 "chat" = "\U1F4AC Chat",
-                 "embedding" = "\U1F9E0 Embed",
-                 "query_build" = "\U2728 Query",
-                 "slide_generation" = "\U1F4CA Slides",
-                 op)
-        }, character(1)),
-        Requests = df$request_count,
-        `Total Cost` = sprintf("$%.4f", df$total_cost),
-        `Avg Cost` = sprintf("$%.4f", df$avg_cost_per_request),
-        stringsAsFactors = FALSE,
-        check.names = FALSE
-      )
-    }, striped = TRUE, hover = TRUE, bordered = FALSE, spacing = "xs", width = "100%")
+    output$cost_by_operation <- renderUI({
+      build_cost_operation_table(cost_by_operation())
+    })
   })
 }
