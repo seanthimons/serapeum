@@ -273,3 +273,35 @@ test_that("merge_bibtex_openalex handles NULL abstract fields", {
   result <- merge_bibtex_openalex(openalex_paper, bibtex_row)
   expect_equal(result$abstract, "BibTeX abstract")
 })
+
+# --- show_history parameter tests (Phase 53.1) ---
+
+# Load Shiny module for testing (skip if Shiny not available)
+if (requireNamespace("shiny", quietly = TRUE)) {
+  library(shiny)
+  source(file.path(project_root, "R", "mod_bulk_import.R"))
+}
+
+test_that("mod_bulk_import_ui with show_history=FALSE outputs only script tag", {
+  skip_if_not_installed("shiny")
+  ui <- mod_bulk_import_ui("test_import", show_history = FALSE)
+  ui_html <- as.character(ui)
+  expect_true(grepl("import-progress.js", ui_html))
+  expect_false(grepl("import_history", ui_html))
+})
+
+test_that("mod_bulk_import_ui with show_history=TRUE outputs only script tag (history is in modal)", {
+  skip_if_not_installed("shiny")
+  ui <- mod_bulk_import_ui("test_import", show_history = TRUE)
+  ui_html <- as.character(ui)
+  expect_true(grepl("import-progress.js", ui_html))
+  expect_false(grepl("import_history", ui_html))
+})
+
+test_that("mod_bulk_import_ui default show_history is FALSE", {
+  skip_if_not_installed("shiny")
+  ui <- mod_bulk_import_ui("test_default")
+  ui_html <- as.character(ui)
+  expect_true(grepl("import-progress.js", ui_html))
+  expect_false(grepl("import_history", ui_html))
+})

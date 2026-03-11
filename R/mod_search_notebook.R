@@ -357,7 +357,7 @@ mod_search_notebook_ui <- function(id) {
     ")),
 
     # Phase 35: Bulk DOI import module UI (modals + history)
-    mod_bulk_import_ui(ns("bulk_import"))
+    mod_bulk_import_ui(ns("bulk_import"), show_history = TRUE)
   )
 }
 
@@ -412,7 +412,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # db_path can be a reactive or a plain value — wrap in reactive for the module
     db_path_r <- if (is.function(db_path)) db_path else reactive(db_path)
     bulk_import_api <- mod_bulk_import_server("bulk_import", con, notebook_id, config,
-                                              paper_refresh, db_path_r)
+                                              paper_refresh, db_path_r, show_history = TRUE)
 
     # Phase 35: Open bulk import modal
     observeEvent(input$open_bulk_import, {
