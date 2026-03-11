@@ -1,12 +1,12 @@
 #' Bulk DOI Import Module UI
 #' @param id Module ID
-mod_bulk_import_ui <- function(id) {
+#' @param show_history Whether to show import history in the modal (default: FALSE)
+mod_bulk_import_ui <- function(id, show_history = FALSE) {
   ns <- NS(id)
   # Module uses modals for workflow — minimal persistent UI
-  # Import history is rendered via uiOutput in the parent module
+  # History is now rendered inline in the modal footer when show_history = TRUE
   tagList(
-    tags$script(src = "js/import-progress.js"),
-    uiOutput(ns("import_history"))
+    tags$script(src = "js/import-progress.js")
   )
 }
 
@@ -22,9 +22,10 @@ mod_bulk_import_ui <- function(id) {
 #' @param config Reactive config list (for email/API key extraction)
 #' @param paper_refresh ReactiveVal to increment for paper list refresh
 #' @param db_path_r Reactive DB file path for mirai worker
+#' @param show_history Whether to show import history in the modal (default: FALSE)
 #' @return List with show_import_modal function
 mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, db_path_r,
-                                    standalone = FALSE, navigate_to_notebook = NULL) {
+                                    standalone = FALSE, navigate_to_notebook = NULL, show_history = FALSE) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -100,6 +101,67 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         )
       }
 
+      # Build footer with optional history section
+      footer_content <- list(
+        modalButton("Cancel"),
+        actionButton(ns("preview_btn"), "Validate",
+                     class = "btn-outline-primary", icon = icon_check_double()),
+        actionButton(ns("start_import"), "Import",
+                     class = "btn-primary", icon = icon_file_import(),
+                     disabled = "disabled")
+      )
+
+      # Add collapsible history section if show_history = TRUE
+      if (show_history) {
+        # Fetch import runs for the current notebook
+        runs <- tryCatch(get_import_runs(con(), notebook_id()), error = function(e) data.frame())
+        run_count <- nrow(runs)
+
+        # Build history section
+        history_section <- tags$div(
+          style = "width: 100%; margin-top: 1rem;",
+          tags$hr(),
+          tags$div(
+            class = "d-flex justify-content-between align-items-center",
+            style = "cursor: pointer;",
+            `data-bs-toggle` = "collapse",
+            `data-bs-target` = paste0("#", ns("import_history_collapse")),
+            tags$span("Past Imports ", tags$span(class = "badge bg-secondary", run_count)),
+            icon_chevron_down(class = "text-muted")
+          ),
+          tags$div(
+            id = ns("import_history_collapse"),
+            class = "collapse",
+            if (run_count == 0) {
+              tags$div(class = "text-muted small mt-2", "No imports yet")
+            } else {
+              # Show last 5 runs, most recent first
+              runs <- head(runs, 5)
+              run_cards <- lapply(seq_len(nrow(runs)), function(i) {
+                run <- runs[i, ]
+                run_date <- if (!is.null(run$created_at)) format(run$created_at, "%Y-%m-%d %H:%M") else ""
+                tags$div(
+                  class = "border rounded p-2 mb-2 mt-2",
+                  tags$div(
+                    tags$strong(class = "small", run$name),
+                    tags$div(class = "text-muted small", run_date)
+                  ),
+                  tags$div(
+                    class = "d-flex gap-2 mt-1 small",
+                    tags$span(class = "text-success", paste(run$imported_count, "imported")),
+                    if (run$failed_count > 0) tags$span(class = "text-danger", paste(run$failed_count, "failed")),
+                    if (run$skipped_count > 0) tags$span(class = "text-muted", paste(run$skipped_count, "skipped"))
+                  )
+                )
+              })
+              do.call(tagList, run_cards)
+            }
+          )
+        )
+
+        footer_content <- c(footer_content, list(history_section))
+      }
+
       showModal(modalDialog(
         title = tagList(icon_file_import(), "Bulk DOI Import"),
         notebook_selector_ui,
@@ -119,14 +181,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         textInput(ns("run_name"), "Import name (optional)",
                   placeholder = paste0("Import - ", Sys.Date())),
         uiOutput(ns("preview_panel")),
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton(ns("preview_btn"), "Validate",
-                       class = "btn-outline-primary", icon = icon_check_double()),
-          actionButton(ns("start_import"), "Import",
-                       class = "btn-primary", icon = icon_file_import(),
-                       disabled = "disabled")
-        ),
+        footer = do.call(tagList, footer_content),
         size = "l",
         easyClose = FALSE
       ))
@@ -834,66 +889,6 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       # Note: No notification here - switching to network view is sufficient feedback
     })
 
-    # --- Import History ---
-    output$import_history <- renderUI({
-      history_refresh()  # Trigger on refresh
-      nb_id <- notebook_id()
-      req(nb_id)
-
-      runs <- tryCatch(get_import_runs(con(), nb_id), error = function(e) data.frame())
-      if (nrow(runs) == 0) return(NULL)
-
-      run_items <- lapply(seq_len(nrow(runs)), function(i) {
-        run <- runs[i, ]
-        run_date <- if (!is.null(run$created_at)) format(run$created_at, "%Y-%m-%d %H:%M") else ""
-        tags$div(
-          class = "border rounded p-2 mb-2",
-          tags$div(
-            class = "d-flex justify-content-between align-items-start",
-            tags$div(
-              tags$strong(class = "small", run$name),
-              tags$div(class = "text-muted small", run_date)
-            ),
-            actionButton(
-              ns(paste0("delete_run_", run$id)),
-              NULL, class = "btn-sm btn-outline-danger",
-              icon = icon_delete(), title = "Delete run"
-            )
-          ),
-          tags$div(
-            class = "d-flex gap-2 mt-1 small",
-            tags$span(class = "text-success", paste(run$imported_count, "imported")),
-            if (run$failed_count > 0) tags$span(class = "text-danger", paste(run$failed_count, "failed")),
-            if (run$skipped_count > 0) tags$span(class = "text-muted", paste(run$skipped_count, "skipped"))
-          )
-        )
-      })
-
-      do.call(tagList, run_items)
-    })
-
-    # --- Delete Run Handlers ---
-    # Use observe pattern for dynamic delete buttons
-    observe({
-      nb_id <- notebook_id()
-      req(nb_id)
-
-      runs <- tryCatch(get_import_runs(con(), nb_id), error = function(e) data.frame())
-      if (nrow(runs) == 0) return()
-
-      lapply(runs$id, function(rid) {
-        btn_id <- paste0("delete_run_", rid)
-        observeEvent(input[[btn_id]], {
-          tryCatch({
-            delete_import_run(con(), rid)
-            history_refresh(history_refresh() + 1)
-            showNotification("Import run deleted", type = "message")
-          }, error = function(e) {
-            showNotification(paste("Error deleting run:", conditionMessage(e)), type = "error")
-          })
-        }, ignoreInit = TRUE, once = TRUE)
-      })
-    })
 
     # Return API for parent module
     list(
