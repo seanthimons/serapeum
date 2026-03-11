@@ -314,19 +314,24 @@ parse_search_response <- function(body) {
 #' @param search_field Field to search: "default", "title", "abstract", "title_and_abstract"
 #' @param is_oa Filter to open access only (boolean)
 #' @param min_citations Minimum citation count (optional)
+#' @param has_abstract Restrict results to papers with abstracts (boolean)
 #' @param exclude_retracted Exclude retracted papers (boolean)
 #' @param work_types Character vector of work types to include (e.g., c("article", "review"))
 #' @param cursor Pagination cursor (NULL initiates pagination, string continues)
 #' @param sort Sort order (default "relevance_score")
 #' @return List with papers (list), next_cursor (string or NULL), count (integer)
 search_papers <- function(query, email, api_key = NULL,
-                          from_year = NULL, to_year = NULL, per_page = 25,
+                          from_year = NULL, to_year = NULL, per_page = 100,
                           search_field = "default", is_oa = FALSE,
-                          min_citations = NULL, exclude_retracted = TRUE,
+                          min_citations = NULL, has_abstract = TRUE, exclude_retracted = TRUE,
                           work_types = NULL, cursor = NULL, sort = NULL) {
 
   # Build filter components
-  filters <- c("has_abstract:true")
+  filters <- character()
+
+  if (isTRUE(has_abstract)) {
+    filters <- c(filters, "has_abstract:true")
+  }
 
   if (!is.null(from_year)) {
     filters <- c(filters, paste0("from_publication_date:", from_year, "-01-01"))
@@ -410,14 +415,19 @@ search_papers <- function(query, email, api_key = NULL,
 #' @param search_field Field to search
 #' @param is_oa Open access filter
 #' @param min_citations Minimum citation count (optional)
+#' @param has_abstract Restrict results to papers with abstracts (boolean)
 #' @param exclude_retracted Exclude retracted papers (boolean)
 #' @param work_types Character vector of work types to include
 #' @return List with search and filter strings
 build_query_preview <- function(query, from_year = NULL, to_year = NULL,
                                  search_field = "default", is_oa = FALSE,
-                                 min_citations = NULL, exclude_retracted = TRUE,
+                                 min_citations = NULL, has_abstract = TRUE, exclude_retracted = TRUE,
                                  work_types = NULL) {
-  filters <- c("has_abstract:true")
+  filters <- character()
+
+  if (isTRUE(has_abstract)) {
+    filters <- c(filters, "has_abstract:true")
+  }
 
   if (!is.null(from_year)) {
     filters <- c(filters, paste0("from_publication_date:", from_year, "-01-01"))

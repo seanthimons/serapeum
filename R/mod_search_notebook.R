@@ -916,8 +916,18 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Keyword filter module - returns filtered papers reactive
     keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
 
+    # Phase 55: Type filter - client-side filtering between keyword and journal
+    type_filtered_papers <- reactive({
+      papers <- keyword_filtered_papers()
+      req(nrow(papers) > 0)
+      selected_types <- get_selected_work_types()
+      if (is.null(selected_types)) return(papers)  # All types selected, no filter
+      if (!"work_type" %in% names(papers)) return(papers)  # No type data, skip
+      papers[papers$work_type %in% selected_types, , drop = FALSE]
+    })
+
     # Journal filter module - returns filtered papers reactive + block_journal function
-    journal_filter_result <- mod_journal_filter_server("journal_filter", keyword_filtered_papers, con)
+    journal_filter_result <- mod_journal_filter_server("journal_filter", type_filtered_papers, con)
     journal_filtered_papers <- journal_filter_result$filtered_papers
 
     # Helper: Get OA status badge info (Phase 2)
@@ -2460,7 +2470,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             list()
           }
 
-          abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 25
+          abstracts_count <- get_setting(cfg, "app", "abstracts_per_search") %||% 100
 
 
           # API call (no internal tryCatch - outer one handles errors)
