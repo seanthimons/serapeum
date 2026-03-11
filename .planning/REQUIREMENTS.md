@@ -13,7 +13,7 @@ Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
 - [x] **TOOL-02**: Buttons reordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
 - [x] **TOOL-03**: Buttons harmonized with Catppuccin semantic color system (primary=lavender, info=sapphire, etc.)
 - [x] **TOOL-04**: Visual grouping with separators between action groups (import/edit, discovery, export, data)
-- [ ] **TOOL-05**: Every toolbar button has a bslib tooltip (max 15 words, keyboard-accessible)
+- [x] **TOOL-05**: Every toolbar button has a bslib tooltip (max 15 words, keyboard-accessible)
 - [x] **TOOL-06**: "Papers" label removed from toolbar area
 
 ### Pagination
@@ -62,7 +62,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | TOOL-02 | Phase 53 | Complete |
 | TOOL-03 | Phase 53 | Complete |
 | TOOL-04 | Phase 53 | Complete |
-| TOOL-05 | Phase 54 | Pending |
+| TOOL-05 | Phase 54 | Complete |
 | TOOL-06 | Phase 53 | Complete |
 | PAGE-01 | Phase 51 | Complete |
 | PAGE-02 | Phase 52 | Complete |

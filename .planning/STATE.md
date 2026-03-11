@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.0
 milestone_name: Search Notebook UX
 status: executing
-stopped_at: Phase 54 context gathered
-last_updated: "2026-03-11T15:58:53.811Z"
+stopped_at: Completed Phase 54 Plan 01
+last_updated: "2026-03-11T16:21:11.626Z"
 last_activity: 2026-03-11 — Completed Phase 53.1 Plan 01
 progress:
   total_phases: 9
-  completed_phases: 6
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 7
+  total_plans: 7
+  completed_plans: 7
 ---
 
 ---
@@ -144,24 +144,24 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 
 ## Current Position
 
-Phase: 53.1 of 56 (Import Run Dialog UI Fix)
+Phase: 54 of 56 (Tooltip Layer)
 Plan: 1 of 1 complete
-Status: Phase 53.1 complete
-Last activity: 2026-03-11 — Completed Phase 53.1 Plan 01
+Status: Phase 54 complete
+Last activity: 2026-03-11 — Completed Phase 54 Plan 01
 
-Progress: [██████████] 100% Phase 53.1 (1/1 plans) | [██████░░░░] 66.7% v11.0 (6/9 phases complete)
+Progress: [██████████] 100% Phase 54 (1/1 plans) | [███████░░░] 77.8% v11.0 (7/9 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 92 (86 previous + 6 in v11.0)
-- Total phases completed: 54 (49 previous + 5 in v11.0)
+- Total plans completed: 93 (86 previous + 7 in v11.0)
+- Total phases completed: 55 (49 previous + 6 in v11.0)
 - Milestones shipped: 13 (v1.0-v10.0)
 
 **Recent Execution:**
+- Phase 54-01: 96s (1m 36s), 3 tasks, 3 files modified
 - Phase 53.1-01: 210s (3m 30s), 2 tasks, 3 files modified
 - Phase 53-01: 4s, 3 tasks, 2 files modified
-- Phase 52.1-01: 184s (3m 4s), 2 tasks, 2 files modified
 
 **v11.0 Roadmap:**
 - 9 phases planned (50-56, plus 52.1 and 53.1 inserted)
@@ -197,6 +197,11 @@ Recent decisions affecting v11.0:
 - [Phase 50-01]: Global retry in build_openalex_request() benefits all API functions
 - [Phase 51-01]: Cursor resets only on Edit Search parameter changes, not on year slider or sort dropdown
 - [Phase 51-01]: Sort dropdown is client-side only to avoid cursor invalidation
+- [Phase 54-01]: 300ms hover delay prevents flicker in dense button grids
+- [Phase 54-01]: Bottom placement for consistency across all tooltips
+- [Phase 54-01]: Export dropdown uses container body option to prevent clipping
+- [Phase 54-01]: Dynamic keyword badges use native title attributes (not bslib::tooltip)
+- [Phase 54-01]: Excluded New Search/Document Notebook buttons (labels are self-explanatory)
 
 ### Pending Todos
 
@@ -215,9 +220,9 @@ None. All v11.0 phases use existing stack (no new dependencies).
 
 ## Session Continuity
 
-Last session: 2026-03-11T15:58:53.807Z
-Stopped at: Phase 54 context gathered
-Next: Phase 54: Tooltip Layer (next in v11.0 roadmap)
+Last session: 2026-03-11T16:21:11.623Z
+Stopped at: Completed Phase 54 Plan 01
+Next: Phase 55: Keyword Filter Preview (next in v11.0 roadmap)
 
 ---
 *Updated: 2026-03-06 after v11.0 roadmap creation*
