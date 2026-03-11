@@ -1,3 +1,49 @@
+#' OpenAlex work type taxonomy (Phase 55)
+#' Full 16-type taxonomy with Catppuccin color families
+OPENALEX_WORK_TYPES <- list(
+  # Primary research (lavender/blue family)
+  list(slug = "article", label = "Article", category = "primary", class = "bg-primary"),
+  list(slug = "book", label = "Book", category = "primary", class = "bg-primary"),
+  list(slug = "book-chapter", label = "Book Chapter", category = "primary", class = "bg-primary-subtle text-primary-emphasis"),
+  list(slug = "dissertation", label = "Dissertation", category = "primary", class = "bg-info-subtle text-info-emphasis"),
+
+  # Reviews/editorials (sapphire/info family)
+  list(slug = "review", label = "Review", category = "review", class = "bg-info"),
+  list(slug = "editorial", label = "Editorial", category = "review", class = "bg-info text-info-emphasis"),
+  list(slug = "letter", label = "Letter", category = "review", class = "bg-info-subtle text-info-emphasis"),
+  list(slug = "peer-review", label = "Peer Review", category = "review", class = "bg-info-subtle text-info-emphasis"),
+
+  # Preprints/reports (yellow/warning family)
+  list(slug = "preprint", label = "Preprint", category = "preprint", class = "bg-warning text-body"),
+  list(slug = "report", label = "Report", category = "preprint", class = "bg-warning-subtle text-warning-emphasis"),
+  list(slug = "standard", label = "Standard", category = "preprint", class = "bg-warning-subtle text-warning-emphasis"),
+
+  # Metadata/other (gray/neutral family)
+  list(slug = "dataset", label = "Dataset", category = "other", class = "bg-body-tertiary text-body"),
+  list(slug = "erratum", label = "Erratum", category = "other", class = "bg-body-tertiary text-body"),
+  list(slug = "paratext", label = "Paratext", category = "other", class = "bg-body-tertiary text-body"),
+  list(slug = "grant", label = "Grant", category = "other", class = "bg-body-tertiary text-body"),
+  list(slug = "supplementary-materials", label = "Supplementary Materials", category = "other", class = "bg-body-tertiary text-body")
+)
+
+#' Default ON types (common scholarly outputs)
+DEFAULT_ON_TYPES <- c("article", "review", "preprint", "book", "book-chapter", "dissertation")
+
+#' Get badge class and label for work type (Phase 55)
+#' @param work_type OpenAlex work type slug
+#' @return List with class and label
+get_type_badge <- function(work_type) {
+  if (is.null(work_type) || is.na(work_type) || work_type == "") {
+    return(list(class = "bg-body-tertiary text-body", label = "Unknown"))
+  }
+  match <- Filter(function(t) t$slug == work_type, OPENALEX_WORK_TYPES)
+  if (length(match) > 0) {
+    return(list(class = match[[1]]$class, label = match[[1]]$label))
+  }
+  # Fallback for unknown types
+  list(class = "bg-body-tertiary text-body", label = tools::toTitleCase(gsub("-", " ", work_type)))
+}
+
 #' Validate URL is safe for use in href (HTTP/HTTPS only)
 #' @param url URL to validate
 #' @return TRUE if URL is safe, FALSE otherwise
@@ -425,6 +471,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       total_fetched = 0L,     # Total papers in notebook (from DB count)
       api_total = 0L          # Total matching papers from OpenAlex meta.count
     )
+
+    # Phase 55: Type filter chip toggle states
+    type_states <- reactiveValues()
+    type_states_initialized <- reactiveVal(FALSE)
 
     # Phase 38: Batch import state
     batch_import_interrupt <- reactiveVal(NULL)
@@ -870,25 +920,6 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     journal_filter_result <- mod_journal_filter_server("journal_filter", keyword_filtered_papers, con)
     journal_filtered_papers <- journal_filter_result$filtered_papers
 
-    # Helper: Get badge class and style for work type
-    get_type_badge <- function(work_type) {
-      if (is.null(work_type) || is.na(work_type) || work_type == "") {
-        return(list(class = "bg-body-tertiary text-body", label = "unknown"))
-      }
-      switch(work_type,
-        "article" = list(class = "bg-secondary", label = "article"),
-        "review" = list(class = "bg-info", label = "review"),
-        "preprint" = list(class = "bg-warning text-body", label = "preprint"),
-        "book" = list(class = "bg-primary", label = "book"),
-        "dissertation" = list(class = "bg-info-subtle text-info-emphasis", label = "dissertation"),
-        "dataset" = list(class = "bg-success", label = "dataset"),
-        "paratext" = list(class = "bg-body-tertiary text-body", label = "paratext"),
-        "letter" = list(class = "bg-body-tertiary text-body", label = "letter"),
-        "editorial" = list(class = "bg-body-tertiary text-body", label = "editorial"),
-        list(class = "bg-body-tertiary text-body", label = work_type)  # default
-      )
-    }
-
     # Helper: Get OA status badge info (Phase 2)
     get_oa_badge <- function(oa_status) {
       if (is.null(oa_status) || is.na(oa_status) || oa_status == "") {
@@ -1037,6 +1068,36 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
 
       papers
+    })
+
+    # Phase 55: Initialize type chip states from saved filters or defaults (runs once)
+    observe({
+      if (isTRUE(type_states_initialized())) return()
+
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      nb <- tryCatch(get_notebook(con(), nb_id), error = function(e) NULL)
+      if (is.null(nb)) return()
+
+      filters <- if (!is.null(nb$search_filters) && !is.na(nb$search_filters) && nchar(nb$search_filters) > 0) {
+        tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      } else {
+        list()
+      }
+
+      saved_types <- filters$work_types
+      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+
+      for (slug in all_slugs) {
+        if (!is.null(saved_types)) {
+          type_states[[slug]] <- slug %in% saved_types
+        } else {
+          type_states[[slug]] <- slug %in% DEFAULT_ON_TYPES
+        }
+      }
+
+      type_states_initialized(TRUE)
     })
 
     # Dynamic slider bounds - updates when papers change
@@ -1971,33 +2032,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         hr(),
 
-        # Document type filters
+        # Document type filters (Phase 55 - chip toggles)
         div(
           class = "mb-3",
           h6(class = "text-muted", icon_paper(), " Document Types"),
+          # Distribution panel ABOVE chips
+          uiOutput(ns("type_distribution")),
+          # Select All / Deselect All links
           div(
-            class = "d-flex flex-wrap gap-3",
-            checkboxInput(ns("edit_type_article"), "Articles",
-                          value = if (!is.null(filters$work_types)) "article" %in% filters$work_types else TRUE,
-                          width = "auto"),
-            checkboxInput(ns("edit_type_review"), "Reviews",
-                          value = if (!is.null(filters$work_types)) "review" %in% filters$work_types else TRUE,
-                          width = "auto"),
-            checkboxInput(ns("edit_type_preprint"), "Preprints",
-                          value = if (!is.null(filters$work_types)) "preprint" %in% filters$work_types else TRUE,
-                          width = "auto"),
-            checkboxInput(ns("edit_type_book"), "Books",
-                          value = if (!is.null(filters$work_types)) "book" %in% filters$work_types else TRUE,
-                          width = "auto"),
-            checkboxInput(ns("edit_type_dissertation"), "Dissertations",
-                          value = if (!is.null(filters$work_types)) "dissertation" %in% filters$work_types else TRUE,
-                          width = "auto"),
-            checkboxInput(ns("edit_type_other"), "Other",
-                          value = if (!is.null(filters$work_types)) "other" %in% filters$work_types else TRUE,
-                          width = "auto")
+            class = "d-flex justify-content-end gap-2 mb-2",
+            actionLink(ns("select_all_types"), "Select All", class = "small text-muted"),
+            span(class = "text-muted", "|"),
+            actionLink(ns("deselect_all_types"), "Deselect All", class = "small text-muted")
           ),
-          # Distribution panel (collapsible)
-          uiOutput(ns("type_distribution"))
+          # Chip toggle grid
+          uiOutput(ns("type_chips"))
         ),
 
         hr(),
@@ -2036,20 +2085,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       ))
     })
 
-    # Helper to collect selected work types from checkboxes
+    # Phase 55: Collect selected work types from chip toggle states
     get_selected_work_types <- reactive({
-      types <- character()
-      if (isTRUE(input$edit_type_article)) types <- c(types, "article")
-      if (isTRUE(input$edit_type_review)) types <- c(types, "review")
-      if (isTRUE(input$edit_type_preprint)) types <- c(types, "preprint")
-      if (isTRUE(input$edit_type_book)) types <- c(types, "book")
-      if (isTRUE(input$edit_type_dissertation)) types <- c(types, "dissertation")
-      if (isTRUE(input$edit_type_other)) types <- c(types, "other")
-      # If all types selected, return NULL (no filter)
-      all_types <- c("article", "review", "preprint", "book", "dissertation", "other")
-      if (length(types) == length(all_types)) return(NULL)
-      if (length(types) == 0) return(NULL)  # No filter if none selected
-      types
+      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+      selected <- all_slugs[sapply(all_slugs, function(s) isTRUE(type_states[[s]]))]
+      # If all types selected or none selected, return NULL (no filter)
+      if (length(selected) == length(all_slugs) || length(selected) == 0) return(NULL)
+      selected
     })
 
     # Query preview (reactive)
@@ -2063,8 +2105,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       exclude_retracted <- input$edit_exclude_retracted %||% TRUE
       work_types <- get_selected_work_types()
 
-      preview <- build_query_preview(query, from_year, to_year, search_field, is_oa,
-                                      min_citations, exclude_retracted, work_types)
+      preview <- build_query_preview(
+        query,
+        from_year,
+        to_year,
+        search_field,
+        is_oa,
+        min_citations = min_citations,
+        has_abstract = input$filter_has_abstract %||% TRUE,
+        exclude_retracted = exclude_retracted,
+        work_types = work_types
+      )
 
       tagList(
         if (!is.null(preview$search)) {
@@ -2074,7 +2125,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )
     })
 
-    # Type distribution panel (shows bar chart of work types in current results)
+    # Phase 55: Type distribution panel (shows ALL 16 types with pre-filter counts)
     output$type_distribution <- renderUI({
       papers <- papers_data()
       if (nrow(papers) == 0) return(NULL)
@@ -2083,48 +2134,136 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       if (!"work_type" %in% names(papers)) {
         return(
           tags$details(
-            class = "mt-2",
+            open = "open",
+            class = "mb-2",
             tags$summary(class = "text-muted small", style = "cursor: pointer;",
-                         icon_chart_bar(), " View distribution in results"),
+                         icon_chart_bar(), " Type Distribution (All Loaded Papers)"),
             div(class = "mt-2 p-2 bg-body-secondary rounded small text-muted",
                 "Type data not available. Re-run search to fetch type information.")
           )
         )
       }
 
+      # Count all 16 types (including zeros)
       type_counts <- table(papers$work_type, useNA = "ifany")
-      type_counts <- sort(type_counts, decreasing = TRUE)
+      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+      counts_list <- lapply(all_slugs, function(slug) {
+        list(
+          slug = slug,
+          count = if (slug %in% names(type_counts)) type_counts[[slug]] else 0L,
+          badge = get_type_badge(slug)
+        )
+      })
 
-      if (length(type_counts) == 0) return(NULL)
+      # Sort by count descending
+      counts_list <- counts_list[order(sapply(counts_list, function(x) x$count), decreasing = TRUE)]
 
-      max_count <- max(type_counts)
+      max_count <- max(sapply(counts_list, function(x) x$count))
+      if (max_count == 0) return(NULL)
 
       tags$details(
-        class = "mt-2",
+        open = "open",
+        class = "mb-2",
         tags$summary(class = "text-muted small", style = "cursor: pointer;",
-                     icon_chart_bar(), " View distribution in results"),
+                     icon_chart_bar(), " Type Distribution (All Loaded Papers)"),
         div(
           class = "mt-2 p-2 bg-body-secondary rounded",
-          lapply(names(type_counts), function(type_name) {
-            count <- type_counts[[type_name]]
+          lapply(counts_list, function(type_info) {
+            count <- type_info$count
             pct <- if (max_count > 0) (count / max_count) * 100 else 0
-            display_name <- if (is.na(type_name)) "unknown" else type_name
+            badge <- type_info$badge
 
             div(
               class = "d-flex align-items-center gap-2 mb-1",
-              span(style = "width: 80px; font-size: 0.85em;", display_name),
+              span(
+                class = paste("badge small", badge$class),
+                style = "width: 120px; font-size: 0.75em;",
+                badge$label
+              ),
               div(
                 class = "flex-grow-1",
                 div(
-                  class = "bg-secondary rounded",
+                  class = paste("rounded", badge$class),
                   style = paste0("width: ", pct, "%; height: 8px;")
                 )
               ),
-              span(class = "text-muted small", style = "width: 30px; text-align: right;", count)
+              span(class = "text-muted small", style = "width: 40px; text-align: right;",
+                   if (count >= 1000) format_large_number(count) else count)
             )
           })
         )
       )
+    })
+
+    # Phase 55: Render chip toggles with dynamic observers
+    type_chip_observers <- list()
+
+    output$type_chips <- renderUI({
+      papers <- papers_data()
+
+      # Destroy previous observers
+      for (obs in type_chip_observers) {
+        obs$destroy()
+      }
+      type_chip_observers <<- list()
+
+      # Count types in current papers
+      type_counts <- if (nrow(papers) > 0 && "work_type" %in% names(papers)) {
+        table(papers$work_type, useNA = "ifany")
+      } else {
+        NULL
+      }
+
+      # Render chips for all 16 types
+      chips <- lapply(seq_along(OPENALEX_WORK_TYPES), function(i) {
+        type_info <- OPENALEX_WORK_TYPES[[i]]
+        slug <- type_info$slug
+        label <- type_info$label
+        badge_class <- type_info$class
+
+        # Get state and count
+        is_on <- isTRUE(type_states[[slug]])
+        count <- if (!is.null(type_counts) && slug %in% names(type_counts)) {
+          type_counts[[slug]]
+        } else {
+          0L
+        }
+
+        # Chip class: ON = type color, OFF = gray
+        chip_class <- if (is_on) badge_class else "bg-secondary text-white"
+
+        # Create chip button with observer
+        chip_id <- paste0("type_chip_", i)
+
+        type_chip_observers[[i]] <<- observeEvent(input[[chip_id]], {
+          type_states[[slug]] <- !isTRUE(type_states[[slug]])
+        }, ignoreInit = TRUE)
+
+        actionLink(
+          ns(chip_id),
+          paste0(label, " (", count, ")"),
+          class = paste("badge", chip_class),
+          style = "cursor: pointer; font-size: 0.85em; padding: 0.35em 0.65em; text-decoration: none;"
+        )
+      })
+
+      div(
+        class = "d-flex flex-wrap gap-2",
+        chips
+      )
+    })
+
+    # Phase 55: Select All / Deselect All observers
+    observeEvent(input$select_all_types, {
+      for (t in OPENALEX_WORK_TYPES) {
+        type_states[[t$slug]] <- TRUE
+      }
+    })
+
+    observeEvent(input$deselect_all_types, {
+      for (t in OPENALEX_WORK_TYPES) {
+        type_states[[t$slug]] <- FALSE
+      }
     })
 
     # Quality cache status
@@ -2228,18 +2367,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         list()
       }
 
-      # Collect selected work types
-      work_types <- character()
-      if (isTRUE(input$edit_type_article)) work_types <- c(work_types, "article")
-      if (isTRUE(input$edit_type_review)) work_types <- c(work_types, "review")
-      if (isTRUE(input$edit_type_preprint)) work_types <- c(work_types, "preprint")
-      if (isTRUE(input$edit_type_book)) work_types <- c(work_types, "book")
-      if (isTRUE(input$edit_type_dissertation)) work_types <- c(work_types, "dissertation")
-      if (isTRUE(input$edit_type_other)) work_types <- c(work_types, "other")
+      # Phase 55: Collect selected work types from chip toggle states
+      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+      work_types <- all_slugs[sapply(all_slugs, function(s) isTRUE(type_states[[s]]))]
 
-      # If all types selected, store NULL (no filter)
-      all_types <- c("article", "review", "preprint", "book", "dissertation", "other")
-      if (length(work_types) == length(all_types) || length(work_types) == 0) {
+      # If all types selected or none selected, store NULL (no filter)
+      if (length(work_types) == length(all_slugs) || length(work_types) == 0) {
         work_types <- NULL
       }
 
@@ -2341,6 +2474,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             search_field = filters$search_field %||% "default",
             is_oa = filters$is_oa %||% FALSE,
             min_citations = filters$min_citations,
+            has_abstract = if (!is.null(filters$has_abstract)) filters$has_abstract else TRUE,
             exclude_retracted = if (!is.null(filters$exclude_retracted)) filters$exclude_retracted else TRUE,
             work_types = filters$work_types,
             cursor = cursor
