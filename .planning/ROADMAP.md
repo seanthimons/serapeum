@@ -170,7 +170,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics (completed 2026-03-09)
 - [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
 - [x] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization (completed 2026-03-10)
-- [x] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility (completed 2026-03-11)
+- [x] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility (completed 2026-03-11)
 - [ ] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout
 - [ ] **Phase 56: Year Slider Alignment Fix** - CSS alignment for histogram and slider
 
@@ -273,11 +273,14 @@ Plans:
 **Depends on**: Phase 50
 **Requirements**: DTYPE-01, DTYPE-02, DTYPE-03
 **Success Criteria** (what must be TRUE):
-  1. Edit Search modal exposes all 16 OpenAlex work types as filter checkboxes
-  2. Type distribution panel (showing counts) appears above checkboxes for discoverability
+  1. Edit Search modal exposes all 16 OpenAlex work types as chip toggles
+  2. Type distribution panel (showing counts) appears above chip toggles for discoverability
   3. Each document type has distinctive badge styling in search results
-  4. Document type filtering happens in `papers_data()` reactive before keyword/journal filter chain
-**Plans**: TBD
+  4. Document type filtering happens in reactive chain between keyword and journal filters
+**Plans**: 1 plan
+
+Plans:
+- [ ] 55-01-PLAN.md — Expand type taxonomy to 16 chip toggles, distribution panel, client-side filter, page size increase
 
 ### Phase 56: Year Slider Alignment Fix
 **Goal**: Year range slider and histogram are visually aligned without layout gaps
@@ -300,9 +303,9 @@ Plans:
 | 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
 | 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
 | 54. Tooltip Layer | 1/1 | Complete    | 2026-03-11 |
-| 55. Document Type Filter UX | 0/? | Not started | - |
+| 55. Document Type Filter UX | 0/1 | Planned     | - |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-11 — Phase 54 planned (1 plan)*
+*Last updated: 2026-03-11 — Phase 55 planned (1 plan)*
