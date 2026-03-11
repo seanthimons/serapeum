@@ -89,40 +89,70 @@ mod_search_notebook_ui <- function(id) {
           # 3x2 button grid — single CSS grid for perfect column alignment
           div(
             style = "display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;",
-            actionButton(ns("open_bulk_import"), "Import",
-                         class = "btn-sm btn-outline-primary",
-                         style = "white-space: nowrap;",
-                         icon = icon_file_import()),
-            actionButton(ns("edit_search"), "Edit Search",
-                         class = "btn-sm btn-outline-secondary",
-                         style = "white-space: nowrap;",
-                         icon = icon_edit()),
-            actionButton(ns("seed_citation_network"), "Cit Network",
-                         class = "btn-sm btn-outline-primary",
-                         style = "white-space: nowrap;",
-                         icon = icon_share_nodes()),
-            # Row 2: Export | Refresh | Load More
-            div(
-              class = "btn-group btn-group-sm w-100",
-              tags$button(
-                class = "btn btn-outline-primary dropdown-toggle w-100",
-                `data-bs-toggle` = "dropdown",
-                icon_download(), " Export"
-              ),
-              tags$ul(
-                class = "dropdown-menu",
-                tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
-                tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
-              )
+            bslib::tooltip(
+              actionButton(ns("open_bulk_import"), "Import",
+                           class = "btn-sm btn-outline-primary",
+                           style = "white-space: nowrap;",
+                           icon = icon_file_import()),
+              "Add papers by pasting DOIs or uploading a BibTeX file",
+              placement = "bottom",
+              options = list(delay = list(show = 300, hide = 100))
             ),
-            actionButton(ns("refresh_search"), "Refresh",
-                         class = "btn-sm btn-outline-secondary",
-                         style = "white-space: nowrap;",
-                         icon = icon_rotate()),
-            actionButton(ns("load_more"), "Load More",
-                         class = "btn-sm btn-outline-primary",
-                         style = "white-space: nowrap;",
-                         icon = icon_angles_down())
+            bslib::tooltip(
+              actionButton(ns("edit_search"), "Edit Search",
+                           class = "btn-sm btn-outline-secondary",
+                           style = "white-space: nowrap;",
+                           icon = icon_edit()),
+              "Change your search query, filters, or discovery method",
+              placement = "bottom",
+              options = list(delay = list(show = 300, hide = 100))
+            ),
+            bslib::tooltip(
+              actionButton(ns("seed_citation_network"), "Cit Network",
+                           class = "btn-sm btn-outline-primary",
+                           style = "white-space: nowrap;",
+                           icon = icon_share_nodes()),
+              "Build a citation network from a seed paper in your results",
+              placement = "bottom",
+              options = list(delay = list(show = 300, hide = 100))
+            ),
+            # Row 2: Export | Refresh | Load More
+            bslib::tooltip(
+              div(
+                class = "btn-group btn-group-sm w-100",
+                tags$button(
+                  class = "btn btn-outline-primary dropdown-toggle w-100",
+                  `data-bs-toggle` = "dropdown",
+                  icon_download(), " Export"
+                ),
+                tags$ul(
+                  class = "dropdown-menu",
+                  tags$li(downloadLink(ns("download_bibtex"), class = "dropdown-item", icon_file_code(), " BibTeX (.bib)")),
+                  tags$li(downloadLink(ns("download_csv"), class = "dropdown-item", icon_file_csv(), " CSV (.csv)"))
+                )
+              ),
+              "Download your current papers as BibTeX or CSV",
+              placement = "bottom",
+              options = list(delay = list(show = 300, hide = 100), container = "body")
+            ),
+            bslib::tooltip(
+              actionButton(ns("refresh_search"), "Refresh",
+                           class = "btn-sm btn-outline-secondary",
+                           style = "white-space: nowrap;",
+                           icon = icon_rotate()),
+              "Re-run your current search to check for new results",
+              placement = "bottom",
+              options = list(delay = list(show = 300, hide = 100))
+            ),
+            bslib::tooltip(
+              actionButton(ns("load_more"), "Load More",
+                           class = "btn-sm btn-outline-primary",
+                           style = "white-space: nowrap;",
+                           icon = icon_angles_down()),
+              "Fetch the next batch of results from OpenAlex",
+              placement = "bottom",
+              options = list(delay = list(show = 300, hide = 100))
+            )
           )
         ),
         card_body(

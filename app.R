@@ -173,24 +173,54 @@ ui <- page_sidebar(
       # Divider between creation and discovery
       div(class = "border-top my-2"),
       # Discovery and utility actions (rainbow outline colors)
-      actionButton("import_papers", "Import Papers",
-                   class = "btn-outline-peach",
-                   icon = icon_file_import()),
-      actionButton("discover_paper", "Discover from Paper",
-                   class = "btn-outline-success",
-                   icon = icon_seedling()),
-      actionButton("explore_topics", "Explore Topics",
-                   class = "btn-outline-warning",
-                   icon = icon_compass()),
-      actionButton("build_query", "Build a Query",
-                   class = "btn-outline-info",
-                   icon = icon_wand()),
-      actionButton("new_network", "Citation Network",
-                   class = "btn-outline-primary",
-                   icon = icon_diagram()),
-      actionButton("citation_audit", "Citation Audit",
-                   class = "btn-outline-sky",
-                   icon = icon_audit())
+      bslib::tooltip(
+        actionButton("import_papers", "Import Papers",
+                     class = "btn-outline-peach",
+                     icon = icon_file_import()),
+        "Add papers by pasting DOIs or uploading a BibTeX file",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("discover_paper", "Discover from Paper",
+                     class = "btn-outline-success",
+                     icon = icon_seedling()),
+        "Find related work by using a known paper as a seed",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("explore_topics", "Explore Topics",
+                     class = "btn-outline-warning",
+                     icon = icon_compass()),
+        "Browse OpenAlex topic hierarchies to find research areas",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("build_query", "Build a Query",
+                     class = "btn-outline-info",
+                     icon = icon_wand()),
+        "Use AI to help construct an effective search query",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("new_network", "Citation Network",
+                     class = "btn-outline-primary",
+                     icon = icon_diagram()),
+        "Visualize citation relationships between papers",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("citation_audit", "Citation Audit",
+                     class = "btn-outline-sky",
+                     icon = icon_audit()),
+        "Check your collection for missing references and gaps",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
+      )
     ),
     # Divider between sidebar buttons and saved notebooks
     div(class = "border-top my-2"),
