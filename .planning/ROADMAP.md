@@ -169,7 +169,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client (completed 2026-03-07)
 - [x] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics (completed 2026-03-09)
 - [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
-- [x] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization (completed 2026-03-10)
+- [x] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization (completed 2026-03-10)
 - [ ] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility
 - [ ] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout
 - [ ] **Phase 56: Year Slider Alignment Fix** - CSS alignment for histogram and slider
@@ -244,6 +244,16 @@ Plans:
 Plans:
 - [ ] 53-01-PLAN.md — Restructure toolbar to 3x2 grid, relocate result count, widen paper panel
 
+### Phase 53.1: Import run dialog appearing at bottom of abstract notebook (INSERTED)
+
+**Goal:** Fix import history rendering as unstyled page content by moving it into the import modal as a collapsible section with show_history parameterization
+**Requirements**: HIST-01, HIST-02, HIST-03, HIST-04, HIST-05, HIST-06
+**Depends on:** Phase 53
+**Plans:** 1 plan
+
+Plans:
+- [ ] 53.1-01-PLAN.md — Parameterize bulk import module, relocate history into modal footer, remove delete handlers
+
 ### Phase 54: Tooltip Layer
 **Goal**: Every toolbar button has accessible, keyboard-navigable tooltips describing its action
 **Depends on**: Phase 53
@@ -285,10 +295,11 @@ Plans:
 | 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
 | 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
 | 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
+| 53.1. Import History Bug Fix | 0/1 | Planned     | - |
 | 54. Tooltip Layer | 0/? | Not started | - |
 | 55. Document Type Filter UX | 0/? | Not started | - |
 | 56. Year Slider Alignment Fix | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-10 — Phase 53 planned (1 plan)*
+*Last updated: 2026-03-11 — Phase 53.1 planned (1 plan)*
