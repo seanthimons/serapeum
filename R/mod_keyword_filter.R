@@ -123,6 +123,13 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
             NULL
           )
 
+          badge_title <- switch(state,
+            "neutral" = paste0("Click to include '", kw$keyword, "' in filter"),
+            "include" = paste0("Click to exclude '", kw$keyword, "'"),
+            "exclude" = paste0("Click to clear '", kw$keyword, "' filter"),
+            ""
+          )
+
           actionLink(
             ns(input_id),
             span(
@@ -130,7 +137,8 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
               style = "cursor: pointer;",
               badge_icon,
               paste0(kw$keyword, " (", kw$count, ")")
-            )
+            ),
+            title = badge_title
           )
         })
       )
