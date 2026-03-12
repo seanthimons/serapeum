@@ -2,7 +2,7 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-seanthimons%2Fserapeum-181717?logo=github)](https://github.com/seanthimons/serapeum)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![R](https://img.shields.io/badge/R-%3E%3D%204.0-276DC3?logo=r)](https://www.r-project.org/)
+[![R](https://img.shields.io/badge/R-%3E%3D%204.5-276DC3?logo=r)](https://www.r-project.org/)
 
 A local-first, self-hosted research assistant inspired by NotebookLM. Built with R and Shiny.
 
@@ -99,7 +99,7 @@ Monitor API usage in real-time.
 
 ### Prerequisites
 
-- R (>= 4.0)
+- R (>= 4.5)
 - [Quarto](https://quarto.org/docs/get-started/) (for slide generation)
 - RStudio (optional but recommended)
 
@@ -114,7 +114,7 @@ cd serapeum
 Rscript setup.R
 ```
 
-This installs all 96 dependencies from the lockfile. No manual package management needed.
+This installs all 106 dependencies from the lockfile. No manual package management needed.
 
 ### Configuration
 
