@@ -690,7 +690,9 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
     edges_df$arrows <- "to"  # Directional arrows
 
     # Community-aware edge classification for cluster separation
-    if (!is.null(nodes_df$community) && nrow(edges_df) > 0) {
+    # Skip if community column is missing or entirely NA (e.g., old saved networks)
+    has_community <- !is.null(nodes_df$community) && any(!is.na(nodes_df$community))
+    if (has_community && nrow(edges_df) > 0) {
       node_community <- setNames(nodes_df$community, nodes_df$id)
       from_comm <- node_community[edges_df$from]
       to_comm <- node_community[edges_df$to]
