@@ -33,7 +33,7 @@ Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
 
 ### Year Filter
 
-- [ ] **YEAR-01**: Year slider and histogram visually aligned (CSS fix for #143)
+- [x] **YEAR-01**: Year slider and histogram visually aligned (CSS fix for #143)
 
 ## Future Requirements
 
@@ -73,7 +73,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | DTYPE-01 | Phase 55 | Complete |
 | DTYPE-02 | Phase 55 | Complete |
 | DTYPE-03 | Phase 55 | Complete |
-| YEAR-01 | Phase 56 | Pending |
+| YEAR-01 | Phase 56 | Complete |
 
 **Coverage:**
 - v11.0 requirements: 16 total
