@@ -228,28 +228,32 @@ mod_search_notebook_ui <- function(id) {
             )
           ),
           # Year range filter panel
-          div(
-            class = "mb-2",
-            sliderInput(
-              ns("year_range"),
-              "Publication Year",
-              min = 1900,
-              max = 2026,
-              value = c(1900, 2026),
-              step = 1,
-              sep = "",
-              ticks = FALSE
-            ),
-            plotOutput(ns("year_histogram"), height = "60px"),
+          conditionalPanel(
+            condition = "output.has_papers",
+            ns = ns,
             div(
-              class = "d-flex justify-content-between align-items-center",
-              checkboxInput(
-                ns("include_unknown_year"),
-                "Include unknown year",
-                value = TRUE
+              class = "mb-2",
+              sliderInput(
+                ns("year_range"),
+                "Publication Year",
+                min = 1900,
+                max = 2026,
+                value = c(1900, 2026),
+                step = 1,
+                sep = "",
+                ticks = FALSE
               ),
-              textOutput(ns("unknown_year_count"), inline = TRUE) |>
-                tagAppendAttributes(class = "text-muted small")
+              uiOutput(ns("year_histogram")),
+              div(
+                class = "d-flex justify-content-between align-items-center",
+                checkboxInput(
+                  ns("include_unknown_year"),
+                  "Include unknown year",
+                  value = TRUE
+                ),
+                textOutput(ns("unknown_year_count"), inline = TRUE) |>
+                  tagAppendAttributes(class = "text-muted small")
+              )
             )
           ),
           # Phase 38: Select-all checkbox
@@ -647,14 +651,37 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       if (has_content && !file.exists(store_path)) {
         # Has abstracts but no per-notebook store — needs migration
-        # Modal is shown by mod_document_notebook; we just disable features here
         rag_ready(FALSE)
         store_healthy(FALSE)
+        showModal(modalDialog(
+          title = "Search Index Setup Required",
+          tags$p("This notebook has papers but no search index. Chat and synthesis will be unavailable until you build it."),
+          tags$p(class = "text-muted small", paste(abstracts$cnt[1], "paper(s) to index.")),
+          footer = tagList(
+            actionButton(ns("reindex_search_nb"), "Build Search Index", class = "btn-primary"),
+            modalButton("Later")
+          ),
+          easyClose = FALSE
+        ))
       } else if (file.exists(store_path)) {
         # Store exists — check integrity
         result <- check_store_integrity(store_path)
         store_healthy(result$ok)
         rag_ready(result$ok)
+
+        if (!result$ok) {
+          showModal(modalDialog(
+            title = "Search Index Needs Rebuild",
+            tags$p("The search index for this notebook appears incomplete or damaged."),
+            tags$p("Your saved papers are safe. Rebuilding will recreate the search index and embeddings."),
+            tags$p(class = "text-muted small", summarize_store_integrity_error(result$error)),
+            footer = tagList(
+              actionButton(ns("rebuild_search_index"), "Rebuild Search Index", class = "btn-primary"),
+              modalButton("Later")
+            ),
+            easyClose = FALSE
+          ))
+        }
       } else {
         # No content, no store — fine, lazy creation later
         store_healthy(TRUE)
@@ -812,6 +839,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
           mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
         }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+        paper_refresh(paper_refresh() + 1)
         showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
       } else {
         rag_ready(FALSE)
@@ -1130,8 +1158,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     year_range_raw <- reactive({ input$year_range })
     year_range <- debounce(year_range_raw, 400)
 
-    # Year histogram
-    output$year_histogram <- renderPlot({
+    # Year histogram - HTML div bars for pixel-perfect alignment
+    output$year_histogram <- renderUI({
       nb_id <- notebook_id()
       req(nb_id)
       paper_refresh()  # React to paper changes
@@ -1139,20 +1167,40 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       year_counts <- get_year_distribution(con(), nb_id)
 
       if (nrow(year_counts) == 0) {
-        # Empty plot
-        ggplot2::ggplot() + ggplot2::theme_void()
-      } else {
-        # Minimal histogram
-        ggplot2::ggplot(year_counts, ggplot2::aes(x = year, y = count)) +
-          ggplot2::geom_col(fill = LATTE$lavender, width = 0.8, alpha = 0.7) +
-          ggplot2::theme_void() +
-          ggplot2::theme(
-            plot.background = ggplot2::element_blank(),
-            panel.background = ggplot2::element_blank(),
-            plot.margin = ggplot2::margin(0, 0, 0, 0)
-          )
+        # Empty placeholder
+        return(div(style = "height: 60px; width: 100%;"))
       }
-    }, bg = "transparent")
+
+      # Normalize heights as percentages
+      max_count <- max(year_counts$count)
+      year_counts$height_pct <- (year_counts$count / max_count) * 100
+
+      # Build flexbox container with bars
+      bars <- lapply(seq_len(nrow(year_counts)), function(i) {
+        div(style = paste0(
+          "flex: 1; ",
+          "height: ", year_counts$height_pct[i], "%; ",
+          "background-color: var(--bs-primary); ",
+          "border-radius: 2px 2px 0 0;"
+        ))
+      })
+
+      div(
+        class = "year-histogram-bars",
+        style = "display: flex; align-items: flex-end; height: 60px; width: 100%; gap: 1px;",
+        bars
+      )
+    })
+
+    # Conditional panel flag - shows year filter only when papers exist
+    output$has_papers <- reactive({
+      nb_id <- notebook_id()
+      req(nb_id)
+      paper_refresh()
+      year_counts <- get_year_distribution(con(), nb_id)
+      nrow(year_counts) > 0
+    })
+    outputOptions(output, "has_papers", suspendWhenHidden = FALSE)
 
     # Unknown year count display
     output$unknown_year_count <- renderText({
@@ -1288,6 +1336,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     output$embed_button <- renderUI({
       papers <- papers_data()
       need_embed <- papers_need_embedding()
+      nb_id <- notebook_id()
 
       if (nrow(papers) == 0) {
         return(
@@ -1295,6 +1344,20 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = "btn btn-secondary w-100",
             disabled = "disabled",
             "No Papers to Embed"
+          )
+        )
+      }
+
+      if (!isTRUE(rag_available())) {
+        store_exists <- file.exists(get_notebook_ragnar_path(nb_id))
+        button_id <- if (store_exists) ns("rebuild_search_index") else ns("reindex_search_nb")
+        button_label <- if (store_exists) "Rebuild Search Index" else "Build Search Index"
+
+        return(
+          actionButton(
+            button_id,
+            button_label,
+            class = "btn-warning w-100"
           )
         )
       }
@@ -1417,6 +1480,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     output$paper_list <- renderUI({
       papers <- filtered_papers()
       current_viewed <- viewed_paper()
+      embedded <- embedded_paper_ids()
 
       if (nrow(papers) == 0) {
         return(
@@ -1431,6 +1495,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       lapply(seq_len(nrow(papers)), function(i) {
         paper <- papers[i, ]
+        is_embedded <- paper$id %in% embedded
         authors <- tryCatch({
           jsonlite::fromJSON(paper$authors)
         }, error = function(e) {
@@ -1498,6 +1563,14 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 style = "cursor: help;",
                 title = flag_tooltip,
                 icon_warning()
+              )
+            },
+            if (is_embedded) {
+              span(
+                class = "text-primary",
+                style = "cursor: help; opacity: 0.7;",
+                title = "Embedded in search index",
+                icon_brain()
               )
             },
             actionLink(
@@ -2710,6 +2783,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           if (nrow(abstracts_to_index) > 0) {
             incProgress(0.2, detail = "Building search index...")
 
+            existing_chunk_ids <- dbGetQuery(con(), sprintf("
+              SELECT DISTINCT source_id
+              FROM chunks
+              WHERE source_type = 'abstract'
+                AND source_id IN (%s)
+            ", placeholders), as.list(paper_ids))$source_id
+
+            missing_chunk_ids <- setdiff(abstracts_to_index$id, existing_chunk_ids)
+            if (length(missing_chunk_ids) > 0) {
+              missing_rows <- abstracts_to_index[abstracts_to_index$id %in% missing_chunk_ids, , drop = FALSE]
+              for (j in seq_len(nrow(missing_rows))) {
+                create_chunk(con(), missing_rows$id[j], "abstract", 0, missing_rows$abstract[j])
+              }
+            }
+
             # Phase 22: Use per-notebook ragnar store
             store <- tryCatch(
               ensure_ragnar_store(nb_id, session, api_key_or, embed_model),
@@ -2719,6 +2807,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 NULL
               }
             )
+            on.exit(disconnect_ragnar_store(store), add = TRUE)
 
             if (!is.null(store)) {
               for (i in seq_len(nrow(abstracts_to_index))) {
