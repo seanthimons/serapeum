@@ -393,6 +393,7 @@ fetch_multi_seed_citation_network <- function(seed_paper_ids, email, api_key = N
 
     # Add is_overlap column (all FALSE for single seed)
     result$nodes$is_overlap <- FALSE
+    # Community will be detected by compute_layout_positions (walktrap)
     return(result)
   }
 
@@ -497,6 +498,13 @@ fetch_multi_seed_citation_network <- function(seed_paper_ids, email, api_key = N
   })
 
   merged_nodes$is_overlap <- (overlap_counts >= 2) & !merged_nodes$is_seed
+
+  # Community labels: use primary seed origin for each paper
+  merged_nodes$community <- sapply(merged_nodes$paper_id, function(pid) {
+    seeds <- paper_seed_map[[pid]]
+    if (length(seeds) == 0) return(NA_character_)
+    seeds[1]  # Primary seed (first seed that discovered this paper)
+  })
 
   list(
     nodes = merged_nodes,
@@ -680,6 +688,27 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
     edges_df$from <- edges_df$from_paper_id
     edges_df$to <- edges_df$to_paper_id
     edges_df$arrows <- "to"  # Directional arrows
+
+    # Community-aware edge classification for cluster separation
+    if (!is.null(nodes_df$community) && nrow(edges_df) > 0) {
+      node_community <- setNames(nodes_df$community, nodes_df$id)
+      from_comm <- node_community[edges_df$from]
+      to_comm <- node_community[edges_df$to]
+
+      is_inter <- from_comm != to_comm
+      is_inter[is.na(is_inter)] <- TRUE  # Unknown community = treat as inter-cluster
+
+      # Flag for inter-cluster (actual spring length set in module where density scaling is known)
+      edges_df$is_inter_cluster <- is_inter
+
+      # Visual encoding: inter-cluster edges are more transparent and dashed
+      edges_df$color <- ifelse(
+        is_inter,
+        "rgba(140, 143, 161, 0.15)",
+        "rgba(140, 143, 161, 0.35)"
+      )
+      edges_df$dashes <- is_inter
+    }
   }
 
   list(nodes = nodes_df, edges = edges_df)
@@ -732,6 +761,14 @@ compute_layout_positions <- function(nodes_df, edges_df) {
   layout_coords[, 2] <- layout_coords[, 2] - mean(layout_coords[, 2])
   nodes_df$x <- layout_coords[, 1] * 800
   nodes_df$y <- layout_coords[, 2] * 800
+
+  # Community detection for single-seed networks (multi-seed already has community from seed_origin)
+  if (is.null(nodes_df$community)) {
+    g_undirected <- igraph::as.undirected(g, mode = "collapse")
+    wt <- igraph::cluster_walktrap(g_undirected)
+    membership <- igraph::membership(wt)
+    nodes_df$community <- as.character(membership[match(nodes_df$paper_id, names(membership))])
+  }
 
   nodes_df
 }

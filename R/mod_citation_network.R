@@ -276,6 +276,27 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       filtered_nodes
     }
 
+    # Helper: compute density-scaled physics parameters
+    compute_physics_params <- function(n_nodes, n_edges) {
+      gravity <- if (n_nodes <= 30) -120
+                 else if (n_nodes <= 100) -200
+                 else if (n_nodes <= 200) -350
+                 else -500
+      spring <- if (n_nodes <= 30) 350
+                else if (n_nodes <= 100) 450
+                else if (n_nodes <= 200) 600
+                else 800
+      edge_ratio <- n_edges / max(n_nodes, 1)
+      if (edge_ratio > 3) {
+        gravity <- gravity * 1.5
+        spring <- spring * 1.3
+      }
+      stab_iters <- if (n_nodes <= 50) 300
+                    else if (n_nodes <= 150) 600
+                    else 1000
+      list(gravity = gravity, spring = spring, stab_iters = stab_iters)
+    }
+
     # Current network data (may be filtered)
     current_network_data <- reactiveVal(NULL)
     # Unfiltered snapshot — set when network is built/loaded, never mutated by filters
@@ -671,7 +692,15 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         nodes$y <- nodes$y_position
       }
 
-      # Create visNetwork
+      # Compute physics params for edge length assignment (needed before visNetwork call)
+      params <- compute_physics_params(nrow(nodes), nrow(edges))
+
+      # Set per-edge spring lengths for community-aware cluster separation
+      if ("is_inter_cluster" %in% colnames(edges) && nrow(edges) > 0) {
+        edges$length <- ifelse(edges$is_inter_cluster, params$spring * 2.5, params$spring)
+      }
+
+      # Create visNetwork (edges must have length column set before this call)
       vn <- visNetwork::visNetwork(nodes, edges, width = "100%", height = "700px")
 
       # Configure physics based on whether we have positions
@@ -683,41 +712,16 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
             stabilization = FALSE
           )
       } else {
-        # Scale physics parameters based on graph density
-        n_nodes <- nrow(nodes)
-        n_edges <- nrow(edges)
-
-        # More nodes need stronger repulsion and longer springs to spread out
-        # Base values tuned for ~30 nodes; scale up for larger graphs
-        gravity <- if (n_nodes <= 30) -120
-                   else if (n_nodes <= 100) -200
-                   else if (n_nodes <= 200) -350
-                   else -500
-        spring <- if (n_nodes <= 30) 350
-                  else if (n_nodes <= 100) 450
-                  else if (n_nodes <= 200) 600
-                  else 800
-        # Dense graphs (high edge:node ratio) need even more repulsion
-        edge_ratio <- n_edges / max(n_nodes, 1)
-        if (edge_ratio > 3) {
-          gravity <- gravity * 1.5
-          spring <- spring * 1.3
-        }
-        # More iterations for larger graphs so layout can fully resolve
-        stab_iters <- if (n_nodes <= 50) 300
-                      else if (n_nodes <= 150) 600
-                      else 1000
-
         # Enable physics for initial build, auto-freeze after stabilization
         vn <- vn |>
           visNetwork::visPhysics(
             solver = "forceAtlas2Based",
             forceAtlas2Based = list(
-              gravitationalConstant = gravity,
-              springLength = spring,
+              gravitationalConstant = params$gravity,
+              springLength = params$spring,
               damping = 0.4
             ),
-            stabilization = list(iterations = stab_iters)
+            stabilization = list(iterations = params$stab_iters)
           ) |>
           visNetwork::visLayout(randomSeed = 42)
       }
@@ -917,32 +921,15 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         # defaults (barnesHut), whose gravity pulls all nodes to (0,0) — the
         # singularity collapse bug. Passing explicit solver params ensures nodes
         # maintain their spread and simulate naturally from current positions.
-        nodes <- net_data$nodes
-        n_nodes <- nrow(nodes)
-        n_edges <- nrow(net_data$edges)
-
-        # Same density-scaled params as renderVisNetwork (lines ~584-597)
-        gravity <- if (n_nodes <= 30) -120
-                   else if (n_nodes <= 100) -200
-                   else if (n_nodes <= 200) -350
-                   else -500
-        spring <- if (n_nodes <= 30) 350
-                  else if (n_nodes <= 100) 450
-                  else if (n_nodes <= 200) 600
-                  else 800
-        edge_ratio <- n_edges / max(n_nodes, 1)
-        if (edge_ratio > 3) {
-          gravity <- gravity * 1.5
-          spring <- spring * 1.3
-        }
+        params <- compute_physics_params(nrow(net_data$nodes), nrow(net_data$edges))
 
         visNetwork::visNetworkProxy(session$ns("network_graph")) |>
           visNetwork::visPhysics(
             enabled = TRUE,
             solver = "forceAtlas2Based",
             forceAtlas2Based = list(
-              gravitationalConstant = gravity,
-              springLength = spring,
+              gravitationalConstant = params$gravity,
+              springLength = params$spring,
               damping = 0.4
             ),
             stabilization = FALSE  # Don't re-stabilize — resume from current positions

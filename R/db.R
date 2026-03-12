@@ -1520,6 +1520,7 @@ save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
       x_position = as.numeric(nodes_df$x),
       y_position = as.numeric(nodes_df$y),
       is_overlap = as.logical(nodes_df$is_overlap %||% FALSE),
+      community = as.character(nodes_df$community %||% NA_character_),
       stringsAsFactors = FALSE
     )
 
@@ -1572,9 +1573,12 @@ load_network <- function(con, network_id) {
     SELECT * FROM network_nodes WHERE network_id = ?
   ", list(network_id))
 
-  # Handle missing is_overlap column (old networks created before migration)
+  # Handle missing columns (old networks created before migration)
   if (!"is_overlap" %in% colnames(nodes)) {
     nodes$is_overlap <- FALSE
+  }
+  if (!"community" %in% colnames(nodes)) {
+    nodes$community <- NA_character_
   }
 
   # Load edges
