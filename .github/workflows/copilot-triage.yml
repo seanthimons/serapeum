@@ -1,0 +1,37 @@
+name: Copilot Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    # Only run on issues tagged with 'copilot' (set by issue templates)
+    if: contains(github.event.issue.labels.*.name, 'copilot')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assign Copilot to triage
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            @copilot Please triage this issue following the instructions in `.github/copilot-instructions.md`:
+
+            1. **Label it** with appropriate `complexity:*`, `impact:*`, and `priority:*` labels
+            2. **Assign it** to the correct milestone (v12.0 through v17.0) based on its domain
+            3. **Comment** with your triage reasoning
+            4. **Remove** the `copilot` label when done
+
+            Available milestones:
+            - v12.0: UX Polish & Onboarding
+            - v13.0: Search & Discovery
+            - v14.0: Citation Network Evolution
+            - v15.0: AI Infrastructure
+            - v16.0: Content & Output Quality
+            - v17.0: PDF Image Pipeline

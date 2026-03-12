@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Check TODO.md
+    url: https://github.com/seanthimons/serapeum/blob/main/TODO.md
+    about: See the current roadmap and planned features before filing a request.

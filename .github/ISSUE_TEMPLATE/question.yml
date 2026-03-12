@@ -1,0 +1,41 @@
+name: Question / Discussion
+description: Ask a question or start a discussion
+title: "[QUESTION] "
+labels: ["question", "copilot"]
+assignees: []
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: |
+        Provide any relevant context:
+        - What are you trying to accomplish?
+        - What have you tried so far?
+        - Where did you look for answers?
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System (if relevant)
+      placeholder: "e.g., macOS, Ubuntu, Windows"
+
+  - type: input
+    id: r-version
+    attributes:
+      label: R Version (if relevant)
+      placeholder: "e.g., R 4.5.1"
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that might be helpful?

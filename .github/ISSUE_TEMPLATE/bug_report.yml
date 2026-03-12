@@ -1,0 +1,100 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[BUG] "
+labels: ["bug", "copilot"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the sections below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this behavior?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem.
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "e.g., macOS 14.0, Ubuntu 22.04, Windows 11"
+
+  - type: input
+    id: r-version
+    attributes:
+      label: R Version
+      placeholder: "e.g., R 4.5.1"
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "e.g., Chrome 120, Firefox 121"
+
+  - type: input
+    id: serapeum-version
+    attributes:
+      label: Serapeum Version/Commit
+      placeholder: "e.g., main branch commit abc123"
+
+  - type: textarea
+    id: errors
+    attributes:
+      label: Error Messages
+      description: Paste any error messages from the R console or browser console.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: |
+        Any other context about the problem. For example:
+        - Did this work before?
+        - Does it happen consistently or intermittently?
+        - Any relevant configuration settings?
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Possible Solution
+      description: If you have ideas on how to fix this, share them here.
