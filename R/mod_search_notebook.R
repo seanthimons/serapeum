@@ -1189,7 +1189,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       div(
         class = "year-histogram-bars",
-        style = "display: flex; align-items: flex-end; height: 60px; width: 100%; gap: 1px; margin-bottom: -8px;",
+        style = "display: flex; align-items: flex-end; height: 50px; width: 100%; gap: 1px; margin-bottom: 6px;",
         bars
       )
     })
