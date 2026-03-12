@@ -696,6 +696,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       params <- compute_physics_params(nrow(nodes), nrow(edges))
 
       # Set per-edge spring lengths for community-aware cluster separation
+      # NOTE: Inter-cluster multiplier (2.5x) — tuneable. Higher values (3-4x) push
+      # clusters further apart. Single-seed networks may need a higher multiplier
+      # since citation graphs are densely interconnected. Multi-seed networks see
+      # clear separation at 2.5x. If separation is too weak, increase; if clusters
+      # feel disconnected, decrease.
       if ("is_inter_cluster" %in% colnames(edges) && nrow(edges) > 0) {
         edges$length <- ifelse(edges$is_inter_cluster, params$spring * 2.5, params$spring)
       }
