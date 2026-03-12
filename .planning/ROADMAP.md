@@ -308,7 +308,7 @@ Plans:
 | 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
 | 54. Tooltip Layer | 1/1 | Complete    | 2026-03-11 |
 | 55. Document Type Filter UX | 1/1 | Complete    | 2026-03-11 |
-| 56. Year Slider Alignment Fix | 1/1 | Complete   | 2026-03-12 |
+| 56. Year Slider Alignment Fix | 1/1 | Complete    | 2026-03-12 |
 
 ---
 *Roadmap created: 2026-02-10*
