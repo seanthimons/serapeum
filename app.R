@@ -2,11 +2,10 @@ library(shiny)
 library(bslib)
 library(DBI)
 library(duckdb)
-#library(connections)
 
-# Options
-#options("duckdb.enable_rstudio_connection_pane" = TRUE)
-
+# Set up persistent mirai daemons for async tasks (bulk import, embedding, etc.)
+mirai::daemons(2)
+onStop(function() mirai::daemons(0))
 
 # Source all R files
 for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
