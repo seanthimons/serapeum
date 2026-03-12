@@ -227,6 +227,7 @@ High-effort, high-payoff features for the future.
 - [x] [#149](https://github.com/seanthimons/serapeum/issues/149): Major buttons should have tooltips (v12.0)
 - [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
+- [x] feat: Community-aware edge weighting for citation network cluster separation
 
 ---
 
