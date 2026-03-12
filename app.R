@@ -44,6 +44,7 @@ if (file.exists(legacy_store)) {
 
 # UI
 ui <- page_sidebar(
+  window_title = "Serapeum",
   title = div(
     class = "d-flex align-items-center justify-content-between w-100",
     div(
