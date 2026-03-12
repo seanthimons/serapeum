@@ -233,17 +233,19 @@ mod_search_notebook_ui <- function(id) {
             ns = ns,
             div(
               class = "mb-2",
+              tags$label("Publication Year", class = "control-label"),
+              uiOutput(ns("year_histogram")),
               sliderInput(
                 ns("year_range"),
-                "Publication Year",
+                label = NULL,
                 min = 1900,
                 max = 2026,
                 value = c(1900, 2026),
                 step = 1,
                 sep = "",
-                ticks = FALSE
+                ticks = FALSE,
+                width = "100%"
               ),
-              uiOutput(ns("year_histogram")),
               div(
                 class = "d-flex justify-content-between align-items-center",
                 checkboxInput(
@@ -1187,7 +1189,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       div(
         class = "year-histogram-bars",
-        style = "display: flex; align-items: flex-end; height: 60px; width: 100%; gap: 1px;",
+        style = "display: flex; align-items: flex-end; height: 60px; width: 100%; gap: 1px; margin-bottom: -8px;",
         bars
       )
     })
