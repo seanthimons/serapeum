@@ -283,3 +283,24 @@ test_that("parse_search_response defaults count to 0 when NULL", {
 
   expect_equal(result$count, 0)
 })
+
+test_that("build_query_preview includes has_abstract filter by default", {
+  preview <- build_query_preview("PFOA", from_year = 2020, to_year = 2025)
+
+  expect_match(preview$filter, "has_abstract:true")
+})
+
+test_that("build_query_preview omits has_abstract filter when disabled", {
+  preview <- build_query_preview(
+    "PFOA method detection reporting limit LC/MC",
+    from_year = 2020,
+    to_year = 2025,
+    has_abstract = FALSE,
+    exclude_retracted = TRUE
+  )
+
+  expect_false(grepl("has_abstract:true", preview$filter, fixed = TRUE))
+  expect_match(preview$filter, "is_retracted:false", fixed = TRUE)
+  expect_match(preview$filter, "from_publication_date:2020-01-01", fixed = TRUE)
+  expect_match(preview$filter, "to_publication_date:2025-12-31", fixed = TRUE)
+})

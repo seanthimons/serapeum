@@ -173,20 +173,22 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
     stop("OpenRouter API key required to create/open ragnar store for embedding")
   }
 
+  embed_fn <- make_embed_function(openrouter_api_key, embed_model)
+
   if (file.exists(path)) {
     store <- ragnar::ragnar_store_connect(path)
   } else {
-    # Create with a dummy embed (ragnar requires one at creation)
-    # The real embed is attached below via @embed
+    # Store creation eagerly evaluates the embed function to infer
+    # embedding_size, so pass the real function here as well.
     store <- ragnar::ragnar_store_create(
       path,
-      embed = function(texts) stop("placeholder — should be replaced at runtime"),
+      embed = embed_fn,
       version = 1
     )
   }
 
   # Attach working embed function at runtime (bypasses serialization)
-  store@embed <- make_embed_function(openrouter_api_key, embed_model)
+  store@embed <- embed_fn
   store
 }
 
@@ -208,6 +210,21 @@ connect_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb") {
     message("Failed to connect to ragnar store: ", e$message)
     NULL
   })
+}
+
+#' Safely disconnect a RagnarStore connection
+#'
+#' Closes the underlying DuckDB connection if it is still open.
+#'
+#' @param store RagnarStore object or NULL
+#' @return Invisibly NULL
+disconnect_ragnar_store <- function(store) {
+  if (is.null(store)) {
+    return(invisible(NULL))
+  }
+
+  tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
+  invisible(NULL)
 }
 
 #' Chunk text using ragnar's semantic chunking
@@ -381,10 +398,15 @@ check_store_integrity <- function(store_path) {
     ))
   }
 
-  # Try to connect and immediately disconnect
+  # Try to connect and, when populated, verify BM25 retrieval works.
   tryCatch({
     store <- ragnar::ragnar_store_connect(store_path)
-    DBI::dbDisconnect(store@con, shutdown = TRUE)
+    on.exit(disconnect_ragnar_store(store), add = TRUE)
+
+    chunk_count <- DBI::dbGetQuery(store@con, "SELECT COUNT(*) as n FROM chunks")$n[1]
+    if (!is.na(chunk_count) && chunk_count > 0) {
+      ragnar::ragnar_retrieve_bm25(store, "__integrity_probe__", top_k = 1L)
+    }
 
     list(ok = TRUE)
 
@@ -395,6 +417,122 @@ check_store_integrity <- function(store_path) {
       error = e$message
     )
   })
+}
+
+#' Convert a low-level store integrity error into user-facing copy
+#'
+#' @param error_message Technical error string
+#' @return Short user-facing summary
+summarize_store_integrity_error <- function(error_message) {
+  if (is.null(error_message) || nchar(trimws(error_message)) == 0) {
+    return("The search index could not be validated.")
+  }
+
+  if (grepl("match_bm25", error_message, fixed = TRUE)) {
+    return("The full-text portion of the search index is missing or damaged.")
+  }
+
+  if (grepl("Store file not found", error_message, fixed = TRUE)) {
+    return("The search index files are missing.")
+  }
+
+  "The search index could not be opened correctly."
+}
+
+#' Clear ragnar sentinel markers in the main chunks table
+#'
+#' Removes the lightweight `ragnar_indexed` status marker for source rows that
+#' are no longer present in the per-notebook store.
+#'
+#' @param con DuckDB connection (main app database)
+#' @param source_ids Character vector of source IDs to clear
+#' @param source_type Source type ("abstract" or "document")
+#' @return Invisibly NULL
+clear_ragnar_indexed_marks <- function(con, source_ids, source_type = "document") {
+  if (length(source_ids) == 0) return(invisible(NULL))
+
+  tryCatch({
+    placeholders <- paste(rep("?", length(source_ids)), collapse = ", ")
+    DBI::dbExecute(
+      con,
+      sprintf(
+        "UPDATE chunks SET embedding = NULL WHERE source_id IN (%s) AND source_type = ? AND embedding = 'ragnar_indexed'",
+        placeholders
+      ),
+      c(as.list(source_ids), source_type)
+    )
+    invisible(NULL)
+  }, error = function(e) {
+    message("[ragnar] clear_ragnar_indexed_marks failed: ", e$message)
+    invisible(NULL)
+  })
+}
+
+#' Reconcile document embedding status markers with the notebook ragnar store
+#'
+#' Compares document filenames in the main DB against chunk origins in the
+#' per-notebook ragnar store and updates `chunks.embedding` sentinel markers to
+#' match what is actually present in the store.
+#'
+#' @param con DuckDB connection (main app database)
+#' @param notebook_id Notebook ID (UUID)
+#' @return List with counts and store presence metadata
+sync_document_ragnar_statuses <- function(con, notebook_id) {
+  docs <- list_documents(con, notebook_id)
+  if (nrow(docs) == 0) {
+    return(list(
+      documents = 0L,
+      present = 0L,
+      marked = 0L,
+      cleared = 0L,
+      store_exists = FALSE
+    ))
+  }
+
+  current_marked <- DBI::dbGetQuery(con, "
+    SELECT DISTINCT c.source_id
+    FROM chunks c
+    WHERE c.source_type = 'document'
+      AND c.embedding IS NOT NULL
+      AND c.source_id IN (SELECT id FROM documents WHERE notebook_id = ?)
+  ", list(notebook_id))$source_id
+
+  store_path <- get_notebook_ragnar_path(notebook_id)
+  if (!file.exists(store_path)) {
+    clear_ragnar_indexed_marks(con, current_marked, source_type = "document")
+    return(list(
+      documents = nrow(docs),
+      present = 0L,
+      marked = 0L,
+      cleared = length(current_marked),
+      store_exists = FALSE
+    ))
+  }
+
+  store_con <- DBI::dbConnect(duckdb::duckdb(), dbdir = store_path, read_only = TRUE)
+  on.exit(DBI::dbDisconnect(store_con, shutdown = TRUE), add = TRUE)
+
+  origins <- DBI::dbGetQuery(store_con, "SELECT DISTINCT origin FROM chunks")$origin
+  present_mask <- vapply(
+    docs$filename,
+    function(filename) any(startsWith(origins, paste0(filename, "#"))),
+    logical(1)
+  )
+
+  present_ids <- docs$id[present_mask]
+  missing_ids <- docs$id[!present_mask]
+  cleared_ids <- intersect(current_marked, missing_ids)
+
+  mark_as_ragnar_indexed(con, present_ids, source_type = "document")
+  clear_ragnar_indexed_marks(con, cleared_ids, source_type = "document")
+
+  list(
+    documents = nrow(docs),
+    present = length(present_ids),
+    marked = length(present_ids),
+    cleared = length(cleared_ids),
+    store_exists = TRUE
+  )
 }
 
 #' Delete a notebook's ragnar store file
@@ -408,31 +546,35 @@ check_store_integrity <- function(store_path) {
 #' deleted <- delete_notebook_store("notebook-id")
 delete_notebook_store <- function(notebook_id) {
   store_path <- get_notebook_ragnar_path(notebook_id)
+  sidecar_paths <- c(store_path, paste0(store_path, ".wal"), paste0(store_path, ".tmp"))
 
   # If file doesn't exist, consider it already deleted
   if (!file.exists(store_path)) {
+    suppressWarnings(file.remove(sidecar_paths[sidecar_paths != store_path]))
     return(TRUE)
   }
 
-  # Try to delete main store file
-  tryCatch({
-    result <- file.remove(store_path)
+  # DuckDB can hold Windows file handles briefly after disconnect.
+  # Retry a few times before declaring failure.
+  for (attempt in seq_len(5)) {
+    result <- tryCatch(file.remove(store_path), error = function(e) FALSE)
 
     if (!result) {
-      message("[store_lifecycle] file.remove returned FALSE for: ", store_path)
-      return(FALSE)
+      message("[store_lifecycle] file.remove returned FALSE for: ", store_path,
+              " (attempt ", attempt, "/5)")
+    } else {
+      suppressWarnings(tryCatch(file.remove(sidecar_paths[-1]), error = function(e) {}))
     }
 
-    # Also try to remove DuckDB temp files (ignore failures on these)
-    suppressWarnings(tryCatch(file.remove(paste0(store_path, ".wal")), error = function(e) {}))
-    suppressWarnings(tryCatch(file.remove(paste0(store_path, ".tmp")), error = function(e) {}))
+    if (!file.exists(store_path)) {
+      suppressWarnings(tryCatch(file.remove(sidecar_paths[-1]), error = function(e) {}))
+      return(TRUE)
+    }
 
-    TRUE
+    Sys.sleep(0.2)
+  }
 
-  }, error = function(e) {
-    message("[store_lifecycle] Failed to delete store ", store_path, ": ", e$message)
-    FALSE
-  })
+  FALSE
 }
 
 #' Find orphaned store files with no matching notebook
@@ -498,6 +640,34 @@ write_reindex_progress <- function(progress_file, count, total, name) {
     writeLines(paste(count, total, pct, msg, sep = "|"), progress_file),
     error = function(e) NULL
   )
+  invisible(NULL)
+}
+
+#' Invoke a reindex progress callback with backward-compatible arity
+#'
+#' Older callers accept `(count, total)` while newer ones accept
+#' `(count, total, item_name)`. Support both.
+#'
+#' @param progress_callback Callback function or NULL
+#' @param count Current item number
+#' @param total Total items
+#' @param item_name Human-readable item name
+#' @return Invisibly NULL
+invoke_reindex_progress_callback <- function(progress_callback, count, total, item_name) {
+  if (is.null(progress_callback)) {
+    return(invisible(NULL))
+  }
+
+  callback_formals <- tryCatch(names(formals(progress_callback)), error = function(e) NULL)
+  supports_item_name <- !is.null(callback_formals) &&
+    ("..." %in% callback_formals || length(callback_formals) >= 3)
+
+  if (supports_item_name) {
+    progress_callback(count, total, item_name)
+  } else {
+    progress_callback(count, total)
+  }
+
   invisible(NULL)
 }
 
@@ -622,9 +792,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         if (!is.null(progress_file)) {
           write_reindex_progress(progress_file, count, total_items, item_name)
         }
-        if (!is.null(progress_callback)) {
-          progress_callback(count, total_items, item_name)
-        }
+        invoke_reindex_progress_callback(progress_callback, count, total_items, item_name)
       }
     }
 
@@ -673,9 +841,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         if (!is.null(progress_file)) {
           write_reindex_progress(progress_file, count, total_items, item_name)
         }
-        if (!is.null(progress_callback)) {
-          progress_callback(count, total_items, item_name)
-        }
+        invoke_reindex_progress_callback(progress_callback, count, total_items, item_name)
       }
     }
 

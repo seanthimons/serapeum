@@ -8,7 +8,7 @@ openalex:
 
 # Default Models
 defaults:
-  chat_model: "anthropic/claude-sonnet-4"
+  chat_model: "google/gemini-3.1-flash-lite-preview"
   embedding_model: "openai/text-embedding-3-small"
 
 # App Settings

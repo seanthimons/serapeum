@@ -1,0 +1,13 @@
+10.1038/nature12373
+https://doi.org/10.1126/science.1242072
+http://dx.doi.org/10.1016/j.cell.2015.05.002
+doi:10.1371/journal.pone.0115069
+DOI: 10.1073/pnas.1507413112
+10.48550/arxiv.1706.03762
+https://doi.org/10.48550/arXiv.1706.03762
+not-a-doi
+10.9999/fake-doi-doesnt-exist
+https://doi.org/10.0000/totally-bogus
+hello world
+10.1257/aer.20150361
+10.65215/2q58a426

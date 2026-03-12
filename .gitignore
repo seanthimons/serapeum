@@ -30,6 +30,17 @@ Thumbs.db
 # Output/ Render files
 output/
 
+# Playwright browser scripts
+playwright/
+node_modules/
+package-lock.json
+package.json
+
+# MCP servers
+.mcp.json
+
+
+########
 # Allow
 !.gitignore
 !.planning/

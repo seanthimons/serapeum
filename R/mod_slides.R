@@ -357,10 +357,10 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       models <- tryCatch({
         list_models(api_key)
       }, error = function(e) {
-        data.frame(id = "anthropic/claude-sonnet-4", name = "Claude Sonnet 4", stringsAsFactors = FALSE)
+        data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })
 
-      current_model <- get_setting(cfg, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+      current_model <- get_setting(cfg, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
 
       # Reset state
       generation_state$qmd_content <- NULL
@@ -574,7 +574,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       model <- generation_state$last_options$model %||%
         get_setting(cfg, "defaults", "chat_model") %||%
-        "anthropic/claude-sonnet-4"
+        "google/gemini-3.1-flash-lite-preview"
 
       showNotification(
         sprintf("Healing slides (attempt %d of 2)...", attempt),
@@ -661,12 +661,12 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       models <- tryCatch({
         list_models(api_key)
       }, error = function(e) {
-        data.frame(id = "anthropic/claude-sonnet-4", name = "Claude Sonnet 4", stringsAsFactors = FALSE)
+        data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })
 
       current_model <- generation_state$last_options$model %||%
                        get_setting(cfg, "defaults", "chat_model") %||%
-                       "anthropic/claude-sonnet-4"
+                       "google/gemini-3.1-flash-lite-preview"
 
       showModal(mod_slides_modal_ui(ns, docs, models, current_model))
     })

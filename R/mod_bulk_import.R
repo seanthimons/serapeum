@@ -580,7 +580,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
 
         for (paper in result$papers) {
           tryCatch({
-            create_abstract(
+            abstract_id <- create_abstract(
               con = con(),
               notebook_id = nb_id,
               paper_id = paper$paper_id,
@@ -600,6 +600,11 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
               fwci = paper$fwci,
               doi = paper$doi
             )
+
+            if (!is.null(paper$abstract) && !is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+              create_chunk(con(), abstract_id, "abstract", 0, paper$abstract)
+            }
+
             if (!is.null(run_id)) {
               create_import_run_item(con(), run_id, paper$doi %||% "unknown", "success")
             }

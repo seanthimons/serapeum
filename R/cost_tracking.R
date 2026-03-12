@@ -12,6 +12,7 @@ pricing_env <- new.env(parent = emptyenv())
 pricing_env$MODEL_PRICING <- list(
   "openai/gpt-4o-mini" = list(prompt = 0.15, completion = 0.60),
   "openai/gpt-4o" = list(prompt = 2.50, completion = 10.00),
+  "google/gemini-3.1-flash-lite-preview" = list(prompt = 0.10, completion = 0.40),
   "google/gemini-2.0-flash-001" = list(prompt = 0.10, completion = 0.40),
   "google/gemini-2.5-flash-preview-05-20" = list(prompt = 0.15, completion = 0.60),
   "anthropic/claude-sonnet-4" = list(prompt = 3.00, completion = 15.00),
@@ -45,6 +46,7 @@ KNOWN_MODEL_LABELS <- c(
   "openai/gpt-4o-mini" = "GPT-4o mini",
   "openai/gpt-4o" = "GPT-4o",
   "anthropic/claude-sonnet-4" = "Claude Sonnet 4",
+  "google/gemini-3.1-flash-lite-preview" = "Gemini 3.1 Flash Lite",
   "google/gemini-2.0-flash-001" = "Gemini 2.0 Flash",
   "google/gemini-2.5-flash-preview-05-20" = "Gemini 2.5 Flash",
   "openai/text-embedding-3-small" = "Text Embedding 3 Small",

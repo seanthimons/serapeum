@@ -286,7 +286,7 @@ run_bulk_import <- function(dois, notebook_id, email, api_key, db_path,
   # Store successful papers
   for (paper in result$papers) {
     tryCatch({
-      create_abstract(
+      abstract_id <- create_abstract(
         con = con,
         notebook_id = notebook_id,
         paper_id = paper$paper_id,
@@ -306,6 +306,11 @@ run_bulk_import <- function(dois, notebook_id, email, api_key, db_path,
         fwci = paper$fwci,
         doi = paper$doi
       )
+
+      if (!is.null(paper$abstract) && !is.na(paper$abstract) && nchar(paper$abstract) > 0) {
+        create_chunk(con, abstract_id, "abstract", 0, paper$abstract)
+      }
+
       create_import_run_item(con, run_id, paper$doi %||% "unknown", "success")
       imported_count <- imported_count + 1L
     }, error = function(e) {

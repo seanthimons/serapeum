@@ -46,6 +46,7 @@ mod_document_notebook_ui <- function(id) {
                     accept = ".pdf",
                     buttonLabel = "Browse...",
                     placeholder = "No file selected"),
+          uiOutput(ns("index_action_ui")),
           hr(),
           div(
             id = ns("doc_list_container"),
@@ -231,6 +232,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       isTRUE(store_healthy()) && isTRUE(rag_ready())
     })
 
+    index_status_message <- reactiveVal(NULL)
+
     # Render send button — greyed out when RAG is unavailable
     output$send_button_ui <- renderUI({
       if (isTRUE(rag_available())) {
@@ -243,6 +246,97 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           "Send"
         )
       }
+    })
+
+    output$index_action_ui <- renderUI({
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      docs <- list_documents(con(), nb_id)
+      if (nrow(docs) == 0) {
+        return(NULL)
+      }
+
+      store_exists <- file.exists(get_notebook_ragnar_path(nb_id))
+      repair_button <- if (!isTRUE(rag_available())) {
+        button_id <- if (store_exists) ns("rebuild_index") else ns("reindex_notebook")
+        button_label <- if (store_exists) "Rebuild Search Index" else "Build Search Index"
+        actionButton(button_id, button_label, class = "btn-warning w-100 btn-sm")
+      } else {
+        NULL
+      }
+
+      current_status <- if (isTRUE(rag_available())) {
+        "Current status: search index available."
+      } else if (store_exists) {
+        "Current status: search index needs rebuild."
+      } else {
+        "Current status: search index has not been built yet."
+      }
+
+      tags$details(
+        class = "mt-2",
+        tags$summary(
+          class = "text-muted small",
+          style = "cursor: pointer;",
+          "Index Tools"
+        ),
+        div(
+          class = "mt-2 d-grid gap-2",
+          tags$div(class = "text-muted small", current_status),
+          repair_button,
+          actionButton(ns("check_index_status"), "Check Search Index Status", class = "btn btn-outline-secondary btn-sm w-100"),
+          {
+            msg <- index_status_message()
+            if (!is.null(msg) && nchar(msg) > 0) {
+              tags$div(class = "text-muted small", msg)
+            }
+          }
+        )
+      )
+    })
+
+    observeEvent(input$check_index_status, {
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      sync_result <- sync_document_ragnar_statuses(con(), nb_id)
+      integrity <- check_store_integrity(get_notebook_ragnar_path(nb_id))
+
+      if (sync_result$documents == 0) {
+        store_healthy(TRUE)
+        rag_ready(TRUE)
+        msg <- "No documents in this notebook yet."
+        index_status_message(msg)
+        showNotification(msg, type = "message", duration = 4)
+        return()
+      }
+
+      store_healthy(integrity$ok)
+      rag_ready(integrity$ok)
+      doc_refresh(doc_refresh() + 1)
+
+      if (!sync_result$store_exists) {
+        msg <- "No search index store found. Use Build Search Index to create it."
+        index_status_message(msg)
+        showNotification(msg, type = "warning", duration = 6)
+        return()
+      }
+
+      msg <- paste(
+        "Checked", sync_result$documents, "document(s):",
+        sync_result$marked, "confirmed in the search index,",
+        sync_result$cleared, "status marker(s) cleared."
+      )
+
+      if (!integrity$ok) {
+        msg <- paste(msg, summarize_store_integrity_error(integrity$error))
+        showNotification(msg, type = "warning", duration = 8)
+      } else {
+        showNotification(msg, type = "message", duration = 5)
+      }
+
+      index_status_message(msg)
     })
 
     # Proactive integrity check + migration detection when notebook is opened (Phase 21/22)
@@ -296,7 +390,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                   This can happen after crashes or disk errors."),
           tags$p("Your documents and notes are safe. Only the search index needs rebuilding."),
           tags$p(class = "text-muted small",
-                 paste("Error:", result$error)),
+                 summarize_store_integrity_error(result$error)),
           footer = tagList(
             actionButton(ns("rebuild_index"), "Rebuild Index", class = "btn-primary"),
             modalButton("Later")
@@ -336,6 +430,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       if (result$success) {
         store_healthy(TRUE)
         rag_ready(TRUE)
+        doc_refresh(doc_refresh() + 1)
         showNotification(
           paste("Search index rebuilt successfully.", result$count, "items re-embedded."),
           type = "message"
@@ -458,6 +553,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(notebook_id()))$id,
             source_type = "document")
         }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+        doc_refresh(doc_refresh() + 1)
         showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
       } else {
         rag_ready(FALSE)
@@ -644,6 +740,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                 NULL
               }
             )
+            on.exit(disconnect_ragnar_store(store), add = TRUE)
 
             if (!is.null(store)) {
               # Insert chunks (ragnar handles embedding via OpenRouter)

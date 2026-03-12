@@ -203,6 +203,7 @@ get_default_chat_models <- function() {
   data.frame(
     id = c(
       # Budget tier
+      "google/gemini-3.1-flash-lite-preview",
       "deepseek/deepseek-v3.2",
       "google/gemini-2.5-flash",
       "openai/gpt-4.1-mini",
@@ -219,6 +220,7 @@ get_default_chat_models <- function() {
     ),
     name = c(
       # Budget tier
+      "Gemini 3.1 Flash Lite",
       "DeepSeek V3.2",
       "Gemini 2.5 Flash",
       "GPT-4.1 Mini",
@@ -235,7 +237,7 @@ get_default_chat_models <- function() {
     ),
     context_length = c(
       # Budget tier
-      163840, 1048576, 1047576, 400000,
+      1048576, 163840, 1048576, 1047576, 400000,
       # Mid tier
       262144, 200000, 1048576, 400000,
       # Premium tier
@@ -243,7 +245,7 @@ get_default_chat_models <- function() {
     ),
     prompt_price = c(
       # Budget tier
-      0.25, 0.30, 0.40, 0.25,
+      0.10, 0.25, 0.30, 0.40, 0.25,
       # Mid tier
       0.45, 1.00, 1.25, 1.25,
       # Premium tier
@@ -251,7 +253,7 @@ get_default_chat_models <- function() {
     ),
     completion_price = c(
       # Budget tier
-      0.38, 2.50, 1.60, 2.00,
+      0.40, 0.38, 2.50, 1.60, 2.00,
       # Mid tier
       2.25, 5.00, 10.00, 10.00,
       # Premium tier
@@ -259,7 +261,7 @@ get_default_chat_models <- function() {
     ),
     tier = c(
       # Budget tier
-      "budget", "budget", "budget", "budget",
+      "budget", "budget", "budget", "budget", "budget",
       # Mid tier
       "mid", "mid", "mid", "mid",
       # Premium tier

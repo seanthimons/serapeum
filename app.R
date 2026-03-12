@@ -820,6 +820,7 @@ server <- function(input, output, session) {
 
       # Open access filter
       checkboxInput("search_is_oa", "Open Access Only", value = FALSE),
+      checkboxInput("search_has_abstract", "Only papers with abstracts", value = TRUE),
 
       hr(),
 
@@ -859,11 +860,20 @@ server <- function(input, output, session) {
     to_year <- input$search_to_year
     search_field <- input$search_field %||% "default"
     is_oa <- input$search_is_oa %||% FALSE
+    has_abstract <- input$search_has_abstract %||% TRUE
     min_citations <- input$search_min_citations
     exclude_retracted <- input$search_exclude_retracted %||% TRUE
 
-    preview <- build_query_preview(query, from_year, to_year, search_field, is_oa,
-                                    min_citations, exclude_retracted)
+    preview <- build_query_preview(
+      query,
+      from_year,
+      to_year,
+      search_field,
+      is_oa,
+      min_citations = min_citations,
+      has_abstract = has_abstract,
+      exclude_retracted = exclude_retracted
+    )
 
     tagList(
       if (!is.null(preview$search)) {
@@ -941,6 +951,7 @@ server <- function(input, output, session) {
       to_year = input$search_to_year,
       search_field = input$search_field %||% "default",
       is_oa = input$search_is_oa %||% FALSE,
+      has_abstract = input$search_has_abstract %||% TRUE,
       # Quality filters
       exclude_retracted = input$search_exclude_retracted %||% TRUE,
       flag_predatory = input$search_flag_predatory %||% TRUE,

@@ -61,7 +61,7 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
   # Safely check api_key
@@ -158,7 +158,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
   # Safely check api_key
@@ -250,7 +250,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
   embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
@@ -427,7 +427,7 @@ generate_overview_preset <- function(con, config, notebook_id,
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
   # Check api_key
@@ -662,7 +662,7 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
   api_key <- get_setting(config, "openrouter", "api_key")
   if (length(api_key) > 1) api_key <- api_key[1]
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
   if (length(chat_model) > 1) chat_model <- chat_model[1]
 
   embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
@@ -878,7 +878,7 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1077,7 +1077,7 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
     embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
     # Get documents with metadata
@@ -1286,7 +1286,7 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
     embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
     # Get documents with metadata

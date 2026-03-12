@@ -1,71 +1,110 @@
 # TODO
 
-Future enhancements for the Research Notebook tool, organized by priority.
+Future enhancements for the Research Notebook tool, organized by milestone.
 
 ---
 
-## High Priority (Quick Wins & Critical)
+## Milestone Execution Notes
 
-Bug fixes and high-impact features with low-to-medium effort.
-
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| [#143](https://github.com/seanthimons/serapeum/issues/143) | bug: Slider and histogram do not align on year filter | Low | Medium |
-
----
-
-## Medium Priority
-
-Valuable features requiring more investment, or moderate-impact improvements.
-
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| [#144](https://github.com/seanthimons/serapeum/issues/144) | feat: AA Integration + Split Models + Latency Tracking (5 phases) — [plan](docs/plans/2026-03-06-aa-integration-split-models-latency-tracking.md) | High | High |
-| [#125](https://github.com/seanthimons/serapeum/issues/125) | Update file/document filter types reported by OpenAlex | Medium | Medium |
-| [#120](https://github.com/seanthimons/serapeum/issues/120) | UI for viewing/editing prompts for research outputs | Medium | Medium |
-| [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
-| [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | High | High |
-| [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: busy spinners, progress messages, modal messaging — *spinners done (Phase 29), modal messaging remaining* | Medium | Medium |
-| [#84](https://github.com/seanthimons/serapeum/issues/84) | Allow for export from network graph to abstract search + vice versa | High | Medium |
-| [#8](https://github.com/seanthimons/serapeum/issues/8) | dev: Local model support | High | High |
-| [#11](https://github.com/seanthimons/serapeum/issues/11) | feat: Recursive abstract searching | High | High |
-| [#28](https://github.com/seanthimons/serapeum/issues/28) | feat: Image/table/chart extraction | High | High |
-| [#29](https://github.com/seanthimons/serapeum/issues/29) | feat: Image/chart injection into slides | High | High |
-| [#38](https://github.com/seanthimons/serapeum/issues/38) | dev: PDF image extraction process | High | High |
-| [#44](https://github.com/seanthimons/serapeum/issues/44) | epic: PDF Image Pipeline (extraction → slides) | High | High |
-| [#37](https://github.com/seanthimons/serapeum/issues/37) | feat: Results of image parsing | Medium | Medium |
-| [#48](https://github.com/seanthimons/serapeum/issues/48) | dev: Tighter RAG document retrieval controls | Low | Medium |
-| [#52](https://github.com/seanthimons/serapeum/issues/52) | dev: Does Quarto support citations better? | Low | Medium |
-| [#60](https://github.com/seanthimons/serapeum/issues/60) | dev: Toggle/UI to expose API queries | Medium | Medium |
+- **v12 through v16 are fully parallel** — no cross-milestone dependencies; any can be started independently
+- **v17 is internally sequential** (stages 1→7) but independent of all other milestones
+- **v12 is the recommended starting point** — all quick wins that clear the decks before heavier work
+- **Within each milestone**, issues can generally be worked in parallel unless noted otherwise
 
 ---
 
-## Low Priority (Backlog)
+## v12.0: UX Polish & Onboarding
 
-Nice-to-have features and research tasks.
+*Quick wins — mostly low complexity, immediate user-facing value. All issues are parallel.*
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
+| ~~[#149](https://github.com/seanthimons/serapeum/issues/149)~~ | ~~Major buttons should have tooltips~~ | ~~Low~~ | ~~High~~ |
+| [#150](https://github.com/seanthimons/serapeum/issues/150) | Notebook paths should have short descriptions for new users | Low | Medium |
+| [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: modal messaging (remaining — spinners done Phase 29) | Medium | Medium |
+| [#60](https://github.com/seanthimons/serapeum/issues/60) | Toggle/UI to expose API queries | Medium | Medium |
+| [#9](https://github.com/seanthimons/serapeum/issues/9) | Versioning for releases | Low | Low |
+
+---
+
+## v13.0: Search & Discovery
+
+*Improve how users find and filter papers. All issues are parallel except #122 which is a research spike that may inform #11.*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#151](https://github.com/seanthimons/serapeum/issues/151) | Duplicate keyword ban/keep behavior to per-abstract keywords | Medium | Medium |
+| ~~[#125](https://github.com/seanthimons/serapeum/issues/125)~~ | ~~Update file/document filter types reported by OpenAlex~~ | ~~Medium~~ | ~~Medium~~ |
+| [#11](https://github.com/seanthimons/serapeum/issues/11) | Recursive abstract searching | High | High |
 | [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
-| [#6](https://github.com/seanthimons/serapeum/issues/6) | feat: Timeline heatmap | Medium | Low |
-| [#9](https://github.com/seanthimons/serapeum/issues/9) | feat: Versioning for releases | Low | Low |
-| [#12](https://github.com/seanthimons/serapeum/issues/12) | dev: Evaluate reranker need | Low | TBD |
-| [#21](https://github.com/seanthimons/serapeum/issues/21) | feat: Semantic Scholar integration | High | Low |
-| [#22](https://github.com/seanthimons/serapeum/issues/22) | feat: Audio overview (NotebookLM style) | High | Medium |
-| [#30](https://github.com/seanthimons/serapeum/issues/30) | feat: Demo mode | Medium | Low |
-| [#126](https://github.com/seanthimons/serapeum/issues/126) | explore: Partial BFS graph as intentional visualization mode | Medium | Medium |
 
 ---
 
-## Epics (Tracking)
+## v14.0: Citation Network Evolution
 
-| Issue | Title | Sub-issues Status |
-|-------|-------|-------------------|
-| [#107](https://github.com/seanthimons/serapeum/issues/107) | epic: AI Output Overhaul | 10/10 complete — **CLOSED** |
-| [#142](https://github.com/seanthimons/serapeum/issues/142) | epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals — 6 phases) — [plan](docs/plans/2026-03-06-advanced-retrieval-pipeline.md) | Phase 1-5 planned |
-| [#74](https://github.com/seanthimons/serapeum/issues/74) | epic: Discovery Workflow Enhancement | 4/4 complete — **CLOSED** |
-| [#75](https://github.com/seanthimons/serapeum/issues/75) | epic: Document Output & Export | 4/4 complete — **CLOSED** |
-| [#76](https://github.com/seanthimons/serapeum/issues/76) | epic: Synthesis & Analysis | 2/2 complete — **CLOSED** |
+*Network graph features and new visualization modes. All issues are parallel. #135 and #145 both touch citation audit UI — coordinate if worked simultaneously.*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#145](https://github.com/seanthimons/serapeum/issues/145) | Citation audit filters and controls (sorting, filtering by year/citation/FWCI) | Medium | Medium |
+| [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
+| [#84](https://github.com/seanthimons/serapeum/issues/84) | Export from network graph to abstract search + vice versa | High | Medium |
+| [#126](https://github.com/seanthimons/serapeum/issues/126) | Partial BFS graph as intentional visualization mode | Medium | Medium |
+| ~~[#6](https://github.com/seanthimons/serapeum/issues/6)~~ | ~~Timeline heatmap~~ | ~~Medium~~ | ~~Low~~ |
+
+---
+
+## v15.0: AI Infrastructure
+
+*Core AI pipeline — model routing, retrieval, local models. #12 (evaluate reranker) should be done before or alongside #142 (retrieval pipeline). #48 feeds into #142. #144 and #8 are parallel to each other and to the retrieval work.*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#144](https://github.com/seanthimons/serapeum/issues/144) | AA Integration + Split Models + Latency Tracking — [plan](docs/plans/2026-03-06-aa-integration-split-models-latency-tracking.md) | High | High |
+| [#142](https://github.com/seanthimons/serapeum/issues/142) | Epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals) — [plan](docs/plans/2026-03-06-advanced-retrieval-pipeline.md) | High | High |
+| [#48](https://github.com/seanthimons/serapeum/issues/48) | Tighter RAG document retrieval controls | Low | Medium |
+| [#12](https://github.com/seanthimons/serapeum/issues/12) | Evaluate reranker need | Low | TBD |
+| [#8](https://github.com/seanthimons/serapeum/issues/8) | Local model support | High | High |
+
+---
+
+## v16.0: Content & Output Quality
+
+*Improve generated slides, prompts, and exports. All issues are parallel. #22 (audio overview) is the heaviest lift and can be deferred within this milestone.*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | High | High |
+| [#120](https://github.com/seanthimons/serapeum/issues/120) | UI for viewing/editing prompts for research outputs | Medium | Medium |
+| [#52](https://github.com/seanthimons/serapeum/issues/52) | Quarto citation support exploration | Low | Medium |
+| [#22](https://github.com/seanthimons/serapeum/issues/22) | Audio overview (NotebookLM style) | High | Medium |
+
+---
+
+## v17.0: PDF Image Pipeline
+
+*Epic [#44](https://github.com/seanthimons/serapeum/issues/44) — 7 sequential stages. Each stage depends on the previous. Independent of all other milestones.*
+
+| Stage | Issue | Title | Complexity | Impact |
+|-------|-------|-------|------------|--------|
+| 1 | [#38](https://github.com/seanthimons/serapeum/issues/38) | PDF image extraction (pdftools) | High | High |
+| 2 | [#146](https://github.com/seanthimons/serapeum/issues/146) | Figure storage schema & DB helpers | Medium | High |
+| 3 | [#28](https://github.com/seanthimons/serapeum/issues/28) | Caption extraction (heuristic pass) | High | High |
+| 4 | [#147](https://github.com/seanthimons/serapeum/issues/147) | Figure quality filtering & dedup | Medium | Medium |
+| 5 | [#148](https://github.com/seanthimons/serapeum/issues/148) | Vision model enrichment (optional) | High | High |
+| 6 | [#37](https://github.com/seanthimons/serapeum/issues/37) | Figure review & selection UI | Medium | Medium |
+| 7 | [#29](https://github.com/seanthimons/serapeum/issues/29) | Figure injection into Quarto slides | High | High |
+
+---
+
+## Parking Lot
+
+*Low priority, unslotted — assign to a milestone when ready.*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#30](https://github.com/seanthimons/serapeum/issues/30) | Demo mode | Medium | Low |
+| [#21](https://github.com/seanthimons/serapeum/issues/21) | Semantic Scholar integration | High | Low |
 
 ---
 
@@ -184,6 +223,10 @@ High-effort, high-payoff features for the future.
 - [x] [#100](https://github.com/seanthimons/serapeum/issues/100): feat: Methodology Extractor preset (v10.0 Phase 48)
 - [x] [#101](https://github.com/seanthimons/serapeum/issues/101): feat: Gap Analysis Report preset (v10.0 Phase 49)
 - [x] [#88](https://github.com/seanthimons/serapeum/issues/88): Slim Conclusions preset — remove redundant gaps section (covered by Gap Analysis #101)
+- [x] [#143](https://github.com/seanthimons/serapeum/issues/143): bug: Slider and histogram do not align on year filter (v11.0 Phase 56)
+- [x] [#149](https://github.com/seanthimons/serapeum/issues/149): Major buttons should have tooltips (v12.0)
+- [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
+- [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 
 ---
 
@@ -203,3 +246,5 @@ High-effort, high-payoff features for the future.
 - `priority:high` - High impact + Low/Medium complexity (quick wins, critical fixes)
 - `priority:medium` - Medium impact or High impact + High complexity
 - `priority:low` - Low impact items
+
+**Milestones** are tracked via [GitHub Milestones](https://github.com/seanthimons/serapeum/milestones), not labels.

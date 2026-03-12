@@ -99,17 +99,62 @@ locate_cost_history_segment <- function(chart_data, hover, tolerance = 0.45) {
   candidates[1, , drop = FALSE]
 }
 
-build_cost_history_tooltip <- function(segment_row, chart_data, segments) {
-  operation_key <- as.character(segment_row$operation[1])
-  segment_models <- segments[
-    segments$date == segment_row$date[1] & segments$operation == operation_key,
-    ,
-    drop = FALSE
-  ]
-  segment_models <- segment_models[order(-segment_models$total_cost, segment_models$model_label), , drop = FALSE]
+locate_cost_history_day <- function(chart_data, hover, tolerance = 0.45) {
+  if (is.null(hover$x) || nrow(chart_data) == 0) {
+    return(NULL)
+  }
 
-  day_rows <- chart_data[chart_data$date == segment_row$date[1], , drop = FALSE]
+  day_index <- unique(chart_data[, c("date", "date_label", "x_position", "day_total"), drop = FALSE])
+  day_index$distance <- abs(day_index$x_position - hover$x)
+  day_index <- day_index[day_index$distance <= tolerance, , drop = FALSE]
+
+  if (nrow(day_index) == 0) {
+    return(NULL)
+  }
+
+  day_index <- day_index[order(day_index$distance, day_index$date), , drop = FALSE]
+  day_index[1, , drop = FALSE]
+}
+
+build_cost_history_tooltip <- function(date, chart_data, segments, segment_row = NULL) {
+  day_rows <- chart_data[chart_data$date == date, , drop = FALSE]
   day_rows <- day_rows[order(-day_rows$total_cost), , drop = FALSE]
+  day_total <- if (nrow(day_rows) > 0) day_rows$day_total[1] else 0
+
+  day_segments <- segments[segments$date == date, , drop = FALSE]
+  total_requests <- sum(day_segments$request_count, na.rm = TRUE)
+  total_tokens <- sum(day_segments$total_tokens, na.rm = TRUE)
+
+  model_rows <- stats::aggregate(
+    cbind(total_cost, request_count, total_tokens) ~ model_label,
+    data = day_segments,
+    FUN = sum
+  )
+  model_rows <- model_rows[order(-model_rows$total_cost, model_rows$model_label), , drop = FALSE]
+
+  header_title <- "Daily Usage"
+  header_icon <- icon_chart_bar()
+  header_amount <- format_cost_currency(day_total)
+  header_subtitle <- paste(format(date, "%b %d, %Y"), "total", format_cost_currency(day_total))
+  detail_requests <- total_requests
+  detail_tokens <- total_tokens
+
+  if (!is.null(segment_row)) {
+    operation_key <- as.character(segment_row$operation[1])
+    segment_models <- segments[
+      segments$date == date & segments$operation == operation_key,
+      ,
+      drop = FALSE
+    ]
+    segment_models <- segment_models[order(-segment_models$total_cost, segment_models$model_label), , drop = FALSE]
+    header_title <- as.character(segment_row$operation_label[1])
+    header_icon <- render_cost_operation_icon(operation_key, class = "small")
+    header_amount <- format_cost_currency(segment_row$total_cost[1])
+    detail_requests <- segment_row$request_count[1]
+    detail_tokens <- segment_row$total_tokens[1]
+  } else {
+    segment_models <- model_rows
+  }
 
   tags$div(
     class = "cost-history-tooltip-card",
@@ -117,21 +162,21 @@ build_cost_history_tooltip <- function(segment_row, chart_data, segments) {
       class = "d-flex justify-content-between align-items-start gap-3 mb-2",
       div(
         class = "d-flex align-items-center gap-2",
-        render_cost_operation_icon(operation_key, class = "small"),
+        header_icon,
         div(
-          tags$div(class = "fw-semibold", as.character(segment_row$operation_label[1])),
+          tags$div(class = "fw-semibold", header_title),
           tags$div(
             class = "small text-muted",
-            paste(format(segment_row$date[1], "%b %d, %Y"), "total", format_cost_currency(segment_row$day_total[1]))
+            header_subtitle
           )
         )
       ),
-      tags$span(class = "fw-semibold text-nowrap", format_cost_currency(segment_row$total_cost[1]))
+      tags$span(class = "fw-semibold text-nowrap", header_amount)
     ),
     tags$div(
       class = "d-flex flex-wrap gap-3 small mb-3",
-      tags$span(tags$strong("Requests:"), format_compact_integer(segment_row$request_count[1])),
-      tags$span(tags$strong("Tokens:"), format_compact_integer(segment_row$total_tokens[1]))
+      tags$span(tags$strong("Requests:"), format_compact_integer(detail_requests)),
+      tags$span(tags$strong("Tokens:"), format_compact_integer(detail_tokens))
     ),
     tags$div(
       class = "cost-tooltip-section",
@@ -275,7 +320,7 @@ mod_cost_tracker_ui <- function(id) {
         ),
         div(
           class = "small text-muted mb-2",
-          "Click a stack segment to inspect operation and model spend."
+          "Click a stack segment for operation detail, or click a day to inspect daily usage."
         ),
         div(
           class = "cost-history-chart-wrap",
@@ -480,11 +525,18 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL, th
       req(!is.null(click), nrow(chart) > 0)
 
       segment_row <- locate_cost_history_segment(chart, click)
-      if (is.null(segment_row)) {
-        selected_cost_segment(NULL)
-      } else {
-        selected_cost_segment(list(segment_row = segment_row))
+      if (!is.null(segment_row)) {
+        selected_cost_segment(list(mode = "segment", date = segment_row$date[1], segment_row = segment_row))
+        return()
       }
+
+      day_row <- locate_cost_history_day(chart, click)
+      if (is.null(day_row)) {
+        selected_cost_segment(NULL)
+        return()
+      }
+
+      selected_cost_segment(list(mode = "day", date = day_row$date[1]))
     })
 
     output$cost_history_tooltip <- renderUI({
@@ -497,7 +549,12 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL, th
       tags$div(
         class = "cost-history-tooltip-panel",
         style = build_cost_tooltip_panel_style(theme_mode()),
-        build_cost_history_tooltip(selected$segment_row, chart, segments)
+        build_cost_history_tooltip(
+          date = selected$date,
+          chart_data = chart,
+          segments = segments,
+          segment_row = if (identical(selected$mode, "segment")) selected$segment_row else NULL
+        )
       )
     })
 
