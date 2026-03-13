@@ -1088,6 +1088,7 @@ server <- function(input, output, session) {
 
     if (view == "welcome" || is.null(nb_id)) {
       # Check setup status for live indicators
+      cfg <- effective_config()
       has_or_key <- !is.null(get_setting(cfg, "openrouter", "api_key"))
       has_chat_model <- !is.null(get_db_setting(con, "chat_model")) ||
                         !is.null(get_setting(cfg, "defaults", "chat_model"))
