@@ -1,0 +1,185 @@
+# Research Refiner Business Logic
+#
+# Candidate fetching, anchor reference resolution, and scoring pipeline.
+# Designed for use inside mirai workers — no DuckDB or Shiny dependencies.
+
+#' Fetch anchor paper's reference lists from OpenAlex
+#'
+#' For each seed paper, retrieves the paper's metadata and its referenced_works
+#' list. Returns structures needed to compute seed_connectivity.
+#'
+#' @param seed_ids Character vector of OpenAlex work IDs (W-prefixed)
+#' @param email Email for OpenAlex polite pool
+#' @param api_key Optional OpenAlex API key
+#' @return List with:
+#'   - anchor_refs: list of character vectors (referenced_works per seed)
+#'   - anchor_ids: character vector of seed paper IDs
+#'   - anchor_papers: list of parsed work objects
+fetch_anchor_refs <- function(seed_ids, email, api_key = NULL) {
+  anchor_refs <- list()
+  anchor_papers <- list()
+
+  for (sid in seed_ids) {
+    # Fetch the seed paper to get its referenced_works
+    req <- build_openalex_request("works", email, api_key) |>
+      req_url_query(filter = paste0("openalex_id:", sid))
+
+    resp <- tryCatch(req_perform(req), error = function(e) NULL)
+    if (is.null(resp)) next
+
+    body <- resp_body_json(resp)
+    if (is.null(body$results) || length(body$results) == 0) next
+
+    parsed <- parse_openalex_work(body$results[[1]])
+    anchor_papers <- c(anchor_papers, list(parsed))
+    anchor_refs <- c(anchor_refs, list(parsed$referenced_works))
+  }
+
+  list(
+    anchor_refs = anchor_refs,
+    anchor_ids = seed_ids,
+    anchor_papers = anchor_papers
+  )
+}
+
+#' Prepare candidates from a notebook's abstracts
+#'
+#' Reads papers from the abstracts table and returns a data frame ready for
+#' scoring. Called from the main Shiny process (has DB access).
+#'
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param exclude_ids Optional character vector of paper IDs to exclude (e.g., seed papers)
+#' @return Data frame with columns needed by score_candidate_pool
+prepare_candidates_from_notebook <- function(con, notebook_id, exclude_ids = character(0)) {
+  papers <- dbGetQuery(con, "
+    SELECT paper_id, title, authors, abstract, year, venue, doi,
+           cited_by_count, fwci, referenced_works_count
+    FROM abstracts
+    WHERE notebook_id = ?
+  ", list(notebook_id))
+
+  if (nrow(papers) == 0) return(papers)
+
+  # Exclude seed papers from candidates
+
+  if (length(exclude_ids) > 0) {
+    papers <- papers[!papers$paper_id %in% exclude_ids, , drop = FALSE]
+  }
+
+  # Ensure numeric types
+  papers$cited_by_count <- as.integer(papers$cited_by_count %||% 0L)
+  papers$year <- as.integer(papers$year)
+  papers$fwci <- as.numeric(papers$fwci)
+
+  # Initialize optional scoring columns as NA (will be computed if data available)
+  papers$seed_connectivity <- NA_real_
+  papers$bridge_score <- NA_real_
+
+  papers
+}
+
+#' Compute seed connectivity for all candidates
+#'
+#' For each candidate, counts how many seed papers have a direct citation
+#' link. Requires anchor_refs (what seeds cite) and candidate referenced_works
+#' (what candidates cite).
+#'
+#' @param candidates Data frame of candidates (must have paper_id column)
+#' @param anchor_data List from fetch_anchor_refs()
+#' @param candidate_refs Named list: paper_id -> character vector of referenced_works
+#'   (optional; if NULL, only forward connectivity is computed)
+#' @return Numeric vector of connectivity scores (same length as candidates)
+compute_pool_connectivity <- function(candidates, anchor_data,
+                                       candidate_refs = NULL) {
+  vapply(seq_len(nrow(candidates)), function(i) {
+    pid <- candidates$paper_id[i]
+    crefs <- if (!is.null(candidate_refs)) {
+      candidate_refs[[pid]] %||% character(0)
+    } else {
+      character(0)
+    }
+    compute_seed_connectivity(
+      pid,
+      anchor_data$anchor_refs,
+      anchor_data$anchor_ids,
+      crefs
+    )
+  }, numeric(1))
+}
+
+#' Fetch candidates from seed papers via OpenAlex
+#'
+#' For each seed, fetches citing papers, cited papers, and related papers.
+#' De-duplicates across seeds. Returns a data frame ready for scoring.
+#'
+#' @param seed_ids Character vector of seed paper IDs
+#' @param email Email for OpenAlex
+#' @param api_key Optional API key
+#' @param per_page Results per page per query (default 50)
+#' @param progress_callback Optional function(message) for progress updates
+#' @return Data frame of unique candidate papers
+fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
+                                         per_page = 50,
+                                         progress_callback = NULL) {
+  all_papers <- list()
+  seen_ids <- character(0)
+
+  for (i in seq_along(seed_ids)) {
+    sid <- seed_ids[i]
+    if (!is.null(progress_callback)) {
+      progress_callback(paste0("Fetching papers for seed ", i, "/", length(seed_ids)))
+    }
+
+    # Fetch citing, cited, and related
+    citing <- tryCatch(
+      get_citing_papers(sid, email, api_key, per_page = per_page),
+      error = function(e) list()
+    )
+    cited <- tryCatch(
+      get_cited_papers(sid, email, api_key, per_page = per_page),
+      error = function(e) list()
+    )
+    related <- tryCatch(
+      get_related_papers(sid, email, api_key, per_page = per_page),
+      error = function(e) list()
+    )
+
+    for (paper in c(citing, cited, related)) {
+      if (paper$paper_id %in% seen_ids) next
+      if (paper$paper_id %in% seed_ids) next  # Exclude seeds from candidates
+      seen_ids <- c(seen_ids, paper$paper_id)
+      all_papers <- c(all_papers, list(paper))
+    }
+  }
+
+  if (length(all_papers) == 0) {
+    return(data.frame(
+      paper_id = character(0), title = character(0), authors = character(0),
+      abstract = character(0), year = integer(0), venue = character(0),
+      doi = character(0), cited_by_count = integer(0), fwci = double(0),
+      referenced_works_count = integer(0), seed_connectivity = double(0),
+      bridge_score = double(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Convert list of papers to data frame
+  data.frame(
+    paper_id = vapply(all_papers, function(p) p$paper_id, character(1)),
+    title = vapply(all_papers, function(p) p$title %||% "Untitled", character(1)),
+    authors = vapply(all_papers, function(p) {
+      if (length(p$authors) > 0) jsonlite::toJSON(p$authors, auto_unbox = TRUE) else "[]"
+    }, character(1)),
+    abstract = vapply(all_papers, function(p) p$abstract %||% NA_character_, character(1)),
+    year = vapply(all_papers, function(p) as.integer(p$year %||% NA_integer_), integer(1)),
+    venue = vapply(all_papers, function(p) p$venue %||% NA_character_, character(1)),
+    doi = vapply(all_papers, function(p) p$doi %||% NA_character_, character(1)),
+    cited_by_count = vapply(all_papers, function(p) as.integer(p$cited_by_count %||% 0L), integer(1)),
+    fwci = vapply(all_papers, function(p) as.numeric(p$fwci %||% NA_real_), numeric(1)),
+    referenced_works_count = vapply(all_papers, function(p) as.integer(p$referenced_works_count %||% 0L), integer(1)),
+    seed_connectivity = NA_real_,
+    bridge_score = NA_real_,
+    stringsAsFactors = FALSE
+  )
+}
