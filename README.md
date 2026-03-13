@@ -16,6 +16,8 @@ Upload PDFs and chat with your documents using RAG (Retrieval-Augmented Generati
 - **Chat with citations** - Get answers with document name and page number references
 - **Markdown rendering** - Assistant responses display with formatted headers, tables, lists, and code blocks
 - **One-click presets** - Summarize, Key Points, Study Guide, Outline, and more
+- **Synthesis progress feedback** - Status modal with rotating stage indicators for long-running presets
+- **Editable prompts** - Expand the prompt editor to view and customize LLM prompts before sending
 - **Chat export** - Download conversations as Markdown (.md) or styled HTML (.html)
 - **Full-text search** - Vector embeddings for semantic search across documents
 - **Slide generation** - Generate Quarto RevealJS presentations from your research
@@ -81,12 +83,20 @@ Monitor API usage in real-time.
 - **Cost history** - 30-day bar chart of daily API spending
 - **Per-call breakdown** - Detailed log of every API call with model, tokens, and cost
 
+### Onboarding
+
+- **Guided welcome wizard** - 5-step workflow modal for new users (Set Up → Find → Collect → Analyze → Audit)
+- **Welcome landing page** - Persistent home screen with live setup status indicators and action buttons
+- **Contextual help text** - Each sidebar section shows a brief description on first load
+- **Version tracking** - Version badge in the title bar, What's New section on the About page
+
 ### Settings & Configuration
 
 - **API key validation** - Visual indicators show if keys are configured and working
 - **Model selection** - Choose from budget, mid-tier, or premium chat models
 - **Embedding models** - Select from OpenAI, Google, Mistral, and more
 - **Quality data downloads** - Fetch predatory journal lists and retraction databases
+- **Verbose API logging** - Toggle to log OpenAlex API calls to the R console for debugging
 
 ### Local-First Architecture
 
@@ -144,7 +154,7 @@ Open http://localhost:8080 in your browser.
 
 - DuckDB database is created automatically
 - Quality data (predatory journals, retraction watch, OpenAlex topics) is seeded from bundled RDS files — no download needed
-- Startup wizard guides you through your first search
+- Welcome wizard guides you through setup, search, and analysis in 5 steps
 
 ## Usage
 

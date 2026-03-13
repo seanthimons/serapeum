@@ -23,6 +23,17 @@ mod_document_notebook_ui <- function(id) {
       }
     ", ns("send")))),
 
+    # JavaScript handler for synthesis progress modal status updates
+    tags$script(HTML("
+      if (!window._synthStatusRegistered) {
+        window._synthStatusRegistered = true;
+        Shiny.addCustomMessageHandler('updateSynthesisStatus', function(data) {
+          var msg = document.getElementById(data.msg_id);
+          if (msg) msg.textContent = data.message;
+        });
+      }
+    ")),
+
     # JavaScript handler for re-index progress updates
     tags$script(HTML("
       Shiny.addCustomMessageHandler('updateReindexProgress', function(data) {
@@ -35,6 +46,32 @@ mod_document_notebook_ui <- function(id) {
         if (msg) msg.textContent = data.message;
       });
     ")),
+
+    # JavaScript: track prompt editor open/closed state
+    tags$script(HTML(sprintf("
+      $(document).on('toggle', '#%s', function() {
+        Shiny.setInputValue('%s', this.open, {priority: 'event'});
+      });
+    ", ns("prompt_details"), ns("prompt_editor_open")))),
+
+    # JavaScript: handler to populate prompt editor textarea
+    tags$script(HTML("
+      if (!window._populatePromptRegistered) {
+        window._populatePromptRegistered = true;
+        Shiny.addCustomMessageHandler('populatePromptEditor', function(data) {
+          var el = document.getElementById(data.input_id);
+          if (el) {
+            el.value = data.text;
+            $(el).trigger('change');
+          }
+        });
+      }
+    ")),
+
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Upload PDFs and use AI to chat with your documents, generate summaries, and extract insights."
+    ),
 
     layout_columns(
       col_widths = c(4, 8),
@@ -144,6 +181,21 @@ mod_document_notebook_ui <- function(id) {
             class = "flex-grow-1 overflow-auto mb-3 p-2",
             style = "background-color: var(--bs-tertiary-bg); border-radius: 0.5rem;",
             uiOutput(ns("messages"))
+          ),
+          # Collapsible prompt editor (opt-in)
+          tags$details(
+            id = ns("prompt_details"),
+            class = "mb-2",
+            tags$summary(class = "text-muted small", style = "cursor: pointer;",
+                         icon_edit(), " View/Edit Prompt"),
+            div(
+              class = "border rounded p-2 mt-1",
+              textAreaInput(ns("prompt_edit"), NULL,
+                            placeholder = "The assembled prompt will appear here when you type a message or click a preset...",
+                            rows = 4, width = "100%"),
+              p(class = "text-muted small mb-0",
+                "Edit the prompt text before sending. Collapse this section to use the default prompts.")
+            )
           ),
           div(
             class = "d-flex gap-2",
@@ -847,13 +899,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Add loading spinner if processing
       if (is_processing()) {
+        doc_count <- tryCatch(nrow(list_documents(con(), notebook_id())), error = function(e) 0L)
+        status_text <- if (doc_count > 0) {
+          sprintf("Analyzing %d document%s...", doc_count, if (doc_count == 1) "" else "s")
+        } else {
+          "Thinking..."
+        }
         msg_list <- c(msg_list, list(
           div(
             class = "d-flex justify-content-start mb-2",
             div(
               class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
               div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
-              span(class = "text-muted", "Thinking...")
+              span(class = "text-muted", status_text)
             )
           )
         ))
@@ -901,10 +959,31 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       user_msg <- trimws(input$user_input)
       if (nchar(user_msg) == 0) return()
 
+      # If prompt editor is expanded and empty, populate it with the system prompt
+      # and wait for the user to review/edit before sending
+      edited_prompt <- trimws(input$prompt_edit %||% "")
+      editor_open <- isTRUE(input$prompt_editor_open)
+      if (editor_open && nchar(edited_prompt) == 0) {
+        rag_system <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. Always cite your sources using the format [Document Name, p.X] or [Paper Title]."
+        assembled <- paste0("[System Prompt]\n", rag_system, "\n\n[Your Question]\n", user_msg)
+        session$sendCustomMessage("populatePromptEditor", list(
+          input_id = ns("prompt_edit"),
+          text = assembled
+        ))
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
+        # Re-enable the send button (it was disabled by the click handler JS)
+        session$sendCustomMessage("docChatReady", ns(""))
+        return()
+      }
+
+      effective_msg <- if (nchar(edited_prompt) > 0) edited_prompt else user_msg
+
       updateTextInput(session, "user_input", value = "")
+      if (nchar(edited_prompt) > 0) updateTextAreaInput(session, "prompt_edit", value = "")
       is_processing(TRUE)
 
-      # Add user message
+      # Add user message (show original question in chat, not edited prompt)
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = user_msg, timestamp = Sys.time())))
       messages(msgs)
@@ -914,7 +993,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
+        rag_query(con(), cfg, effective_msg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
@@ -930,11 +1009,68 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       # This won't work directly - need JS for Enter key
     }, ignoreInit = TRUE)
 
+    # Synthesis progress modal helpers
+    show_synthesis_modal <- function(label) {
+      showModal(modalDialog(
+        title = tagList(icon_spinner(class = "fa-spin"), paste(" Generating:", label)),
+        div(
+          class = "text-center py-3",
+          div(class = "spinner-border text-primary mb-3", role = "status",
+              style = "width: 3rem; height: 3rem;"),
+          div(id = ns("synthesis_status"), class = "text-muted", "Preparing context...")
+        ),
+        footer = NULL,
+        easyClose = FALSE,
+        size = "m"
+      ))
+    }
+
+    update_synthesis_status <- function(message) {
+      session$sendCustomMessage("updateSynthesisStatus", list(
+        msg_id = ns("synthesis_status"),
+        message = message
+      ))
+    }
+
+    # Helper: populate prompt editor and return TRUE, or return FALSE if editor is closed
+    populate_if_editor_open <- function(prompt_text) {
+      editor_open <- isTRUE(input$prompt_editor_open)
+      if (editor_open) {
+        session$sendCustomMessage("populatePromptEditor", list(
+          input_id = ns("prompt_edit"),
+          text = prompt_text
+        ))
+      }
+      editor_open
+    }
+
     # Preset buttons
     handle_preset <- function(preset_type, label) {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard: skip modal and show inline warning if no content
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification(
+          "This notebook has no documents yet. Upload a PDF first, then try again.",
+          type = "warning", duration = 5
+        )
+        return()
+      }
+
+      # If prompt editor is expanded, populate it with the preset instruction and wait
+      instruction <- get_preset_instruction(preset_type)
+      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
+        return()
+      }
+
       is_processing(TRUE)
+
+      show_synthesis_modal(label)
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label), timestamp = Sys.time())))
@@ -943,15 +1079,27 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      # Check if user edited the prompt
+      custom_prompt <- NULL
+      edited <- trimws(input$prompt_edit %||% "")
+      if (nchar(edited) > 0) {
+        custom_prompt <- edited
+        updateTextAreaInput(session, "prompt_edit", value = "")
+      }
+
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
-        generate_preset(con(), cfg, nb_id, preset_type, session_id = session$token)
+        generate_preset(con(), cfg, nb_id, preset_type,
+                        session_id = session$token, custom_prompt = custom_prompt)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     }
 
     # Reset Overview popover to defaults each time it opens
@@ -964,7 +1112,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
-      is_processing(TRUE)
+
+      # Empty notebook guard
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        toggle_popover(id = ns("overview_popover"))
+        return()
+      }
 
       depth <- input$overview_depth %||% "concise"
       mode <- input$overview_mode %||% "quick"
@@ -972,7 +1129,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       depth_label <- if (identical(depth, "detailed")) "Detailed" else "Concise"
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
+      # If prompt editor is expanded, populate and wait
+      instruction <- get_preset_instruction("overview")
+      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
+        toggle_popover(id = ns("overview_popover"))
+        return()
+      }
+
+      is_processing(TRUE)
+
       toggle_popover(id = ns("overview_popover"))
+      show_synthesis_modal(paste0("Overview (", depth_label, ", ", mode_label, ")"))
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -986,6 +1155,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "document",
                                  depth = depth, mode = mode, session_id = session$token)
@@ -993,6 +1163,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1001,6 +1172,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
@@ -1010,7 +1182,26 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_conclusions, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # If prompt editor is expanded, populate and wait
+      instruction <- get_preset_instruction("conclusions")
+      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Conclusion Synthesis")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
@@ -1019,15 +1210,18 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "document", session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Literature Review Table preset handler
@@ -1041,9 +1235,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Warning toast for large notebooks (20+ papers)
+      # Empty notebook guard
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # If prompt editor is expanded, populate and wait
+      instruction <- get_preset_instruction("lit_review")
+      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
           sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
@@ -1052,6 +1261,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       }
 
       is_processing(TRUE)
+      show_synthesis_modal("Literature Review Table")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1064,12 +1274,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_lit_review_table(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1078,6 +1290,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Methodology Extractor preset handler
@@ -1091,9 +1304,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Warning toast for large notebooks (20+ papers)
+      # Empty notebook guard
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # If prompt editor is expanded, populate and wait
+      instruction <- get_preset_instruction("methodology_extractor")
+      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
           sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
@@ -1102,6 +1330,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       }
 
       is_processing(TRUE)
+      show_synthesis_modal("Methodology Extractor")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1114,12 +1343,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_methodology_extractor(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1128,6 +1359,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Gap Analysis preset handler
@@ -1141,14 +1373,27 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Minimum 3 papers required for gap analysis
+      # Minimum 3 papers required for gap analysis (also serves as empty guard)
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
       if (doc_count < 3L) {
+        if (doc_count == 0L) {
+          showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                           type = "warning", duration = 5)
+          return()
+        }
         showNotification(
           "Gap analysis requires at least 3 papers. Add more papers to this notebook.",
           type = "error", duration = 8
         )
+        return()
+      }
+
+      # If prompt editor is expanded, populate and wait
+      instruction <- get_preset_instruction("gap_analysis")
+      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
+        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
+                         type = "message", duration = 3)
         return()
       }
 
@@ -1161,6 +1406,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       }
 
       is_processing(TRUE)
+      show_synthesis_modal("Research Gaps")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1173,12 +1419,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_gap_analysis(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1187,6 +1435,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Slides module

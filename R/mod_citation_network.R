@@ -23,6 +23,11 @@ mod_citation_network_ui <- function(id) {
       });
     ")),
 
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Visualize citation relationships between papers to discover influential work and research clusters."
+    ),
+
     # Top controls bar
     div(
       class = "citation-network-controls mb-3 p-3 bg-body-secondary rounded",
