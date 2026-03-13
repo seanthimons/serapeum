@@ -17,6 +17,11 @@ mod_citation_audit_ui <- function(id) {
         )
       ),
 
+      div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+        icon_circle_info(class = "text-primary"),
+        "Check your collection for missing seminal papers and citation gaps."
+      ),
+
       # Controls row
       div(
         class = "card mb-3",

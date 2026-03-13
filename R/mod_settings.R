@@ -52,6 +52,9 @@ mod_settings_ui <- function(id) {
           p(class = "text-muted small",
             "Chunk settings affect how documents are split for processing. ",
             "Changes only apply to newly uploaded documents."),
+          bslib::input_switch(ns("verbose_mode"), "Verbose API logging", value = FALSE),
+          p(class = "text-muted small",
+            "Log OpenAlex API calls to the browser console for debugging."),
           hr(),
           h5(icon_search(), " Search"),
           numericInput(ns("abstracts_per_search"), "Abstracts per Search",
@@ -319,6 +322,10 @@ mod_settings_server <- function(id, con, config_rv) {
       chunk_overlap <- get_db_setting(con(), "chunk_overlap") %||%
                        get_setting(cfg, "app", "chunk_overlap") %||% 50
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
+
+      verbose_mode <- get_db_setting(con(), "verbose_mode") %||% FALSE
+      bslib::update_switch("verbose_mode", value = isTRUE(verbose_mode))
+      options(serapeum.verbose_api = isTRUE(verbose_mode))
 
       # Search settings
       abstracts_per_search <- get_db_setting(con(), "abstracts_per_search") %||%
@@ -643,6 +650,8 @@ mod_settings_server <- function(id, con, config_rv) {
         save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
         save_db_setting(con(), "abstracts_per_search", input$abstracts_per_search)
         save_db_setting(con(), "network_palette", input$network_palette)
+        save_db_setting(con(), "verbose_mode", isTRUE(input$verbose_mode))
+        options(serapeum.verbose_api = isTRUE(input$verbose_mode))
 
         showNotification("Settings saved!", type = "message")
       }, error = function(e) {
