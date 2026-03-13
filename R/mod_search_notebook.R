@@ -273,6 +273,11 @@ mod_search_notebook_ui <- function(id) {
               "Select all"
             )
           ),
+          # Paper count status line
+          div(
+            class = "text-muted small mb-2",
+            textOutput(ns("paper_count_status"), inline = TRUE)
+          ),
           div(
             id = ns("paper_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
@@ -1213,6 +1218,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       count <- get_unknown_year_count(con(), nb_id)
       if (count > 0) {
         paste0("(", count, " unknown)")
+      } else {
+        ""
+      }
+    })
+
+    # Paper count status line (visible / loaded / total)
+    output$paper_count_status <- renderText({
+      visible <- nrow(filtered_papers())
+      loaded <- nrow(papers_data())
+      total <- pagination_state$api_total
+
+      if (total > 0) {
+        sprintf("%s visible / %s loaded / %s total",
+                format_large_number(visible),
+                format_large_number(loaded),
+                format_large_number(total))
+      } else if (loaded > 0) {
+        sprintf("%s visible / %s loaded",
+                format_large_number(visible),
+                format_large_number(loaded))
       } else {
         ""
       }
