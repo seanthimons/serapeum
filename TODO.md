@@ -33,7 +33,7 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#151](https://github.com/seanthimons/serapeum/issues/151) | Duplicate keyword ban/keep behavior to per-abstract keywords | Medium | Medium |
+| ~~[#151](https://github.com/seanthimons/serapeum/issues/151)~~ | ~~Duplicate keyword ban/keep behavior to per-abstract keywords~~ | ~~Medium~~ | ~~Medium~~ |
 | ~~[#125](https://github.com/seanthimons/serapeum/issues/125)~~ | ~~Update file/document filter types reported by OpenAlex~~ | ~~Medium~~ | ~~Medium~~ |
 | [#11](https://github.com/seanthimons/serapeum/issues/11) | Recursive abstract searching | High | High |
 | [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
@@ -228,6 +228,7 @@ High-effort, high-payoff features for the future.
 - [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 - [x] feat: Community-aware edge weighting for citation network cluster separation
+- [x] [#151](https://github.com/seanthimons/serapeum/issues/151): Per-abstract keyword ban/keep filtering (v13.0)
 
 ---
 

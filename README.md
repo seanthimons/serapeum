@@ -25,6 +25,7 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
 
 - **Smart search** - Query across titles, abstracts, or full text
 - **Document type filters** - Filter by article, review, preprint, book, dissertation, dataset
+- **Keyword filters** - Ban or keep keywords from the global panel or directly on any abstract card; promoted keywords appear in the global chip bin
 - **Quality filters** - Exclude retracted papers, flag predatory journals/publishers
 - **Citation filters** - Set minimum citation thresholds
 - **Rich metadata display**:
