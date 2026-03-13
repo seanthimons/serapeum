@@ -943,8 +943,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       remaining
     })
 
-    # Keyword filter module - returns filtered papers reactive
-    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
+    # Keyword filter module - returns list with filtered_papers + state accessors
+    keyword_filter_result <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
+    keyword_filtered_papers <- keyword_filter_result$filtered_papers
+
+    # Delegated click handler for per-abstract keyword toggles (#151)
+    observeEvent(input$abstract_kw_click, {
+      kw <- input$abstract_kw_click$keyword
+      if (is.null(kw) || !nzchar(kw)) return()
+
+      current_state <- keyword_filter_result$get_keyword_state(kw)
+      new_state <- switch(current_state,
+        "neutral" = "include",
+        "include" = "exclude",
+        "exclude" = "neutral",
+        "include"
+      )
+      keyword_filter_result$set_keyword_state(kw, new_state)
+    }, ignoreInit = TRUE)
 
     # Phase 55: Type filter - client-side filtering between keyword and journal
     type_filtered_papers <- reactive({
@@ -1772,7 +1788,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         paste(authors, collapse = ", ")
       }
 
-      # Parse keywords
+      # Parse keywords — interactive badges with ban/keep toggle
       keywords_ui <- NULL
       if (!is.null(paper$keywords) && !is.na(paper$keywords) && nchar(paper$keywords) > 0) {
         keywords <- tryCatch({
@@ -1784,7 +1800,46 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = "mt-2",
             tags$small(class = "text-muted", "Keywords: "),
             lapply(keywords, function(k) {
-              span(class = "badge bg-secondary me-1", k)
+              # Look up current state from global keyword filter
+              k_lower <- tolower(k)
+              state <- keyword_filter_result$get_keyword_state(k_lower)
+
+              badge_class <- switch(state,
+                "include" = "badge bg-success me-1",
+                "exclude" = "badge bg-danger me-1",
+                "badge bg-secondary me-1"
+              )
+
+              badge_icon <- switch(state,
+                "include" = icon_add(class = "me-1"),
+                "exclude" = icon_minus(class = "me-1"),
+                NULL
+              )
+
+              badge_title <- switch(state,
+                "neutral" = paste0("Click to include '", k, "' in filter"),
+                "include" = paste0("Click to exclude '", k, "'"),
+                "exclude" = paste0("Click to clear '", k, "' filter"),
+                ""
+              )
+
+              # Escape keyword for safe JS embedding
+              k_escaped <- htmltools::htmlEscape(k_lower, attribute = TRUE)
+
+              onclick_js <- sprintf(
+                "Shiny.setInputValue('%s', {keyword: '%s', nonce: Math.random()})",
+                ns("abstract_kw_click"),
+                k_escaped
+              )
+
+              tags$span(
+                class = badge_class,
+                style = "cursor: pointer;",
+                onclick = onclick_js,
+                title = badge_title,
+                badge_icon,
+                k
+              )
             })
           )
         }
