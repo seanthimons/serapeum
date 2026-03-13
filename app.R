@@ -1128,11 +1128,9 @@ server <- function(input, output, session) {
       }
 
       return(
-        card(
-          class = "border-0 bg-transparent",
-          card_body(
-            class = "py-4",
-            style = "max-width: 750px; margin: 0 auto;",
+        div(
+          class = "py-4",
+          style = "max-width: 750px; margin: 0 auto;",
             div(
               class = "text-center mb-4",
               icon_book_open(class = "fa-3x text-primary mb-3"),
@@ -1209,7 +1207,6 @@ server <- function(input, output, session) {
             )
           )
         )
-      )
     }
 
     # Get notebook info
