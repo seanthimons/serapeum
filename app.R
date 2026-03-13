@@ -1116,7 +1116,7 @@ server <- function(input, output, session) {
             class = "text-center",
             style = "min-width: 48px;",
             span(class = "badge bg-primary rounded-pill fs-5", number),
-            div(icon_fn(class = paste("fa-lg mt-2", icon_class)))
+            div(class = "mt-3", icon_fn(class = paste("fa-lg", icon_class)))
           ),
           div(
             class = "flex-grow-1",
