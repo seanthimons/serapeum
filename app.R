@@ -135,6 +135,11 @@ ui <- page_sidebar(
       max-width: 250px;
     }
     /* Dark theme support for frozen column — handled by catppuccin_dark_css() */
+
+    /* Welcome wizard modal — position near top of viewport */
+    .modal:has(#wizard-modal-marker) .modal-dialog {
+      margin-top: 5vh;
+    }
     ")),
     tags$script(HTML("
     // Startup wizard localStorage support
@@ -630,6 +635,7 @@ server <- function(input, output, session) {
     modalDialog(
       title = tagList(icon_book_open(), " Welcome to Serapeum"),
       div(
+        id = "wizard-modal-marker",
         class = "mb-3",
         p(class = "lead text-center", "Your research workflow in 5 steps")
       ),
