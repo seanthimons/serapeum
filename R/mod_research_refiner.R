@@ -190,7 +190,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       if (nchar(seed_input) == 0) return()
 
       cfg <- config_r()
-      email <- get_setting(cfg, "openalex", "email")
+      email <- get_db_setting(con_r(), "openalex_email") %||%
+               get_setting(cfg, "openalex", "email")
       api_key <- get_setting(cfg, "openalex", "api_key")
 
       if (is.null(email) || nchar(email) == 0) {
@@ -341,7 +342,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
     observeEvent(input$run_scoring, {
       con <- con_r()
       cfg <- config_r()
-      email <- get_setting(cfg, "openalex", "email")
+      email <- get_db_setting(con, "openalex_email") %||%
+               get_setting(cfg, "openalex", "email")
       api_key <- get_setting(cfg, "openalex", "api_key")
 
       if (is.null(email) || nchar(email) == 0) {
@@ -424,7 +426,10 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                            scored_count = nrow(scored))
 
         current_run_id(run_id)
-        scored_results(scored)
+        # Read back from DB to get canonical columns including user_action
+        db_results <- get_refiner_results(con, run_id)
+        db_results$rank <- seq_len(nrow(db_results))
+        scored_results(db_results)
 
         incProgress(1.0, detail = "Done!")
       })
@@ -465,7 +470,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           strong(paste("Results:", nrow(results), "papers scored")),
           div(
             class = "d-flex gap-2",
-            actionButton(ns("accept_top_n"), "Accept Top 25",
+            actionButton(ns("accept_top_n"),
+                         if (nrow(results) <= 25) "Accept All" else "Accept Top 25",
                          icon = icon("check"), class = "btn-sm btn-outline-success"),
             actionButton(ns("reject_below_median"), "Reject Bottom Half",
                          icon = icon("times"), class = "btn-sm btn-outline-danger")
@@ -478,7 +484,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
             class = "list-group list-group-flush",
             lapply(seq_len(min(nrow(results), 100)), function(i) {
               r <- results[i, ]
-              action <- if (!is.null(r$user_action)) r$user_action else "pending"
+              action <- r$user_action %||% "pending"
+              if (is.na(action)) action <- "pending"
               bg_class <- switch(action,
                 accepted = "list-group-item-success",
                 rejected = "list-group-item-danger",
@@ -535,12 +542,20 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                          paste0("Score: ", round(r$utility_score, 3))),
                     div(
                       class = "btn-group btn-group-sm",
-                      actionButton(ns(paste0("accept_", i)), NULL,
-                                   icon = icon("check"),
-                                   class = if (action == "accepted") "btn-success" else "btn-outline-success"),
-                      actionButton(ns(paste0("reject_", i)), NULL,
-                                   icon = icon("times"),
-                                   class = if (action == "rejected") "btn-danger" else "btn-outline-danger")
+                      tags$button(
+                        id = ns(paste0("accept_", i)),
+                        type = "button",
+                        class = paste("btn btn-sm action-button",
+                          if (action == "accepted") "btn-success" else "btn-outline-success"),
+                        icon("check")
+                      ),
+                      tags$button(
+                        id = ns(paste0("reject_", i)),
+                        type = "button",
+                        class = paste("btn btn-sm action-button",
+                          if (action == "rejected") "btn-danger" else "btn-outline-danger"),
+                        icon("times")
+                      )
                     )
                   )
                 )
@@ -552,49 +567,50 @@ mod_research_refiner_server <- function(id, con_r, config_r,
     })
 
     # --- Accept/reject individual papers ---
-    observe({
-      results <- scored_results()
-      if (is.null(results) || nrow(results) == 0) return()
+    # Pre-create handlers for max 100 slots (created once, not reactively)
+    lapply(seq_len(100), function(i) {
+      observeEvent(input[[paste0("accept_", i)]], {
+        results <- scored_results()
+        if (is.null(results) || i > nrow(results)) return()
 
-      n <- min(nrow(results), 100)
-      lapply(seq_len(n), function(i) {
-        observeEvent(input[[paste0("accept_", i)]], {
-          con <- con_r()
-          run_id <- current_run_id()
-          results <- scored_results()
-          r <- results[i, ]
+        con <- con_r()
+        run_id <- current_run_id()
+        current_action <- results$user_action[[i]] %||% "pending"
+        if (is.na(current_action)) current_action <- "pending"
 
-          # Toggle: if already accepted, revert to pending
-          new_action <- if (!is.null(r$user_action) && r$user_action == "accepted") "pending" else "accepted"
+        # Toggle: if already accepted, revert to pending
+        new_action <- if (current_action == "accepted") "pending" else "accepted"
 
-          # Update in DB using paper_id match
-          dbExecute(con, "
-            UPDATE refiner_results SET user_action = ?
-            WHERE run_id = ? AND paper_id = ?
-          ", list(new_action, run_id, r$paper_id))
+        # Update in DB using paper_id match
+        dbExecute(con, "
+          UPDATE refiner_results SET user_action = ?
+          WHERE run_id = ? AND paper_id = ?
+        ", list(new_action, run_id, results$paper_id[[i]]))
 
-          # Update local state
-          results$user_action[i] <- new_action
-          scored_results(results)
-        }, ignoreInit = TRUE)
+        # Update local state
+        results$user_action[[i]] <- new_action
+        scored_results(results)
+      }, ignoreInit = TRUE)
 
-        observeEvent(input[[paste0("reject_", i)]], {
-          con <- con_r()
-          run_id <- current_run_id()
-          results <- scored_results()
-          r <- results[i, ]
+      observeEvent(input[[paste0("reject_", i)]], {
+        results <- scored_results()
+        if (is.null(results) || i > nrow(results)) return()
 
-          new_action <- if (!is.null(r$user_action) && r$user_action == "rejected") "pending" else "rejected"
+        con <- con_r()
+        run_id <- current_run_id()
+        current_action <- results$user_action[[i]] %||% "pending"
+        if (is.na(current_action)) current_action <- "pending"
 
-          dbExecute(con, "
-            UPDATE refiner_results SET user_action = ?
-            WHERE run_id = ? AND paper_id = ?
-          ", list(new_action, run_id, r$paper_id))
+        new_action <- if (current_action == "rejected") "pending" else "rejected"
 
-          results$user_action[i] <- new_action
-          scored_results(results)
-        }, ignoreInit = TRUE)
-      })
+        dbExecute(con, "
+          UPDATE refiner_results SET user_action = ?
+          WHERE run_id = ? AND paper_id = ?
+        ", list(new_action, run_id, results$paper_id[[i]]))
+
+        results$user_action[[i]] <- new_action
+        scored_results(results)
+      }, ignoreInit = TRUE)
     })
 
     # --- Batch accept top N ---
@@ -604,22 +620,25 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       results <- scored_results()
       req(results, run_id)
 
-      n <- min(25, nrow(results))
-      top_ids <- results$paper_id[1:n]
+      # Only accept non-rejected papers, walking down the ranked list
+      eligible <- which(results$user_action != "rejected")
+      to_accept <- head(eligible, 25)
 
-      # Update DB
-      for (pid in top_ids) {
+      if (length(to_accept) == 0) {
+        showNotification("No eligible papers to accept (all rejected).", type = "warning")
+        return()
+      }
+
+      for (idx in to_accept) {
         dbExecute(con, "
           UPDATE refiner_results SET user_action = 'accepted'
           WHERE run_id = ? AND paper_id = ?
-        ", list(run_id, pid))
+        ", list(run_id, results$paper_id[[idx]]))
+        results$user_action[[idx]] <- "accepted"
       }
 
-      # Update local state
-      results$user_action[1:n] <- "accepted"
       scored_results(results)
-
-      showNotification(paste("Accepted top", n, "papers"), type = "message")
+      showNotification(paste("Accepted top", length(to_accept), "papers"), type = "message")
     })
 
     # --- Reject bottom half ---
@@ -632,19 +651,25 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       mid <- ceiling(nrow(results) / 2)
       if (mid >= nrow(results)) return()
 
-      bottom_ids <- results$paper_id[(mid + 1):nrow(results)]
+      # Only reject non-accepted papers in the bottom half
+      bottom_indices <- (mid + 1):nrow(results)
+      to_reject <- bottom_indices[results$user_action[bottom_indices] != "accepted"]
 
-      for (pid in bottom_ids) {
+      if (length(to_reject) == 0) {
+        showNotification("No eligible papers to reject (all accepted).", type = "warning")
+        return()
+      }
+
+      for (idx in to_reject) {
         dbExecute(con, "
           UPDATE refiner_results SET user_action = 'rejected'
           WHERE run_id = ? AND paper_id = ?
-        ", list(run_id, pid))
+        ", list(run_id, results$paper_id[[idx]]))
+        results$user_action[[idx]] <- "rejected"
       }
 
-      results$user_action[(mid + 1):nrow(results)] <- "rejected"
       scored_results(results)
-
-      showNotification(paste("Rejected", length(bottom_ids), "papers"), type = "message")
+      showNotification(paste("Rejected", length(to_reject), "papers"), type = "message")
     })
 
     # --- Curation section ---

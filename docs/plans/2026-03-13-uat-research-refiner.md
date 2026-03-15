@@ -1,12 +1,37 @@
 ---
 title: "UAT: Research Refiner Module"
 date: 2026-03-13
+uat_date: 2026-03-15
 feature: Research Refiner (Phases 1-5)
 commit: 351743a
 branch: v13-search-discovery
 ---
 
 # UAT: Research Refiner Module
+
+## UAT Results Summary (2026-03-15)
+
+| Test | Result | Notes |
+|------|--------|-------|
+| UAT-1 | PASS | |
+| UAT-2 | PASS | Fixed: email lookup missed DB setting |
+| UAT-3 | PASS | 52 candidates scored |
+| UAT-4 | PASS | Minimal shift with 1 seed — expected |
+| UAT-5 | PASS | |
+| UAT-6 | PASS | |
+| UAT-7 | PASS | |
+| UAT-8 | PASS | Intent text has no scoring impact (follow-up) |
+| UAT-9 | PASS | Fixed: observer stacking, NULL/NA guard, button classes, rank badges |
+| UAT-10 | PASS | Fixed: batch accept now respects prior rejections |
+| UAT-11 | PASS | |
+| UAT-12 | PASS | |
+| UAT-13 | PASS | |
+| UAT-14 | SKIPPED | No preprint-heavy notebook available |
+| UAT-15 | PASS | |
+| UAT-16 | PASS | |
+| UAT-17 | SKIPPED | |
+
+**Bugs fixed:** 7 (email lookup, observer stacking, NULL/NA guard, button classes, rank badges, batch curation state, weight normalization)
 
 ## Context
 
@@ -279,3 +304,33 @@ The Research Refiner is a new standalone Shiny module that scores, ranks, and tr
 **Expected:**
 - Sliders update when mode changes
 - Slider labels match component names (Seed Connectivity, Bridge Score, etc.)
+
+---
+
+## Follow-up Items
+
+1. **Advanced weights need tooltips.** Each weight slider should have a tooltip explaining what the component measures and how it affects ranking (e.g., "Seed Connectivity: proportion of seed papers that cite or are cited by this candidate").
+
+2. **Intent text does not affect scoring.** In "Both" and "Research Intent" modes, the intent is saved as metadata but never used in `score_candidate_pool()`. For intent to influence rankings, a semantic similarity component is needed (e.g., embed intent + compare to abstracts). Currently intent-only mode just drops seed connectivity and scores on citation metrics alone — the intent text is ignored. Consider either adding a Tier 2 semantic signal or making the UI clearer that intent is metadata-only for now.
+
+---
+
+## Review Concerns
+
+_Flagged during plan review — to be validated against implementation before UAT execution._
+
+1. **Weight values in UAT-17 don't sum to 1.0.** Discovery defaults sum to 1.20, Emerging to 1.10. Either the listed values are wrong, or the plan should note that raw weights are re-normalized (consistent with the Context section). Verify against `utils_scoring.R`.
+
+2. **UAT-12 conflates import and idempotency.** "Run import again — no duplicates created" tests different logic (dedup check) than the initial import flow. Consider splitting into a separate case if dedup logic is non-trivial.
+
+3. **UAT-7 acceptance criterion is weak.** "Candidate count should be >0 (depends on seed paper)" is untestable if the seed has no connections. Specify a known seed DOI that guarantees results, or define a fallback assertion.
+
+4. **No UAT covers score persistence (DB round-trip).** `refiner_runs` and `refiner_results` tables are listed as files under test, but no case verifies that scores persist across sessions or that re-opening a previous run restores results.
+
+5. **No UAT covers network failure handling.** What happens when OpenAlex is unreachable during DOI resolution (UAT-2) or candidate fetching (UAT-7)? Graceful error vs. crash.
+
+6. **UAT-6 anchor type label should be verified.** "Research Intent" must match the actual UI label in `mod_research_refiner.R`.
+
+7. **UAT-3 "cit/yr" badge** — confirm this metric is computed and rendered by the module (not mentioned in the scoring engine description).
+
+8. **UAT-10 "Accept Top 25"** — if the button label is dynamic based on result count, the test should note the expected label format.

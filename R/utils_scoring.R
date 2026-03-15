@@ -126,20 +126,17 @@ compute_utility_score <- function(seed_connectivity, bridge_score,
 
   if (length(available) == 0) return(0)
 
-  # Re-normalize weights for available components
+  # Re-normalize weights for available components to sum to 1.0
   total_available_weight <- sum(vapply(available, function(c) c$w, numeric(1)))
   if (total_available_weight == 0) return(0)
 
-  original_total <- sum(weights$w1, weights$w2, weights$w3, weights$w4, weights$w5)
-  scale_factor <- original_total / total_available_weight
-
   score <- 0
   for (comp in available) {
-    adjusted_weight <- comp$w * scale_factor
+    normalized_weight <- comp$w / total_available_weight
     if (comp$penalty) {
-      score <- score - adjusted_weight * comp$val
+      score <- score - normalized_weight * comp$val
     } else {
-      score <- score + adjusted_weight * comp$val
+      score <- score + normalized_weight * comp$val
     }
   }
 
