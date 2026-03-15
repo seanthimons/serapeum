@@ -267,6 +267,29 @@ init_schema <- function(con) {
     )
   ")
 
+  # Document figures table (Stage 2: PDF Image Pipeline, Epic #44)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS document_figures (
+      id VARCHAR PRIMARY KEY,
+      document_id VARCHAR NOT NULL,
+      notebook_id VARCHAR NOT NULL,
+      page_number INTEGER NOT NULL,
+      file_path VARCHAR NOT NULL,
+      extracted_caption VARCHAR,
+      llm_description VARCHAR,
+      figure_label VARCHAR,
+      width INTEGER,
+      height INTEGER,
+      file_size INTEGER,
+      image_type VARCHAR,
+      quality_score REAL,
+      is_excluded BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (document_id) REFERENCES documents(id),
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
@@ -372,6 +395,10 @@ delete_notebook <- function(con, id) {
     )
   ", list(id))
 
+  # Delete figures (DB rows + files) for all documents in notebook
+  dbExecute(con, "DELETE FROM document_figures WHERE notebook_id = ?", list(id))
+  cleanup_figure_files(id)
+
   # Delete documents
   dbExecute(con, "DELETE FROM documents WHERE notebook_id = ?", list(id))
 
@@ -440,6 +467,14 @@ get_document <- function(con, id) {
 #' @param id Document ID
 delete_document <- function(con, id) {
   dbExecute(con, "DELETE FROM chunks WHERE source_id = ?", list(id))
+
+  # Delete figure rows and files (Stage 2: PDF Image Pipeline)
+  doc <- get_document(con, id)
+  if (!is.null(doc)) {
+    dbExecute(con, "DELETE FROM document_figures WHERE document_id = ?", list(id))
+    cleanup_figure_files(doc$notebook_id, id)
+  }
+
   dbExecute(con, "DELETE FROM documents WHERE id = ?", list(id))
 }
 
@@ -1955,4 +1990,145 @@ check_audit_imports <- function(con, run_id, notebook_id) {
       AND work_id IN (SELECT paper_id FROM abstracts WHERE notebook_id = ?)
   ", list(run_id, notebook_id))
   invisible(TRUE)
+}
+
+# ==============================================================================
+# Document Figures — Stage 2: PDF Image Pipeline (Epic #44)
+# ==============================================================================
+
+#' Insert a single figure record
+#' @param con DuckDB connection
+#' @param figure_data Named list with figure metadata
+#' @return Figure ID
+db_insert_figure <- function(con, figure_data) {
+  id <- if (!is.null(figure_data$id)) figure_data$id else uuid::UUIDgenerate()
+
+  dbExecute(con, "
+    INSERT INTO document_figures
+      (id, document_id, notebook_id, page_number, file_path,
+       extracted_caption, llm_description, figure_label,
+       width, height, file_size, image_type, quality_score, is_excluded)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(
+    id,
+    figure_data$document_id,
+    figure_data$notebook_id,
+    as.integer(figure_data$page_number),
+    figure_data$file_path,
+    if (is.null(figure_data$extracted_caption)) NA_character_ else figure_data$extracted_caption,
+    if (is.null(figure_data$llm_description)) NA_character_ else figure_data$llm_description,
+    if (is.null(figure_data$figure_label)) NA_character_ else figure_data$figure_label,
+    if (is.null(figure_data$width)) NA_integer_ else as.integer(figure_data$width),
+    if (is.null(figure_data$height)) NA_integer_ else as.integer(figure_data$height),
+    if (is.null(figure_data$file_size)) NA_integer_ else as.integer(figure_data$file_size),
+    if (is.null(figure_data$image_type)) NA_character_ else figure_data$image_type,
+    if (is.null(figure_data$quality_score)) NA_real_ else as.numeric(figure_data$quality_score),
+    if (is.null(figure_data$is_excluded)) FALSE else as.logical(figure_data$is_excluded)
+  ))
+
+  id
+}
+
+#' Bulk insert figures from extraction pipeline
+#' @param con DuckDB connection
+#' @param figures_df Data frame with figure metadata (one row per figure)
+#' @return Vector of inserted figure IDs
+db_insert_figures_batch <- function(con, figures_df) {
+  ids <- character(nrow(figures_df))
+
+  for (i in seq_len(nrow(figures_df))) {
+    row <- as.list(figures_df[i, ])
+    ids[i] <- db_insert_figure(con, row)
+  }
+
+  ids
+}
+
+#' Get all figures for a document
+#' @param con DuckDB connection
+#' @param document_id Document ID
+#' @return Data frame of figures
+db_get_figures_for_document <- function(con, document_id) {
+  dbGetQuery(con, "
+    SELECT * FROM document_figures
+    WHERE document_id = ?
+    ORDER BY page_number, figure_label
+  ", list(document_id))
+}
+
+#' Get all figures for a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame of figures
+db_get_figures_for_notebook <- function(con, notebook_id) {
+  dbGetQuery(con, "
+    SELECT df.*, d.filename AS document_filename
+    FROM document_figures df
+    JOIN documents d ON df.document_id = d.id
+    WHERE df.notebook_id = ?
+    ORDER BY d.filename, df.page_number, df.figure_label
+  ", list(notebook_id))
+}
+
+#' Get non-excluded figures for slide generation
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param document_ids Optional character vector to filter specific documents
+#' @return Data frame of figures eligible for slides
+db_get_slide_figures <- function(con, notebook_id, document_ids = NULL) {
+  if (!is.null(document_ids) && length(document_ids) > 0) {
+    placeholders <- paste(rep("?", length(document_ids)), collapse = ", ")
+    sql <- sprintf("
+      SELECT * FROM document_figures
+      WHERE notebook_id = ?
+        AND document_id IN (%s)
+        AND is_excluded = FALSE
+      ORDER BY page_number, figure_label
+    ", placeholders)
+    dbGetQuery(con, sql, c(list(notebook_id), as.list(document_ids)))
+  } else {
+    dbGetQuery(con, "
+      SELECT * FROM document_figures
+      WHERE notebook_id = ?
+        AND is_excluded = FALSE
+      ORDER BY page_number, figure_label
+    ", list(notebook_id))
+  }
+}
+
+#' Update a figure record
+#' @param con DuckDB connection
+#' @param figure_id Figure ID
+#' @param ... Named fields to update (extracted_caption, llm_description,
+#'   quality_score, is_excluded, etc.)
+#' @return TRUE on success
+db_update_figure <- function(con, figure_id, ...) {
+  updates <- list(...)
+  if (length(updates) == 0) return(invisible(TRUE))
+
+  allowed_fields <- c("extracted_caption", "llm_description", "figure_label",
+                       "quality_score", "is_excluded", "width", "height",
+                       "file_size", "image_type")
+  fields <- intersect(names(updates), allowed_fields)
+  if (length(fields) == 0) return(invisible(TRUE))
+
+  set_clauses <- paste0(fields, " = ?", collapse = ", ")
+  sql <- sprintf("UPDATE document_figures SET %s WHERE id = ?", set_clauses)
+
+  params <- c(lapply(fields, function(f) updates[[f]]), list(figure_id))
+
+  dbExecute(con, sql, params)
+  invisible(TRUE)
+}
+
+#' Delete all figures for a document (DB rows + files)
+#' @param con DuckDB connection
+#' @param document_id Document ID
+db_delete_figures_for_document <- function(con, document_id) {
+  doc <- get_document(con, document_id)
+  if (!is.null(doc)) {
+    cleanup_figure_files(doc$notebook_id, document_id)
+  }
+
+  dbExecute(con, "DELETE FROM document_figures WHERE document_id = ?", list(document_id))
 }
