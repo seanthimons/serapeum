@@ -27,6 +27,7 @@ mod_research_refiner_ui <- function(id) {
           class = "card-body",
           radioButtons(ns("anchor_type"), "Anchor Type",
                        choices = c("Seed Papers" = "seeds",
+                                   "From Notebook" = "notebook_anchor",
                                    "Research Intent" = "intent",
                                    "Both" = "both"),
                        selected = "seeds", inline = TRUE),
@@ -48,6 +49,18 @@ mod_research_refiner_ui <- function(id) {
             )
           ),
           conditionalPanel(
+            condition = sprintf("input['%s'] === 'notebook_anchor'",
+                                ns("anchor_type")),
+            div(
+              class = "mb-3",
+              uiOutput(ns("anchor_notebook_selector")),
+              sliderInput(ns("per_seed_count"), "Candidates per seed paper",
+                          min = 10, max = 100, value = 25, step = 5),
+              p(class = "text-muted small",
+                "All papers in the selected notebook become seeds. Related papers are fetched from OpenAlex and scored.")
+            )
+          ),
+          conditionalPanel(
             condition = sprintf("input['%s'] === 'intent' || input['%s'] === 'both'",
                                 ns("anchor_type"), ns("anchor_type")),
             textAreaInput(ns("anchor_intent"),
@@ -58,19 +71,21 @@ mod_research_refiner_ui <- function(id) {
         )
       ),
 
-      # Step 2: Select Candidates
-      div(
-        class = "card mb-3",
+      # Step 2: Select Candidates (hidden when anchor is notebook)
+      conditionalPanel(
+        condition = sprintf("input['%s'] !== 'notebook_anchor'", ns("anchor_type")),
         div(
-          class = "card-header",
-          strong("Step 2: Select Candidates")
-        ),
-        div(
-          class = "card-body",
-          radioButtons(ns("source_type"), "Candidate Source",
-                       choices = c("From Notebook" = "notebook",
-                                   "Fetch from Seeds" = "fetch"),
-                       selected = "notebook", inline = TRUE),
+          class = "card mb-3",
+          div(
+            class = "card-header",
+            strong("Step 2: Select Candidates")
+          ),
+          div(
+            class = "card-body",
+            radioButtons(ns("source_type"), "Candidate Source",
+                         choices = c("From Notebook" = "notebook",
+                                     "Fetch from Seeds" = "fetch"),
+                         selected = "notebook", inline = TRUE),
           conditionalPanel(
             condition = sprintf("input['%s'] === 'notebook'", ns("source_type")),
             uiOutput(ns("notebook_selector"))
@@ -82,7 +97,7 @@ mod_research_refiner_ui <- function(id) {
           ),
           uiOutput(ns("candidate_count_badge"))
         )
-      ),
+      )),
 
       # Step 3: Scoring Mode
       div(
@@ -181,6 +196,22 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         c("No search notebooks" = "")
       }
       selectInput(ns("source_notebook_id"), "Search Notebook",
+                  choices = choices, width = "100%")
+    })
+
+    # Anchor notebook selector (for "From Notebook" anchor type)
+    output$anchor_notebook_selector <- renderUI({
+      con <- con_r()
+      req(con)
+      if (!is.null(notebook_refresh)) notebook_refresh()
+      nbs <- list_notebooks(con)
+      search_nbs <- nbs[nbs$type == "search", , drop = FALSE]
+      choices <- if (nrow(search_nbs) > 0) {
+        setNames(search_nbs$id, search_nbs$name)
+      } else {
+        c("No search notebooks" = "")
+      }
+      selectInput(ns("anchor_notebook_id"), "Anchor Notebook",
                   choices = choices, width = "100%")
     })
 
@@ -365,6 +396,13 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         showNotification("Please enter a research intent.", type = "warning")
         return()
       }
+      if (anchor_type == "notebook_anchor") {
+        anchor_nb_id <- input$anchor_notebook_id
+        if (is.null(anchor_nb_id) || nchar(anchor_nb_id) == 0) {
+          showNotification("Please select an anchor notebook.", type = "warning")
+          return()
+        }
+      }
 
       weights <- get_current_weights()
       seed_ids <- vapply(seeds, function(p) p$paper_id, character(1))
@@ -373,7 +411,20 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         # Step 1: Get candidates
         incProgress(0.1, detail = "Loading candidates...")
 
-        if (input$source_type == "notebook") {
+        if (anchor_type == "notebook_anchor") {
+          # Load all notebook papers as seeds, fetch candidates from OpenAlex
+          anchor_nb_id <- input$anchor_notebook_id
+          nb_papers <- prepare_candidates_from_notebook(con, anchor_nb_id)
+          if (nrow(nb_papers) == 0) {
+            showNotification("Anchor notebook has no papers.", type = "warning")
+            return()
+          }
+          seed_ids <- nb_papers$paper_id
+          per_seed <- input$per_seed_count %||% 25
+          incProgress(0.15, detail = paste0("Fetching candidates for ", nrow(nb_papers), " seeds..."))
+          candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
+                                                     per_page = per_seed)
+        } else if (input$source_type == "notebook") {
           nb_id <- input$source_notebook_id
           if (is.null(nb_id) || nchar(nb_id) == 0) {
             showNotification("Please select a source notebook.", type = "warning")
@@ -408,13 +459,23 @@ mod_research_refiner_server <- function(id, con_r, config_r,
 
         # Step 4: Save to DB
         incProgress(0.8, detail = "Saving results...")
+        # Determine source metadata for DB
+        effective_source_type <- if (anchor_type == "notebook_anchor") "fetch" else input$source_type
+        effective_source_nb <- if (anchor_type == "notebook_anchor") {
+          input$anchor_notebook_id
+        } else if (input$source_type == "notebook") {
+          input$source_notebook_id
+        } else {
+          NULL
+        }
+
         run_id <- create_refiner_run(
           con,
           anchor_type = anchor_type,
-          source_type = input$source_type,
+          source_type = effective_source_type,
           anchor_intent = if (anchor_type %in% c("intent", "both")) input$anchor_intent else NULL,
           anchor_seed_ids = if (length(seed_ids) > 0) jsonlite::toJSON(seed_ids) else NULL,
-          source_notebook_id = if (input$source_type == "notebook") input$source_notebook_id else NULL,
+          source_notebook_id = effective_source_nb,
           mode = input$scoring_mode,
           weights = jsonlite::toJSON(weights, auto_unbox = TRUE)
         )
