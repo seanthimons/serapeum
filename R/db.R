@@ -828,7 +828,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
       message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, api_key present: ", !is.null(api_key))
 
       results <- tryCatch({
-        retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
+        retrieve_with_ragnar(store, query, top_k = limit * 2, con = con)  # Get extra for filtering
       }, error = function(e) {
         message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
         NULL

@@ -1,3 +1,66 @@
+#' Reciprocal Rank Fusion (RRF) merge of multiple ranked lists
+#'
+#' Combines ranked lists using the formula: score = SUM(1 / (k + rank_i))
+#' where rank_i is the 1-based position in each list.
+#'
+#' @param ranked_lists List of data frames, each must have a `hash` column for dedup
+#'   and a `text` column. Other columns (origin, etc.) are preserved from the first occurrence.
+#' @param k RRF constant (default 60, standard in literature)
+#' @return Data frame sorted by RRF score descending, with `rrf_score` column added
+rrf_merge <- function(ranked_lists, k = 60) {
+  # Filter out empty lists
+  ranked_lists <- ranked_lists[vapply(ranked_lists, function(df) {
+    is.data.frame(df) && nrow(df) > 0
+  }, logical(1))]
+
+  if (length(ranked_lists) == 0) {
+    return(data.frame(
+      text = character(), origin = character(), hash = character(),
+      rrf_score = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+
+  # Accumulate scores by hash
+  scores <- list()  # hash -> score
+  first_seen <- list()  # hash -> row data (preserve metadata from first occurrence)
+
+  for (df in ranked_lists) {
+    # Ensure hash column exists
+    if (!"hash" %in% names(df)) next
+
+    for (rank_i in seq_len(nrow(df))) {
+      h <- df$hash[rank_i]
+      if (is.na(h) || !nzchar(h)) next
+
+      rrf_contribution <- 1 / (k + rank_i)
+
+      if (is.null(scores[[h]])) {
+        scores[[h]] <- rrf_contribution
+        first_seen[[h]] <- df[rank_i, , drop = FALSE]
+      } else {
+        scores[[h]] <- scores[[h]] + rrf_contribution
+      }
+    }
+  }
+
+  if (length(scores) == 0) {
+    return(data.frame(
+      text = character(), origin = character(), hash = character(),
+      rrf_score = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+
+  # Build result data frame
+  result <- do.call(rbind, first_seen)
+  result$rrf_score <- vapply(result$hash, function(h) scores[[h]], numeric(1))
+
+  # Sort by RRF score descending
+  result <- result[order(-result$rrf_score), , drop = FALSE]
+  rownames(result) <- NULL
+
+  result
+}
+
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string

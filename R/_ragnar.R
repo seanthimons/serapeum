@@ -1010,52 +1010,111 @@ insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
   invisible(store)
 }
 
-#' Retrieve chunks using ragnar's hybrid search
+#' Enrich retrieval results with parsed metadata from origin field
 #'
-#' Uses VSS + BM25 for better retrieval quality.
+#' Shared metadata parser used by both retrieve_with_ragnar and
+#' retrieve_split_rrf. Also resolves abstract titles from the DB
+#' when a connection is provided (fixes #159).
 #'
-#' @param store RagnarStore object
-#' @param query Search query
-#' @param top_k Number of results to return
-#' @return Data frame of matching chunks with metadata
-retrieve_with_ragnar <- function(store, query, top_k = 5) {
-  results <- ragnar::ragnar_retrieve(store, query, top_k = top_k)
+#' @param results Data frame from ragnar retrieval
+#' @param con Optional DuckDB connection for abstract title lookup
+#' @return Data frame with added source_type, page_number, doc_name, abstract_title columns
+enrich_retrieval_results <- function(results, con = NULL) {
+  if (nrow(results) == 0 || !"origin" %in% names(results)) return(results)
 
-  # Results come back with: text, origin, score (potentially)
-  # Parse metadata from origin field based on format:
-  # - Documents: "filename#page=N"
-  # - Abstracts: "abstract:id"
-  if (nrow(results) > 0 && "origin" %in% names(results)) {
-    results$source_type <- vapply(results$origin, function(o) {
-      if (grepl("^abstract:", o)) "abstract" else "document"
-    }, character(1))
+  results$source_type <- vapply(results$origin, function(o) {
+    if (grepl("^abstract:", o)) "abstract" else "document"
+  }, character(1))
 
-    results$page_number <- vapply(results$origin, function(o) {
-      match <- regmatches(o, regexec("#page=(\\d+)", o))[[1]]
-      if (length(match) >= 2) as.integer(match[2]) else NA_integer_
-    }, integer(1))
+  results$page_number <- vapply(results$origin, function(o) {
+    match <- regmatches(o, regexec("#page=(\\d+)", o))[[1]]
+    if (length(match) >= 2) as.integer(match[2]) else NA_integer_
+  }, integer(1))
 
-    results$doc_name <- vapply(results$origin, function(o) {
-      if (grepl("^abstract:", o)) {
-        NA_character_  # Abstracts don't have doc_name
-      } else {
-        # Strip #page=N and any pipe-delimited metadata suffix
-        sub("#page=\\d+.*$", "", o)
-      }
-    }, character(1))
+  results$doc_name <- vapply(results$origin, function(o) {
+    if (grepl("^abstract:", o)) {
+      NA_character_
+    } else {
+      sub("#page=\\d+.*$", "", o)
+    }
+  }, character(1))
 
-    results$abstract_title <- vapply(results$origin, function(o) {
-      if (grepl("^abstract:", o)) {
-        # For abstracts, we'd need to look up the title from DB
-        # For now, just mark as abstract
-        "[Abstract]"
-      } else {
-        NA_character_
-      }
-    }, character(1))
-  }
+  # Resolve abstract titles from DB instead of using "[Abstract]" placeholder (#159)
+  results$abstract_title <- vapply(results$origin, function(o) {
+    if (!grepl("^abstract:", o)) return(NA_character_)
+
+    # Extract abstract ID (strip prefix and any pipe-delimited metadata)
+    abstract_id <- sub("\\|.*$", "", sub("^abstract:", "", o))
+
+    # Look up title from DB if connection provided
+    if (!is.null(con)) {
+      title <- tryCatch({
+        row <- DBI::dbGetQuery(con, "SELECT title FROM abstracts WHERE id = ? LIMIT 1",
+                               list(abstract_id))
+        if (nrow(row) > 0 && !is.na(row$title[1]) && nchar(row$title[1]) > 0) {
+          row$title[1]
+        } else {
+          "[Abstract]"
+        }
+      }, error = function(e) "[Abstract]")
+      return(title)
+    }
+
+    "[Abstract]"
+  }, character(1))
 
   results
+}
+
+#' Retrieve chunks using ragnar's hybrid search
+#'
+#' Uses split VSS + BM25 retrieval with Reciprocal Rank Fusion (RRF).
+#'
+#' @param store RagnarStore object
+#' @param query Search query (or character vector of queries for multi-query mode)
+#' @param top_k Number of results per retrieval method per query
+#' @param k RRF constant (default 60)
+#' @param con Optional DuckDB connection for abstract title lookup
+#' @return Data frame of matching chunks with metadata
+retrieve_with_ragnar <- function(store, query, top_k = 5, k = 60, con = NULL) {
+  # Support multiple queries (for RAG-Fusion)
+  queries <- if (is.character(query) && length(query) > 1) query else list(query)
+
+  ranked_lists <- list()
+
+  for (q in queries) {
+    # VSS retrieval
+    vss_results <- tryCatch({
+      ragnar::ragnar_retrieve_vss(store, q, top_k = top_k)
+    }, error = function(e) {
+      message("[ragnar] VSS retrieval failed: ", e$message)
+      data.frame(text = character(), origin = character(), hash = character(),
+                 stringsAsFactors = FALSE)
+    })
+
+    # BM25 retrieval (note: ragnar uses 'text' not 'query' for bm25)
+    bm25_results <- tryCatch({
+      ragnar::ragnar_retrieve_bm25(store, text = q, top_k = top_k)
+    }, error = function(e) {
+      message("[ragnar] BM25 retrieval failed: ", e$message)
+      data.frame(text = character(), origin = character(), hash = character(),
+                 stringsAsFactors = FALSE)
+    })
+
+    if (nrow(vss_results) > 0) ranked_lists <- c(ranked_lists, list(vss_results))
+    if (nrow(bm25_results) > 0) ranked_lists <- c(ranked_lists, list(bm25_results))
+  }
+
+  # RRF merge all lists
+  results <- rrf_merge(ranked_lists, k = k)
+
+  # Rename 'text' to 'content' for consistency with downstream code
+  if ("text" %in% names(results) && !"content" %in% names(results)) {
+    names(results)[names(results) == "text"] <- "content"
+  }
+
+  # Enrich with metadata
+  enrich_retrieval_results(results, con = con)
 }
 
 #' Build the ragnar store index after inserting chunks
