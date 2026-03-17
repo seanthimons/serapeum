@@ -237,7 +237,64 @@ disconnect_ragnar_store <- function(store) {
 #' @param target_size Target chunk size in characters (default: 1600)
 #' @param target_overlap Overlap fraction between chunks (default: 0.5)
 #' @return Data frame with columns: content, page_number, chunk_index, context, origin
-chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5) {
+#' Current index schema version
+#'
+#' Bumped when chunk format changes (e.g., adding contextual headers).
+#' Used to detect stale ragnar stores that need re-indexing.
+RAGNAR_INDEX_SCHEMA_VERSION <- 2L
+
+#' Prepend a contextual header to chunk content
+#'
+#' @param content Chunk text content
+#' @param paper_title Paper title (or filename fallback)
+#' @param section_hint Optional section hint (e.g., "Methods")
+#' @return Content with prepended header
+prepend_contextual_header <- function(content, paper_title = NULL, section_hint = NULL) {
+  # Determine the label
+  label <- if (!is.null(paper_title) && !is.na(paper_title) && nchar(trimws(paper_title)) > 0) {
+    paper_title
+  } else {
+    return(content)  # No title available, return as-is
+  }
+
+  # Add section if available
+  if (!is.null(section_hint) && !is.na(section_hint) && nchar(trimws(section_hint)) > 0 &&
+      section_hint != "general") {
+    header <- sprintf("[%s | Section: %s]\n", label, section_hint)
+  } else {
+    header <- sprintf("[%s]\n", label)
+  }
+
+  paste0(header, content)
+}
+
+#' Check if a ragnar store is stale (needs re-indexing for contextual headers)
+#'
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return logical — TRUE if store needs re-indexing
+is_ragnar_store_stale <- function(con, notebook_id) {
+  stored_version <- tryCatch({
+    key <- paste0("index_schema_version_", notebook_id)
+    get_db_setting(con, key)
+  }, error = function(e) NULL)
+
+  if (is.null(stored_version)) return(TRUE)
+
+  as.integer(stored_version) < RAGNAR_INDEX_SCHEMA_VERSION
+}
+
+#' Mark a ragnar store's schema version as current
+#'
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+mark_ragnar_store_current <- function(con, notebook_id) {
+  key <- paste0("index_schema_version_", notebook_id)
+  save_db_setting(con, key, RAGNAR_INDEX_SCHEMA_VERSION)
+}
+
+chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5,
+                               paper_title = NULL) {
   all_chunks <- data.frame(
     content = character(),
     page_number = integer(),
@@ -294,6 +351,11 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
       }
 
       if (is.null(chunk_text) || nchar(trimws(chunk_text)) == 0) next
+
+      # Prepend contextual header if paper_title provided
+      if (!is.null(paper_title)) {
+        chunk_text <- prepend_contextual_header(chunk_text, paper_title)
+      }
 
       all_chunks <- rbind(all_chunks, data.frame(
         content = chunk_text,
@@ -780,9 +842,10 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         doc <- documents[i, ]
         item_name <- substr(doc$filename, 1, 60)
 
-        # Chunk the document
+        # Chunk the document (with contextual header using filename as title)
         pages <- strsplit(doc$full_text, "\f")[[1]]
-        chunks <- chunk_with_ragnar(pages, doc$filename)
+        doc_title <- sub("\\.[^.]+$", "", doc$filename)  # Strip file extension for cleaner header
+        chunks <- chunk_with_ragnar(pages, doc$filename, paper_title = doc_title)
 
         # Insert chunks to store
         insert_chunks_to_ragnar(store, chunks, doc$id, "document")
@@ -825,8 +888,19 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
           source_type = "abstract"
         )
 
+        # Prepend contextual header with paper title (fixes #159 for abstracts)
+        abstract_content <- abstract$abstract
+        abstract_label <- if (!is.null(abstract$title) && !is.na(abstract$title) && nchar(abstract$title) > 0) {
+          abstract$title
+        } else if (!is.null(abstract$doi) && !is.na(abstract$doi) && nchar(abstract$doi) > 0) {
+          abstract$doi
+        } else {
+          "Untitled"
+        }
+        abstract_content <- prepend_contextual_header(abstract_content, abstract_label)
+
         abstract_chunks <- data.frame(
-          content = abstract$abstract,
+          content = abstract_content,
           page_number = NA_integer_,
           chunk_index = 0,
           context = "",
@@ -847,6 +921,11 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
 
     # Build the index
     build_ragnar_index(store)
+
+    # Mark store schema as current
+    if (!is.null(con)) {
+      mark_ragnar_store_current(con, notebook_id)
+    }
 
     # Disconnect store
     DBI::dbDisconnect(store@con, shutdown = TRUE)
