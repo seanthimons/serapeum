@@ -17,7 +17,9 @@ pricing_env$MODEL_PRICING <- list(
   "google/gemini-2.5-flash-preview-05-20" = list(prompt = 0.15, completion = 0.60),
   "anthropic/claude-sonnet-4" = list(prompt = 3.00, completion = 15.00),
   "openai/text-embedding-3-small" = list(prompt = 0.02, completion = 0.00),
-  "openai/text-embedding-3-large" = list(prompt = 0.13, completion = 0.00)
+  "openai/text-embedding-3-large" = list(prompt = 0.13, completion = 0.00),
+  "openai/gpt-4.1-nano" = list(prompt = 0.10, completion = 0.40),
+  "google/gemini-2.5-flash-lite" = list(prompt = 0.10, completion = 0.40)
 )
 
 # Default pricing for unknown models (conservative estimate)
@@ -39,7 +41,8 @@ COST_OPERATION_META <- list(
   "research_questions" = list(label = "Research Questions", icon_fun = "icon_lightbulb", accent_class = "text-warning"),
   "lit_review_table" = list(label = "Literature Review Table", icon_fun = "icon_table", accent_class = "text-success"),
   "methodology_extractor" = list(label = "Methodology Extractor", icon_fun = "icon_flask", accent_class = "text-danger"),
-  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info")
+  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info"),
+  "figure_description" = list(label = "Figure Description", icon_fun = "icon_image", accent_class = "text-success")
 )
 
 KNOWN_MODEL_LABELS <- c(
@@ -50,7 +53,9 @@ KNOWN_MODEL_LABELS <- c(
   "google/gemini-2.0-flash-001" = "Gemini 2.0 Flash",
   "google/gemini-2.5-flash-preview-05-20" = "Gemini 2.5 Flash",
   "openai/text-embedding-3-small" = "Text Embedding 3 Small",
-  "openai/text-embedding-3-large" = "Text Embedding 3 Large"
+  "openai/text-embedding-3-large" = "Text Embedding 3 Large",
+  "openai/gpt-4.1-nano" = "GPT-4.1 Nano",
+  "google/gemini-2.5-flash-lite" = "Gemini 2.5 Flash Lite"
 )
 
 #' Update model pricing from live data

@@ -30,17 +30,27 @@ format_chat_messages <- function(system_prompt, user_message, history = list()) 
 }
 
 #' Send chat completion request
+#'
+#' Supports text and multipart (vision) messages. Optional parameters are only
+#' included in the request body when non-NULL, so existing callers are unaffected.
+#'
 #' @param api_key API key
 #' @param model Model ID
-#' @param messages Message list
+#' @param messages Message list (can include multipart content arrays for vision)
+#' @param max_tokens Maximum tokens to generate (NULL = model default)
+#' @param temperature Sampling temperature (NULL = model default)
+#' @param timeout Request timeout in seconds
 #' @return List with content, usage (tokens), model, and id
-chat_completion <- function(api_key, model, messages) {
+chat_completion <- function(api_key, model, messages,
+                            max_tokens = NULL, temperature = NULL,
+                            timeout = 120) {
+  body <- list(model = model, messages = messages)
+  if (!is.null(max_tokens)) body$max_tokens <- max_tokens
+  if (!is.null(temperature)) body$temperature <- temperature
+
   req <- build_openrouter_request(api_key, "chat/completions") |>
-    req_body_json(list(
-      model = model,
-      messages = messages
-    )) |>
-    req_timeout(120)
+    req_body_json(body) |>
+    req_timeout(timeout)
 
   resp <- tryCatch({
     req_perform(req)
@@ -48,18 +58,55 @@ chat_completion <- function(api_key, model, messages) {
     stop_api_error(e, "OpenRouter")
   })
 
-  body <- resp_body_json(resp)
+  resp_body <- resp_body_json(resp)
 
-  if (!is.null(body$error)) {
-    stop("OpenRouter error: ", body$error$message)
+  if (!is.null(resp_body$error)) {
+    stop("OpenRouter error: ", resp_body$error$message)
   }
 
+  msg <- resp_body$choices[[1]]$message
+  content <- extract_message_content(msg)
+
   list(
-    content = body$choices[[1]]$message$content,
-    usage = body$usage,
+    content = content,
+    usage = resp_body$usage,
     model = model,
-    id = body$id
+    id = resp_body$id
   )
+}
+
+#' Extract text content from a chat completion message
+#'
+#' Handles three response shapes:
+#' 1. Normal: msg$content is a string
+#' 2. Reasoning models: msg$content is NULL, text is in msg$reasoning
+#' 3. Multipart: msg$content is a list of {type, text} parts
+#'
+#' @param msg Message object from API response
+#' @return Character string of content
+#' @keywords internal
+extract_message_content <- function(msg) {
+  content <- msg$content
+
+  # Reasoning models (e.g. gpt-5-nano) put output in $reasoning, $content is NULL
+
+  if (is.null(content) || (is.character(content) && nchar(content) == 0)) {
+    if (!is.null(msg$reasoning)) {
+      return(msg$reasoning)
+    }
+  }
+
+  # Some models return content as a list of parts
+  if (is.list(content) && !is.null(content)) {
+    text_parts <- vapply(content, function(p) {
+      if (is.list(p) && !is.null(p$text)) p$text
+      else if (is.character(p)) p
+      else ""
+    }, character(1))
+    return(paste(text_parts, collapse = "\n"))
+  }
+
+  content
 }
 
 #' Get embeddings for text
