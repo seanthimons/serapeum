@@ -61,6 +61,73 @@ rrf_merge <- function(ranked_lists, k = 60) {
   result
 }
 
+#' Parse LLM output into individual query variants
+#'
+#' Handles both plain newline-separated and numbered list formats.
+#'
+#' @param text Raw LLM response text
+#' @return Character vector of clean query variants
+parse_query_variants <- function(text) {
+  lines <- strsplit(text, "\n")[[1]]
+  lines <- trimws(lines)
+  lines <- lines[nchar(lines) > 0]
+
+  # Strip numbering: "1. query" or "1) query" or "- query"
+  lines <- sub("^\\d+[.):]\\s*", "", lines)
+  lines <- sub("^[-*]\\s*", "", lines)
+  lines <- trimws(lines)
+  lines <- lines[nchar(lines) > 0]
+
+  lines
+}
+
+#' Generate query variants for RAG-Fusion retrieval
+#'
+#' Uses a fast LLM call to generate alternative search queries that capture
+#' different vocabulary and angles. Always includes the original query.
+#'
+#' @param query Original user query
+#' @param api_key OpenRouter API key
+#' @param model LLM model to use
+#' @param con Optional DuckDB connection for cost logging
+#' @param session_id Optional session ID for cost logging
+#' @param n_variants Number of variants to generate (default 3)
+#' @return Character vector: original query + n_variants alternatives
+generate_query_variants <- function(query, api_key, model, con = NULL,
+                                     session_id = NULL, n_variants = 3) {
+  system_prompt <- sprintf(
+    "Generate %d alternative search queries for the following research question. Each variant should use different vocabulary, synonyms, or approach the topic from a different angle. Return only the queries, one per line.",
+    n_variants
+  )
+
+  messages <- format_chat_messages(system_prompt, query)
+
+  result <- tryCatch({
+    chat_completion(api_key, model, messages)
+  }, error = function(e) {
+    message("[rag] Query reformulation failed: ", e$message)
+    return(NULL)
+  })
+
+  if (is.null(result)) return(query)
+
+  # Log cost
+  if (!is.null(con) && !is.null(session_id) && !is.null(result$usage)) {
+    cost <- estimate_cost(model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0)
+    log_cost(con, "query_reformulation", model,
+             result$usage$prompt_tokens %||% 0,
+             result$usage$completion_tokens %||% 0,
+             result$usage$total_tokens %||% 0,
+             cost, session_id)
+  }
+
+  # Parse variants and prepend original
+  variants <- parse_query_variants(result$content)
+  unique(c(query, variants))
+}
+
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string
@@ -142,7 +209,8 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 
   chunks <- tryCatch({
     search_chunks_hybrid(con, question, notebook_id, limit = 5,
-                         api_key = api_key, embed_model = embed_model)
+                         api_key = api_key, embed_model = embed_model,
+                         config = config, session_id = session_id)
   }, error = function(e) {
     message("[rag_query] Ragnar search failed: ", e$message)
     NULL

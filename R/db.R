@@ -796,7 +796,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store_path = NULL,
                                   section_filter = NULL,
                                   api_key = NULL,
-                                  embed_model = "openai/text-embedding-3-small") {
+                                  embed_model = "openai/text-embedding-3-small",
+                                  config = NULL,
+                                  session_id = NULL) {
 
   # Derive store path from notebook_id if not provided (Phase 22: per-notebook stores)
   if (is.null(ragnar_store_path) && !is.null(notebook_id)) {
@@ -827,8 +829,30 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
       }, error = function(e) NA)
       message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, api_key present: ", !is.null(api_key))
 
+      # Query reformulation: generate variants if enabled
+      search_queries <- query
+      if (!is.null(config) && !is.null(api_key)) {
+        reformulation_enabled <- tryCatch(
+          get_db_setting(con, "rag_query_reformulation"),
+          error = function(e) NULL
+        )
+        # Default to enabled (TRUE) when setting doesn't exist
+        if (!isFALSE(reformulation_enabled)) {
+          chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+          search_queries <- tryCatch({
+            generate_query_variants(query, api_key, chat_model, con, session_id)
+          }, error = function(e) {
+            message("[search_chunks_hybrid] Query reformulation failed: ", e$message)
+            query
+          })
+          if (length(search_queries) > 1) {
+            message("[search_chunks_hybrid] Reformulated into ", length(search_queries), " queries")
+          }
+        }
+      }
+
       results <- tryCatch({
-        retrieve_with_ragnar(store, query, top_k = limit * 2, con = con)  # Get extra for filtering
+        retrieve_with_ragnar(store, search_queries, top_k = limit * 2, con = con)  # Get extra for filtering
       }, error = function(e) {
         message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
         NULL

@@ -58,6 +58,11 @@ mod_settings_ui <- function(id) {
                    target = "_blank", "openalex.org/settings/api")),
           hr(),
           h5(icon_sliders(), " Advanced"),
+          checkboxInput(ns("query_reformulation"), "Query Reformulation (RAG-Fusion)",
+                        value = TRUE),
+          p(class = "text-muted small",
+            "When enabled, generates multiple query variants before retrieval ",
+            "to improve recall. Adds one small LLM call per chat query."),
           numericInput(ns("chunk_size"), "Chunk Size (words)",
                        value = 500, min = 100, max = 2000, step = 50),
           numericInput(ns("chunk_overlap"), "Chunk Overlap (words)",
@@ -329,6 +334,11 @@ mod_settings_server <- function(id, con, config_rv) {
       update_embed_model_choices(or_key, embed_model)
 
       # Advanced
+      reformulation <- get_db_setting(con(), "rag_query_reformulation")
+      if (!is.null(reformulation)) {
+        updateCheckboxInput(session, "query_reformulation", value = isTRUE(reformulation))
+      }
+
       chunk_size <- get_db_setting(con(), "chunk_size") %||%
                     get_setting(cfg, "app", "chunk_size") %||% 500
       updateNumericInput(session, "chunk_size", value = chunk_size)
@@ -699,6 +709,7 @@ mod_settings_server <- function(id, con, config_rv) {
 
         save_db_setting(con(), "chat_model", input$chat_model)
         save_db_setting(con(), "embedding_model", input$embed_model)
+        save_db_setting(con(), "rag_query_reformulation", input$query_reformulation)
         save_db_setting(con(), "chunk_size", input$chunk_size)
         save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
         save_db_setting(con(), "abstracts_per_search", input$abstracts_per_search)
