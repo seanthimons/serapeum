@@ -20,7 +20,7 @@ branch: v13-search-discovery
 | UAT-5 | PASS | |
 | UAT-6 | PASS | |
 | UAT-7 | PASS | |
-| UAT-8 | PASS | Intent text has no scoring impact (follow-up) |
+| UAT-8 | PASS | Intent now affects scoring via Tier 2 semantic similarity |
 | UAT-9 | PASS | Fixed: observer stacking, NULL/NA guard, button classes, rank badges |
 | UAT-10 | PASS | Fixed: batch accept now respects prior rejections |
 | UAT-11 | PASS | |
@@ -31,7 +31,22 @@ branch: v13-search-discovery
 | UAT-16 | PASS | |
 | UAT-17 | SKIPPED | |
 
-**Bugs fixed:** 7 (email lookup, observer stacking, NULL/NA guard, button classes, rank badges, batch curation state, weight normalization)
+**Bugs fixed:** 10
+1. Email lookup — DB setting not checked
+2. Observer stacking — accept/reject handlers recreated reactively
+3. NULL/NA guard — user_action column missing from in-memory dataframe
+4. Button classes — Shiny btn-default overriding outline variants
+5. Rank badges — rank column lost after DB read-back
+6. Batch curation — Accept/Reject now respect prior curation state
+7. Weight normalization — scores always normalize to 1.0
+8. Infinite notification loop — reindex result handler reactive dependency
+9. NA abstracts crash — ragnar embedding skips papers without abstract text
+10. Embedding similarity not saved — DB save hardcoded NA instead of reading computed values
+
+**Post-UAT features added:**
+- Tier 2 semantic scoring via ragnar BM25+VSS hybrid retrieval
+- "From Notebook" anchor type with per-seed candidate slider
+- UUID-to-OpenAlex paper ID mapping for ragnar origin resolution
 
 ## Context
 
