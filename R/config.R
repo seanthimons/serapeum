@@ -14,7 +14,8 @@ load_config <- function(path = "config.yml") {
       api_key = Sys.getenv("OPENROUTER_API_KEY", unset = NA)
     ),
     openalex = list(
-      email = Sys.getenv("OPENALEX_EMAIL", unset = NA)
+      email = Sys.getenv("OPENALEX_EMAIL", unset = NA),
+      api_key = Sys.getenv("OPENALEX_API_KEY", unset = NA)
     )
   )
 
@@ -22,13 +23,16 @@ load_config <- function(path = "config.yml") {
 
   has_openrouter <- !is.na(env_config$openrouter$api_key) &&
                     nchar(env_config$openrouter$api_key) > 0
-  has_openalex <- !is.na(env_config$openalex$email) &&
-                  nchar(env_config$openalex$email) > 0
+  has_openalex_email <- !is.na(env_config$openalex$email) &&
+                        nchar(env_config$openalex$email) > 0
+  has_openalex_key <- !is.na(env_config$openalex$api_key) &&
+                      nchar(env_config$openalex$api_key) > 0
 
-  if (has_openrouter || has_openalex) {
+  if (has_openrouter || has_openalex_email || has_openalex_key) {
     # Convert NA to NULL for consistency with YAML config
     if (!has_openrouter) env_config$openrouter$api_key <- NULL
-    if (!has_openalex) env_config$openalex$email <- NULL
+    if (!has_openalex_email) env_config$openalex$email <- NULL
+    if (!has_openalex_key) env_config$openalex$api_key <- NULL
     return(env_config)
   }
 

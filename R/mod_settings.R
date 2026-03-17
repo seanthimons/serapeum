@@ -40,9 +40,22 @@ mod_settings_ui <- function(id) {
             uiOutput(ns("openalex_status"))
           ),
           p(class = "text-muted small",
-            "Used for polite pool access. Get an API key at ",
+            "Used for polite pool access (optional if API key is set)."),
+          hr(),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              textInput(ns("openalex_api_key"), "OpenAlex API Key",
+                        placeholder = "openalex_api_key_...")
+            ),
+            uiOutput(ns("openalex_key_status"))
+          ),
+          uiOutput(ns("oa_migration_nudge")),
+          p(class = "text-muted small",
+            "Free tier: $1/day. Get your key at ",
             tags$a(href = "https://openalex.org/settings/api",
-                   target = "_blank", "openalex.org")),
+                   target = "_blank", "openalex.org/settings/api")),
           hr(),
           h5(icon_sliders(), " Advanced"),
           numericInput(ns("chunk_size"), "Chunk Size (words)",
@@ -299,6 +312,10 @@ mod_settings_server <- function(id, con, config_rv) {
                   get_setting(cfg, "openalex", "email") %||% ""
       updateTextInput(session, "openalex_email", value = oa_email)
 
+      oa_key <- get_db_setting(con(), "openalex_api_key") %||%
+                get_setting(cfg, "openalex", "api_key") %||% ""
+      updateTextInput(session, "openalex_api_key", value = oa_key)
+
       # Chat model - use dynamic approach
       chat_model <- get_db_setting(con(), "chat_model") %||%
                     get_setting(cfg, "defaults", "chat_model") %||%
@@ -414,6 +431,44 @@ mod_settings_server <- function(id, con, config_rv) {
     output$openalex_status <- renderUI({
       status <- api_status$openalex
       render_status_icon(status$status, status$message)
+    })
+
+    # OA API key status - simple presence check
+    output$openalex_key_status <- renderUI({
+      key <- trimws(input$openalex_api_key %||% "")
+      if (nchar(key) > 0) {
+        render_status_icon("success", "API key configured")
+      } else {
+        render_status_icon("neutral", "Optional - enables usage tracking")
+      }
+    })
+
+    # Migration nudge: shown when email set but no API key
+    output$oa_migration_nudge <- renderUI({
+      email <- trimws(input$openalex_email %||% "")
+      key <- trimws(input$openalex_api_key %||% "")
+      if (should_show_oa_migration_nudge(email, key, con())) {
+        div(
+          class = "alert alert-info alert-dismissible py-2 px-3 small mt-2",
+          role = "alert",
+          tags$button(
+            type = "button", class = "btn-close btn-close-sm",
+            `data-bs-dismiss` = "alert", `aria-label` = "Close",
+            onclick = paste0(
+              "Shiny.setInputValue('", ns("dismiss_oa_nudge"), "', true, {priority: 'event'})"
+            )
+          ),
+          icon_circle_info(), " ",
+          "OpenAlex now offers free API keys with $1/day credit and usage tracking. ",
+          tags$a(href = "https://openalex.org/settings/api", target = "_blank", "Get your free key"),
+          " to enable budget monitoring."
+        )
+      }
+    })
+
+    # Handle nudge dismissal
+    observeEvent(input$dismiss_oa_nudge, {
+      save_db_setting(con(), "oa_migration_nudge_dismissed", TRUE)
     })
 
     # Model info panel showing details for currently selected chat model
@@ -637,6 +692,11 @@ mod_settings_server <- function(id, con, config_rv) {
           save_db_setting(con(), "openalex_email", oa_email)
         }
 
+        oa_key <- trimws(input$openalex_api_key %||% "")
+        if (nchar(oa_key) > 0) {
+          save_db_setting(con(), "openalex_api_key", oa_key)
+        }
+
         save_db_setting(con(), "chat_model", input$chat_model)
         save_db_setting(con(), "embedding_model", input$embed_model)
         save_db_setting(con(), "chunk_size", input$chunk_size)
@@ -668,7 +728,9 @@ mod_settings_server <- function(id, con, config_rv) {
         ),
         openalex = list(
           email = non_empty(get_db_setting(con(), "openalex_email")) %||%
-                  non_empty(get_setting(cfg, "openalex", "email")) %||% ""
+                  non_empty(get_setting(cfg, "openalex", "email")) %||% "",
+          api_key = non_empty(get_db_setting(con(), "openalex_api_key")) %||%
+                    non_empty(get_setting(cfg, "openalex", "api_key")) %||% ""
         ),
         defaults = list(
           chat_model = get_db_setting(con(), "chat_model") %||%
