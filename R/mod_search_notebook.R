@@ -817,37 +817,39 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observe({
       result <- reindex_task$result()
 
-      poller <- reindex_poller()
-      if (!is.null(poller)) poller$destroy()
-      reindex_poller(NULL)
+      isolate({
+        poller <- reindex_poller()
+        if (!is.null(poller)) poller$destroy()
+        reindex_poller(NULL)
 
-      clear_interrupt_flag(current_interrupt_flag())
-      clear_progress_file(current_progress_file())
-      current_interrupt_flag(NULL)
-      current_progress_file(NULL)
+        clear_interrupt_flag(current_interrupt_flag())
+        clear_progress_file(current_progress_file())
+        current_interrupt_flag(NULL)
+        current_progress_file(NULL)
 
-      removeModal()
+        removeModal()
 
-      if (isTRUE(result$partial)) {
-        # Cancelled — delete partial store
-        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
-        rag_ready(FALSE)
-        store_healthy(FALSE)
-        showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
-      } else if (isTRUE(result$success)) {
-        rag_ready(TRUE)
-        store_healthy(TRUE)
-        tryCatch({
-          abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
-          mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
-        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
-        paper_refresh(paper_refresh() + 1)
-        showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
-      } else {
-        rag_ready(FALSE)
-        store_healthy(FALSE)
-        showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
-      }
+        if (isTRUE(result$partial)) {
+          # Cancelled — delete partial store
+          tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
+        } else if (isTRUE(result$success)) {
+          rag_ready(TRUE)
+          store_healthy(TRUE)
+          tryCatch({
+            abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
+            mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
+          }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+          paper_refresh(paper_refresh() + 1)
+          showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
+        } else {
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
+        }
+      })
     })
 
     # Phase 22: Render send button (disabled when rag_available is FALSE)
