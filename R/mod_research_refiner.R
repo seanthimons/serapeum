@@ -493,13 +493,23 @@ mod_research_refiner_server <- function(id, con_r, config_r,
             incProgress(0.45, detail = "Scoring from embedded notebook...")
             store <- tryCatch(
               get_ragnar_store(ragnar_path, or_key, embed_model),
-              error = function(e) NULL
+              error = function(e) {
+                message("[refiner] Failed to open ragnar store: ", e$message)
+                NULL
+              }
             )
             if (!is.null(store)) {
+              # Build UUID -> OpenAlex paper_id mapping from abstracts table
+              id_map <- dbGetQuery(con, "
+                SELECT id, paper_id FROM abstracts WHERE notebook_id = ?
+              ", list(source_nb_id))
+              uuid_to_pid <- setNames(id_map$paper_id, id_map$id)
+
               sim_scores <- tryCatch(
-                score_from_ragnar_store(store, semantic_query, candidates$paper_id),
+                score_from_ragnar_store(store, semantic_query, candidates$paper_id,
+                                         uuid_to_paper_id = uuid_to_pid),
                 error = function(e) {
-                  message("Ragnar scoring failed: ", e$message)
+                  message("[refiner] Ragnar scoring failed: ", e$message)
                   NULL
                 },
                 finally = tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)

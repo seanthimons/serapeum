@@ -2096,7 +2096,7 @@ save_refiner_results <- function(con, run_id, results_df) {
     citation_velocity = as.numeric(results_df$citation_velocity %||% 0),
     ubiquity_penalty = as.numeric(results_df$ubiquity_penalty %||% 0),
     utility_score = as.numeric(results_df$utility_score %||% 0),
-    embedding_similarity = NA_real_,
+    embedding_similarity = as.numeric(results_df$embedding_similarity %||% NA_real_),
     llm_utility_score = NA_real_,
     llm_rationale = NA_character_,
     user_action = "pending",

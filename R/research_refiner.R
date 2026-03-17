@@ -218,8 +218,13 @@ build_semantic_query <- function(intent = NULL, seed_abstracts = NULL) {
 #' @param store RagnarStore object (must have embed function attached)
 #' @param query_text Search query for semantic scoring
 #' @param candidate_paper_ids Character vector of paper IDs to score
+#' @param uuid_to_paper_id Named character vector mapping abstract UUIDs to
+#'   OpenAlex paper IDs. Required because ragnar origins use internal UUIDs
+#'   while candidates use OpenAlex IDs. If NULL, assumes origin IDs match
+#'   candidate IDs directly.
 #' @return Named numeric vector: paper_id -> similarity score [0, 1]
-score_from_ragnar_store <- function(store, query_text, candidate_paper_ids) {
+score_from_ragnar_store <- function(store, query_text, candidate_paper_ids,
+                                     uuid_to_paper_id = NULL) {
   # Retrieve all candidates (generous top_k to get full coverage)
   results <- tryCatch(
     ragnar::ragnar_retrieve(store, query_text, top_k = length(candidate_paper_ids) * 2),
@@ -233,13 +238,20 @@ score_from_ragnar_store <- function(store, query_text, candidate_paper_ids) {
     return(setNames(rep(NA_real_, length(candidate_paper_ids)), candidate_paper_ids))
   }
 
-  # Extract paper_id from origin field (format: "abstract:{paper_id}|...")
-  results$paper_id <- vapply(results$origin, function(o) {
-    # Strip "abstract:" prefix and any pipe-delimited metadata
+
+  # Extract UUID from origin field (format: "abstract:{uuid}|...")
+  results$origin_uuid <- vapply(results$origin, function(o) {
     id <- sub("^abstract:", "", o)
     id <- sub("\\|.*$", "", id)
     id
   }, character(1))
+
+  # Map UUIDs to OpenAlex paper IDs if mapping provided
+  if (!is.null(uuid_to_paper_id)) {
+    results$paper_id <- uuid_to_paper_id[results$origin_uuid]
+  } else {
+    results$paper_id <- results$origin_uuid
+  }
 
   # Convert cosine_distance to similarity (lower distance = higher similarity)
   if ("cosine_distance" %in% names(results)) {
