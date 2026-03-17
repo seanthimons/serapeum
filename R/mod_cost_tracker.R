@@ -305,6 +305,7 @@ mod_cost_tracker_ui <- function(id) {
         showcase_layout = "left center",
         theme = "primary"
       ),
+      uiOutput(ns("oa_usage_section")),
       hr(),
       h6("Recent Requests"),
       div(
@@ -560,6 +561,55 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL, th
 
     output$cost_by_operation <- renderUI({
       build_cost_operation_table(cost_by_operation())
+    })
+
+    # --- OpenAlex Usage Section ---
+
+    oa_usage_data <- reactive({
+      session_timer()
+      req(con_r())
+      get_oa_daily_usage(con_r())
+    })
+
+    output$oa_usage_section <- renderUI({
+      req(config_r)
+      cfg <- config_r()
+
+      # Only show for users with an OA API key
+      oa_key <- cfg$openalex$api_key
+      if (is.null(oa_key) || !nzchar(trimws(oa_key))) return(NULL)
+
+      usage <- oa_usage_data()
+      pct <- oa_budget_percentage(usage$remaining, usage$daily_limit)
+      color <- oa_budget_color(pct) %||% "secondary"
+
+      pct_display <- if (!is.na(pct)) paste0(pct, "%") else "N/A"
+      remaining_display <- if (!is.na(usage$remaining)) sprintf("$%.4f", usage$remaining) else "N/A"
+      limit_display <- if (!is.na(usage$daily_limit)) sprintf("$%.2f", usage$daily_limit) else "N/A"
+
+      last_updated_display <- if (!is.na(usage$last_updated)) {
+        format(as.POSIXct(usage$last_updated), "%H:%M")
+      } else {
+        "no data"
+      }
+
+      tagList(
+        value_box(
+          title = "OpenAlex Daily Budget",
+          value = paste0(remaining_display, " remaining"),
+          showcase = icon_search(),
+          showcase_layout = "left center",
+          theme = color,
+          p(class = "small mb-0",
+            sprintf("%s used of %s (%s) \u2022 %d requests today",
+                    sprintf("$%.4f", usage$total_credits_used),
+                    limit_display, pct_display,
+                    usage$request_count)),
+          p(class = "small text-muted mb-0",
+            sprintf("as of %s", last_updated_display))
+        ),
+        hr()
+      )
     })
   })
 }

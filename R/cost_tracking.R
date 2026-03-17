@@ -39,7 +39,11 @@ COST_OPERATION_META <- list(
   "research_questions" = list(label = "Research Questions", icon_fun = "icon_lightbulb", accent_class = "text-warning"),
   "lit_review_table" = list(label = "Literature Review Table", icon_fun = "icon_table", accent_class = "text-success"),
   "methodology_extractor" = list(label = "Methodology Extractor", icon_fun = "icon_flask", accent_class = "text-danger"),
-  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info")
+  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info"),
+  "openalex_search" = list(label = "OA Search", icon_fun = "icon_search", accent_class = "text-success"),
+  "openalex_fetch" = list(label = "OA Fetch", icon_fun = "icon_download", accent_class = "text-success"),
+  "openalex_topics" = list(label = "OA Topics", icon_fun = "icon_layer_group", accent_class = "text-success"),
+  "query_reformulation" = list(label = "Query Reformulation", icon_fun = "icon_wand", accent_class = "text-info")
 )
 
 KNOWN_MODEL_LABELS <- c(
@@ -340,4 +344,126 @@ get_cost_by_operation <- function(con, days = 30) {
   summary_df <- do.call(rbind, summarized)
   rownames(summary_df) <- NULL
   summary_df[order(summary_df$total_cost, decreasing = TRUE), ]
+}
+
+# --- OpenAlex Usage Queries ---
+
+#' Get today's aggregated OA usage
+#'
+#' @param con DuckDB connection
+#' @return Named list with total_credits_used, remaining, daily_limit, request_count, last_updated
+get_oa_daily_usage <- function(con) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "oa_usage_log"), error = function(e) FALSE)
+  if (!has_table) {
+    return(list(total_credits_used = 0, remaining = NA_real_,
+                daily_limit = NA_real_, request_count = 0L,
+                last_updated = NA))
+  }
+
+  today <- as.character(Sys.Date())
+
+  row <- dbGetQuery(con, "
+    SELECT
+      COALESCE(SUM(credits_used), 0) as total_credits_used,
+      COUNT(*) as request_count
+    FROM oa_usage_log
+    WHERE DATE(created_at) = ?
+  ", list(today))
+
+  # Get the latest remaining/limit from most recent row today
+  latest <- dbGetQuery(con, "
+    SELECT remaining, daily_limit, created_at
+    FROM oa_usage_log
+    WHERE DATE(created_at) = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  ", list(today))
+
+  list(
+    total_credits_used = row$total_credits_used,
+    remaining = if (nrow(latest) > 0) latest$remaining else NA_real_,
+    daily_limit = if (nrow(latest) > 0) latest$daily_limit else NA_real_,
+    request_count = as.integer(row$request_count),
+    last_updated = if (nrow(latest) > 0) latest$created_at else NA
+  )
+}
+
+#' Get OA usage history aggregated by day
+#'
+#' @param con DuckDB connection
+#' @param days Number of days to look back (default 30)
+#' @return Data frame with columns: date, total_credits_used, request_count
+get_oa_usage_history <- function(con, days = 30) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "oa_usage_log"), error = function(e) FALSE)
+  if (!has_table) {
+    return(data.frame(
+      date = as.Date(character()), total_credits_used = numeric(),
+      request_count = integer(), stringsAsFactors = FALSE
+    ))
+  }
+
+  cutoff_date <- Sys.Date() - days
+
+  result <- dbGetQuery(con, "
+    SELECT
+      DATE(created_at) as date,
+      COALESCE(SUM(credits_used), 0) as total_credits_used,
+      COUNT(*) as request_count
+    FROM oa_usage_log
+    WHERE DATE(created_at) >= ?
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  ", list(as.character(cutoff_date)))
+
+  if (nrow(result) > 0) {
+    result$date <- as.Date(result$date)
+  }
+
+  result
+}
+
+#' Calculate OA budget percentage consumed
+#'
+#' @param remaining Credits remaining (numeric or NA)
+#' @param daily_limit Daily credit limit (numeric or NA)
+#' @return Integer percentage (0-100) or NA if data unavailable
+oa_budget_percentage <- function(remaining, daily_limit) {
+  if (is.na(remaining) || is.na(daily_limit) || daily_limit <= 0) return(NA_integer_)
+  as.integer(floor((1 - remaining / daily_limit) * 100))
+}
+
+#' Get CSS color class for OA budget percentage
+#'
+#' @param pct Budget percentage (integer or NA)
+#' @return Character: "success", "warning", "danger", or NULL for NA
+oa_budget_color <- function(pct) {
+  if (is.na(pct)) return(NULL)
+  if (pct < 60) "success"
+  else if (pct < 85) "warning"
+  else "danger"
+}
+
+#' Check if the 90% OA usage toast should fire
+#'
+#' Fires once per UTC calendar day when budget >= 90%.
+#'
+#' @param con DuckDB connection
+#' @param pct Current budget percentage
+#' @return logical
+oa_toast_should_fire <- function(con, pct) {
+  if (is.na(pct) || pct < 90) return(FALSE)
+
+  today <- as.character(Sys.Date())
+  last_fired <- tryCatch(get_db_setting(con, "oa_toast_last_fired_date"), error = function(e) NULL)
+
+  if (!is.null(last_fired) && last_fired == today) return(FALSE)
+
+  TRUE
+}
+
+#' Record that the OA toast was fired today
+#'
+#' @param con DuckDB connection
+oa_toast_mark_fired <- function(con) {
+  save_db_setting(con, "oa_toast_last_fired_date", as.character(Sys.Date()))
 }
