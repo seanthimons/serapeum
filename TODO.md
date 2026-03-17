@@ -35,7 +35,8 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 |-------|-------|------------|--------|
 | ~~[#151](https://github.com/seanthimons/serapeum/issues/151)~~ | ~~Duplicate keyword ban/keep behavior to per-abstract keywords~~ | ~~Medium~~ | ~~Medium~~ |
 | ~~[#125](https://github.com/seanthimons/serapeum/issues/125)~~ | ~~Update file/document filter types reported by OpenAlex~~ | ~~Medium~~ | ~~Medium~~ |
-| [#11](https://github.com/seanthimons/serapeum/issues/11) | Recursive abstract searching | High | High |
+| ~~[#11](https://github.com/seanthimons/serapeum/issues/11)~~ | ~~Recursive abstract searching~~ | ~~High~~ | ~~High~~ |
+| ~~[#160](https://github.com/seanthimons/serapeum/issues/160)~~ | ~~Research Refiner: start from notebook option~~ | ~~Medium~~ | ~~High~~ |
 | [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
 
 ---
@@ -229,6 +230,8 @@ High-effort, high-payoff features for the future.
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 - [x] feat: Community-aware edge weighting for citation network cluster separation
 - [x] [#151](https://github.com/seanthimons/serapeum/issues/151): Per-abstract keyword ban/keep filtering (v13.0)
+- [x] [#11](https://github.com/seanthimons/serapeum/issues/11): Recursive abstract searching — Research Refiner with Tier 1 citation scoring + Tier 2 semantic relevance via ragnar BM25+VSS (v13.0)
+- [x] [#160](https://github.com/seanthimons/serapeum/issues/160): Research Refiner "From Notebook" anchor type — use entire notebook as seed set (v13.0)
 
 ---
 
