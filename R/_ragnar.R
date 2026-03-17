@@ -796,7 +796,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
       }
     }
 
-    # Re-embed all abstracts
+    # Re-embed all abstracts (skip those with NA/empty abstract text)
     if (nrow(abstracts) > 0) {
       for (i in seq_len(nrow(abstracts))) {
         # Check for cancellation before each item
@@ -807,6 +807,12 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         }
 
         abstract <- abstracts[i, ]
+
+        # Skip abstracts without text (e.g., BibTeX imports without abstracts)
+        if (is.na(abstract$abstract) || nchar(trimws(abstract$abstract)) == 0) {
+          count <- count + 1
+          next
+        }
 
         # Derive human-readable item name for progress display
         item_name <- if (!is.null(abstract$title) && !is.na(abstract$title) && nchar(abstract$title) > 0) {
