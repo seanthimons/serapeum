@@ -138,10 +138,12 @@ mod_research_refiner_ui <- function(id) {
                             min = 0, max = 1, value = 0.20, step = 0.05)
               ),
               layout_columns(
-                col_widths = c(6, 6),
+                col_widths = c(4, 4, 4),
                 sliderInput(ns("w4"), "FWCI",
                             min = 0, max = 1, value = 0.15, step = 0.05),
                 sliderInput(ns("w5"), "Ubiquity Penalty",
+                            min = 0, max = 1, value = 0.30, step = 0.05),
+                sliderInput(ns("w6"), "Semantic Relevance",
                             min = 0, max = 1, value = 0.30, step = 0.05)
               )
             )
@@ -362,7 +364,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           w2 = input$w2 %||% 0.30,
           w3 = input$w3 %||% 0.20,
           w4 = input$w4 %||% 0.15,
-          w5 = input$w5 %||% 0.30
+          w5 = input$w5 %||% 0.30,
+          w6 = input$w6 %||% 0.30
         )
       } else {
         get_preset_weights(input$scoring_mode %||% "discovery")
@@ -453,8 +456,82 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           candidates$seed_connectivity <- compute_pool_connectivity(candidates, anchor_data)
         }
 
+        # Step 2.5: Semantic scoring (Tier 2)
+        incProgress(0.4, detail = "Computing semantic relevance...")
+
+        # Build query from intent and/or seed abstracts
+        seed_abstracts <- if (anchor_type == "notebook_anchor") {
+          # For notebook anchor, use anchor notebook paper abstracts
+          nb_papers <- dbGetQuery(con, "
+            SELECT abstract FROM abstracts WHERE notebook_id = ? AND abstract IS NOT NULL
+          ", list(input$anchor_notebook_id))
+          nb_papers$abstract
+        } else if (length(seeds) > 0) {
+          vapply(seeds, function(p) p$abstract %||% NA_character_, character(1))
+        } else {
+          NULL
+        }
+        intent_text <- if (anchor_type %in% c("intent", "both")) input$anchor_intent else NULL
+        semantic_query <- build_semantic_query(intent_text, seed_abstracts)
+
+        if (!is.null(semantic_query)) {
+          # Determine which path: existing ragnar store or temp store
+          source_nb_id <- if (anchor_type == "notebook_anchor") NULL
+                          else if (input$source_type == "notebook") input$source_notebook_id
+                          else NULL
+
+          ragnar_path <- if (!is.null(source_nb_id)) get_notebook_ragnar_path(source_nb_id) else NULL
+          has_ragnar <- !is.null(ragnar_path) && file.exists(ragnar_path)
+
+          or_key <- get_db_setting(con, "openrouter_api_key") %||%
+                    get_setting(cfg, "openrouter", "api_key")
+          embed_model <- get_db_setting(con, "embedding_model") %||%
+                         "openai/text-embedding-3-small"
+
+          if (has_ragnar && !is.null(or_key) && nchar(or_key) > 0) {
+            # Path A: use existing ragnar store
+            incProgress(0.45, detail = "Scoring from embedded notebook...")
+            store <- tryCatch(
+              get_ragnar_store(ragnar_path, or_key, embed_model),
+              error = function(e) NULL
+            )
+            if (!is.null(store)) {
+              sim_scores <- tryCatch(
+                score_from_ragnar_store(store, semantic_query, candidates$paper_id),
+                error = function(e) {
+                  message("Ragnar scoring failed: ", e$message)
+                  NULL
+                },
+                finally = tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
+              )
+              if (!is.null(sim_scores)) {
+                candidates$embedding_similarity <- unname(sim_scores[candidates$paper_id])
+              }
+            }
+          } else if (!is.null(or_key) && nchar(or_key) > 0) {
+            # Path B: create temp ragnar store for fetched candidates
+            incProgress(0.45, detail = "Embedding candidates...")
+            sim_scores <- tryCatch(
+              score_with_temp_ragnar(candidates, semantic_query, or_key, embed_model,
+                                      progress_callback = function(detail) {
+                                        incProgress(0, detail = detail)
+                                      }),
+              error = function(e) {
+                showNotification(
+                  paste("Semantic scoring failed:", e$message),
+                  type = "warning", duration = 5
+                )
+                NULL
+              }
+            )
+            if (!is.null(sim_scores)) {
+              candidates$embedding_similarity <- unname(sim_scores[candidates$paper_id])
+            }
+          }
+        }
+
         # Step 3: Score candidates
-        incProgress(0.5, detail = "Scoring candidates...")
+        incProgress(0.6, detail = "Scoring candidates...")
         scored <- score_candidate_pool(candidates, weights)
 
         # Step 4: Save to DB
@@ -498,6 +575,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       # Check for missing data and warn
       has_connectivity <- any(!is.na(scored_results()$seed_connectivity))
       has_fwci <- any(!is.na(scored_results()$fwci))
+      has_embedding <- "embedding_similarity" %in% names(scored_results()) &&
+                       any(!is.na(scored_results()$embedding_similarity))
 
       warnings <- character(0)
       if (!has_connectivity) {
@@ -505,6 +584,9 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       }
       if (!has_fwci) {
         warnings <- c(warnings, "FWCI data unavailable for all papers — excluded from scoring.")
+      }
+      if (!has_embedding) {
+        warnings <- c(warnings, "Semantic relevance unavailable — embed the notebook or add a research intent for better ranking.")
       }
       if (length(warnings) > 0) {
         showNotification(
@@ -594,6 +676,12 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                       if (!is.na(r$seed_connectivity) && r$seed_connectivity > 0) {
                         span(class = "badge bg-success me-1",
                              paste0(r$seed_connectivity, " seed links"))
+                      },
+                      if ("embedding_similarity" %in% names(r) &&
+                          !is.na(r$embedding_similarity) && r$embedding_similarity > 0) {
+                        span(class = "badge bg-purple me-1",
+                             style = "background-color: #6f42c1;",
+                             paste0(round(r$embedding_similarity * 100), "% relevant"))
                       }
                     )
                   ),

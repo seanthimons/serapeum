@@ -66,7 +66,7 @@ compute_seed_connectivity <- function(paper_id, anchor_refs, anchor_ids,
 #' Get preset weights for a scoring mode
 #'
 #' @param mode Character: "discovery", "comprehensive", or "emerging"
-#' @return Named list with w1-w5
+#' @return Named list with w1-w6
 get_preset_weights <- function(mode = "discovery") {
   switch(mode,
     discovery = list(
@@ -74,24 +74,27 @@ get_preset_weights <- function(mode = "discovery") {
       w2 = 0.30,  # bridge_score
       w3 = 0.20,  # citation_velocity
       w4 = 0.15,  # fwci
-      w5 = 0.30   # ubiquity_penalty
+      w5 = 0.30,  # ubiquity_penalty
+      w6 = 0.30   # embedding_similarity
     ),
     comprehensive = list(
       w1 = 0.30,
       w2 = 0.10,
       w3 = 0.20,
       w4 = 0.30,
-      w5 = 0.05
+      w5 = 0.05,
+      w6 = 0.25
     ),
     emerging = list(
       w1 = 0.10,
       w2 = 0.15,
       w3 = 0.40,
       w4 = 0.25,
-      w5 = 0.20
+      w5 = 0.20,
+      w6 = 0.20
     ),
     # Default to discovery
-    list(w1 = 0.25, w2 = 0.30, w3 = 0.20, w4 = 0.15, w5 = 0.30)
+    list(w1 = 0.25, w2 = 0.30, w3 = 0.20, w4 = 0.15, w5 = 0.30, w6 = 0.30)
   )
 }
 
@@ -107,18 +110,21 @@ get_preset_weights <- function(mode = "discovery") {
 #' @param citation_velocity Numeric or NA
 #' @param fwci Numeric or NA
 #' @param ubiquity_penalty Numeric or NA (this is subtracted, not added)
-#' @param weights Named list with w1-w5
+#' @param embedding_similarity Numeric or NA (Tier 2 semantic signal)
+#' @param weights Named list with w1-w6
 #' @return Numeric composite score
 compute_utility_score <- function(seed_connectivity, bridge_score,
                                    citation_velocity, fwci, ubiquity_penalty,
-                                   weights) {
+                                   weights,
+                                   embedding_similarity = NA_real_) {
   # Build components: name, value, weight, is_penalty
   components <- list(
-    list(val = seed_connectivity, w = weights$w1, penalty = FALSE),
-    list(val = bridge_score,      w = weights$w2, penalty = FALSE),
-    list(val = citation_velocity, w = weights$w3, penalty = FALSE),
-    list(val = fwci,              w = weights$w4, penalty = FALSE),
-    list(val = ubiquity_penalty,  w = weights$w5, penalty = TRUE)
+    list(val = seed_connectivity,   w = weights$w1, penalty = FALSE),
+    list(val = bridge_score,        w = weights$w2, penalty = FALSE),
+    list(val = citation_velocity,   w = weights$w3, penalty = FALSE),
+    list(val = fwci,                w = weights$w4, penalty = FALSE),
+    list(val = ubiquity_penalty,    w = weights$w5, penalty = TRUE),
+    list(val = embedding_similarity, w = weights$w6 %||% 0, penalty = FALSE)
   )
 
   # Separate available from missing
@@ -185,6 +191,7 @@ score_candidate_pool <- function(candidates, weights) {
   # Ensure optional columns exist (NA if not provided)
   if (is.null(candidates$seed_connectivity)) candidates$seed_connectivity <- NA_real_
   if (is.null(candidates$bridge_score)) candidates$bridge_score <- NA_real_
+  if (is.null(candidates$embedding_similarity)) candidates$embedding_similarity <- NA_real_
 
   # Normalize available components to 0-1
   candidates$norm_velocity <- normalize_01(candidates$citation_velocity)
@@ -217,16 +224,27 @@ score_candidate_pool <- function(candidates, weights) {
     candidates$norm_fwci <- NA_real_
   }
 
+  # Normalize embedding_similarity if available
+  if (any(!is.na(candidates$embedding_similarity))) {
+    candidates$norm_embedding <- normalize_01(
+      ifelse(is.na(candidates$embedding_similarity), NA_real_, candidates$embedding_similarity)
+    )
+  } else {
+    candidates$norm_embedding <- NA_real_
+  }
+
   # Compute composite utility score per paper
   candidates$utility_score <- mapply(
-    function(conn, bridge, vel, fwci_val, ubiq) {
-      compute_utility_score(conn, bridge, vel, fwci_val, ubiq, weights)
+    function(conn, bridge, vel, fwci_val, ubiq, embed_sim) {
+      compute_utility_score(conn, bridge, vel, fwci_val, ubiq, weights,
+                            embedding_similarity = embed_sim)
     },
     candidates$norm_connectivity,
     candidates$norm_bridge,
     candidates$norm_velocity,
     candidates$norm_fwci,
-    candidates$norm_ubiquity
+    candidates$norm_ubiquity,
+    candidates$norm_embedding
   )
 
   # Sort by utility score descending

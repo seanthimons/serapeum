@@ -183,3 +183,145 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
     stringsAsFactors = FALSE
   )
 }
+
+# ---- Semantic Scoring (Tier 2) ----
+
+#' Build a query string for semantic scoring
+#'
+#' Constructs a search query from intent text and/or seed paper abstracts.
+#'
+#' @param intent Optional intent text
+#' @param seed_abstracts Optional character vector of seed paper abstracts
+#' @return Character string query
+build_semantic_query <- function(intent = NULL, seed_abstracts = NULL) {
+  parts <- character(0)
+  if (!is.null(intent) && nchar(trimws(intent)) > 0) {
+    parts <- c(parts, intent)
+  }
+  if (!is.null(seed_abstracts)) {
+    # Use first 3 seed abstracts (truncated) to keep query manageable
+    abstracts <- seed_abstracts[!is.na(seed_abstracts)]
+    abstracts <- head(abstracts, 3)
+    abstracts <- vapply(abstracts, function(a) substr(a, 1, 500), character(1))
+    parts <- c(parts, abstracts)
+  }
+  if (length(parts) == 0) return(NULL)
+  paste(parts, collapse = "\n\n")
+}
+
+#' Compute semantic similarity scores using an existing ragnar store
+#'
+#' Retrieves BM25+VSS scores for candidates that are already embedded in a
+#' ragnar store (e.g., from a search notebook). Maps scores back to paper_ids
+#' via the origin field (format: "abstract:{paper_id}|...").
+#'
+#' @param store RagnarStore object (must have embed function attached)
+#' @param query_text Search query for semantic scoring
+#' @param candidate_paper_ids Character vector of paper IDs to score
+#' @return Named numeric vector: paper_id -> similarity score [0, 1]
+score_from_ragnar_store <- function(store, query_text, candidate_paper_ids) {
+  # Retrieve all candidates (generous top_k to get full coverage)
+  results <- tryCatch(
+    ragnar::ragnar_retrieve(store, query_text, top_k = length(candidate_paper_ids) * 2),
+    error = function(e) {
+      message("Ragnar retrieval failed: ", e$message)
+      return(NULL)
+    }
+  )
+
+  if (is.null(results) || nrow(results) == 0) {
+    return(setNames(rep(NA_real_, length(candidate_paper_ids)), candidate_paper_ids))
+  }
+
+  # Extract paper_id from origin field (format: "abstract:{paper_id}|...")
+  results$paper_id <- vapply(results$origin, function(o) {
+    # Strip "abstract:" prefix and any pipe-delimited metadata
+    id <- sub("^abstract:", "", o)
+    id <- sub("\\|.*$", "", id)
+    id
+  }, character(1))
+
+  # Convert cosine_distance to similarity (lower distance = higher similarity)
+  if ("cosine_distance" %in% names(results)) {
+    results$similarity <- 1 - results$cosine_distance
+  } else {
+    results$similarity <- NA_real_
+  }
+
+  # Map back to candidate IDs
+  scores <- setNames(rep(NA_real_, length(candidate_paper_ids)), candidate_paper_ids)
+  for (i in seq_len(nrow(results))) {
+    pid <- results$paper_id[i]
+    if (pid %in% candidate_paper_ids && !is.na(results$similarity[i])) {
+      # Take best (highest) similarity if paper appears multiple times
+      existing <- scores[[pid]]
+      if (is.na(existing) || results$similarity[i] > existing) {
+        scores[[pid]] <- results$similarity[i]
+      }
+    }
+  }
+  scores
+}
+
+#' Compute semantic similarity using a temporary ragnar store
+#'
+#' For candidates not in any ragnar store (e.g., fetched from OpenAlex),
+#' creates a temp store, ingests candidate abstracts, embeds them, then
+#' retrieves with hybrid BM25+VSS.
+#'
+#' @param candidates Data frame with paper_id and abstract columns
+#' @param query_text Search query for semantic scoring
+#' @param openrouter_api_key API key for embedding
+#' @param embed_model Embedding model ID
+#' @param progress_callback Optional function(detail_text) for progress updates
+#' @return Named numeric vector: paper_id -> similarity score [0, 1]
+score_with_temp_ragnar <- function(candidates, query_text, openrouter_api_key,
+                                    embed_model = "openai/text-embedding-3-small",
+                                    progress_callback = NULL) {
+  # Filter to candidates with abstracts
+  has_abstract <- !is.na(candidates$abstract) & nchar(candidates$abstract) > 0
+  scoreable <- candidates[has_abstract, , drop = FALSE]
+
+  if (nrow(scoreable) == 0) {
+    return(setNames(rep(NA_real_, nrow(candidates)), candidates$paper_id))
+  }
+
+  # Create temporary ragnar store
+  temp_path <- tempfile(pattern = "refiner_", fileext = ".duckdb")
+  on.exit({
+    tryCatch({
+      DBI::dbDisconnect(store@con, shutdown = TRUE)
+      unlink(temp_path, force = TRUE)
+      unlink(paste0(temp_path, ".wal"), force = TRUE)
+    }, error = function(e) NULL)
+  }, add = TRUE)
+
+  if (!is.null(progress_callback)) progress_callback("Creating temporary store...")
+
+  store <- get_ragnar_store(temp_path, openrouter_api_key, embed_model)
+
+  # Ingest candidate abstracts
+  for (i in seq_len(nrow(scoreable))) {
+    if (!is.null(progress_callback)) {
+      progress_callback(paste0("Embedding abstract ", i, "/", nrow(scoreable), "..."))
+    }
+    row <- scoreable[i, ]
+    origin <- paste0("abstract:", row$paper_id)
+    chunks <- data.frame(
+      content = row$abstract,
+      page_number = NA_integer_,
+      chunk_index = 0,
+      context = "",
+      origin = origin,
+      stringsAsFactors = FALSE
+    )
+    insert_chunks_to_ragnar(store, chunks, row$paper_id, "abstract")
+  }
+
+  # Build index for BM25
+  build_ragnar_index(store)
+
+  # Retrieve with hybrid scoring
+  scores <- score_from_ragnar_store(store, query_text, candidates$paper_id)
+  scores
+}
