@@ -27,9 +27,9 @@ mod_research_refiner_ui <- function(id) {
           class = "card-body",
           radioButtons(ns("anchor_type"), "Anchor Type",
                        choices = c("Seed Papers" = "seeds",
-                                   "From Notebook" = "notebook_anchor",
                                    "Research Intent" = "intent",
-                                   "Both" = "both"),
+                                   "Seeds + Intent" = "both",
+                                   "From Notebook" = "notebook_anchor"),
                        selected = "seeds", inline = TRUE),
           conditionalPanel(
             condition = sprintf("input['%s'] === 'seeds' || input['%s'] === 'both'",
@@ -66,7 +66,7 @@ mod_research_refiner_ui <- function(id) {
             textAreaInput(ns("anchor_intent"),
                           "Research Intent",
                           placeholder = "Describe what you're looking for, e.g., 'How do transformers improve clinical NLP outcomes compared to traditional methods?'",
-                          rows = 3)
+                          rows = 3, width = "100%")
           )
         )
       ),
