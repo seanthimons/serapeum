@@ -402,32 +402,32 @@ for (old_id in names(fig_action_observers)) {
 
 ### Functional Requirements
 
-- [ ] "Extract Figures" button appears for PDF documents only
-- [ ] Clicking extract shows a blocking progress modal
-- [ ] Extraction completes and gallery appears with extracted figures
-- [ ] Gallery has two views: list (large images + full metadata) and thumbnail grid
-- [ ] Each figure shows: image, page number, label, caption, LLM description, status
-- [ ] Keep button marks figure as included (is_excluded=FALSE)
-- [ ] Ban button marks figure as excluded (is_excluded=TRUE), visually dims it
-- [ ] Retry button re-runs vision description on one figure, updates DB
-- [ ] Re-extraction on a document with existing figures shows confirmation dialog
-- [ ] Figure count badge shows on document rows that have extracted figures
-- [ ] 0-figure extraction shows a warning notification
-- [ ] Vision API costs are logged via log_cost()
+- [x] "Extract Figures" button appears for PDF documents only
+- [x] Clicking extract shows a blocking progress modal
+- [x] Extraction completes and gallery appears with extracted figures
+- [x] Gallery has two views: list (large images + full metadata) and thumbnail grid
+- [x] Each figure shows: image, page number, label, caption, LLM description, status
+- [x] Keep button marks figure as included (is_excluded=FALSE)
+- [x] Ban button marks figure as excluded (is_excluded=TRUE), visually dims it
+- [x] Retry button re-runs vision description on one figure, updates DB
+- [x] Re-extraction on a document with existing figures shows confirmation dialog
+- [x] Figure count badge shows on document rows that have extracted figures
+- [x] 0-figure extraction shows a warning notification
+- [x] Vision API costs are logged via log_cost()
 
 ### Edge Cases
 
-- [ ] PDF file not found on disk → error notification, no crash
+- [x] PDF file not found on disk → error notification, no crash
 - [ ] No API key configured → extraction runs (figures extracted), vision skipped, gallery shows "No description" placeholder
 - [ ] Retry without API key → warning notification
-- [ ] Document deletion cascades to figure cleanup (already handled by db_delete_figures_for_document)
-- [ ] Gallery persists across sessions (figures in DB + PNGs on disk)
+- [x] Document deletion cascades to figure cleanup (already handled by db_delete_figures_for_document)
+- [x] Gallery persists across sessions (figures in DB + PNGs on disk)
 
 ### Quality Gates
 
-- [ ] App starts without errors (Shiny smoke test)
-- [ ] Existing document notebook functionality unaffected
-- [ ] All existing tests pass
+- [x] App starts without errors (Shiny smoke test)
+- [x] Existing document notebook functionality unaffected
+- [x] All existing tests pass
 
 ---
 
