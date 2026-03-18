@@ -60,11 +60,12 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#144](https://github.com/seanthimons/serapeum/issues/144) | AA Integration + Split Models + Latency Tracking — [plan](docs/plans/2026-03-06-aa-integration-split-models-latency-tracking.md) | High | High |
-| [#142](https://github.com/seanthimons/serapeum/issues/142) | Epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals) — [plan](docs/plans/2026-03-06-advanced-retrieval-pipeline.md) | High | High |
-| [#48](https://github.com/seanthimons/serapeum/issues/48) | Tighter RAG document retrieval controls | Low | Medium |
-| [#12](https://github.com/seanthimons/serapeum/issues/12) | Evaluate reranker need | Low | TBD |
-| [#8](https://github.com/seanthimons/serapeum/issues/8) | Local model support | High | High |
+| ~~[#157](https://github.com/seanthimons/serapeum/issues/157)~~ | ~~OA request usage tracking~~ | ~~Medium~~ | ~~High~~ |
+| ~~[#144](https://github.com/seanthimons/serapeum/issues/144)~~ | ~~AA Integration + Split Models + Latency Tracking~~ | ~~High~~ | ~~High~~ |
+| ~~[#142](https://github.com/seanthimons/serapeum/issues/142)~~ | ~~Epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals)~~ | ~~High~~ | ~~High~~ |
+| ~~[#48](https://github.com/seanthimons/serapeum/issues/48)~~ | ~~Tighter RAG document retrieval controls~~ | ~~Low~~ | ~~Medium~~ |
+| [#12](https://github.com/seanthimons/serapeum/issues/12) | ~~Evaluate reranker need~~ — deferred, using RRF + query reformulation instead | Low | TBD |
+| ~~[#8](https://github.com/seanthimons/serapeum/issues/8)~~ | ~~Local model support~~ | ~~High~~ | ~~High~~ |
 
 ---
 
@@ -228,6 +229,11 @@ High-effort, high-payoff features for the future.
 - [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 - [x] feat: Community-aware edge weighting for citation network cluster separation
+- [x] [#157](https://github.com/seanthimons/serapeum/issues/157): OA request usage tracking (v15.0)
+- [x] [#142](https://github.com/seanthimons/serapeum/issues/142): Advanced Retrieval Pipeline — contextual headers, stale detection, query reformulation (v15.0)
+- [x] [#48](https://github.com/seanthimons/serapeum/issues/48): Tighter RAG document retrieval controls (v15.0)
+- [x] [#144](https://github.com/seanthimons/serapeum/issues/144): AA Integration + Split Models + Latency Tracking — provider abstraction, 3-slot routing, latency analytics, AA benchmarks (v15.0)
+- [x] [#8](https://github.com/seanthimons/serapeum/issues/8): Local model support — multi-provider management, Ollama/LM Studio/vLLM endpoints (v15.0)
 
 ---
 
