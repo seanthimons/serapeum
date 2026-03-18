@@ -664,7 +664,23 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       writeLines(qmd_content, heal_result$qmd_path)
 
       # Re-stage figures for healed QMD (may be in a different temp path)
-      stage_figures_for_quarto(generation_state$figures, dirname(heal_result$qmd_path))
+      figs <- generation_state$figures
+      staged <- stage_figures_for_quarto(figs, dirname(heal_result$qmd_path))
+
+      # Replace relative figure refs with absolute paths for embed-resources
+      if (length(staged) > 0) {
+        heal_dir <- normalizePath(dirname(heal_result$qmd_path), winslash = "/")
+        healed_qmd <- readLines(heal_result$qmd_path)
+        healed_text <- paste(healed_qmd, collapse = "\n")
+        for (fig_id in names(staged)) {
+          healed_text <- gsub(
+            paste0(fig_id, ".png"),
+            paste0(heal_dir, "/", fig_id, ".png"),
+            healed_text, fixed = TRUE
+          )
+        }
+        writeLines(healed_text, heal_result$qmd_path)
+      }
 
       showNotification("Rendering healed preview...", id = "slides_progress", duration = NULL, type = "message")
       html_result <- render_qmd_to_html(heal_result$qmd_path)

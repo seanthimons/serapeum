@@ -360,6 +360,19 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   # Stage figure PNGs next to the QMD so Quarto can resolve image paths
   staged_figures <- stage_figures_for_quarto(figures, dirname(qmd_path))
 
+  # Replace relative figure references with absolute paths so Quarto's
+  # embed-resources can find them (Quarto may copy QMD to its own temp dir)
+  if (length(staged_figures) > 0) {
+    qmd_dir <- normalizePath(dirname(qmd_path), winslash = "/")
+    for (fig_id in names(staged_figures)) {
+      # Only replace in image syntax: (uuid.png) → (/absolute/path/uuid.png)
+      rel_ref <- paste0(fig_id, ".png")
+      abs_ref <- paste0(qmd_dir, "/", fig_id, ".png")
+      qmd_content <- gsub(rel_ref, abs_ref, qmd_content, fixed = TRUE)
+    }
+    writeLines(qmd_content, qmd_path)
+  }
+
   list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation,
        staged_figures = staged_figures)
 }
