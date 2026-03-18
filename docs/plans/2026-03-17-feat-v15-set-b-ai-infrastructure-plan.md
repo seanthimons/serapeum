@@ -412,16 +412,16 @@ get_all_available_models <- function(providers, model_type = c("chat", "embeddin
 - 3-second timeout on `/v1/models` probe — if a provider doesn't respond in 3s, mark as "Offline" and skip
 
 **Tasks:**
-- [ ] Create `migrations/013_create_providers.sql` with OpenRouter seed
-- [ ] Add provider CRUD functions to `R/db.R`
-- [ ] Implement `get_all_available_models()` with provider grouping
-- [ ] Add "Providers" section to `mod_settings.R` UI with add/edit/delete/test
+- [x] Create `migrations/013_create_providers.sql` with OpenRouter seed
+- [x] Add provider CRUD functions to `R/db.R`
+- [x] Implement `get_all_available_models()` with provider grouping
+- [x] Add "Providers" section to `mod_settings.R` UI with add/edit/delete/test
 - [ ] Update model slot dropdowns to show models from all providers, grouped by provider
-- [ ] Implement embedding dimension detection and mismatch warning
-- [ ] Extend stale index detection to check embedding dimension
-- [ ] Handle zero-cost detection for local providers in `estimate_cost()`
+- [x] Implement embedding dimension detection and mismatch warning
+- [x] Extend stale index detection to check embedding dimension
+- [x] Handle zero-cost detection for local providers in `estimate_cost()` (via `is_local_provider()` helper)
 - [ ] Add async model discovery with timeout and offline status
-- [ ] Write tests for provider CRUD, model aggregation, dimension detection, zero-cost logic
+- [x] Write tests for provider CRUD, model aggregation, dimension detection, zero-cost logic
 
 **Success criteria:**
 - Users can add Ollama/LM Studio/vLLM providers via Settings

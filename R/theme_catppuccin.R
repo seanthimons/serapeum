@@ -581,6 +581,16 @@ icon_wallet <- function(...) shiny::icon("wallet", ...)
 #' @return Icon tag
 icon_clock <- function(...) shiny::icon("clock", ...)
 
+#' Server icon (providers)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_server <- function(...) shiny::icon("server", ...)
+
+#' Plus icon (add actions)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_plus <- function(...) shiny::icon("plus", ...)
+
 #' Save icon (alternative name)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag

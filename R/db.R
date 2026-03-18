@@ -701,6 +701,115 @@ get_db_setting <- function(con, key) {
   jsonlite::fromJSON(result$value[1])
 }
 
+# --- Provider CRUD ---
+
+#' Save or update a provider
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID (e.g., "ollama-local")
+#' @param name Human-readable name
+#' @param base_url Base URL for the OpenAI-compatible API
+#' @param api_key Optional API key (NULL for local providers)
+#' @param provider_type Provider type: "openrouter" or "openai-compatible"
+#' @param timeout_chat Timeout in seconds for chat completions
+#' @param timeout_embed Timeout in seconds for embeddings
+#' @return The provider ID
+save_provider <- function(con, id, name, base_url, api_key = NULL,
+                          provider_type = "openai-compatible",
+                          timeout_chat = 300L, timeout_embed = 600L) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(id)
+
+  # DuckDB can't bind NULL in param lists — use NA_character_ for NULL api_key
+  api_key_val <- if (is.null(api_key)) NA_character_ else api_key
+
+  dbExecute(con, "
+    INSERT INTO providers (id, name, base_url, api_key, provider_type, timeout_chat, timeout_embed)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      base_url = EXCLUDED.base_url,
+      api_key = EXCLUDED.api_key,
+      provider_type = EXCLUDED.provider_type,
+      timeout_chat = EXCLUDED.timeout_chat,
+      timeout_embed = EXCLUDED.timeout_embed
+  ", list(id, name, base_url, api_key_val, provider_type,
+          as.integer(timeout_chat), as.integer(timeout_embed)))
+
+  id
+}
+
+#' Get all providers
+#'
+#' @param con DuckDB connection
+#' @return Data frame of providers (empty if table doesn't exist yet)
+get_providers <- function(con) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) {
+    return(data.frame(
+      id = character(), name = character(), base_url = character(),
+      api_key = character(), provider_type = character(),
+      timeout_chat = integer(), timeout_embed = integer(),
+      is_default = logical(), created_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  dbGetQuery(con, "SELECT * FROM providers ORDER BY is_default DESC, name ASC")
+}
+
+#' Get a single provider by ID
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID
+#' @return Named list of provider fields, or NULL if not found
+get_provider <- function(con, id) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(NULL)
+
+  row <- dbGetQuery(con, "SELECT * FROM providers WHERE id = ?", list(id))
+  if (nrow(row) == 0) return(NULL)
+
+  as.list(row[1, ])
+}
+
+#' Delete a provider
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID to delete
+#' @return logical — TRUE if deleted, FALSE if not found or is default
+delete_provider <- function(con, id) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(FALSE)
+
+  # Don't allow deleting the default provider
+  provider <- get_provider(con, id)
+  if (is.null(provider)) return(FALSE)
+  if (isTRUE(provider$is_default)) {
+    stop("Cannot delete the default provider '", provider$name, "'")
+  }
+
+  rows_affected <- dbExecute(con, "DELETE FROM providers WHERE id = ?", list(id))
+  rows_affected > 0
+}
+
+#' Build a provider_config from a stored provider row
+#'
+#' @param provider_row Named list or single-row data.frame from get_provider/get_providers
+#' @param api_key_override Optional API key override (e.g., from settings for OpenRouter)
+#' @return provider_config object
+provider_row_to_config <- function(provider_row, api_key_override = NULL) {
+  api_key <- api_key_override %||% provider_row$api_key
+  create_provider_config(
+    name = provider_row$name,
+    base_url = provider_row$base_url,
+    api_key = api_key,
+    provider_type = provider_row$provider_type,
+    timeout_chat = provider_row$timeout_chat %||% 300L,
+    timeout_embed = provider_row$timeout_embed %||% 600L
+  )
+}
+
 #' Update a notebook's search query and filters
 #' @param con DuckDB connection
 #' @param id Notebook ID

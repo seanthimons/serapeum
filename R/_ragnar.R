@@ -268,29 +268,53 @@ prepend_contextual_header <- function(content, paper_title = NULL, section_hint 
   paste0(header, content)
 }
 
-#' Check if a ragnar store is stale (needs re-indexing for contextual headers)
+#' Check if a ragnar store is stale (needs re-indexing)
+#'
+#' Stale when: schema version is outdated, or the embedding model has changed
+#' since the index was built.
 #'
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID
+#' @param current_embed_model Current embedding model ID (optional)
 #' @return logical — TRUE if store needs re-indexing
-is_ragnar_store_stale <- function(con, notebook_id) {
+is_ragnar_store_stale <- function(con, notebook_id, current_embed_model = NULL) {
+  # Check schema version
   stored_version <- tryCatch({
     key <- paste0("index_schema_version_", notebook_id)
     get_db_setting(con, key)
   }, error = function(e) NULL)
 
   if (is.null(stored_version)) return(TRUE)
+  if (as.integer(stored_version) < RAGNAR_INDEX_SCHEMA_VERSION) return(TRUE)
 
-  as.integer(stored_version) < RAGNAR_INDEX_SCHEMA_VERSION
+  # Check embedding model mismatch
+  if (!is.null(current_embed_model)) {
+    indexed_model <- tryCatch({
+      key <- paste0("index_embed_model_", notebook_id)
+      get_db_setting(con, key)
+    }, error = function(e) NULL)
+
+    if (!is.null(indexed_model) && indexed_model != current_embed_model) {
+      return(TRUE)
+    }
+  }
+
+  FALSE
 }
 
 #' Mark a ragnar store's schema version as current
 #'
 #' @param con DuckDB connection
 #' @param notebook_id Notebook ID
-mark_ragnar_store_current <- function(con, notebook_id) {
+#' @param embed_model Optional embedding model ID to record
+mark_ragnar_store_current <- function(con, notebook_id, embed_model = NULL) {
   key <- paste0("index_schema_version_", notebook_id)
   save_db_setting(con, key, RAGNAR_INDEX_SCHEMA_VERSION)
+
+  if (!is.null(embed_model)) {
+    model_key <- paste0("index_embed_model_", notebook_id)
+    save_db_setting(con, model_key, embed_model)
+  }
 }
 
 chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5,

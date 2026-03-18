@@ -251,6 +251,114 @@ provider_check_health <- function(provider, timeout = 3) {
   })
 }
 
+#' Check if a provider serves local models (not cloud-billed)
+#'
+#' @param provider provider_config object
+#' @return logical — TRUE for local providers (Ollama, LM Studio, etc.)
+is_local_provider <- function(provider) {
+  !identical(provider$provider_type, "openrouter")
+}
+
+# ---- Embedding Dimension Detection ----
+
+#' Known embedding dimensions by model ID
+KNOWN_EMBED_DIMS <- c(
+  "openai/text-embedding-3-small" = 1536L,
+  "openai/text-embedding-3-large" = 3072L,
+  "openai/text-embedding-ada-002" = 1536L,
+  "google/gemini-embedding-001" = 768L,
+  "qwen/qwen3-embedding-8b" = 4096L,
+  "mistralai/mistral-embed-2312" = 1024L,
+  "nomic-embed-text" = 768L,    # Ollama
+  "mxbai-embed-large" = 1024L,  # Ollama
+  "all-minilm" = 384L           # Ollama
+)
+
+#' Detect embedding dimension for a model
+#'
+#' Checks known dimensions first, then optionally probes the provider
+#' with a test embedding call.
+#'
+#' @param model Embedding model ID
+#' @param provider Optional provider_config for probe (NULL to skip)
+#' @return Integer dimension, or NULL if unknown and no provider given
+detect_embedding_dimension <- function(model, provider = NULL) {
+  # Check known table first
+  dim <- unname(KNOWN_EMBED_DIMS[model])
+  if (length(dim) == 1 && !is.na(dim)) return(as.integer(dim))
+
+  # Probe with a test call if provider available
+
+  if (!is.null(provider)) {
+    result <- tryCatch({
+      resp <- provider_get_embeddings(provider, model, "test")
+      length(resp$embeddings[[1]])
+    }, error = function(e) NULL)
+
+    if (!is.null(result) && result > 0) return(as.integer(result))
+  }
+
+  NULL
+}
+
+# ---- Multi-Provider Model Aggregation ----
+
+#' Get models from all configured providers
+#'
+#' Queries each provider's /models endpoint and merges results with
+#' provider name prefixes for disambiguation.
+#'
+#' @param provider_configs Named list of provider_config objects (name = provider_id)
+#' @param timeout Timeout per provider in seconds (default 3)
+#' @return Data frame with model_id, display_name, provider_id, provider_name
+get_all_available_models <- function(provider_configs, timeout = 3) {
+  if (length(provider_configs) == 0) {
+    return(data.frame(
+      model_id = character(), display_name = character(),
+      provider_id = character(), provider_name = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  all_models <- lapply(names(provider_configs), function(pid) {
+    cfg <- provider_configs[[pid]]
+    # Use short timeout to avoid blocking
+    probe_cfg <- cfg
+    probe_cfg$timeout_chat <- timeout
+
+    models <- tryCatch({
+      provider_list_models(probe_cfg)
+    }, error = function(e) {
+      data.frame(id = character(), name = character(), stringsAsFactors = FALSE)
+    })
+
+    if (nrow(models) == 0) return(NULL)
+
+    data.frame(
+      model_id = models$id,
+      display_name = if (length(provider_configs) > 1) {
+        paste0("[", cfg$name, "] ", models$name)
+      } else {
+        models$name
+      },
+      provider_id = pid,
+      provider_name = cfg$name,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  result <- do.call(rbind, Filter(Negate(is.null), all_models))
+  if (is.null(result)) {
+    return(data.frame(
+      model_id = character(), display_name = character(),
+      provider_id = character(), provider_name = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  result
+}
+
 # ---- Model Slot Resolution ----
 
 #' Resolve which model to use for a given operation

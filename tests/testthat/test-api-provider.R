@@ -264,3 +264,169 @@ test_that("COST_OPERATION_META has slot field on every entry", {
     }
   }
 })
+
+# ---- Provider CRUD ----
+
+source(file.path(project_root, "R", "db_migrations.R"))
+source(file.path(project_root, "R", "db.R"))
+
+# Helper: create in-memory DB with providers table
+setup_db_with_providers <- function() {
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  init_schema(con)
+  # Apply migration 013 directly since test cwd may not have migrations/
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS providers (
+      id VARCHAR PRIMARY KEY, name VARCHAR NOT NULL, base_url VARCHAR NOT NULL,
+      api_key VARCHAR, provider_type VARCHAR NOT NULL DEFAULT 'openai-compatible',
+      timeout_chat INTEGER DEFAULT 300, timeout_embed INTEGER DEFAULT 600,
+      is_default BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
+  DBI::dbExecute(con, "
+    INSERT INTO providers (id, name, base_url, provider_type, is_default, timeout_chat, timeout_embed)
+    VALUES ('openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1', 'openrouter', TRUE, 120, 60)
+    ON CONFLICT DO NOTHING
+  ")
+  con
+}
+
+test_that("save_provider and get_provider round-trip correctly", {
+  con <- setup_db_with_providers()
+  on.exit(close_db_connection(con))
+
+  save_provider(con, "ollama-local", "My Ollama",
+                "http://localhost:11434/v1",
+                provider_type = "openai-compatible")
+
+  p <- get_provider(con, "ollama-local")
+  expect_equal(p$name, "My Ollama")
+  expect_equal(p$base_url, "http://localhost:11434/v1")
+  expect_equal(p$provider_type, "openai-compatible")
+  expect_true(is.na(p$api_key))
+  expect_equal(p$timeout_chat, 300L)
+})
+
+test_that("get_providers returns all providers including seeded OpenRouter", {
+  con <- setup_db_with_providers()
+  on.exit(close_db_connection(con))
+
+  providers <- get_providers(con)
+  expect_true(nrow(providers) >= 1)
+  expect_true("openrouter" %in% providers$id)
+})
+
+test_that("save_provider upserts on conflict", {
+  con <- setup_db_with_providers()
+  on.exit(close_db_connection(con))
+
+  save_provider(con, "test-p", "V1", "http://old/v1")
+  save_provider(con, "test-p", "V2", "http://new/v1")
+
+  p <- get_provider(con, "test-p")
+  expect_equal(p$name, "V2")
+  expect_equal(p$base_url, "http://new/v1")
+})
+
+test_that("delete_provider removes non-default provider", {
+  con <- setup_db_with_providers()
+  on.exit(close_db_connection(con))
+
+  save_provider(con, "temp", "Temp", "http://temp/v1")
+  expect_true(delete_provider(con, "temp"))
+  expect_null(get_provider(con, "temp"))
+})
+
+test_that("delete_provider refuses to delete default provider", {
+  con <- setup_db_with_providers()
+  on.exit(close_db_connection(con))
+
+  expect_error(delete_provider(con, "openrouter"), "Cannot delete")
+})
+
+test_that("provider_row_to_config creates valid provider_config", {
+  row <- list(
+    name = "Ollama", base_url = "http://localhost:11434/v1",
+    api_key = NULL, provider_type = "openai-compatible",
+    timeout_chat = 300L, timeout_embed = 600L
+  )
+  cfg <- provider_row_to_config(row)
+  expect_true(is_provider_config(cfg))
+  expect_equal(cfg$name, "Ollama")
+  expect_null(cfg$api_key)
+})
+
+test_that("provider_row_to_config respects api_key_override", {
+  row <- list(
+    name = "OR", base_url = "https://openrouter.ai/api/v1",
+    api_key = NULL, provider_type = "openrouter",
+    timeout_chat = 120L, timeout_embed = 60L
+  )
+  cfg <- provider_row_to_config(row, api_key_override = "sk-test")
+  expect_equal(cfg$api_key, "sk-test")
+})
+
+# ---- Local Provider Detection ----
+
+test_that("is_local_provider identifies OpenRouter as non-local", {
+  cfg <- openrouter_provider("sk-test")
+  expect_false(is_local_provider(cfg))
+})
+
+test_that("is_local_provider identifies non-openrouter as local", {
+  cfg <- create_provider_config("Ollama", "http://localhost:11434/v1")
+  expect_true(is_local_provider(cfg))
+})
+
+# ---- Embedding Dimension Detection ----
+
+test_that("detect_embedding_dimension returns known dimensions", {
+  expect_equal(detect_embedding_dimension("openai/text-embedding-3-small"), 1536L)
+  expect_equal(detect_embedding_dimension("openai/text-embedding-3-large"), 3072L)
+  expect_equal(detect_embedding_dimension("nomic-embed-text"), 768L)
+})
+
+test_that("detect_embedding_dimension returns NULL for unknown model without provider", {
+  expect_null(detect_embedding_dimension("unknown/model"))
+})
+
+# ---- Model Aggregation ----
+
+test_that("get_all_available_models returns empty frame for empty input", {
+  result <- get_all_available_models(list())
+  expect_equal(nrow(result), 0)
+  expect_true(all(c("model_id", "display_name", "provider_id", "provider_name") %in% names(result)))
+})
+
+# ---- Stale Index Detection ----
+
+test_that("is_ragnar_store_stale detects embedding model mismatch", {
+  source(file.path(project_root, "R", "_ragnar.R"))
+
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- "test-nb"
+  mark_ragnar_store_current(con, nb_id, embed_model = "openai/text-embedding-3-small")
+
+  # Same model — not stale
+  expect_false(is_ragnar_store_stale(con, nb_id, current_embed_model = "openai/text-embedding-3-small"))
+
+  # Different model — stale
+  expect_true(is_ragnar_store_stale(con, nb_id, current_embed_model = "openai/text-embedding-3-large"))
+})
+
+test_that("is_ragnar_store_stale works without embed model check", {
+  source(file.path(project_root, "R", "_ragnar.R"))
+
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  nb_id <- "test-nb"
+  mark_ragnar_store_current(con, nb_id)
+
+  # No embed model passed — only checks schema version
+  expect_false(is_ragnar_store_stale(con, nb_id))
+})

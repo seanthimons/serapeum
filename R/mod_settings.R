@@ -142,6 +142,16 @@ mod_settings_ui <- function(id) {
           ),
           p(class = "text-muted small mt-0 mb-2",
             "For: document indexing and retrieval"),
+          uiOutput(ns("embed_dimension_warning")),
+          hr(),
+          h5(icon_server(), " Providers"),
+          p(class = "text-muted small",
+            "Add OpenAI-compatible endpoints (Ollama, LM Studio, vLLM) ",
+            "to use local models alongside cloud providers."),
+          uiOutput(ns("providers_list")),
+          actionButton(ns("add_provider"), "Add Provider",
+                       class = "btn-outline-secondary btn-sm mt-2",
+                       icon = icon_plus()),
           hr(),
           h5(icon_shield(), " Quality Data"),
           p(class = "text-muted small",
@@ -604,6 +614,279 @@ mod_settings_server <- function(id, con, config_rv) {
           sprintf("$%.2f/M out", row$completion_price)
         )
       )
+    })
+
+    # --- Provider Management ---
+
+    provider_refresh <- reactiveVal(0)
+
+    output$providers_list <- renderUI({
+      provider_refresh()
+      req(con())
+
+      providers <- get_providers(con())
+
+      if (nrow(providers) == 0) {
+        return(tags$p(class = "text-muted small", "No providers configured."))
+      }
+
+      # For OpenRouter, use the API key from settings
+      or_key <- trimws(input$openrouter_key %||% "")
+
+      tagList(lapply(seq_len(nrow(providers)), function(i) {
+        p <- providers[i, ]
+        is_openrouter <- isTRUE(p$is_default)
+
+        # Status indicator
+        status_icon <- if (is_openrouter && nchar(or_key) > 0) {
+          span(class = "text-success me-1", icon("circle-check"))
+        } else if (is_openrouter) {
+          span(class = "text-warning me-1", icon("circle-exclamation"))
+        } else {
+          # For non-default providers, test health synchronously (quick 3s timeout)
+          cfg <- provider_row_to_config(p)
+          health <- tryCatch(provider_check_health(cfg, timeout = 3), error = function(e) list(alive = FALSE))
+          if (isTRUE(health$alive)) {
+            span(class = "text-success me-1", icon("circle-check"),
+                 title = sprintf("%d models", health$model_count %||% 0))
+          } else {
+            span(class = "text-danger me-1", icon("circle-xmark"), title = "Offline")
+          }
+        }
+
+        # API key display
+        key_display <- if (is_openrouter) {
+          if (nchar(or_key) > 0) "(API key in credentials)" else "(no API key)"
+        } else if (!is.null(p$api_key) && nchar(p$api_key %||% "") > 0) {
+          paste0("key: ", substr(p$api_key, 1, 8), "...")
+        } else {
+          "(no key)"
+        }
+
+        div(
+          class = "d-flex align-items-center gap-2 py-1",
+          status_icon,
+          div(
+            class = "flex-grow-1",
+            span(class = "fw-semibold", p$name),
+            if (is_openrouter) span(class = "badge bg-secondary ms-1", "built-in"),
+            tags$br(),
+            span(class = "text-muted small", p$base_url, " ", key_display)
+          ),
+          if (!is_openrouter) {
+            div(
+              class = "d-flex gap-1",
+              actionButton(
+                ns(paste0("test_provider_", p$id)), NULL,
+                icon = icon("plug"), class = "btn-outline-secondary btn-sm",
+                title = "Test connection"
+              ),
+              actionButton(
+                ns(paste0("edit_provider_", p$id)), NULL,
+                icon = icon("pen"), class = "btn-outline-secondary btn-sm",
+                title = "Edit"
+              ),
+              actionButton(
+                ns(paste0("delete_provider_", p$id)), NULL,
+                icon = icon("trash"), class = "btn-outline-danger btn-sm",
+                title = "Delete"
+              )
+            )
+          }
+        )
+      }))
+    })
+
+    # Add provider modal
+    observeEvent(input$add_provider, {
+      ns <- session$ns
+      showModal(modalDialog(
+        title = "Add Provider",
+        textInput(ns("new_provider_name"), "Name", placeholder = "My Ollama"),
+        textInput(ns("new_provider_url"), "Base URL",
+                  placeholder = "http://localhost:11434/v1"),
+        passwordInput(ns("new_provider_key"), "API Key (optional)"),
+        uiOutput(ns("new_provider_test_result")),
+        footer = tagList(
+          actionButton(ns("test_new_provider"), "Test Connection",
+                       class = "btn-outline-secondary"),
+          actionButton(ns("save_new_provider"), "Save",
+                       class = "btn-primary"),
+          modalButton("Cancel")
+        )
+      ))
+    })
+
+    # Test new provider connection
+    observeEvent(input$test_new_provider, {
+      url <- trimws(input$new_provider_url %||% "")
+      key <- trimws(input$new_provider_key %||% "")
+
+      if (nchar(url) == 0) {
+        output$new_provider_test_result <- renderUI(
+          div(class = "alert alert-warning py-1 small mt-2", "Please enter a base URL.")
+        )
+        return()
+      }
+
+      cfg <- create_provider_config(
+        name = "test", base_url = url,
+        api_key = if (nchar(key) > 0) key else NULL
+      )
+      health <- provider_check_health(cfg, timeout = 5)
+
+      output$new_provider_test_result <- renderUI({
+        if (isTRUE(health$alive)) {
+          div(class = "alert alert-success py-1 small mt-2",
+              icon("circle-check"), sprintf(" Connected! Found %d models. Server type: %s",
+                                            health$model_count, health$server_type))
+        } else {
+          div(class = "alert alert-danger py-1 small mt-2",
+              icon("circle-xmark"), " Could not connect. Check the URL and try again.")
+        }
+      })
+    })
+
+    # Save new provider
+    observeEvent(input$save_new_provider, {
+      name <- trimws(input$new_provider_name %||% "")
+      url <- trimws(input$new_provider_url %||% "")
+      key <- trimws(input$new_provider_key %||% "")
+
+      if (nchar(name) == 0 || nchar(url) == 0) {
+        showNotification("Name and Base URL are required.", type = "error")
+        return()
+      }
+
+      # Generate a URL-safe ID from the name
+      id <- tolower(gsub("[^a-z0-9]+", "-", name))
+      id <- sub("-+$", "", sub("^-+", "", id))
+
+      save_provider(con(), id, name, url,
+                    api_key = if (nchar(key) > 0) key else NULL)
+
+      removeModal()
+      provider_refresh(provider_refresh() + 1)
+      showNotification(paste("Provider", name, "added!"), type = "message")
+    })
+
+    # Dynamic observers for provider test/edit/delete buttons
+    observe({
+      provider_refresh()
+      req(con())
+
+      providers <- get_providers(con())
+      non_default <- providers[!providers$is_default, , drop = FALSE]
+
+      lapply(seq_len(nrow(non_default)), function(i) {
+        p <- non_default[i, ]
+        pid <- p$id
+
+        # Test button
+        local({
+          local_pid <- pid
+          local_name <- p$name
+          btn_id <- paste0("test_provider_", local_pid)
+          observeEvent(input[[btn_id]], {
+            cfg <- provider_row_to_config(get_provider(con(), local_pid))
+            health <- provider_check_health(cfg, timeout = 5)
+            if (isTRUE(health$alive)) {
+              showNotification(
+                sprintf("%s: connected (%d models, %s)", local_name, health$model_count, health$server_type),
+                type = "message")
+            } else {
+              showNotification(sprintf("%s: connection failed", local_name), type = "error")
+            }
+          }, ignoreInit = TRUE)
+        })
+
+        # Delete button
+        local({
+          local_pid <- pid
+          local_name <- p$name
+          btn_id <- paste0("delete_provider_", local_pid)
+          observeEvent(input[[btn_id]], {
+            tryCatch({
+              delete_provider(con(), local_pid)
+              provider_refresh(provider_refresh() + 1)
+              showNotification(paste("Deleted provider:", local_name), type = "message")
+            }, error = function(e) {
+              showNotification(e$message, type = "error")
+            })
+          }, ignoreInit = TRUE)
+        })
+
+        # Edit button
+        local({
+          local_pid <- pid
+          btn_id <- paste0("edit_provider_", local_pid)
+          observeEvent(input[[btn_id]], {
+            p_data <- get_provider(con(), local_pid)
+            ns <- session$ns
+            showModal(modalDialog(
+              title = paste("Edit Provider:", p_data$name),
+              textInput(ns("edit_provider_name"), "Name", value = p_data$name),
+              textInput(ns("edit_provider_url"), "Base URL", value = p_data$base_url),
+              passwordInput(ns("edit_provider_key"), "API Key",
+                            placeholder = if (!is.null(p_data$api_key) && nchar(p_data$api_key %||% "") > 0) "******** (leave blank to keep)" else ""),
+              tags$input(type = "hidden", id = ns("edit_provider_id"), value = local_pid),
+              footer = tagList(
+                actionButton(ns("save_edit_provider"), "Save", class = "btn-primary"),
+                modalButton("Cancel")
+              )
+            ))
+          }, ignoreInit = TRUE)
+        })
+      })
+    })
+
+    # Save edited provider
+    observeEvent(input$save_edit_provider, {
+      pid <- input$edit_provider_id
+      name <- trimws(input$edit_provider_name %||% "")
+      url <- trimws(input$edit_provider_url %||% "")
+      key <- trimws(input$edit_provider_key %||% "")
+
+      if (nchar(name) == 0 || nchar(url) == 0) {
+        showNotification("Name and Base URL are required.", type = "error")
+        return()
+      }
+
+      # If key is blank, keep the existing one
+      existing <- get_provider(con(), pid)
+      api_key <- if (nchar(key) > 0) key else existing$api_key
+
+      save_provider(con(), pid, name, url, api_key = api_key)
+
+      removeModal()
+      provider_refresh(provider_refresh() + 1)
+      showNotification(paste("Provider", name, "updated!"), type = "message")
+    })
+
+    # Embedding dimension warning
+    output$embed_dimension_warning <- renderUI({
+      embed_model <- input$embed_model
+      req(embed_model)
+      req(con())
+
+      # Get dimension of selected model
+      new_dim <- detect_embedding_dimension(embed_model)
+      if (is.null(new_dim)) return(NULL)
+
+      # Check stored dimension
+      stored_dim <- tryCatch(get_db_setting(con(), "embedding_dimension"), error = function(e) NULL)
+      if (is.null(stored_dim)) return(NULL)
+      stored_dim <- as.integer(stored_dim)
+
+      if (new_dim != stored_dim) {
+        div(
+          class = "alert alert-warning py-2 small mt-2",
+          icon("triangle-exclamation"),
+          sprintf(" Dimension mismatch: indexes were built with %d dims, but %s produces %d dims. ",
+                  stored_dim, embed_model, new_dim),
+          "Re-index your notebooks for retrieval to work."
+        )
+      }
     })
 
     # DOI backfill status
