@@ -353,9 +353,9 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       # Get models
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
       models <- tryCatch({
-        list_models(api_key)
+        provider_list_models(provider)
       }, error = function(e) {
         data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })
@@ -431,10 +431,10 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         paste0("Generating slides with ", input$model, "..."),
         id = "slides_progress", duration = NULL, type = "message"
       )
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
 
       result <- generate_slides(
-        api_key = api_key,
+        provider = provider,
         model = input$model,
         chunks = chunks,
         options = generation_state$last_options,
@@ -514,7 +514,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       attempt <- generation_state$heal_attempts
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
 
       # Check if we've exceeded the retry limit
       if (attempt > 2) {
@@ -582,7 +582,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       )
 
       heal_result <- heal_slides(
-        api_key = api_key,
+        provider = provider,
         model = model,
         previous_qmd = previous_qmd,
         errors = errors,
@@ -656,10 +656,10 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       docs <- list_documents(con(), nb_id)
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
 
       models <- tryCatch({
-        list_models(api_key)
+        provider_list_models(provider)
       }, error = function(e) {
         data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })

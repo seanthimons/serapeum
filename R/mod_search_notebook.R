@@ -512,16 +512,18 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 22: Async re-index task (mirai worker)
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         source(file.path(app_dir, "R", "interrupt.R"))
+        source(file.path(app_dir, "R", "config.R"))
         source(file.path(app_dir, "R", "api_openalex.R"))
         source(file.path(app_dir, "R", "api_openrouter.R"))
+        source(file.path(app_dir, "R", "api_provider.R"))
         source(file.path(app_dir, "R", "_ragnar.R"))
 
         result <- rebuild_notebook_store(
           notebook_id = notebook_id,
-          api_key = api_key,
+          provider = provider,
           embed_model = embed_model,
           documents = documents,
           abstracts = abstracts,
@@ -531,7 +533,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         )
         result
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
-         api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
+         provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir)
     })
 
@@ -698,7 +700,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
       embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
@@ -744,7 +746,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
     })
 
     # Phase 22: Rebuild handler (corruption recovery — same async pattern)
@@ -754,7 +756,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
       embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
@@ -793,7 +795,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
       reindex_poller(poller)
 
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
     })
 
     # Phase 22: Cancel re-index handler
@@ -1025,8 +1027,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Reactive: check if API key is configured
     has_api_key <- reactive({
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      !is.null(api_key) && nchar(api_key) > 0
+      provider <- provider_from_config(cfg)
+      !is.null(provider$api_key) && nchar(provider$api_key) > 0
     })
 
     # Restore filter state when notebook changes
@@ -2762,10 +2764,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       withProgress(message = "Embedding papers...", value = 0, {
         cfg <- config()
-        api_key_or <- get_setting(cfg, "openrouter", "api_key")
+        provider_or <- provider_from_config(cfg)
         embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
-        if (is.null(api_key_or) || nchar(api_key_or) == 0) {
+        if (is.null(provider_or$api_key) || nchar(provider_or$api_key) == 0) {
           showNotification("OpenRouter API key required for embedding", type = "error")
           return()
         }
@@ -2802,7 +2804,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
             # Phase 22: Use per-notebook ragnar store
             store <- tryCatch(
-              ensure_ragnar_store(nb_id, session, api_key_or, embed_model),
+              ensure_ragnar_store(nb_id, session, provider_or, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
                 store_healthy(FALSE)

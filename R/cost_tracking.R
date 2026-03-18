@@ -79,13 +79,26 @@ update_model_pricing <- function(models_df) {
 
 #' Estimate cost from token usage
 #'
+#' Returns $0 for models with no known pricing (e.g., local models).
+#' Only falls back to DEFAULT_PRICING for OpenRouter models without
+#' explicit pricing data.
+#'
 #' @param model Model ID string
 #' @param prompt_tokens Number of prompt tokens
 #' @param completion_tokens Number of completion tokens (default 0 for embeddings)
+#' @param is_local Whether this model is served by a local provider (default FALSE)
 #' @return Numeric USD cost
-estimate_cost <- function(model, prompt_tokens, completion_tokens = 0) {
-  # Get pricing for this model, or use default
-  pricing <- pricing_env$MODEL_PRICING[[model]] %||% DEFAULT_PRICING
+estimate_cost <- function(model, prompt_tokens, completion_tokens = 0, is_local = FALSE) {
+  pricing <- pricing_env$MODEL_PRICING[[model]]
+
+  # Local models with no pricing data are free
+
+  if (is.null(pricing) && is_local) {
+    return(0.0)
+  }
+
+  # Cloud models with no pricing fall back to conservative default
+  pricing <- pricing %||% DEFAULT_PRICING
 
   # Calculate cost: (tokens / 1,000,000) * price_per_million
   prompt_cost <- (prompt_tokens / 1000000) * pricing$prompt
@@ -167,9 +180,11 @@ format_cost_model_name <- function(model) {
 #' @param total_tokens Total tokens (default sum of prompt + completion)
 #' @param estimated_cost Estimated USD cost
 #' @param session_id Shiny session ID for grouping costs
+#' @param duration_ms Request duration in milliseconds (NULL if not captured)
 #' @return Cost log record ID
 log_cost <- function(con, operation, model, prompt_tokens, completion_tokens = 0,
-                     total_tokens = NULL, estimated_cost, session_id) {
+                     total_tokens = NULL, estimated_cost, session_id,
+                     duration_ms = NULL) {
   id <- UUIDgenerate()
 
   # Calculate total_tokens if not provided
@@ -177,19 +192,32 @@ log_cost <- function(con, operation, model, prompt_tokens, completion_tokens = 0
     total_tokens <- prompt_tokens + completion_tokens
   }
 
-  dbExecute(con, "
-    INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  ", list(
-    id,
-    session_id,
-    operation,
-    model,
-    as.integer(prompt_tokens),
-    as.integer(completion_tokens),
-    as.integer(total_tokens),
-    as.numeric(estimated_cost)
-  ))
+  # Check if duration_ms column exists (migration 012 may not have run yet)
+  has_duration <- tryCatch({
+    cols <- DBI::dbListFields(con, "cost_log")
+    "duration_ms" %in% cols
+  }, error = function(e) FALSE)
+
+  if (has_duration && !is.null(duration_ms)) {
+    dbExecute(con, "
+      INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, duration_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ", list(
+      id, session_id, operation, model,
+      as.integer(prompt_tokens), as.integer(completion_tokens),
+      as.integer(total_tokens), as.numeric(estimated_cost),
+      as.integer(duration_ms)
+    ))
+  } else {
+    dbExecute(con, "
+      INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ", list(
+      id, session_id, operation, model,
+      as.integer(prompt_tokens), as.integer(completion_tokens),
+      as.integer(total_tokens), as.numeric(estimated_cost)
+    ))
+  }
 
   id
 }

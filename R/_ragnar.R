@@ -134,46 +134,46 @@ decode_origin_metadata <- function(origin) {
 
 # ---- Ragnar Store Management ----
 
-#' Build embed function for OpenRouter
+#' Build embed function for the provider layer
 #'
-#' Creates a self-contained embed function that calls the OpenRouter
-#' embeddings API directly via httr2. This function is set on ragnar
-#' stores at runtime via the S7 @embed property, bypassing ragnar's
-#' closure serialization which loses environment references.
+#' Creates a self-contained embed function that calls the provider
+#' embeddings API. This function is set on ragnar stores at runtime
+#' via the S7 @embed property, bypassing ragnar's closure
+#' serialization which loses environment references.
 #'
-#' @param api_key OpenRouter API key
+#' @param provider provider_config object
 #' @param embed_model Embedding model ID
 #' @return Function(texts) -> matrix of embeddings
-make_embed_function <- function(api_key, embed_model) {
-  force(api_key)
+make_embed_function <- function(provider, embed_model) {
+  force(provider)
   force(embed_model)
   function(texts) {
-    result <- get_embeddings(api_key, embed_model, texts)
+    result <- provider_get_embeddings(provider, embed_model, texts)
     do.call(rbind, result$embeddings)
   }
 }
 
 #' Get or create RagnarStore for chunk embeddings
 #'
-#' Uses OpenRouter for embeddings (same API key as chat), so no separate
-#' OpenAI key is required. Attaches the embed function at runtime via the
-#' S7 @embed property to bypass ragnar's closure serialization bug.
+#' Uses the provider layer for embeddings. Attaches the embed function
+#' at runtime via the S7 @embed property to bypass ragnar's closure
+#' serialization bug.
 #'
 #' @param path Path to the ragnar store database
-#' @param openrouter_api_key OpenRouter API key (required for embedding)
-#' @param embed_model Embedding model (OpenRouter format, e.g., "openai/text-embedding-3-small")
+#' @param provider provider_config object (required for embedding)
+#' @param embed_model Embedding model (e.g., "openai/text-embedding-3-small")
 #' @return RagnarStore object
 get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
-                              openrouter_api_key = NULL,
+                              provider = NULL,
                               embed_model = "openai/text-embedding-3-small") {
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
-  # Require API key (needed for embed function on both create and connect)
-  if (is.null(openrouter_api_key) || nchar(openrouter_api_key) == 0) {
-    stop("OpenRouter API key required to create/open ragnar store for embedding")
+  # Require provider with API key (needed for embed function)
+  if (is.null(provider) || is.null(provider$api_key) || nchar(provider$api_key) == 0) {
+    stop("Provider with API key required to create/open ragnar store for embedding")
   }
 
-  embed_fn <- make_embed_function(openrouter_api_key, embed_model)
+  embed_fn <- make_embed_function(provider, embed_model)
 
   if (file.exists(path)) {
     store <- ragnar::ragnar_store_connect(path)
@@ -386,12 +386,12 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
 #'
 #' @param notebook_id Notebook ID (UUID)
 #' @param session Shiny session for notifications (optional)
-#' @param api_key OpenRouter API key (required for store creation)
-#' @param embed_model Embedding model ID (OpenRouter format)
+#' @param provider provider_config object (required for store creation)
+#' @param embed_model Embedding model ID
 #' @return RagnarStore connection or NULL on error
 #' @examples
-#' store <- ensure_ragnar_store("notebook-id", session, api_key, "openai/text-embedding-3-small")
-ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
+#' store <- ensure_ragnar_store("notebook-id", session, provider, "openai/text-embedding-3-small")
+ensure_ragnar_store <- function(notebook_id, session = NULL, provider = NULL,
                                  embed_model = "openai/text-embedding-3-small") {
   store_path <- get_notebook_ragnar_path(notebook_id)
 
@@ -399,8 +399,8 @@ ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
   if (file.exists(store_path)) {
     store <- ragnar::ragnar_store_connect(store_path)
     # Attach working embed function (bypasses broken serialized closure)
-    if (!is.null(api_key) && nchar(api_key) > 0) {
-      store@embed <- make_embed_function(api_key, embed_model)
+    if (!is.null(provider) && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {
+      store@embed <- make_embed_function(provider, embed_model)
     }
     return(store)
   }
@@ -418,7 +418,7 @@ ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
   store <- tryCatch({
     get_ragnar_store(
       path = store_path,
-      openrouter_api_key = api_key,
+      provider = provider,
       embed_model = embed_model
     )
   }, error = function(e) {
@@ -769,7 +769,7 @@ read_reindex_progress <- function(progress_file) {
 #'
 #' @param notebook_id Notebook ID (UUID)
 #' @param con DuckDB connection (to get documents and abstracts); ignored if db_path provided
-#' @param api_key OpenRouter API key (for embedding)
+#' @param provider provider_config object (for embedding)
 #' @param embed_model Embedding model ID (OpenRouter format)
 #' @param progress_callback Optional function(count, total, name) called after each item
 #' @param interrupt_flag Path to interrupt flag file (for cross-process cancellation via mirai)
@@ -777,8 +777,8 @@ read_reindex_progress <- function(progress_file) {
 #' @param db_path When provided, open own DBI connection (mirai workers cannot receive serialized con)
 #' @return List with success (logical), count (integer), partial (logical), error (character if failed)
 #' @examples
-#' result <- rebuild_notebook_store(notebook_id, con, api_key, "openai/text-embedding-3-small")
-rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model,
+#' result <- rebuild_notebook_store(notebook_id, con, provider, "openai/text-embedding-3-small")
+rebuild_notebook_store <- function(notebook_id, con = NULL, provider, embed_model,
                                     progress_callback = NULL,
                                     interrupt_flag = NULL,
                                     progress_file = NULL,
@@ -825,7 +825,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
     # Create new store
     store <- get_ragnar_store(
       path = store_path,
-      openrouter_api_key = api_key,
+      provider = provider,
       embed_model = embed_model
     )
 

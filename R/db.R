@@ -795,7 +795,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
                                   ragnar_store_path = NULL,
                                   section_filter = NULL,
-                                  api_key = NULL,
+                                  provider = NULL,
                                   embed_model = "openai/text-embedding-3-small",
                                   config = NULL,
                                   session_id = NULL) {
@@ -811,8 +811,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     # Attach embed function for query vectorization (ragnar_retrieve needs it)
-    if (!is.null(store) && !is.null(api_key) && nchar(api_key) > 0) {
-      store@embed <- make_embed_function(api_key, embed_model)
+    has_provider <- !is.null(provider) && !is.null(provider$api_key) && nchar(provider$api_key) > 0
+    if (!is.null(store) && has_provider) {
+      store@embed <- make_embed_function(provider, embed_model)
     }
 
     if (!is.null(store) && own_store) {
@@ -827,11 +828,11 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
       chunk_count <- tryCatch({
         DBI::dbGetQuery(store@con, "SELECT COUNT(*) as n FROM chunks")$n[1]
       }, error = function(e) NA)
-      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, api_key present: ", !is.null(api_key))
+      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, provider present: ", has_provider)
 
       # Query reformulation: generate variants if enabled
       search_queries <- query
-      if (!is.null(config) && !is.null(api_key)) {
+      if (!is.null(config) && has_provider) {
         reformulation_enabled <- tryCatch(
           get_db_setting(con, "rag_query_reformulation"),
           error = function(e) NULL
@@ -840,7 +841,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
         if (!isFALSE(reformulation_enabled)) {
           chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
           search_queries <- tryCatch({
-            generate_query_variants(query, api_key, chat_model, con, session_id)
+            generate_query_variants(query, provider, chat_model, con, session_id)
           }, error = function(e) {
             message("[search_chunks_hybrid] Query reformulation failed: ", e$message)
             query

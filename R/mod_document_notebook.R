@@ -204,16 +204,18 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
     # Async re-index task (Phase 22) — follows mod_citation_network.R ExtendedTask pattern
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         source(file.path(app_dir, "R", "interrupt.R"))
+        source(file.path(app_dir, "R", "config.R"))
         source(file.path(app_dir, "R", "api_openalex.R"))
         source(file.path(app_dir, "R", "api_openrouter.R"))
+        source(file.path(app_dir, "R", "api_provider.R"))
         source(file.path(app_dir, "R", "_ragnar.R"))
 
         result <- rebuild_notebook_store(
           notebook_id = notebook_id,
-          api_key = api_key,
+          provider = provider,
           embed_model = embed_model,
           documents = documents,
           abstracts = abstracts,
@@ -223,7 +225,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
         result
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
-         api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
+         provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir)
     })
 
@@ -408,7 +410,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
       embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
       # Rebuild with progress (per user decision: withProgress with document count)
@@ -416,7 +418,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         result <- rebuild_notebook_store(
           notebook_id = nb_id,
           con = con(),
-          api_key = api_key,
+          provider = provider,
           embed_model = embed_model,
           progress_callback = function(count, total) {
             incProgress(
@@ -453,7 +455,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg)
       embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
@@ -499,7 +501,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
     })
 
     # Cancel re-index handler (Phase 22)
@@ -724,17 +726,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
         incProgress(0.5, detail = "Generating embeddings")
 
-        api_key <- get_setting(cfg, "openrouter", "api_key")
+        provider <- provider_from_config(cfg)
         embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
 
         # Insert into per-notebook ragnar store (Phase 22: per-notebook store)
-        # Uses same OpenRouter API key for embeddings
-        if (nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
+        if (nrow(result$chunks) > 0 && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {
           incProgress(0.55, detail = "Building search index")
           tryCatch({
             # Phase 22: Use per-notebook ragnar store
             store <- tryCatch(
-              ensure_ragnar_store(nb_id, session, api_key, embed_model),
+              ensure_ragnar_store(nb_id, session, provider, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
                 NULL
