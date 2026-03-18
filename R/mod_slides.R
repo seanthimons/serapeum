@@ -4,7 +4,8 @@
 #' @param documents Data frame of documents (id, filename)
 #' @param models Data frame of available models (id, name)
 #' @param current_model Currently selected model ID
-mod_slides_modal_ui <- function(ns, documents, models, current_model) {
+#' @param figure_count Number of non-excluded figures available (default 0)
+mod_slides_modal_ui <- function(ns, documents, models, current_model, figure_count = 0L) {
   # RevealJS themes
   themes <- c("default", "beige", "blood", "dark", "league",
               "moon", "night", "serif", "simple", "sky", "solarized")
@@ -30,6 +31,20 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
           selected = documents$id
         )
       )
+    ),
+
+    # Figure inclusion toggle
+    div(
+      class = "mb-4",
+      checkboxInput(
+        ns("include_figures"),
+        tagList(
+          "Include figures",
+          if (figure_count > 0) tags$span(class = "badge bg-secondary ms-1", figure_count) else NULL
+        ),
+        value = figure_count > 0
+      ),
+      if (figure_count == 0) tags$small(class = "text-muted", "No figures available — extract figures from documents first") else NULL
     ),
 
     # Configuration options
@@ -297,7 +312,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       heal_attempts = 0,
       validation_errors = NULL,
       is_fallback = FALSE,
-      last_chunks = NULL
+      last_chunks = NULL,
+      figures = NULL
     )
 
     # Store current chip labels for chip click handling
@@ -371,8 +387,13 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       generation_state$validation_errors <- NULL
       generation_state$is_fallback <- FALSE
       generation_state$last_chunks <- NULL
+      generation_state$figures <- NULL
 
-      showModal(mod_slides_modal_ui(ns, docs, models, current_model))
+      # Count available (non-excluded) figures for the toggle badge
+      all_figures <- db_get_slide_figures(con(), nb_id)
+      figure_count <- nrow(all_figures)
+
+      showModal(mod_slides_modal_ui(ns, docs, models, current_model, figure_count = figure_count))
     }, ignoreInit = TRUE)
 
     # Handle generation
@@ -422,6 +443,21 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       generation_state$is_fallback <- FALSE
       generation_state$validation_errors <- NULL
 
+      # Fetch figures if user opted in
+      figures_df <- NULL
+      if (isTRUE(input$include_figures)) {
+        figures_df <- db_get_slide_figures(con(), nb_id, doc_ids)
+        if (nrow(figures_df) > 0) {
+          # Join document filenames for manifest display
+          docs <- list_documents(con(), nb_id)
+          doc_names <- setNames(docs$filename, docs$id)
+          figures_df$doc_name <- doc_names[figures_df$document_id]
+        } else {
+          figures_df <- NULL
+        }
+      }
+      generation_state$figures <- figures_df
+
       # Get notebook name for title
       nb <- get_notebook(con(), nb_id)
       notebook_name <- nb$name %||% "Presentation"
@@ -440,7 +476,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         options = generation_state$last_options,
         notebook_name = notebook_name,
         con = con(),
-        session_id = session$token
+        session_id = session$token,
+        figures = figures_df
       )
 
       if (!is.null(result$error)) {
@@ -541,7 +578,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         writeLines(fallback_qmd, qmd_path)
         generation_state$qmd_path <- qmd_path
 
-        # Render fallback
+        # Render fallback (no figures — fallback is text-only)
         showNotification("Generating fallback template...", id = "slides_progress", duration = NULL, type = "message")
         html_result <- render_qmd_to_html(qmd_path)
         removeNotification("slides_progress")
@@ -626,6 +663,9 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       # Re-save with clean frontmatter
       writeLines(qmd_content, heal_result$qmd_path)
 
+      # Re-stage figures for healed QMD (may be in a different temp path)
+      stage_figures_for_quarto(generation_state$figures, dirname(heal_result$qmd_path))
+
       showNotification("Rendering healed preview...", id = "slides_progress", duration = NULL, type = "message")
       html_result <- render_qmd_to_html(heal_result$qmd_path)
       removeNotification("slides_progress")
@@ -668,7 +708,11 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
                        get_setting(cfg, "defaults", "chat_model") %||%
                        "google/gemini-3.1-flash-lite-preview"
 
-      showModal(mod_slides_modal_ui(ns, docs, models, current_model))
+      # Re-count figures for the toggle badge
+      all_figures <- db_get_slide_figures(con(), nb_id)
+      figure_count <- nrow(all_figures)
+
+      showModal(mod_slides_modal_ui(ns, docs, models, current_model, figure_count = figure_count))
     })
 
     # Download handlers

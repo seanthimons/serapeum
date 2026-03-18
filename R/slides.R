@@ -34,8 +34,10 @@ get_quarto_version <- function() {
 #' Build prompt for slide generation
 #' @param chunks Data frame with content, doc_name, page_number
 #' @param options List with length, audience, citation_style, include_notes, custom_instructions
+#' @param figures Optional data frame from db_get_slide_figures() with doc_name column added.
+#'   When non-NULL, figure manifest and layout instructions are included in the prompt.
 #' @return List with system and user prompt strings
-build_slides_prompt <- function(chunks, options) {
+build_slides_prompt <- function(chunks, options, figures = NULL) {
   # Default options
   length_val <- options$length %||% "medium"
   audience <- options$audience %||% "general"
@@ -94,7 +96,22 @@ build_slides_prompt <- function(chunks, options) {
     "- Each bullet point must be on its own line starting with - (not inline)\n",
     if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
     "- Output ONLY valid Quarto markdown slide content, no explanations or code fences\n",
-    "- Do NOT include any YAML frontmatter, --- delimiters, title:, format:, theme:, or css:"
+    "- Do NOT include any YAML frontmatter, --- delimiters, title:, format:, theme:, or css:",
+    # Figure integration instructions (only when figures provided)
+    if (!is.null(figures) && nrow(figures) > 0) paste0(
+      "\n\nFigure Integration:\n",
+      "- You have access to extracted figures from the source documents (listed in the user prompt).\n",
+      "- Reference figures using: ![caption](FIGURE_ID.png){attributes}\n",
+      "- Only include figures that are directly relevant to your slide content.\n",
+      "- Do NOT reference figure IDs that don't appear in the Available Figures list.\n",
+      "- Layout guidance by figure shape:\n",
+      "  - \"wide\" figures: use full-width on a dedicated slide, {width=\"90%\"}\n",
+      "  - \"standard\" figures: use in a two-column layout with text alongside using :::: {.columns} / ::: {.column width=\"50%\"}\n",
+      "  - \"tall\" figures: constrain with {height=\"70%\"} or pair side-by-side with another figure\n",
+      "- Place figures near the content they illustrate.\n",
+      "- Use the figure's caption or description for the ![caption] alt text.\n",
+      "- Not every slide needs a figure. Use figures to reinforce key points, not to fill space."
+    ) else ""
   )
 
   # Citation instructions
@@ -106,14 +123,23 @@ build_slides_prompt <- function(chunks, options) {
     "Use footnote-style citations."
   )
 
+  # Build figure manifest section (if figures provided)
+  figure_manifest <- build_figure_manifest(figures)
+  figure_section <- if (!is.null(figure_manifest)) {
+    paste0("\n\nAvailable figures:\n\n", figure_manifest)
+  } else {
+    ""
+  }
+
   # User prompt
   user_prompt <- sprintf(
-    "Create a presentation with %s for a %s audience.\n\n%s\n\n%sSource content:\n\n%s",
+    "Create a presentation with %s for a %s audience.\n\n%s\n\n%sSource content:\n\n%s%s",
     slide_count,
     audience,
     citation_instructions,
     if (nchar(custom_instructions) > 0) paste0("Additional instructions: ", custom_instructions, "\n\n") else "",
-    context
+    context,
+    figure_section
   )
 
   list(system = system_prompt, user = user_prompt)
@@ -263,11 +289,13 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 #' @param notebook_name Name of notebook (for title)
 #' @param con Optional database connection for cost logging (default NULL)
 #' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @param figures Optional data frame from db_get_slide_figures() with doc_name column.
+#'   When non-NULL, figure manifest is included in prompt and PNGs are staged for Quarto.
 #' @return List with qmd (content string), qmd_path (temp file), or error
 generate_slides <- function(api_key, model, chunks, options, notebook_name = "Presentation",
-                             con = NULL, session_id = NULL) {
-  # Build prompt
-  prompt <- build_slides_prompt(chunks, options)
+                             con = NULL, session_id = NULL, figures = NULL) {
+  # Build prompt (with optional figure manifest)
+  prompt <- build_slides_prompt(chunks, options, figures = figures)
 
   # Call LLM
   messages <- format_chat_messages(prompt$system, prompt$user)
@@ -321,7 +349,11 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
   writeLines(qmd_content, qmd_path)
 
-  list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation)
+  # Stage figure PNGs next to the QMD so Quarto can resolve image paths
+  staged_figures <- stage_figures_for_quarto(figures, dirname(qmd_path))
+
+  list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation,
+       staged_figures = staged_figures)
 }
 
 #' Validate YAML frontmatter in QMD content
@@ -526,4 +558,99 @@ get_healing_chips <- function(errors, is_success) {
   chips <- c(chips, "Simplify slides", "Fewer bullet points")
 
   chips
+}
+
+# ============================================================================
+# Figure Integration for Slides
+# ============================================================================
+
+#' Classify figure aspect ratio for slide layout guidance
+#' @param width Image width in pixels
+#' @param height Image height in pixels
+#' @return Character: "wide", "standard", or "tall"
+classify_aspect_ratio <- function(width, height) {
+  if (is.na(width) || is.na(height) || height == 0) return("standard")
+  ratio <- width / height
+  if (ratio > 1.8) "wide"
+  else if (ratio < 0.6) "tall"
+  else "standard"
+}
+
+#' Extract summary line from llm_description
+#' @param description Full LLM description (summary + details separated by double newline)
+#' @return First paragraph only, or empty string if NULL/NA
+extract_description_summary <- function(description) {
+  if (is.null(description) || is.na(description) || nchar(trimws(description)) == 0) {
+    return("")
+  }
+  parts <- strsplit(description, "\n\n", fixed = TRUE)[[1]]
+  trimws(parts[1])
+}
+
+#' Build a figure manifest string for the slide generation LLM
+#' @param figures Data frame from db_get_slide_figures() with added doc_name column
+#' @param max_figures Maximum figures to include in manifest (default 15)
+#' @return Formatted manifest string, or NULL if no figures
+build_figure_manifest <- function(figures, max_figures = 15L) {
+  if (is.null(figures) || nrow(figures) == 0) return(NULL)
+
+  # Truncate if too many figures
+  if (nrow(figures) > max_figures) {
+    figures <- figures[seq_len(max_figures), , drop = FALSE]
+  }
+
+  entries <- vapply(seq_len(nrow(figures)), function(i) {
+    fig <- figures[i, ]
+    aspect_class <- classify_aspect_ratio(fig$width, fig$height)
+    summary <- extract_description_summary(fig$llm_description)
+
+    # Build manifest entry
+    header <- sprintf('[FIGURE %s | "%s" from %s, p.%d | %s (%dx%d)]',
+                      fig$id,
+                      fig$figure_label %||% "Untitled",
+                      fig$doc_name %||% "unknown",
+                      fig$page_number,
+                      aspect_class,
+                      fig$width %||% 0L,
+                      fig$height %||% 0L)
+
+    parts <- header
+    if (!is.null(fig$image_type) && !is.na(fig$image_type) && nchar(fig$image_type) > 0) {
+      parts <- paste0(parts, "\nType: ", fig$image_type)
+    }
+    if (!is.null(fig$extracted_caption) && !is.na(fig$extracted_caption) && nchar(fig$extracted_caption) > 0) {
+      parts <- paste0(parts, "\nCaption: \"", fig$extracted_caption, "\"")
+    }
+    if (nchar(summary) > 0) {
+      parts <- paste0(parts, "\nDescription: ", summary)
+    }
+    parts
+  }, character(1))
+
+  paste(entries, collapse = "\n\n---\n\n")
+}
+
+#' Stage figure PNG files to a directory for Quarto rendering
+#' @param figures Data frame with id and file_path columns
+#' @param qmd_dir Target directory (where the .qmd file lives)
+#' @return Named character vector: figure_id -> staged filename. Missing files are skipped with a warning.
+stage_figures_for_quarto <- function(figures, qmd_dir) {
+  if (is.null(figures) || nrow(figures) == 0) return(character(0))
+
+  staged <- character(0)
+  for (i in seq_len(nrow(figures))) {
+    fig_id <- figures$id[i]
+    src_path <- figures$file_path[i]
+    dest_name <- paste0(fig_id, ".png")
+    dest_path <- file.path(qmd_dir, dest_name)
+
+    if (!file.exists(src_path)) {
+      warning(sprintf("Figure file missing, skipping: %s", src_path))
+      next
+    }
+
+    file.copy(src_path, dest_path, overwrite = TRUE)
+    staged[fig_id] <- dest_name
+  }
+  staged
 }
