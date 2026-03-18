@@ -649,7 +649,7 @@ bitmap_to_array <- function(bm) {
 #' @param img_array Numeric array [h x w x channels]
 #' @param threshold Fraction of white pixels to consider "blank"
 #' @return TRUE if the region is mostly blank
-is_mostly_blank <- function(img_array, threshold = 0.95) {
+is_mostly_blank <- function(img_array, threshold = 0.98) {
   mean(img_array > 240) > threshold
 }
 
