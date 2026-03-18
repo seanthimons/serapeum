@@ -98,7 +98,7 @@ mod_settings_ui <- function(id) {
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              selectizeInput(ns("chat_model"), "Chat Model",
+              selectizeInput(ns("quality_model"), "Quality Model",
                              choices = format_chat_model_choices(get_default_chat_models()),
                              selected = "google/gemini-3.1-flash-lite-preview")
             ),
@@ -107,7 +107,21 @@ mod_settings_ui <- function(id) {
                          class = "btn-outline-secondary btn-sm mb-3",
                          title = "Refresh model list")
           ),
+          p(class = "text-muted small mt-0 mb-2",
+            "For: chat, synthesis, analysis, slides, overviews"),
           uiOutput(ns("model_info")),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              selectizeInput(ns("fast_model"), "Fast Model (optional)",
+                             choices = c("(Use Quality model)" = "", format_chat_model_choices(get_default_chat_models())),
+                             selected = "")
+            )
+          ),
+          uiOutput(ns("fast_model_fallback_hint")),
+          p(class = "text-muted small mt-0 mb-2",
+            "For: query building, reformulation. Use a cheap/fast model to save costs."),
           div(
             class = "d-flex align-items-end gap-2",
             div(
@@ -126,6 +140,8 @@ mod_settings_ui <- function(id) {
                          class = "btn-outline-secondary btn-sm mb-3",
                          title = "Refresh model list")
           ),
+          p(class = "text-muted small mt-0 mb-2",
+            "For: document indexing and retrieval"),
           hr(),
           h5(icon_shield(), " Quality Data"),
           p(class = "text-muted small",
@@ -157,12 +173,37 @@ mod_settings_ui <- function(id) {
   )
 }
 
+#' Migrate 2-slot model settings to 3-slot
+#'
+#' If quality_model is not set but chat_model exists, copies chat_model → quality_model.
+#' This is a one-time runtime migration for existing users.
+#'
+#' @param con DuckDB connection
+migrate_model_slots <- function(con) {
+  quality <- tryCatch(get_db_setting(con, "quality_model"), error = function(e) NULL)
+  if (!is.null(quality)) return(invisible(NULL))
+
+  chat <- tryCatch(get_db_setting(con, "chat_model"), error = function(e) NULL)
+  if (!is.null(chat)) {
+    save_db_setting(con, "quality_model", chat)
+    message("[migrate_model_slots] Copied chat_model → quality_model: ", chat)
+  }
+
+  invisible(NULL)
+}
+
 #' Settings Module Server
 #' @param id Module ID
 #' @param con Database connection (reactive)
 #' @param config_rv Reactive value holding current config
 mod_settings_server <- function(id, con, config_rv) {
   moduleServer(id, function(input, output, session) {
+
+    # One-time migration: chat_model → quality_model
+    observe({
+      req(con())
+      migrate_model_slots(con())
+    }) |> bindEvent(con(), once = TRUE)
 
     # Reactive values to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
@@ -256,7 +297,7 @@ mod_settings_server <- function(id, con, config_rv) {
                            selected = selected)
     }
 
-    # Helper function to update chat model choices
+    # Helper function to update quality model choices
     update_chat_model_choices <- function(api_key, current_selection = NULL) {
       # Always get models - list_chat_models returns defaults if API key invalid
       models <- tryCatch({
@@ -292,7 +333,32 @@ mod_settings_server <- function(id, con, config_rv) {
         NULL
       }
 
-      updateSelectizeInput(session, "chat_model",
+      updateSelectizeInput(session, "quality_model",
+                           choices = choices,
+                           selected = selected)
+    }
+
+    # Helper function to update fast model choices
+    update_fast_model_choices <- function(api_key, current_selection = NULL) {
+      models <- tryCatch({
+        list_chat_models(api_key)
+      }, error = function(e) {
+        get_default_chat_models()
+      })
+
+      if (is.null(models) || nrow(models) == 0) {
+        models <- get_default_chat_models()
+      }
+
+      choices <- c("(Use Quality model)" = "", format_chat_model_choices(models))
+
+      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+        current_selection
+      } else {
+        ""  # default to empty = use quality model
+      }
+
+      updateSelectizeInput(session, "fast_model",
                            choices = choices,
                            selected = selected)
     }
@@ -321,11 +387,18 @@ mod_settings_server <- function(id, con, config_rv) {
                 get_setting(cfg, "openalex", "api_key") %||% ""
       updateTextInput(session, "openalex_api_key", value = oa_key)
 
-      # Chat model - use dynamic approach
-      chat_model <- get_db_setting(con(), "chat_model") %||%
-                    get_setting(cfg, "defaults", "chat_model") %||%
-                    "google/gemini-3.1-flash-lite-preview"
-      update_chat_model_choices(or_key, chat_model)
+      # Quality model (with chat_model fallback for existing users)
+      quality_model <- get_db_setting(con(), "quality_model") %||%
+                       get_db_setting(con(), "chat_model") %||%
+                       get_setting(cfg, "defaults", "quality_model") %||%
+                       get_setting(cfg, "defaults", "chat_model") %||%
+                       "google/gemini-3.1-flash-lite-preview"
+      update_chat_model_choices(or_key, quality_model)
+
+      # Fast model (optional — empty string means use quality model)
+      fast_model <- get_db_setting(con(), "fast_model") %||%
+                    get_setting(cfg, "defaults", "fast_model") %||% ""
+      update_fast_model_choices(or_key, fast_model)
 
       # Embedding model - get saved selection then populate dropdown
       embed_model <- get_db_setting(con(), "embedding_model") %||%
@@ -379,12 +452,14 @@ mod_settings_server <- function(id, con, config_rv) {
       showNotification("Refreshing embedding models...", type = "message", duration = 2)
     })
 
-    # Refresh chat models when API key changes or refresh button clicked
+    # Refresh chat/fast models when API key changes or refresh button clicked
     observe({
       api_key <- input$openrouter_key
       refresh_chat_trigger()  # Also trigger on manual refresh
-      current <- input$chat_model
-      update_chat_model_choices(api_key, current)
+      current_quality <- input$quality_model
+      update_chat_model_choices(api_key, current_quality)
+      current_fast <- input$fast_model
+      update_fast_model_choices(api_key, current_fast)
     }) |> bindEvent(input$openrouter_key, refresh_chat_trigger(), ignoreInit = TRUE)
 
     # Handle chat model refresh button click
@@ -481,13 +556,23 @@ mod_settings_server <- function(id, con, config_rv) {
       save_db_setting(con(), "oa_migration_nudge_dismissed", TRUE)
     })
 
-    # Model info panel showing details for currently selected chat model
+    # Fast model fallback hint
+    output$fast_model_fallback_hint <- renderUI({
+      fast <- input$fast_model
+      if (is.null(fast) || fast == "") {
+        tags$p(class = "small text-info mt-0 mb-1", "Using Quality model as fallback")
+      } else {
+        NULL
+      }
+    })
+
+    # Model info panel showing details for currently selected quality model
     output$model_info <- renderUI({
-      req(input$chat_model)
+      req(input$quality_model)
       models <- chat_models_data()
       req(models)
 
-      selected <- models[models$id == input$chat_model, ]
+      selected <- models[models$id == input$quality_model, ]
       if (nrow(selected) == 0) return(NULL)
 
       row <- selected[1, ]
@@ -707,7 +792,18 @@ mod_settings_server <- function(id, con, config_rv) {
           save_db_setting(con(), "openalex_api_key", oa_key)
         }
 
-        save_db_setting(con(), "chat_model", input$chat_model)
+        save_db_setting(con(), "quality_model", input$quality_model)
+        # Save fast_model: empty string means "use quality model"
+        fast_val <- input$fast_model %||% ""
+        if (nchar(fast_val) > 0) {
+          save_db_setting(con(), "fast_model", fast_val)
+        } else {
+          # Remove fast_model setting so fallback to quality works
+          tryCatch(
+            DBI::dbExecute(con(), "DELETE FROM settings WHERE key = 'fast_model'"),
+            error = function(e) NULL
+          )
+        }
         save_db_setting(con(), "embedding_model", input$embed_model)
         save_db_setting(con(), "rag_query_reformulation", input$query_reformulation)
         save_db_setting(con(), "chunk_size", input$chunk_size)
@@ -744,9 +840,13 @@ mod_settings_server <- function(id, con, config_rv) {
                     non_empty(get_setting(cfg, "openalex", "api_key")) %||% ""
         ),
         defaults = list(
-          chat_model = get_db_setting(con(), "chat_model") %||%
-                       get_setting(cfg, "defaults", "chat_model") %||%
-                       "google/gemini-3.1-flash-lite-preview",
+          fast_model = get_db_setting(con(), "fast_model") %||%
+                       get_setting(cfg, "defaults", "fast_model"),
+          quality_model = get_db_setting(con(), "quality_model") %||%
+                          get_db_setting(con(), "chat_model") %||%
+                          get_setting(cfg, "defaults", "quality_model") %||%
+                          get_setting(cfg, "defaults", "chat_model") %||%
+                          "google/gemini-3.1-flash-lite-preview",
           embedding_model = get_db_setting(con(), "embedding_model") %||%
                             get_setting(cfg, "defaults", "embedding_model") %||%
                             "openai/text-embedding-3-small"

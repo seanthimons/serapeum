@@ -411,7 +411,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
       provider <- provider_from_config(cfg)
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Rebuild with progress (per user decision: withProgress with document count)
       withProgress(message = "Rebuilding search index...", value = 0, {
@@ -456,7 +456,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
       provider <- provider_from_config(cfg)
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -727,7 +727,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         incProgress(0.5, detail = "Generating embeddings")
 
         provider <- provider_from_config(cfg)
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+        embed_model <- resolve_model_for_operation(cfg, "embedding")
 
         # Insert into per-notebook ragnar store (Phase 22: per-notebook store)
         if (nrow(result$chunks) > 0 && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {

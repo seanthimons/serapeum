@@ -9,8 +9,12 @@ source(file.path(project_root, "R", "config.R"))
 source(file.path(project_root, "R", "db_migrations.R"))
 source(file.path(project_root, "R", "db.R"))
 source(file.path(project_root, "R", "cost_tracking.R"))
+source(file.path(project_root, "R", "api_openalex.R"))
+source(file.path(project_root, "R", "api_openrouter.R"))
+source(file.path(project_root, "R", "api_provider.R"))
 source(file.path(project_root, "R", "theme_catppuccin.R"))
 source(file.path(project_root, "R", "mod_cost_tracker.R"))
+source(file.path(project_root, "R", "mod_settings.R"))
 
 test_that("cost operation and model formatters normalize current labels", {
   expect_equal(format_cost_operation_name("overview_keypoints"), "Overview Key Points")
@@ -203,4 +207,46 @@ test_that("format_latency_ms formats correctly", {
   expect_equal(format_latency_ms(50), "50ms")
   expect_equal(format_latency_ms(999), "999ms")
   expect_equal(format_latency_ms(1000), "1.0s")
+})
+
+# --- Model slot migration tests ---
+
+test_that("migrate_model_slots copies chat_model to quality_model", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  save_db_setting(con, "chat_model", "openai/gpt-4o-mini")
+
+  migrate_model_slots(con)
+
+  quality <- get_db_setting(con, "quality_model")
+  expect_equal(quality, "openai/gpt-4o-mini")
+})
+
+test_that("migrate_model_slots is idempotent", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  save_db_setting(con, "quality_model", "anthropic/claude-sonnet-4")
+  save_db_setting(con, "chat_model", "openai/gpt-4o-mini")
+
+  # Should NOT overwrite existing quality_model
+
+  migrate_model_slots(con)
+
+  quality <- get_db_setting(con, "quality_model")
+  expect_equal(quality, "anthropic/claude-sonnet-4")
+})
+
+test_that("migrate_model_slots does nothing when no chat_model exists", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  migrate_model_slots(con)
+
+  quality <- get_db_setting(con, "quality_model")
+  expect_null(quality)
 })

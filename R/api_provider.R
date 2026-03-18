@@ -251,6 +251,41 @@ provider_check_health <- function(provider, timeout = 3) {
   })
 }
 
+# ---- Model Slot Resolution ----
+
+#' Resolve which model to use for a given operation
+#'
+#' Looks up the operation's slot in COST_OPERATION_META, then returns the
+#' appropriate model from config$defaults. Fast slot falls back to quality
+#' model when not configured.
+#'
+#' @param config effective_config list (from mod_settings_server)
+#' @param operation Operation key (must exist in COST_OPERATION_META)
+#' @return Model ID string
+resolve_model_for_operation <- function(config, operation) {
+  meta <- COST_OPERATION_META[[operation]]
+  if (is.null(meta)) {
+    stop("Unknown operation '", operation, "' — not in COST_OPERATION_META")
+  }
+
+  slot <- meta$slot
+  if (is.na(slot)) {
+    stop("Operation '", operation, "' is not an LLM operation (slot = NA)")
+  }
+
+  model <- switch(slot,
+    fast      = config$defaults$fast_model %||% config$defaults$quality_model,
+    quality   = config$defaults$quality_model,
+    embedding = config$defaults$embedding_model
+  )
+
+  if (is.null(model) || model == "") {
+    stop("No model configured for slot '", slot, "'. Please configure a ", slot, " model in Settings.")
+  }
+
+  model
+}
+
 # ---- Config Helper ----
 
 #' Build provider config from effective_config

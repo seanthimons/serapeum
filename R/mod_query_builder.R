@@ -72,7 +72,7 @@ OUTPUT (valid JSON only, no markdown, no code fences):
       # Get config values
       cfg <- config()
       provider <- provider_from_config(cfg)
-      model <- get_setting(cfg, "defaults", "chat_model") %||% "anthropic/claude-sonnet-4"
+      model <- resolve_model_for_operation(cfg, "query_build")
 
       if (is.null(provider$api_key) || nchar(provider$api_key) == 0) {
         showNotification(

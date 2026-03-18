@@ -191,8 +191,7 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   # Build provider from config
   provider <- provider_from_config(config)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "chat")
 
   # Safely check api_key
   api_key <- provider$api_key
@@ -202,7 +201,7 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Debug: check store existence
   store_path <- get_notebook_ragnar_path(notebook_id)
@@ -290,8 +289,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
 
   provider <- provider_from_config(config)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "chat")
 
   # Safely check api_key
   api_key <- provider$api_key
@@ -383,10 +381,8 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
   # Extract settings
   provider <- provider_from_config(config)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
-
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  chat_model <- resolve_model_for_operation(config, "conclusion_synthesis")
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Check api_key
   api_key <- provider$api_key
@@ -561,8 +557,7 @@ generate_overview_preset <- function(con, config, notebook_id,
   # Extract settings with defensive scalar checks
   provider <- provider_from_config(config)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "overview")
 
   # Check api_key
   api_key <- provider$api_key
@@ -799,10 +794,8 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
   # Extract settings
   provider <- provider_from_config(config)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
-
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  chat_model <- resolve_model_for_operation(config, "research_questions")
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Check api_key
   api_key <- provider$api_key
@@ -1018,7 +1011,7 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+    chat_model <- resolve_model_for_operation(config, "lit_review_table")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1219,8 +1212,8 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+    chat_model <- resolve_model_for_operation(config, "methodology_extractor")
+    embed_model <- resolve_model_for_operation(config, "embedding")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1430,8 +1423,8 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+    chat_model <- resolve_model_for_operation(config, "gap_analysis")
+    embed_model <- resolve_model_for_operation(config, "embedding")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "

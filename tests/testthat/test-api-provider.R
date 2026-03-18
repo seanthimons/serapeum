@@ -175,3 +175,92 @@ test_that("log_cost works with and without duration_ms", {
   rows <- DBI::dbGetQuery(con, "SELECT COUNT(*) as n FROM cost_log")
   expect_equal(rows$n, 2)
 })
+
+# ---- Model Slot Resolution ----
+
+test_that("resolve_model_for_operation routes quality operations correctly", {
+  config <- list(defaults = list(
+    fast_model = "google/gemini-3.1-flash-lite-preview",
+    quality_model = "anthropic/claude-sonnet-4",
+    embedding_model = "openai/text-embedding-3-small"
+  ))
+
+  expect_equal(resolve_model_for_operation(config, "chat"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "overview"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "slide_generation"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "conclusion_synthesis"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "research_questions"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "lit_review_table"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "methodology_extractor"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "gap_analysis"), "anthropic/claude-sonnet-4")
+})
+
+test_that("resolve_model_for_operation routes fast operations correctly", {
+  config <- list(defaults = list(
+    fast_model = "google/gemini-3.1-flash-lite-preview",
+    quality_model = "anthropic/claude-sonnet-4",
+    embedding_model = "openai/text-embedding-3-small"
+  ))
+
+  expect_equal(resolve_model_for_operation(config, "query_build"), "google/gemini-3.1-flash-lite-preview")
+  expect_equal(resolve_model_for_operation(config, "query_reformulation"), "google/gemini-3.1-flash-lite-preview")
+  expect_equal(resolve_model_for_operation(config, "openalex_topics"), "google/gemini-3.1-flash-lite-preview")
+})
+
+test_that("resolve_model_for_operation routes embedding operations correctly", {
+  config <- list(defaults = list(
+    fast_model = "google/gemini-3.1-flash-lite-preview",
+    quality_model = "anthropic/claude-sonnet-4",
+    embedding_model = "openai/text-embedding-3-small"
+  ))
+
+  expect_equal(resolve_model_for_operation(config, "embedding"), "openai/text-embedding-3-small")
+})
+
+test_that("fast slot falls back to quality model when fast_model is NULL", {
+  config <- list(defaults = list(
+    fast_model = NULL,
+    quality_model = "anthropic/claude-sonnet-4",
+    embedding_model = "openai/text-embedding-3-small"
+  ))
+
+  expect_equal(resolve_model_for_operation(config, "query_build"), "anthropic/claude-sonnet-4")
+  expect_equal(resolve_model_for_operation(config, "query_reformulation"), "anthropic/claude-sonnet-4")
+})
+
+test_that("resolve_model_for_operation errors on NA-slot operations", {
+  config <- list(defaults = list(quality_model = "test"))
+
+  expect_error(resolve_model_for_operation(config, "openalex_search"), "not an LLM operation")
+  expect_error(resolve_model_for_operation(config, "openalex_fetch"), "not an LLM operation")
+})
+
+test_that("resolve_model_for_operation errors on unknown operation", {
+  config <- list(defaults = list(quality_model = "test"))
+
+  expect_error(resolve_model_for_operation(config, "totally_fake_op"), "Unknown operation")
+})
+
+test_that("resolve_model_for_operation errors when no model configured", {
+  config <- list(defaults = list(
+    fast_model = NULL,
+    quality_model = NULL,
+    embedding_model = NULL
+  ))
+
+  expect_error(resolve_model_for_operation(config, "chat"), "No model configured")
+  expect_error(resolve_model_for_operation(config, "embedding"), "No model configured")
+})
+
+test_that("COST_OPERATION_META has slot field on every entry", {
+  for (op_name in names(COST_OPERATION_META)) {
+    meta <- COST_OPERATION_META[[op_name]]
+    expect_true("slot" %in% names(meta),
+                info = paste("Missing slot on operation:", op_name))
+    # Slot must be a valid value or NA
+    if (!is.na(meta$slot)) {
+      expect_true(meta$slot %in% c("fast", "quality", "embedding"),
+                  info = paste("Invalid slot on operation:", op_name, "got:", meta$slot))
+    }
+  }
+})

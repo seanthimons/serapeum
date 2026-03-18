@@ -27,23 +27,23 @@ DEFAULT_PRICING <- list(prompt = 1.00, completion = 3.00)
 #'
 #' Centralized here so the cost tracker UI does not duplicate stale switch blocks.
 COST_OPERATION_META <- list(
-  "chat" = list(label = "Chat", icon_fun = "icon_comments", accent_class = "text-info"),
-  "embedding" = list(label = "Embeddings", icon_fun = "icon_brain", accent_class = "text-secondary"),
-  "query_build" = list(label = "Query Builder", icon_fun = "icon_wand", accent_class = "text-warning"),
-  "slide_generation" = list(label = "Slide Generation", icon_fun = "icon_file_powerpoint", accent_class = "text-danger"),
-  "slide_healing" = list(label = "Slide Healing", icon_fun = "icon_wrench", accent_class = "text-warning"),
-  "conclusion_synthesis" = list(label = "Conclusion Synthesis", icon_fun = "icon_microscope", accent_class = "text-primary"),
-  "overview" = list(label = "Overview", icon_fun = "icon_layer_group", accent_class = "text-primary"),
-  "overview_summary" = list(label = "Overview Summary", icon_fun = "icon_clipboard", accent_class = "text-info"),
-  "overview_keypoints" = list(label = "Overview Key Points", icon_fun = "icon_key_points", accent_class = "text-success"),
-  "research_questions" = list(label = "Research Questions", icon_fun = "icon_lightbulb", accent_class = "text-warning"),
-  "lit_review_table" = list(label = "Literature Review Table", icon_fun = "icon_table", accent_class = "text-success"),
-  "methodology_extractor" = list(label = "Methodology Extractor", icon_fun = "icon_flask", accent_class = "text-danger"),
-  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info"),
-  "openalex_search" = list(label = "OA Search", icon_fun = "icon_search", accent_class = "text-success"),
-  "openalex_fetch" = list(label = "OA Fetch", icon_fun = "icon_download", accent_class = "text-success"),
-  "openalex_topics" = list(label = "OA Topics", icon_fun = "icon_layer_group", accent_class = "text-success"),
-  "query_reformulation" = list(label = "Query Reformulation", icon_fun = "icon_wand", accent_class = "text-info")
+  "chat" = list(label = "Chat", slot = "quality", icon_fun = "icon_comments", accent_class = "text-info"),
+  "embedding" = list(label = "Embeddings", slot = "embedding", icon_fun = "icon_brain", accent_class = "text-secondary"),
+  "query_build" = list(label = "Query Builder", slot = "fast", icon_fun = "icon_wand", accent_class = "text-warning"),
+  "slide_generation" = list(label = "Slide Generation", slot = "quality", icon_fun = "icon_file_powerpoint", accent_class = "text-danger"),
+  "slide_healing" = list(label = "Slide Healing", slot = "quality", icon_fun = "icon_wrench", accent_class = "text-warning"),
+  "conclusion_synthesis" = list(label = "Conclusion Synthesis", slot = "quality", icon_fun = "icon_microscope", accent_class = "text-primary"),
+  "overview" = list(label = "Overview", slot = "quality", icon_fun = "icon_layer_group", accent_class = "text-primary"),
+  "overview_summary" = list(label = "Overview Summary", slot = "quality", icon_fun = "icon_clipboard", accent_class = "text-info"),
+  "overview_keypoints" = list(label = "Overview Key Points", slot = "quality", icon_fun = "icon_key_points", accent_class = "text-success"),
+  "research_questions" = list(label = "Research Questions", slot = "quality", icon_fun = "icon_lightbulb", accent_class = "text-warning"),
+  "lit_review_table" = list(label = "Literature Review Table", slot = "quality", icon_fun = "icon_table", accent_class = "text-success"),
+  "methodology_extractor" = list(label = "Methodology Extractor", slot = "quality", icon_fun = "icon_flask", accent_class = "text-danger"),
+  "gap_analysis" = list(label = "Gap Analysis", slot = "quality", icon_fun = "icon_search", accent_class = "text-info"),
+  "openalex_search" = list(label = "OA Search", slot = NA, icon_fun = "icon_search", accent_class = "text-success"),
+  "openalex_fetch" = list(label = "OA Fetch", slot = NA, icon_fun = "icon_download", accent_class = "text-success"),
+  "openalex_topics" = list(label = "OA Topics", slot = "fast", icon_fun = "icon_layer_group", accent_class = "text-success"),
+  "query_reformulation" = list(label = "Query Reformulation", slot = "fast", icon_fun = "icon_wand", accent_class = "text-info")
 )
 
 KNOWN_MODEL_LABELS <- c(

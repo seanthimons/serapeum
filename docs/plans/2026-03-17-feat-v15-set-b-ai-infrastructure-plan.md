@@ -292,15 +292,15 @@ Replace current 2 dropdowns with 3:
 When fast model is empty, show helper text: "Using Quality model as fallback"
 
 **Tasks:**
-- [ ] Add `slot` field to every entry in `COST_OPERATION_META`
-- [ ] Create `resolve_model_for_operation(config, operation)` helper
-- [ ] Add runtime settings migration: `chat_model` → `quality_model`
-- [ ] Update `mod_settings.R` UI: replace 2 dropdowns with 3 (fast, quality, embedding)
-- [ ] Update `mod_settings_server` to save/load `fast_model`, `quality_model`, `embedding_model`
-- [ ] Update `effective_config` reactive to include all 3 slots in `defaults` list
-- [ ] Update all call sites to use `resolve_model_for_operation()` to get the correct model for each operation
-- [ ] Update `format_chat_model_choices()` to work for fast and quality pickers
-- [ ] Write tests for slot resolution, fallback behavior, settings migration
+- [x] Add `slot` field to every entry in `COST_OPERATION_META`
+- [x] Create `resolve_model_for_operation(config, operation)` helper
+- [x] Add runtime settings migration: `chat_model` → `quality_model`
+- [x] Update `mod_settings.R` UI: replace 2 dropdowns with 3 (fast, quality, embedding)
+- [x] Update `mod_settings_server` to save/load `fast_model`, `quality_model`, `embedding_model`
+- [x] Update `effective_config` reactive to include all 3 slots in `defaults` list
+- [x] Update all call sites to use `resolve_model_for_operation()` to get the correct model for each operation
+- [x] Update `format_chat_model_choices()` to work for fast and quality pickers
+- [x] Write tests for slot resolution, fallback behavior, settings migration
 
 **Success criteria:**
 - 3 model dropdowns in Settings

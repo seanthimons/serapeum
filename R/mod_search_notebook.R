@@ -701,7 +701,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       cfg <- config()
       provider <- provider_from_config(cfg)
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -757,7 +757,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       cfg <- config()
       provider <- provider_from_config(cfg)
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -2765,7 +2765,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       withProgress(message = "Embedding papers...", value = 0, {
         cfg <- config()
         provider_or <- provider_from_config(cfg)
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+        embed_model <- resolve_model_for_operation(cfg, "embedding")
 
         if (is.null(provider_or$api_key) || nchar(provider_or$api_key) == 0) {
           showNotification("OpenRouter API key required for embedding", type = "error")

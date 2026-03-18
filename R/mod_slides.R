@@ -360,7 +360,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })
 
-      current_model <- get_setting(cfg, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+      current_model <- resolve_model_for_operation(cfg, "slide_generation")
 
       # Reset state
       generation_state$qmd_content <- NULL
@@ -573,8 +573,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       instructions <- input$heal_instructions %||% ""
 
       model <- generation_state$last_options$model %||%
-        get_setting(cfg, "defaults", "chat_model") %||%
-        "google/gemini-3.1-flash-lite-preview"
+        resolve_model_for_operation(cfg, "slide_healing")
 
       showNotification(
         sprintf("Healing slides (attempt %d of 2)...", attempt),
@@ -665,8 +664,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       })
 
       current_model <- generation_state$last_options$model %||%
-                       get_setting(cfg, "defaults", "chat_model") %||%
-                       "google/gemini-3.1-flash-lite-preview"
+                       resolve_model_for_operation(cfg, "slide_generation")
 
       showModal(mod_slides_modal_ui(ns, docs, models, current_model))
     })

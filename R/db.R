@@ -839,7 +839,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
         )
         # Default to enabled (TRUE) when setting doesn't exist
         if (!isFALSE(reformulation_enabled)) {
-          chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+          chat_model <- resolve_model_for_operation(config, "query_reformulation")
           search_queries <- tryCatch({
             generate_query_variants(query, provider, chat_model, con, session_id)
           }, error = function(e) {
