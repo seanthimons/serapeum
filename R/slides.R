@@ -70,6 +70,9 @@ build_slides_prompt <- function(chunks, options) {
     "  Correct: 'Machine learning improves accuracy.^[WHO AMR Report, 2024, p.12]'\n",
     "  WRONG - do NOT use these: '[^1]', '^1', '[1]'\n",
     "  The ^[text] syntax renders a numbered footnote at the bottom of the slide automatically.\n\n",
+    "IMPORTANT: Always include the page number in footnotes when the source data includes page numbers.\n",
+    "If no page number is available, use the chunk identifier from the source label.\n",
+    "Every substantive claim on a slide MUST have a footnote citation.\n\n",
     "Speaker notes:\n",
     "  ::: {.notes}\n",
     "  Presenter notes go here.\n",
@@ -99,8 +102,8 @@ build_slides_prompt <- function(chunks, options) {
 
   # Citation instructions
   citation_instructions <- switch(citation_style,
-    "footnotes" = "Use Quarto inline footnotes: add ^[source info] after key points (e.g., 'key finding.^[Author et al., 2023, p.5]'). Do NOT use [^1] reference-style or bare ^1. Quarto renders these as numbered footnotes automatically.",
-    "inline" = "Use inline parenthetical citations like (Author, p.X) after relevant content.",
+    "footnotes" = "Use Quarto inline footnotes: add ^[source info] after ALL substantive claims (e.g., 'key finding.^[Author et al., 2023, p.5]'). Always include the page number from the source data. Do NOT use [^1] reference-style or bare ^1. Quarto renders these as numbered footnotes automatically.",
+    "inline" = "Use inline parenthetical citations like (Author, Year, p.X) after ALL substantive claims. Always include the page number from the source data.",
     "notes_only" = "Put all citations in speaker notes only, keeping slides clean.",
     "none" = "Do not include citations.",
     "Use footnote-style citations."
@@ -380,7 +383,8 @@ build_healing_prompt <- function(previous_qmd, errors, instructions) {
     "Footnotes (use inline syntax):\n",
     "  Correct: 'Key finding.^[Author et al., 2023, p.5]'\n",
     "  WRONG - do NOT use these: '[^1]', '^1', '[1]'\n",
-    "  The ^[text] syntax renders a numbered footnote at the bottom of the slide automatically.\n\n",
+    "  The ^[text] syntax renders a numbered footnote at the bottom of the slide automatically.\n",
+    "When fixing citations, ensure page numbers from the source data are preserved in footnotes.\n\n",
     "Speaker notes:\n",
     "  ::: {.notes}\n",
     "  Presenter notes go here.\n",
