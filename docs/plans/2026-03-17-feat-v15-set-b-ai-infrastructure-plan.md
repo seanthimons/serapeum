@@ -514,17 +514,17 @@ The existing model info display (if any) gets AA data: full benchmark scores, sp
 6. Attribution: Display "Data from Artificial Analytics" with link per their TOS
 
 **Tasks:**
-- [ ] Create `R/api_artificialanalysis.R` with `fetch_aa_models()`, `load_bundled_aa_data()`, `get_aa_models()`
-- [ ] Create initial `data/support/aa_models.json` bundled snapshot
-- [ ] Create `data/support/aa_model_mapping.json` for edge-case ID matching
-- [ ] Implement model ID matching logic (AA ↔ OpenRouter)
-- [ ] Add AA data columns to model picker display via `format_chat_model_choices()`
-- [ ] Implement smart defaults algorithm for each slot
-- [ ] Add "Refresh AA Data" button to Settings
-- [ ] Add AA API key setting (optional, for refresh)
-- [ ] Add AA attribution line per TOS
-- [ ] Enrich model info panel with AA benchmark data
-- [ ] Write tests for AA data loading, model matching, smart defaults
+- [x] Create `R/api_artificialanalysis.R` with `fetch_aa_models()`, `load_bundled_aa_data()`, `get_aa_models()`
+- [x] Create initial `data/support/aa_models.json` bundled snapshot (14 models)
+- [x] Create `data/support/aa_model_mapping.json` for edge-case ID matching (18 mappings)
+- [x] Implement model ID matching logic (AA ↔ OpenRouter) with manual mapping + fuzzy normalization
+- [x] Add AA data columns to model picker display via `format_chat_model_choices()`
+- [x] Implement smart defaults algorithm for each slot
+- [x] Add "Refresh AA Data" button to Settings
+- [x] Add AA API key setting (optional, for refresh)
+- [x] Add AA attribution line per TOS
+- [x] Enrich model info panel with AA benchmark data
+- [x] Write tests for AA data loading, model matching, smart defaults
 
 **Success criteria:**
 - Model pickers show quality/speed/price from AA data

@@ -153,6 +153,22 @@ mod_settings_ui <- function(id) {
                        class = "btn-outline-secondary btn-sm mt-2",
                        icon = icon_plus()),
           hr(),
+          h5(icon_chart_bar(), " Model Benchmarks"),
+          p(class = "text-muted small",
+            "Quality scores, speed, and pricing from ",
+            tags$a(href = "https://artificialanalysis.ai",
+                   target = "_blank", "Artificial Analytics"), "."),
+          uiOutput(ns("aa_status")),
+          div(
+            class = "d-flex gap-2 mt-2",
+            actionButton(ns("refresh_aa_data"), "Refresh Data",
+                         class = "btn-outline-secondary btn-sm",
+                         icon = icon_refresh()),
+            passwordInput(ns("aa_api_key"), NULL,
+                          placeholder = "AA API key (optional)",
+                          width = "200px")
+          ),
+          hr(),
           h5(icon_shield(), " Quality Data"),
           p(class = "text-muted small",
             "Download lists of predatory journals/publishers and retracted papers ",
@@ -599,6 +615,23 @@ mod_settings_server <- function(id, con, config_rv) {
         sprintf("%sk tokens", format(round(row$context_length / 1000), big.mark = ","))
       }
 
+      # Look up AA data for this model
+      aa <- aa_data()
+      aa_row <- if (!is.null(aa) && nrow(aa) > 0) {
+        match_aa_model(input$quality_model, aa)
+      } else {
+        NULL
+      }
+
+      aa_section <- if (!is.null(aa_row)) {
+        div(class = "text-muted mt-1",
+          sprintf("Quality: %d", as.integer(aa_row$intelligence_index)),
+          if (!is.na(aa_row$coding_index)) sprintf(" | Coding: %d", as.integer(aa_row$coding_index)) else "",
+          if (!is.na(aa_row$tokens_per_second)) sprintf(" | Speed: %d tok/s", as.integer(aa_row$tokens_per_second)) else "",
+          if (!is.na(aa_row$ttft_seconds)) sprintf(" | TTFT: %.1fs", aa_row$ttft_seconds) else ""
+        )
+      }
+
       div(
         class = "card card-body bg-body-secondary py-2 px-3 mt-2 small",
         div(class = "d-flex justify-content-between align-items-center mb-1",
@@ -612,9 +645,97 @@ mod_settings_server <- function(id, con, config_rv) {
           sprintf("$%.2f/M in", row$prompt_price),
           span(class = "mx-1", "/"),
           sprintf("$%.2f/M out", row$completion_price)
-        )
+        ),
+        aa_section
       )
     })
+
+    # --- Artificial Analytics ---
+
+    aa_data <- reactiveVal(NULL)
+
+    # Load AA data on init
+    observe({
+      req(con())
+      data <- get_aa_models(con())
+      aa_data(data)
+    }) |> bindEvent(con(), once = TRUE)
+
+    # AA status display
+    output$aa_status <- renderUI({
+      data <- aa_data()
+      if (is.null(data) || nrow(data) == 0) {
+        div(class = "small text-muted", "Using bundled snapshot. Add an API key and refresh for latest data.")
+      } else {
+        cached <- tryCatch(get_db_setting(con(), "aa_model_cache"), error = function(e) NULL)
+        refresh_time <- if (!is.null(cached$refreshed_at)) cached$refreshed_at else "bundled"
+        div(class = "small text-success",
+            icon("circle-check"),
+            sprintf(" %d models loaded (as of %s)", nrow(data), refresh_time))
+      }
+    })
+
+    # Refresh AA data button
+    observeEvent(input$refresh_aa_data, {
+      api_key <- trimws(input$aa_api_key %||% "")
+
+      if (nchar(api_key) == 0) {
+        # Reload bundled data
+        data <- load_bundled_aa_data()
+        if (nrow(data) > 0) {
+          save_aa_cache(con(), data)
+          aa_data(data)
+          showNotification(sprintf("Loaded %d models from bundled snapshot.", nrow(data)), type = "message")
+        } else {
+          showNotification("No bundled data found. Add an AA API key to fetch from the API.", type = "warning")
+        }
+        return()
+      }
+
+      # Fetch from API
+      tryCatch({
+        data <- fetch_aa_models(api_key)
+        save_aa_cache(con(), data)
+        save_db_setting(con(), "aa_api_key", api_key)
+        aa_data(data)
+        showNotification(sprintf("Refreshed: %d models from Artificial Analytics API.", nrow(data)), type = "message")
+
+        # Re-enrich model choices
+        or_key <- trimws(input$openrouter_key %||% "")
+        update_chat_model_choices(or_key, input$quality_model)
+        update_fast_model_choices(or_key, input$fast_model)
+      }, error = function(e) {
+        showNotification(paste("AA refresh failed:", e$message), type = "error")
+      })
+    })
+
+    # Enrich models with AA data when updating choices
+    # Override update_chat_model_choices to include AA enrichment
+    original_update_chat <- update_chat_model_choices
+    update_chat_model_choices <<- function(api_key, current_selection = NULL) {
+      models <- tryCatch(list_chat_models(api_key), error = function(e) get_default_chat_models())
+      if (is.null(models) || nrow(models) == 0) models <- get_default_chat_models()
+
+      chat_models_data(models)
+      tryCatch(update_model_pricing(models), error = function(e) NULL)
+
+      # Enrich with AA data
+      aa <- aa_data()
+      if (!is.null(aa) && nrow(aa) > 0) {
+        models <- enrich_models_with_aa(models, aa)
+      }
+
+      choices <- format_chat_model_choices(models)
+      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+        current_selection
+      } else if (length(choices) > 0) {
+        choices[[1]]
+      } else {
+        NULL
+      }
+
+      updateSelectizeInput(session, "quality_model", choices = choices, selected = selected)
+    }
 
     # --- Provider Management ---
 

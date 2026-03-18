@@ -364,25 +364,40 @@ list_chat_models <- function(api_key) {
 #' @param models_df Data frame from list_chat_models or get_default_chat_models
 #' @return Named character vector (names = display labels, values = model IDs)
 format_chat_model_choices <- function(models_df) {
-  tier_icons <- c("budget" = "$", "mid" = "$$", "premium" = "$$$")
+  has_aa <- "intelligence_index" %in% names(models_df)
 
   labels <- sapply(1:nrow(models_df), function(i) {
     row <- models_df[i, ]
 
-    # Format context length
-    ctx <- if (row$context_length >= 1000000) {
-      sprintf("%.1fM", row$context_length / 1000000)
+    if (has_aa && !is.na(row$intelligence_index)) {
+      # AA-enriched label: quality score, speed, blended price
+      qi <- sprintf("Q:%d", as.integer(row$intelligence_index))
+      speed <- if (!is.na(row$tokens_per_second)) {
+        sprintf("%d tok/s", as.integer(row$tokens_per_second))
+      } else {
+        "-- tok/s"
+      }
+      price <- if (!is.na(row$price_blended_1m)) {
+        sprintf("$%.2f/M", row$price_blended_1m)
+      } else {
+        sprintf("$%.2f/M", row$prompt_price)
+      }
+      sprintf("%s  |  %s  %s  %s", row$name, qi, speed, price)
     } else {
-      sprintf("%dk", round(row$context_length / 1000))
+      # Fallback: tier + context + pricing
+      tier_icons <- c("budget" = "$", "mid" = "$$", "premium" = "$$$")
+      ctx <- if (row$context_length >= 1000000) {
+        sprintf("%.1fM", row$context_length / 1000000)
+      } else {
+        sprintf("%dk", round(row$context_length / 1000))
+      }
+      sprintf("[%s] %s (ctx: %s, $%.2f/M in, $%.2f/M out)",
+              tier_icons[row$tier],
+              row$name,
+              ctx,
+              row$prompt_price,
+              row$completion_price)
     }
-
-    # Build label
-    sprintf("[%s] %s (ctx: %s, $%.2f/M in, $%.2f/M out)",
-            tier_icons[row$tier],
-            row$name,
-            ctx,
-            row$prompt_price,
-            row$completion_price)
   })
 
   setNames(models_df$id, labels)
