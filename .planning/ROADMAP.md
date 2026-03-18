@@ -200,7 +200,9 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   1. Each AI preset synthesis output includes inline citations in `[Author, p.X]` format when page metadata is available
   2. Generated slide decks include page number references in Quarto `^[text]` footnotes
   3. No new dependencies or infrastructure changes are required — the change is entirely in prompt text in R/rag.R and R/slides.R
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ### Phase 58: Theme Infrastructure
 **Goal**: The slide generation pipeline supports custom .scss themes via `theme: [base, custom.scss]` YAML frontmatter, unblocking all subsequent theme UI work
@@ -210,7 +212,9 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   1. `build_qmd_frontmatter()` accepts an optional custom .scss path and emits `theme: [base, custom.scss]` syntax when provided
   2. Generating a slide deck with a custom theme path produces a valid .qmd file that Quarto renders without YAML errors
   3. Default behavior (no custom theme) is unchanged — existing slide decks continue to render correctly
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ### Phase 59: Theme Swatches, Upload, and Management
 **Goal**: Users can see visual previews of built-in themes and upload, persist, and manage their own .scss theme files
@@ -222,7 +226,9 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   3. Uploaded themes appear in the theme selector alongside built-in themes
   4. User can delete an uploaded theme via a management UI (list with delete buttons); deleted themes are removed from disk and selector
   5. Selecting a base theme (built-in or uploaded) sets it as the starting point for any custom modifications
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ### Phase 60: Color Picker and Font Selector
 **Goal**: Users can manually customize slide theme colors and font via pickers that are also populated by AI-generated values
@@ -233,7 +239,9 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   2. Font selector offers a curated list of widely-available professional fonts (not a free-text field)
   3. When AI generates a theme (Phase 61), the returned hex colors and font name populate these picker fields for further manual adjustment
   4. Saving the customized theme produces a .scss file that Quarto renders with the chosen values
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ### Phase 61: AI Theme Generation
 **Goal**: Users can describe a slide theme in plain language and receive a validated, editable .scss theme file
@@ -245,7 +253,9 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   3. All returned hex values are validated as valid 6-digit hex colors; all font names are validated against the curated font list before saving
   4. Invalid values trigger a user-visible error with specific fields flagged — the theme is not saved in a broken state
   5. After AI generation, the color picker and font selector fields are populated with the AI values for manual tweaking before saving
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ### Phase 62: Prompt Storage Schema
 **Goal**: DuckDB schema exists to store date-versioned prompt history for all AI presets, enabling the prompt editing UI
@@ -255,7 +265,9 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   1. A new `prompt_versions` table exists in the app database with columns for preset slug, version date, and prompt text
   2. Database migration runs automatically on app startup via the existing migration versioning system
   3. The schema supports storing multiple versions per preset slug and retrieving the most recent active version
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ### Phase 63: Prompt Editing UI
 **Goal**: Users can view, edit, version, and reset the system prompts for all AI presets without seeing RAG plumbing
@@ -267,13 +279,15 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
   3. User can edit instruction text and save; the new version is stored in DuckDB with today's date as the slug suffix
   4. A version history dropdown shows previous saved dates; selecting one restores that version's prompt text into the editor
   5. A "Reset to default" button replaces the stored prompt with the hardcoded original from R/rag.R, removing custom versions
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 57-01-PLAN.md — Add page-level citation instructions to all AI preset and slide prompts
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 57. Citation Traceability | 0/TBD | Not started | - |
+| 57. Citation Traceability | 0/1 | Not started | - |
 | 58. Theme Infrastructure | 0/TBD | Not started | - |
 | 59. Theme Swatches, Upload, and Management | 0/TBD | Not started | - |
 | 60. Color Picker and Font Selector | 0/TBD | Not started | - |
