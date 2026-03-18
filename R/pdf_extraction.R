@@ -284,8 +284,9 @@ filter_margin_watermark <- function(page_text) {
   narrow_mask <- page_text$width < 10
   if (!any(narrow_mask)) return(page_text)
 
-  # Restrict to extreme margins: boxes must be within 30 pts of the page edge.
-  # This prevents filtering out narrow table/figure text in the content area.
+  # TUNABLE: margin_band — only filter narrow boxes within 30 pts of page edge.
+  # Without this, narrow table cells in the content area (e.g., Sentinel-2 p8
+  # at x=185-429) get falsely removed. Real watermarks sit at extreme margins.
   page_left <- min(page_text$x)
   page_right <- max(page_text$x + page_text$width)
   margin_band <- 30
@@ -391,7 +392,13 @@ prescan_pages <- function(text_data, n_pages, backmatter_page, config) {
       next
     }
 
-    # Filter margin watermarks for gap detection only
+    # TUNABLE: Watermark vs coverage split
+    # Gap detection uses FILTERED text — publisher watermarks (e.g., Wiley
+    # "Downloaded from...") are rotated text spanning the full page height,
+    # filling every vertical band and hiding real figure gaps.
+    # Coverage/sparse_text use ORIGINAL text — the 0.92 coverage threshold
+    # was calibrated with watermarks present; filtering would lower coverage
+    # on text-heavy pages and create false positives.
     page_text_filtered <- filter_margin_watermark(page_text)
     if (nrow(page_text_filtered) == 0) {
       pages <- c(pages, page_num)
@@ -399,7 +406,6 @@ prescan_pages <- function(text_data, n_pages, backmatter_page, config) {
       next
     }
 
-    # Gap detection uses FILTERED text (watermarks hide real gaps)
     page_height_pts <- max(page_text_filtered$y + page_text_filtered$height) * 1.05
     text_tops_pts    <- page_text_filtered$y
     text_bottoms_pts <- page_text_filtered$y + page_text_filtered$height
@@ -649,6 +655,9 @@ bitmap_to_array <- function(bm) {
 #' @param img_array Numeric array [h x w x channels]
 #' @param threshold Fraction of white pixels to consider "blank"
 #' @return TRUE if the region is mostly blank
+# TUNABLE: blank threshold — 0.98 not 0.95. Gap-based crops often include
+# white margins around a small figure. At 0.95, figures with ~4-5% non-white
+# pixels were rejected (e.g., Orlov Figure 9). Truly blank regions are 0.99+.
 is_mostly_blank <- function(img_array, threshold = 0.98) {
   mean(img_array > 240) > threshold
 }
