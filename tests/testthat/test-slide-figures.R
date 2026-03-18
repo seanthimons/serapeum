@@ -282,7 +282,7 @@ test_that("build_slides_prompt with figures adds instructions to system prompt",
 
   prompt <- build_slides_prompt(chunks, options, figures = figs)
   expect_true(grepl("Figure Integration", prompt$system))
-  expect_true(grepl("FIGURE_ID\\.png", prompt$system))
+  expect_true(grepl("the-uuid-here\\.png", prompt$system))
   expect_true(grepl("wide", prompt$system))
   expect_true(grepl("standard", prompt$system))
   expect_true(grepl("tall", prompt$system))

@@ -101,7 +101,10 @@ build_slides_prompt <- function(chunks, options, figures = NULL) {
     if (!is.null(figures) && nrow(figures) > 0) paste0(
       "\n\nFigure Integration:\n",
       "- You have access to extracted figures from the source documents (listed in the user prompt).\n",
-      "- Reference figures using: ![caption](FIGURE_ID.png){attributes}\n",
+      "- Each figure has an ID (a UUID like \"f829366d-a433-4529-95b1-971cbb973837\").\n",
+      "- Reference figures using the EXACT ID as filename: ![caption](the-uuid-here.png){attributes}\n",
+      "- Example: ![Spectral comparison](f829366d-a433-4529-95b1-971cbb973837.png){width=\"90%\"}\n",
+      "- Do NOT add any prefix like \"FIGURE_\" to the filename — use the bare ID with .png extension.\n",
       "- Only include figures that are directly relevant to your slide content.\n",
       "- Do NOT reference figure IDs that don't appear in the Available Figures list.\n",
       "- Layout guidance by figure shape:\n",
@@ -605,7 +608,7 @@ build_figure_manifest <- function(figures, max_figures = 15L) {
     summary <- extract_description_summary(fig$llm_description)
 
     # Build manifest entry
-    header <- sprintf('[FIGURE %s | "%s" from %s, p.%d | %s (%dx%d)]',
+    header <- sprintf('[ID: %s | "%s" from %s, p.%d | %s (%dx%d)]',
                       fig$id,
                       fig$figure_label %||% "Untitled",
                       fig$doc_name %||% "unknown",
