@@ -237,6 +237,62 @@ test_that("extract_captions returns empty for no captions", {
 })
 
 # =============================================================================
+# filter_margin_watermark()
+# =============================================================================
+
+test_that("filter_margin_watermark removes rotated text at page edge", {
+  # Simulate a Wiley-style watermark: narrow boxes at x=579, spanning full page
+  body <- data.frame(
+    x = c(72, 150, 72, 150),
+    y = c(100, 100, 500, 500),
+    width = c(40, 60, 40, 60),
+    height = c(10, 10, 10, 10),
+    text = c("Body", "text", "more", "text"),
+    stringsAsFactors = FALSE
+  )
+  watermark <- data.frame(
+    x = rep(579, 10),
+    y = seq(20, 740, length.out = 10),
+    width = rep(4, 10),
+    height = rep(10, 10),
+    text = c("Downloaded", "from", "https://example.com", "by", "US",
+             "EPA", "Library", "on", "2026", "Terms"),
+    stringsAsFactors = FALSE
+  )
+  page_text <- rbind(body, watermark)
+
+  result <- filter_margin_watermark(page_text)
+  # Watermark should be removed, body text kept
+  expect_equal(nrow(result), 4)
+  expect_true(all(result$text %in% c("Body", "text", "more", "text")))
+})
+
+test_that("filter_margin_watermark preserves narrow content text in page interior", {
+  # Narrow boxes in the MIDDLE of the page (e.g., table cells) should be kept
+  page_text <- data.frame(
+    x = c(72, 200, 300, 400, 72, 200, 300, 400),
+    y = c(100, 100, 100, 100, 600, 600, 600, 600),
+    width = c(40, 5, 5, 5, 40, 5, 5, 5),
+    height = rep(10, 8),
+    text = c("Body", "1", "2", "3", "More", "4", "5", "6"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- filter_margin_watermark(page_text)
+  expect_equal(nrow(result), nrow(page_text))
+})
+
+test_that("filter_margin_watermark handles empty/NULL input", {
+  expect_null(filter_margin_watermark(NULL))
+
+  empty <- data.frame(x = numeric(), y = numeric(), width = numeric(),
+                      height = numeric(), text = character(),
+                      stringsAsFactors = FALSE)
+  result <- filter_margin_watermark(empty)
+  expect_equal(nrow(result), 0)
+})
+
+# =============================================================================
 # empty_figures_df()
 # =============================================================================
 

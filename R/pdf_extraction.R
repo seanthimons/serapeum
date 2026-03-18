@@ -102,7 +102,7 @@ extract_figures_from_pdf <- function(pdf_path, config = extraction_config()) {
     page_h <- dim(img)[1]
     page_w <- dim(img)[2]
 
-    page_text <- text_data[[page_num]]
+    page_text <- filter_margin_watermark(text_data[[page_num]])
 
     # No text on page — save full page as figure
     if (is.null(page_text) || nrow(page_text) == 0) {
@@ -266,6 +266,61 @@ to_png_bytes <- function(img_array) {
   readBin(tmp, "raw", file.info(tmp)$size)
 }
 
+#' Filter out rotated margin watermark text from pdf_data output
+#'
+#' Publisher watermarks (e.g., Wiley "Downloaded from...") appear as narrow
+#' text boxes (width < 10 pts) stacked vertically at the same x position,
+#' spanning most of the page height. These fill every vertical band and
+#' destroy gap detection. This function removes them.
+#'
+#' @param page_text Data.frame from pdf_data() for one page
+#' @return Filtered data.frame with watermark boxes removed
+#' @keywords internal
+filter_margin_watermark <- function(page_text) {
+  if (is.null(page_text) || nrow(page_text) == 0) return(page_text)
+  page_h <- max(page_text$y + page_text$height) * 1.05
+
+  # Only consider narrow boxes — rotated text renders with tiny width
+  narrow_mask <- page_text$width < 10
+  if (!any(narrow_mask)) return(page_text)
+
+  # Restrict to extreme margins: boxes must be within 30 pts of the page edge.
+  # This prevents filtering out narrow table/figure text in the content area.
+  page_left <- min(page_text$x)
+  page_right <- max(page_text$x + page_text$width)
+  margin_band <- 30
+  margin_mask <- narrow_mask &
+    (page_text$x <= page_left + margin_band |
+     page_text$x >= page_right - margin_band)
+  if (!any(margin_mask)) return(page_text)
+
+  narrow <- page_text[margin_mask, ]
+
+  # Group by x position (bin to nearest 3 pts)
+  x_bins <- round(narrow$x / 3) * 3
+  watermark_rows <- logical(nrow(page_text))
+
+  for (xb in unique(x_bins)) {
+    grp_mask <- x_bins == xb
+    grp <- narrow[grp_mask, ]
+    if (nrow(grp) < 5) next
+
+    y_span <- max(grp$y + grp$height) - min(grp$y)
+    # Must span >60% of page height — definitionally a margin watermark
+    if (y_span > page_h * 0.6) {
+      orig_indices <- which(margin_mask)[grp_mask]
+      watermark_rows[orig_indices] <- TRUE
+    }
+  }
+
+  n_removed <- sum(watermark_rows)
+  if (n_removed > 0) {
+    message(sprintf("[watermark] Removed %d rotated margin text boxes", n_removed))
+    page_text <- page_text[!watermark_rows, ]
+  }
+  page_text
+}
+
 #' Count the highest figure number referenced in the paper
 #' @keywords internal
 figure_census <- function(text_data) {
@@ -336,21 +391,38 @@ prescan_pages <- function(text_data, n_pages, backmatter_page, config) {
       next
     }
 
-    # Text gap detection
-    page_height_pts <- max(page_text$y + page_text$height) * 1.05
-    text_tops_pts    <- page_text$y
-    text_bottoms_pts <- page_text$y + page_text$height
-
-    occupancy_pts <- rep(FALSE, ceiling(page_height_pts))
-    for (i in seq_len(nrow(page_text))) {
-      y1 <- max(1, floor(text_tops_pts[i]))
-      y2 <- min(length(occupancy_pts), ceiling(text_bottoms_pts[i]))
-      if (y1 <= y2) occupancy_pts[y1:y2] <- TRUE
+    # Filter margin watermarks for gap detection only
+    page_text_filtered <- filter_margin_watermark(page_text)
+    if (nrow(page_text_filtered) == 0) {
+      pages <- c(pages, page_num)
+      reasons <- c(reasons, "no_text")
+      next
     }
 
-    gaps_pts <- find_gaps(occupancy_pts, length(occupancy_pts))
+    # Gap detection uses FILTERED text (watermarks hide real gaps)
+    page_height_pts <- max(page_text_filtered$y + page_text_filtered$height) * 1.05
+    text_tops_pts    <- page_text_filtered$y
+    text_bottoms_pts <- page_text_filtered$y + page_text_filtered$height
+
+    occupancy_filtered <- rep(FALSE, ceiling(page_height_pts))
+    for (i in seq_len(nrow(page_text_filtered))) {
+      y1 <- max(1, floor(text_tops_pts[i]))
+      y2 <- min(length(occupancy_filtered), ceiling(text_bottoms_pts[i]))
+      if (y1 <= y2) occupancy_filtered[y1:y2] <- TRUE
+    }
+
+    gaps_pts <- find_gaps(occupancy_filtered, length(occupancy_filtered))
     header_pts <- page_height_pts * config$header_zone
     footer_pts <- page_height_pts * (1 - config$footer_zone)
+
+    # Coverage + sparse_text use ORIGINAL text (threshold was calibrated against it)
+    page_height_orig <- max(page_text$y + page_text$height) * 1.05
+    occupancy_orig <- rep(FALSE, ceiling(page_height_orig))
+    for (i in seq_len(nrow(page_text))) {
+      y1 <- max(1, floor(page_text$y[i]))
+      y2 <- min(length(occupancy_orig), ceiling(page_text$y[i] + page_text$height[i]))
+      if (y1 <= y2) occupancy_orig[y1:y2] <- TRUE
+    }
 
     # Caption hints
     words <- page_text$text
@@ -373,11 +445,10 @@ prescan_pages <- function(text_data, n_pages, backmatter_page, config) {
       gap_h >= min_gap_pts && gap_center > header_pts && gap_center < footer_pts
     }, logical(1)))
 
-    # Text coverage
-    text_coverage <- mean(occupancy_pts)
+    # Coverage and sparse text use ORIGINAL occupancy (calibrated thresholds)
+    text_coverage <- mean(occupancy_orig)
     low_coverage <- text_coverage < config$max_text_coverage
 
-    # Sparse text (full-page plots)
     sparse_text <- nrow(page_text) <= config$sparse_text_max_boxes && low_coverage
 
     # Decision
