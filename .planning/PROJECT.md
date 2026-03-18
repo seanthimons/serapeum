@@ -116,15 +116,14 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-## Current Milestone: v11.0 Search Notebook UX
+## Current Milestone: v16.0 Content & Output Quality
 
-**Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency.
+**Goal:** Give users more control over generated content — rich slide themes with AI generation, editable AI preset prompts, and page-level citation traceability across all outputs.
 
 **Target features:**
-- Fix year filter slider/histogram alignment (#143)
-- Rework document type filters with expanded types and better UI (#125)
-- Button bar overhaul: labels, reordering, color harmonization, tooltips
-- Split Refresh into Refresh + Load More with distinct semantics
+- Slide theme system: built-in swatches, color picker, custom .scss upload, AI-generated themes (#132)
+- Prompt editing UI: view/edit system prompts for all AI presets with date-versioned history (#120)
+- Citation traceability: page-level citations in all preset and slide outputs (#52)
 
 ### Out of Scope
 
@@ -238,18 +237,17 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 
 ## Current State
 
-**Latest shipped:** v10.0 Theme Harmonization & AI Synthesis (2026-03-06)
-**Total milestones:** 13 shipped (v1.0–v10.0)
-**Total phases:** 49 complete across 86 plans
-**Current:** v11.0 Search Notebook UX
+**Latest shipped:** v11.0 Search Notebook UX (2026-03-11)
+**Total milestones:** 14 shipped (v1.0–v11.0)
+**Total phases:** 58 complete across 95 plans
+**Current:** v16.0 Content & Output Quality
 
-**v10.0 shipped:** Catppuccin design system with semantic color policy and 76 icon wrappers. Sidebar and button theming harmonized. Citation audit multi-paper import fixed. Two new AI presets: Methodology Extractor (section-targeted RAG into GFM tables) and Gap Analysis Report (cross-paper synthesis with contradiction detection).
+**v11.0 shipped:** Cursor-based OpenAlex pagination with Refresh + Load More split. Toolbar overhaul with icon+text labels, semantic colors, workflow ordering, and tooltips. Full 16-type document taxonomy with distribution panel and filter chips. Year slider/histogram CSS fix. Import run history modal.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
 - 13 pre-existing test fixture failures (missing schema columns)
-- Section_hint not encoded in PDF ragnar origins (#118)
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-06 after v11.0 milestone start*
+*Last updated: 2026-03-18 after v16.0 milestone start*
