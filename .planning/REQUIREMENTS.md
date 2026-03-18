@@ -1,85 +1,88 @@
-# Requirements: Serapeum v11.0
+# Requirements: Serapeum v16.0
 
-**Defined:** 2026-03-06
+**Defined:** 2026-03-18
 **Core Value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
 
-## v11.0 Requirements
+## v16.0 Requirements
 
-Requirements for Search Notebook UX milestone. Each maps to roadmap phases.
+Requirements for Content & Output Quality milestone. Each maps to roadmap phases.
 
-### Toolbar
+### Slide Themes
 
-- [x] **TOOL-01**: All toolbar buttons display icon+text labels (no icon-only buttons)
-- [x] **TOOL-02**: Buttons reordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
-- [x] **TOOL-03**: Buttons harmonized with Catppuccin semantic color system (primary=lavender, info=sapphire, etc.)
-- [x] **TOOL-04**: Visual grouping with separators between action groups (import/edit, discovery, export, data)
-- [x] **TOOL-05**: Every toolbar button has a bslib tooltip (max 15 words, keyboard-accessible)
-- [x] **TOOL-06**: "Papers" label removed from toolbar area
+- [ ] **THME-01**: User sees color swatches (bg/fg/accent) next to each built-in theme in the dropdown
+- [ ] **THME-02**: User can upload a custom `.scss` file as a slide theme
+- [ ] **THME-03**: Uploaded themes are stored in `data/themes/` and persist across sessions
+- [ ] **THME-04**: User can manage (list/delete) uploaded custom themes
+- [ ] **THME-05**: User can type a freeform description to generate a theme via AI
+- [ ] **THME-06**: AI returns structured JSON (8-9 variables), app templates into valid `.scss`
+- [ ] **THME-07**: AI-generated themes validated for hex colors and real font names before saving
+- [ ] **THME-08**: User can manually customize theme via color pickers (bg/text/accent/link) and font selector
+- [ ] **THME-09**: Base theme selector determines starting point for custom themes
+- [ ] **THME-10**: AI-generated values populate color picker fields for manual tweaking
+- [ ] **THME-11**: Font selector offers curated list of widely-available professional fonts
+- [ ] **THME-12**: Custom themes applied via `theme: [base, custom.scss]` in QMD frontmatter
 
-### Pagination
+### Prompt Editing
 
-- [x] **PAGE-01**: Refresh button retries current search (replaces results, resets cursor)
-- [x] **PAGE-02**: Load More button fetches next page of results (appends, advances cursor)
-- [x] **PAGE-03**: Load More styled like Topics button (icon+text+sapphire color)
-- [x] **PAGE-04**: Load More hidden when no more results available
-- [x] **PAGE-05**: Cursor state resets when search query or filters change
-- [x] **PAGE-06**: OpenAlex cursor-based pagination in API client (replaces offset-based)
+- [ ] **PRMT-01**: User can view the system/task prompt for each AI preset
+- [ ] **PRMT-02**: User can edit the system/task prompt for each AI preset
+- [ ] **PRMT-03**: RAG plumbing is hidden; only instruction text is exposed with a read-only description of what the machinery does
+- [ ] **PRMT-04**: Edited prompts stored in DuckDB with date-versioned slugs
+- [ ] **PRMT-05**: User can recall previous prompt versions by date
+- [ ] **PRMT-06**: User can reset any preset prompt to the hardcoded default
 
-### Document Types
+### Citation Traceability
 
-- [x] **DTYPE-01**: Full 16-type OpenAlex taxonomy exposed as filter options
-- [x] **DTYPE-02**: Distribution panel showing type counts moved above filter checkboxes
-- [x] **DTYPE-03**: Type badge styling for each document type in search results
-
-### Year Filter
-
-- [x] **YEAR-01**: Year slider and histogram visually aligned (CSS fix for #143)
+- [ ] **CITE-01**: All AI preset system prompts instruct the LLM to cite with page numbers (e.g., `[Author, p.X]`)
+- [ ] **CITE-02**: Slide generation prompt instructs LLM to include page numbers in footnote references
 
 ## Future Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
 
-### Filtering UX
+### Audio Output
 
-- **FILT-01**: Active filter chips displayed above results with remove buttons
-- **FILT-02**: "Clear All" button when multiple filters active
+- **AUDIO-01**: User can generate NotebookLM-style audio overviews of notebook content (#22)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Custom color themes | Breaks accessibility (WCAG contrast), maintenance burden — Catppuccin only |
-| Infinite scroll | Goal-oriented academic search needs explicit control and position awareness |
-| Document type collapsible groups | 16 types manageable in flat list; grouping adds complexity without clear value |
-| Analytics instrumentation | Would inform button ordering validation but adds scope — defer to v11.1 |
-| Load More batch size setting | Start with existing page size; add setting only if users request |
+| Quarto .bib citation pipeline | Page metadata already flows through context; prompt engineering achieves traceability without infrastructure change |
+| Mini-preview slide rendering | Static color swatches are sufficient; rendering sample QMD adds complexity for marginal benefit |
+| Free-text font input | Curated list prevents broken themes from unavailable fonts |
+| Audio overview (#22) | Already deferred to "Future ideas" milestone — very high effort, medium impact |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 53 | Complete |
-| TOOL-02 | Phase 53 | Complete |
-| TOOL-03 | Phase 53 | Complete |
-| TOOL-04 | Phase 53 | Complete |
-| TOOL-05 | Phase 54 | Complete |
-| TOOL-06 | Phase 53 | Complete |
-| PAGE-01 | Phase 51 | Complete |
-| PAGE-02 | Phase 52 | Complete |
-| PAGE-03 | Phase 52 | Complete |
-| PAGE-04 | Phase 52 | Complete |
-| PAGE-05 | Phase 51 | Complete |
-| PAGE-06 | Phase 50 | Complete |
-| DTYPE-01 | Phase 55 | Complete |
-| DTYPE-02 | Phase 55 | Complete |
-| DTYPE-03 | Phase 55 | Complete |
-| YEAR-01 | Phase 56 | Complete |
+| THME-01 | — | Pending |
+| THME-02 | — | Pending |
+| THME-03 | — | Pending |
+| THME-04 | — | Pending |
+| THME-05 | — | Pending |
+| THME-06 | — | Pending |
+| THME-07 | — | Pending |
+| THME-08 | — | Pending |
+| THME-09 | — | Pending |
+| THME-10 | — | Pending |
+| THME-11 | — | Pending |
+| THME-12 | — | Pending |
+| PRMT-01 | — | Pending |
+| PRMT-02 | — | Pending |
+| PRMT-03 | — | Pending |
+| PRMT-04 | — | Pending |
+| PRMT-05 | — | Pending |
+| PRMT-06 | — | Pending |
+| CITE-01 | — | Pending |
+| CITE-02 | — | Pending |
 
 **Coverage:**
-- v11.0 requirements: 16 total
-- Mapped to phases: 16
-- Unmapped: 0 ✓
+- v16.0 requirements: 20 total
+- Mapped to phases: 0
+- Unmapped: 20
 
 ---
-*Requirements defined: 2026-03-06*
-*Last updated: 2026-03-06 after roadmap creation (100% coverage)*
+*Requirements defined: 2026-03-18*
+*Last updated: 2026-03-18 after initial definition*
