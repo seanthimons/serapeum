@@ -20,7 +20,7 @@ test_that("extraction_config returns expected defaults", {
   expect_equal(cfg$max_text_coverage, 0.92)
   expect_equal(cfg$min_gap_frac, 0.10)
   expect_equal(cfg$min_gap_frac_hint, 0.05)
-  expect_equal(cfg$sparse_text_max_boxes, 350)
+  expect_equal(cfg$sparse_text_max_boxes, 400)
   expect_equal(cfg$min_file_size, 1000)
   expect_equal(cfg$min_caption_chars, 50)
   expect_equal(cfg$max_caption_chars, 500)

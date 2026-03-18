@@ -27,7 +27,7 @@ extraction_config <- function() {
     min_gap_frac      = 0.10,
     max_text_coverage = 0.92,  # pages below this are figure candidates
     min_gap_frac_hint = 0.05,  # relaxed gap threshold for caption-hinted pages
-    sparse_text_max_boxes = 350,
+    sparse_text_max_boxes = 400,  # pages with fewer boxes + low coverage → figure candidates
     min_file_size     = 1000,  # bytes — smaller PNGs are likely artifacts
     min_caption_chars = 50,    # captions shorter than this flagged as "short"
     max_caption_chars = 500,   # truncate captions beyond this
@@ -430,7 +430,7 @@ prescan_pages <- function(text_data, n_pages, backmatter_page, config) {
       if (y1 <= y2) occupancy_orig[y1:y2] <- TRUE
     }
 
-    # Caption hints
+    # Caption hints — match Figure/Fig followed by a number (tables excluded — separate workflow)
     words <- page_text$text
     caption_tokens <- grep("^(Fig(ure)?[\\.]?)$", words, perl = TRUE, ignore.case = TRUE)
     has_caption <- FALSE
@@ -457,11 +457,17 @@ prescan_pages <- function(text_data, n_pages, backmatter_page, config) {
 
     sparse_text <- nrow(page_text) <= config$sparse_text_max_boxes && low_coverage
 
+    # TUNABLE: text-heavy FP guard — pages with 1000+ text boxes that match
+    # caption+coverage are dense body text with in-text figure references
+    # (e.g., "see Fig. 5)"), not actual figure pages. Von Borries pages 2,4,6,9,11,13
+    # all had 1200+ boxes with even vertical distribution.
+    text_heavy <- nrow(page_text_filtered) > 1000
+
     # Decision
     if (has_big_gap) {
       pages <- c(pages, page_num)
       reasons <- c(reasons, "gap")
-    } else if (has_caption && low_coverage) {
+    } else if (has_caption && low_coverage && !text_heavy) {
       pages <- c(pages, page_num)
       reasons <- c(reasons, "caption+coverage")
     } else if (sparse_text) {
