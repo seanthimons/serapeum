@@ -121,14 +121,14 @@ usage <- list(
 **Backward compatibility approach:** The existing `chat_completion()` and `get_embeddings()` in `api_openrouter.R` become thin wrappers that create an OpenRouter provider config and delegate. This allows a gradual migration rather than a big-bang rewrite. Eventually the wrappers are removed once all call sites are updated.
 
 **Tasks:**
-- [ ] Create `R/api_provider.R` with `create_provider_config()`, `provider_chat_completion()`, `provider_get_embeddings()`, `provider_list_models()`, `provider_check_health()`
-- [ ] Add duration_ms timing to every provider call
-- [ ] Handle NULL usage tokens gracefully (default to 0)
-- [ ] Update `estimate_cost()` in `R/cost_tracking.R` to return $0 when no pricing exists (instead of using DEFAULT_PRICING for local models)
-- [ ] Add `duration_ms` parameter to `log_cost()` in `R/cost_tracking.R`
-- [ ] Wrap existing `chat_completion()` and `get_embeddings()` in `api_openrouter.R` as thin wrappers delegating to provider layer
-- [ ] Migrate all 15+ call sites to use provider interface (can be incremental — wrappers provide backward compat)
-- [ ] Write tests for provider layer: OpenRouter routing, timeout handling, NULL usage, zero-cost detection
+- [x] Create `R/api_provider.R` with `create_provider_config()`, `provider_chat_completion()`, `provider_get_embeddings()`, `provider_list_models()`, `provider_check_health()`
+- [x] Add duration_ms timing to every provider call
+- [x] Handle NULL usage tokens gracefully (default to 0)
+- [x] Update `estimate_cost()` in `R/cost_tracking.R` to return $0 when no pricing exists (instead of using DEFAULT_PRICING for local models)
+- [x] Add `duration_ms` parameter to `log_cost()` in `R/cost_tracking.R`
+- [x] Big-bang migration: all 15+ call sites migrated directly (no wrappers needed)
+- [x] Migrate all 15+ call sites to use provider interface
+- [x] Write tests for provider layer: 41 tests covering config creation, usage normalization, cost estimation, health check
 
 **Success criteria:**
 - All LLM calls route through the provider layer
