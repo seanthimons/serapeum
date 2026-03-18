@@ -229,10 +229,13 @@ render_qmd_to_html <- function(qmd_path, timeout = 120) {
 
   output_path <- sub("\\.qmd$", ".html", qmd_path)
 
+  # Run Quarto from the QMD's directory so embed-resources resolves
+  # relative image paths (e.g., figure PNGs staged alongside the QMD)
   result <- tryCatch({
     processx::run(
       "quarto",
       c("render", qmd_path, "--to", "html"),
+      wd = dirname(qmd_path),
       timeout = timeout,
       error_on_status = FALSE
     )
@@ -262,10 +265,12 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 
   output_path <- sub("\\.qmd$", ".pdf", qmd_path)
 
+  # Run Quarto from the QMD's directory for consistent resource resolution
   result <- tryCatch({
     processx::run(
       "quarto",
       c("render", qmd_path, "--to", "pdf"),
+      wd = dirname(qmd_path),
       timeout = timeout,
       error_on_status = FALSE
     )
