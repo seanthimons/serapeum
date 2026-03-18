@@ -33,8 +33,8 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 
 ### Citation Traceability
 
-- [ ] **CITE-01**: All AI preset system prompts instruct the LLM to cite with page numbers (e.g., `[Author, p.X]`)
-- [ ] **CITE-02**: Slide generation prompt instructs LLM to include page numbers in footnote references
+- [x] **CITE-01**: All AI preset system prompts instruct the LLM to cite with page numbers (e.g., `[Author, p.X]`)
+- [x] **CITE-02**: Slide generation prompt instructs LLM to include page numbers in footnote references
 
 ## Future Requirements
 
@@ -75,8 +75,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | PRMT-04 | Phase 62 | Pending |
 | PRMT-05 | Phase 63 | Pending |
 | PRMT-06 | Phase 63 | Pending |
-| CITE-01 | Phase 57 | Pending |
-| CITE-02 | Phase 57 | Pending |
+| CITE-01 | Phase 57 | Complete |
+| CITE-02 | Phase 57 | Complete |
 
 **Coverage:**
 - v16.0 requirements: 20 total
