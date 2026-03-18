@@ -15,7 +15,8 @@
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
 - ✅ **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (shipped 2026-03-06)
-- 🚧 **v11.0 Search Notebook UX** - Phases 50-56 (in progress)
+- ✅ **v11.0 Search Notebook UX** - Phases 50-56 (shipped 2026-03-12)
+- 🚧 **v16.0 Content & Output Quality** - Phases 57-63 (in progress)
 
 ## Phases
 
@@ -149,167 +150,137 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 </details>
 
 <details>
-<summary>✅ v10.0 Theme Harmonization & AI Synthesis (Phases 44-49) — SHIPPED 2026-03-06</summary>
+<summary>✅ v10.0 Theme Harmonization & AI Synthesis (Phases 44-49) - SHIPPED 2026-03-06</summary>
 
-- [x] Phase 44: Tech Debt Cleanup (1/1 plans) — completed 2026-03-04
-- [x] Phase 45: Design System Foundation (1/1 plans) — completed 2026-03-05
-- [x] Phase 46: Citation Audit Bug Fixes (1/1 plans) — completed 2026-03-05
-- [x] Phase 47: Sidebar & Button Theming (3/3 plans) — completed 2026-03-05
-- [x] Phase 48: Methodology Extractor Preset (2/2 plans) — completed 2026-03-06
-- [x] Phase 49: Gap Analysis Report Preset (2/2 plans) — completed 2026-03-06
+- [x] Phase 44: Tech Debt Cleanup (1/1 plans) - completed 2026-03-04
+- [x] Phase 45: Design System Foundation (1/1 plans) - completed 2026-03-05
+- [x] Phase 46: Citation Audit Bug Fixes (1/1 plans) - completed 2026-03-05
+- [x] Phase 47: Sidebar & Button Theming (3/3 plans) - completed 2026-03-05
+- [x] Phase 48: Methodology Extractor Preset (2/2 plans) - completed 2026-03-06
+- [x] Phase 49: Gap Analysis Report Preset (2/2 plans) - completed 2026-03-06
 
 See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 </details>
 
-### v11.0 Search Notebook UX (In Progress)
+<details>
+<summary>✅ v11.0 Search Notebook UX (Phases 50-56) - SHIPPED 2026-03-12</summary>
 
-**Milestone Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency
+- [x] Phase 50: API Pagination Foundation (1/1 plans) - completed 2026-03-07
+- [x] Phase 51: Pagination State Management (1/1 plans) - completed 2026-03-09
+- [x] Phase 52: Load More Button (1/1 plans) - completed 2026-03-09
+- [x] Phase 52.1: Fix Search Refresh + Load More (1/1 plans) - completed 2026-03-09
+- [x] Phase 53: Toolbar Restructuring (1/1 plans) - completed 2026-03-10
+- [x] Phase 53.1: Import History Bug Fix (1/1 plans) - completed 2026-03-11
+- [x] Phase 54: Tooltip Layer (1/1 plans) - completed 2026-03-11
+- [x] Phase 55: Document Type Filter UX (1/1 plans) - completed 2026-03-11
+- [x] Phase 56: Year Slider Alignment Fix (1/1 plans) - completed 2026-03-12
 
-- [x] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client (completed 2026-03-07)
-- [x] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics (completed 2026-03-09)
-- [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
-- [x] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization (completed 2026-03-10)
-- [x] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility (completed 2026-03-11)
-- [x] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout (completed 2026-03-11)
-- [x] **Phase 56: Year Slider Alignment Fix** - CSS alignment for histogram and slider (completed 2026-03-12)
+</details>
+
+### v16.0 Content & Output Quality (In Progress)
+
+**Milestone Goal:** Give users more control over generated content — rich slide themes with AI generation, editable AI preset prompts, and page-level citation traceability across all outputs.
+
+- [ ] **Phase 57: Citation Traceability** - Prompt-level page citations in all AI presets and slide outputs
+- [ ] **Phase 58: Theme Infrastructure** - Custom .scss frontmatter plumbing enabling all subsequent theme layers
+- [ ] **Phase 59: Theme Swatches, Upload, and Management** - Visual swatch previews, .scss upload/persist/manage, base theme selector
+- [ ] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population
+- [ ] **Phase 61: AI Theme Generation** - Freeform description to structured JSON to validated .scss
+- [ ] **Phase 62: Prompt Storage Schema** - DuckDB schema for date-versioned prompt history
+- [ ] **Phase 63: Prompt Editing UI** - View/edit/version/reset system prompts for all AI presets
 
 ## Phase Details
 
-### Phase 50: API Pagination Foundation
-**Goal**: OpenAlex API client supports cursor-based pagination for both Refresh and Load More workflows
-**Depends on**: Nothing (first phase)
-**Requirements**: PAGE-06
+### Phase 57: Citation Traceability
+**Goal**: All AI-generated outputs instruct the LLM to include page-level citations so users can trace claims back to source documents
+**Depends on**: Nothing (independent prompt engineering change)
+**Requirements**: CITE-01, CITE-02
 **Success Criteria** (what must be TRUE):
-  1. `search_papers()` accepts cursor parameter (default NULL) and sort parameter (default "relevance_score") and returns `list(papers, next_cursor, count)`
-  2. Cursor is treated as opaque string (never parsed or decoded)
-  3. API client extracts `meta.next_cursor` from OpenAlex response for pagination continuation
-  4. First search (cursor=NULL) and paginated search (cursor provided) both return valid paper lists
-**Plans:** 1/1 plans complete
+  1. Each AI preset synthesis output includes inline citations in `[Author, p.X]` format when page metadata is available
+  2. Generated slide decks include page number references in Quarto `^[text]` footnotes
+  3. No new dependencies or infrastructure changes are required — the change is entirely in prompt text in R/rag.R and R/slides.R
+**Plans**: TBD
 
-Plans:
-- [ ] 50-01-PLAN.md — Add cursor pagination, retry logic, and update caller
-
-### Phase 51: Pagination State Management
-**Goal**: Server-side state layer tracks pagination cursor and enables distinct Refresh vs Load More behaviors
-**Depends on**: Phase 50
-**Requirements**: PAGE-01, PAGE-05
+### Phase 58: Theme Infrastructure
+**Goal**: The slide generation pipeline supports custom .scss themes via `theme: [base, custom.scss]` YAML frontmatter, unblocking all subsequent theme UI work
+**Depends on**: Nothing (can run in parallel with Phase 57)
+**Requirements**: THME-12
 **Success Criteria** (what must be TRUE):
-  1. Refresh button replaces results and resets cursor to NULL
-  2. Cursor state resets when user changes search query, year filter, or document type filters
-  3. `pagination_state` reactiveValues tracks cursor, has_more, and total_fetched without reactive loops
-  4. All filter change observers (year, type, Edit Search) include cursor reset logic
-**Plans**: 1/1 plans complete
-**Status**: COMPLETED 2026-03-09
+  1. `build_qmd_frontmatter()` accepts an optional custom .scss path and emits `theme: [base, custom.scss]` syntax when provided
+  2. Generating a slide deck with a custom theme path produces a valid .qmd file that Quarto renders without YAML errors
+  3. Default behavior (no custom theme) is unchanged — existing slide decks continue to render correctly
+**Plans**: TBD
 
-Plans:
-- [x] 51-01-PLAN.md — Pagination state, cursor reset, client-side sort, result count display (2 tasks, 282s)
-
-### Phase 52: Load More Button
-**Goal**: Users can append additional search results without replacing existing papers
-**Depends on**: Phase 51
-**Requirements**: PAGE-02, PAGE-03, PAGE-04
+### Phase 59: Theme Swatches, Upload, and Management
+**Goal**: Users can see visual previews of built-in themes and upload, persist, and manage their own .scss theme files
+**Depends on**: Phase 58
+**Requirements**: THME-01, THME-02, THME-03, THME-04, THME-09
 **Success Criteria** (what must be TRUE):
-  1. Load More button appears in toolbar with icon+text+sapphire color (matches Topics button style)
-  2. Clicking Load More appends next page of results to existing paper list
-  3. Load More button disappears when `pagination_state$has_more` is FALSE
-  4. Papers fetched via Load More persist until Refresh is clicked or filters change
-**Plans**: 1 plan
+  1. Built-in theme dropdown shows bg/fg/accent color swatches next to each theme name
+  2. User can upload a .scss file via a file input; it is saved to `data/themes/` and survives app restart
+  3. Uploaded themes appear in the theme selector alongside built-in themes
+  4. User can delete an uploaded theme via a management UI (list with delete buttons); deleted themes are removed from disk and selector
+  5. Selecting a base theme (built-in or uploaded) sets it as the starting point for any custom modifications
+**Plans**: TBD
 
-Plans:
-- [ ] 52-01-PLAN.md — Load More button UI, server logic, icon wrapper, and unit tests
-
-### Phase 52.1: Fix search refresh and load more (INSERTED)
-
-**Goal:** Fix Refresh triple-toast bug and Load More silent failure by consolidating duplicate search functions into unified do_search(mode)
-**Requirements**: BUG-01, BUG-02, CONSOL-01, CONSOL-02
-**Depends on:** Phase 52
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 52.1-01-PLAN.md — Consolidate search functions, fix error handling, add tests
-
-### Phase 53: Toolbar Restructuring
-**Goal**: Toolbar buttons follow intuitive workflow order with semantic color harmony
-**Depends on**: Phase 52
-**Requirements**: TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-06
+### Phase 60: Color Picker and Font Selector
+**Goal**: Users can manually customize slide theme colors and font via pickers that are also populated by AI-generated values
+**Depends on**: Phase 59
+**Requirements**: THME-08, THME-10, THME-11
 **Success Criteria** (what must be TRUE):
-  1. All toolbar buttons display icon+text labels (no icon-only buttons remain)
-  2. Buttons ordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
-  3. Button colors harmonized with Catppuccin semantic system (primary=lavender, secondary=gray)
-  4. Visual separators group related actions (row 1: input/discovery, row 2: output/data)
-  5. "Papers" label removed from toolbar area
-**Plans:** 1/1 plans complete
+  1. Color pickers for background, text, accent, and link colors appear in the theme customization panel
+  2. Font selector offers a curated list of widely-available professional fonts (not a free-text field)
+  3. When AI generates a theme (Phase 61), the returned hex colors and font name populate these picker fields for further manual adjustment
+  4. Saving the customized theme produces a .scss file that Quarto renders with the chosen values
+**Plans**: TBD
 
-Plans:
-- [ ] 53-01-PLAN.md — Restructure toolbar to 3x2 grid, relocate result count, widen paper panel
-
-### Phase 53.1: Import run dialog appearing at bottom of abstract notebook (INSERTED)
-
-**Goal:** Fix import history rendering as unstyled page content by moving it into the import modal as a collapsible section with show_history parameterization
-**Requirements**: HIST-01, HIST-02, HIST-03, HIST-04, HIST-05, HIST-06
-**Depends on:** Phase 53
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 53.1-01-PLAN.md — Parameterize bulk import module, relocate history into modal footer, remove delete handlers
-
-### Phase 54: Tooltip Layer
-**Goal**: Every toolbar button has accessible, keyboard-navigable tooltips describing its action
-**Depends on**: Phase 53
-**Requirements**: TOOL-05
+### Phase 61: AI Theme Generation
+**Goal**: Users can describe a slide theme in plain language and receive a validated, editable .scss theme file
+**Depends on**: Phase 60
+**Requirements**: THME-05, THME-06, THME-07
 **Success Criteria** (what must be TRUE):
-  1. Static toolbar buttons wrapped with `bslib::tooltip()` (max 15 words per tooltip)
-  2. Dynamic buttons (keyword/journal filters) use `title` attributes for tooltip fallback
-  3. Tooltips remain visible and readable in both light and dark modes
-  4. Tooltips accessible via keyboard navigation (WCAG 2.2 compliant)
-**Plans**: 1 plan
+  1. A freeform text input accepts a theme description (e.g., "ocean blues, dark background, modern sans-serif")
+  2. The app sends the description to the LLM and receives structured JSON containing 8-9 theme variables (bg, fg, accent, link, font)
+  3. All returned hex values are validated as valid 6-digit hex colors; all font names are validated against the curated font list before saving
+  4. Invalid values trigger a user-visible error with specific fields flagged — the theme is not saved in a broken state
+  5. After AI generation, the color picker and font selector fields are populated with the AI values for manual tweaking before saving
+**Plans**: TBD
 
-Plans:
-- [ ] 54-01-PLAN.md — Wrap 12 static buttons with bslib::tooltip(), add title attributes to keyword badges
-
-### Phase 55: Document Type Filter UX
-**Goal**: Users can filter by full OpenAlex 16-type taxonomy with clear distribution preview
-**Depends on**: Phase 50
-**Requirements**: DTYPE-01, DTYPE-02, DTYPE-03
+### Phase 62: Prompt Storage Schema
+**Goal**: DuckDB schema exists to store date-versioned prompt history for all AI presets, enabling the prompt editing UI
+**Depends on**: Nothing (infrastructure phase, independent)
+**Requirements**: PRMT-04
 **Success Criteria** (what must be TRUE):
-  1. Edit Search modal exposes all 16 OpenAlex work types as chip toggles
-  2. Type distribution panel (showing counts) appears above chip toggles for discoverability
-  3. Each document type has distinctive badge styling in search results
-  4. Document type filtering happens in reactive chain between keyword and journal filters
-**Plans**: 1 plan
+  1. A new `prompt_versions` table exists in the app database with columns for preset slug, version date, and prompt text
+  2. Database migration runs automatically on app startup via the existing migration versioning system
+  3. The schema supports storing multiple versions per preset slug and retrieving the most recent active version
+**Plans**: TBD
 
-Plans:
-- [ ] 55-01-PLAN.md — Expand type taxonomy to 16 chip toggles, distribution panel, client-side filter, page size increase
-
-### Phase 56: Year Slider Alignment Fix
-**Goal**: Year range slider and histogram are visually aligned without layout gaps
-**Depends on**: Nothing (independent cosmetic fix)
-**Requirements**: YEAR-01
+### Phase 63: Prompt Editing UI
+**Goal**: Users can view, edit, version, and reset the system prompts for all AI presets without seeing RAG plumbing
+**Depends on**: Phase 62
+**Requirements**: PRMT-01, PRMT-02, PRMT-03, PRMT-05, PRMT-06
 **Success Criteria** (what must be TRUE):
-  1. HTML div histogram bars align edge-to-edge with slider track (ggplot2 replaced with renderUI)
-  2. Histogram uses Bootstrap CSS variable `var(--bs-primary)` for automatic dark mode color switching
-  3. Year filter panel hidden when no papers exist in notebook
-  4. No misalignment visible in both light and dark modes
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 56-01-PLAN.md — Replace ggplot2 histogram with HTML div bars, add conditional panel visibility
+  1. A prompt editor panel (e.g., in Settings or accessible via each preset) shows the instruction text for each AI preset
+  2. RAG retrieval instructions and OWASP separator markers are hidden; user sees only the task instruction portion with a read-only note explaining what the hidden machinery does
+  3. User can edit instruction text and save; the new version is stored in DuckDB with today's date as the slug suffix
+  4. A version history dropdown shows previous saved dates; selecting one restores that version's prompt text into the editor
+  5. A "Reset to default" button replaces the stored prompt with the hardcoded original from R/rag.R, removing custom versions
+**Plans**: TBD
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 50. API Pagination Foundation | 1/1 | Complete    | 2026-03-07 |
-| 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
-| 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
-| 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
-| 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
-| 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
-| 54. Tooltip Layer | 1/1 | Complete    | 2026-03-11 |
-| 55. Document Type Filter UX | 1/1 | Complete    | 2026-03-11 |
-| 56. Year Slider Alignment Fix | 1/1 | Complete    | 2026-03-12 |
+| 57. Citation Traceability | 0/TBD | Not started | - |
+| 58. Theme Infrastructure | 0/TBD | Not started | - |
+| 59. Theme Swatches, Upload, and Management | 0/TBD | Not started | - |
+| 60. Color Picker and Font Selector | 0/TBD | Not started | - |
+| 61. AI Theme Generation | 0/TBD | Not started | - |
+| 62. Prompt Storage Schema | 0/TBD | Not started | - |
+| 63. Prompt Editing UI | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-11 — Phase 56 planned (1 plan)*
+*Last updated: 2026-03-18 — v16.0 phases 57-63 added*

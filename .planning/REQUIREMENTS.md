@@ -57,32 +57,32 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| THME-01 | — | Pending |
-| THME-02 | — | Pending |
-| THME-03 | — | Pending |
-| THME-04 | — | Pending |
-| THME-05 | — | Pending |
-| THME-06 | — | Pending |
-| THME-07 | — | Pending |
-| THME-08 | — | Pending |
-| THME-09 | — | Pending |
-| THME-10 | — | Pending |
-| THME-11 | — | Pending |
-| THME-12 | — | Pending |
-| PRMT-01 | — | Pending |
-| PRMT-02 | — | Pending |
-| PRMT-03 | — | Pending |
-| PRMT-04 | — | Pending |
-| PRMT-05 | — | Pending |
-| PRMT-06 | — | Pending |
-| CITE-01 | — | Pending |
-| CITE-02 | — | Pending |
+| THME-01 | Phase 59 | Pending |
+| THME-02 | Phase 59 | Pending |
+| THME-03 | Phase 59 | Pending |
+| THME-04 | Phase 59 | Pending |
+| THME-05 | Phase 61 | Pending |
+| THME-06 | Phase 61 | Pending |
+| THME-07 | Phase 61 | Pending |
+| THME-08 | Phase 60 | Pending |
+| THME-09 | Phase 59 | Pending |
+| THME-10 | Phase 60 | Pending |
+| THME-11 | Phase 60 | Pending |
+| THME-12 | Phase 58 | Pending |
+| PRMT-01 | Phase 63 | Pending |
+| PRMT-02 | Phase 63 | Pending |
+| PRMT-03 | Phase 63 | Pending |
+| PRMT-04 | Phase 62 | Pending |
+| PRMT-05 | Phase 63 | Pending |
+| PRMT-06 | Phase 63 | Pending |
+| CITE-01 | Phase 57 | Pending |
+| CITE-02 | Phase 57 | Pending |
 
 **Coverage:**
 - v16.0 requirements: 20 total
-- Mapped to phases: 0
-- Unmapped: 20
+- Mapped to phases: 20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after initial definition*
+*Last updated: 2026-03-18 after roadmap creation — all 20 requirements mapped*
