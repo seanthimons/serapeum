@@ -183,12 +183,12 @@ get_latency_trend(con, days = 30)
 - Sparkline or small bar chart: daily latency trend (last 30 days)
 
 **Tasks:**
-- [ ] Create `migrations/012_add_duration_ms_to_cost_log.sql`
-- [ ] Update `log_cost()` to accept and persist `duration_ms`
-- [ ] Add `get_latency_by_model()`, `get_latency_by_operation()`, `get_latency_trend()` query functions
-- [ ] Add "Latency" accordion section to `mod_cost_tracker.R` UI
-- [ ] Handle NULL duration gracefully in all latency queries and displays
-- [ ] Write tests for latency query functions
+- [x] Create `migrations/012_add_duration_ms_to_cost_log.sql`
+- [x] Update `log_cost()` to accept and persist `duration_ms`
+- [x] Add `get_latency_by_model()`, `get_latency_by_operation()`, `get_latency_trend()` query functions
+- [x] Add "Latency" accordion section to `mod_cost_tracker.R` UI
+- [x] Handle NULL duration gracefully in all latency queries and displays
+- [x] Write tests for latency query functions
 
 **Success criteria:**
 - Migration 012 applies cleanly on existing databases

@@ -287,6 +287,63 @@ build_cost_tooltip_panel_style <- function(theme_mode) {
   }
 }
 
+format_latency_ms <- function(ms) {
+  if (is.null(ms) || is.na(ms)) return("--")
+  if (ms < 1000) return(sprintf("%dms", as.integer(ms)))
+  sprintf("%.1fs", ms / 1000)
+}
+
+build_latency_table <- function(df, key_col, label_fn) {
+  tags$table(
+    class = "table table-sm align-middle mb-0",
+    tags$thead(
+      tags$tr(
+        tags$th(tools::toTitleCase(key_col)),
+        tags$th(class = "text-end", "Avg"),
+        tags$th(class = "text-end", "p50"),
+        tags$th(class = "text-end", "p95"),
+        tags$th(class = "text-end", "Calls")
+      )
+    ),
+    tags$tbody(lapply(seq_len(nrow(df)), function(i) {
+      row <- df[i, ]
+      tags$tr(
+        tags$td(label_fn(row[[key_col]])),
+        tags$td(class = "text-end text-nowrap", format_latency_ms(row$avg_latency_ms)),
+        tags$td(class = "text-end text-nowrap", format_latency_ms(row$p50_latency_ms)),
+        tags$td(class = "text-end text-nowrap", format_latency_ms(row$p95_latency_ms)),
+        tags$td(class = "text-end", format_compact_integer(row$call_count))
+      )
+    }))
+  )
+}
+
+build_latency_sparkline <- function(trend) {
+  if (nrow(trend) < 2) return(NULL)
+
+  max_ms <- max(trend$avg_latency_ms, na.rm = TRUE)
+  if (max_ms == 0) return(NULL)
+
+  bar_heights <- (trend$avg_latency_ms / max_ms) * 40
+
+  tags$div(
+    class = "d-flex align-items-end gap-1",
+    style = "height: 48px;",
+    lapply(seq_len(nrow(trend)), function(i) {
+      tags$div(
+        style = sprintf(
+          "width: 6px; height: %dpx; background: var(--bs-secondary); border-radius: 2px 2px 0 0; opacity: 0.7;",
+          max(as.integer(bar_heights[i]), 2)
+        ),
+        title = sprintf("%s: %s (%d calls)",
+                        format(trend$date[i], "%b %d"),
+                        format_latency_ms(trend$avg_latency_ms[i]),
+                        trend$call_count[i])
+      )
+    })
+  )
+}
+
 #' Cost Tracker Module UI
 #' @param id Module ID
 mod_cost_tracker_ui <- function(id) {
@@ -338,6 +395,15 @@ mod_cost_tracker_ui <- function(id) {
         hr(),
         h6("Cost by Operation"),
         uiOutput(ns("cost_by_operation"))
+      ),
+      hr(),
+      tags$details(
+        tags$summary(
+          class = "fw-semibold mb-2",
+          style = "cursor: pointer;",
+          "Latency (Last 7 Days)"
+        ),
+        uiOutput(ns("latency_section"))
       )
     )
   )
@@ -561,6 +627,52 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL, th
 
     output$cost_by_operation <- renderUI({
       build_cost_operation_table(cost_by_operation())
+    })
+
+    # --- Latency Section ---
+
+    output$latency_section <- renderUI({
+      history_timer()
+      req(con_r())
+
+      summary <- get_latency_summary(con_r(), days = 7)
+
+      if (is.null(summary)) {
+        return(tags$p(class = "text-muted mb-0", "No latency data yet. Latency will appear after your next LLM call."))
+      }
+
+      by_model <- get_latency_by_model(con_r(), days = 7)
+      by_op <- get_latency_by_operation(con_r(), days = 7)
+      trend <- get_latency_trend(con_r(), days = 30)
+
+      tagList(
+        value_box(
+          title = "Avg Latency (7 days)",
+          value = format_latency_ms(summary$avg_latency_ms),
+          showcase = icon_clock(),
+          showcase_layout = "left center",
+          theme = "secondary",
+          p(class = "small mb-0", sprintf("%s calls tracked", format_compact_integer(summary$total_calls)))
+        ),
+        if (nrow(by_model) > 0) {
+          tagList(
+            h6(class = "mt-3", "By Model"),
+            build_latency_table(by_model, "model", format_cost_model_name)
+          )
+        },
+        if (nrow(by_op) > 0) {
+          tagList(
+            h6(class = "mt-3", "By Operation"),
+            build_latency_table(by_op, "operation", format_cost_operation_name)
+          )
+        },
+        if (nrow(trend) > 1) {
+          tagList(
+            h6(class = "mt-3", "Daily Trend (30 days)"),
+            build_latency_sparkline(trend)
+          )
+        }
+      )
     })
 
     # --- OpenAlex Usage Section ---

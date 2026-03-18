@@ -576,6 +576,11 @@ icon_sliders <- function(...) shiny::icon("sliders", ...)
 #' @return Icon tag
 icon_wallet <- function(...) shiny::icon("wallet", ...)
 
+#' Clock icon (latency/timing)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_clock <- function(...) shiny::icon("clock", ...)
+
 #' Save icon (alternative name)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag

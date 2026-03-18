@@ -374,6 +374,134 @@ get_cost_by_operation <- function(con, days = 30) {
   summary_df[order(summary_df$total_cost, decreasing = TRUE), ]
 }
 
+# --- Latency Queries ---
+
+#' Get average latency per model
+#'
+#' @param con DuckDB connection
+#' @param days Number of days to look back (default 7)
+#' @return Data frame with columns: model, avg_latency_ms, p50_latency_ms, p95_latency_ms, call_count
+get_latency_by_model <- function(con, days = 7) {
+  has_col <- tryCatch("duration_ms" %in% DBI::dbListFields(con, "cost_log"), error = function(e) FALSE)
+  if (!has_col) {
+    return(data.frame(
+      model = character(), avg_latency_ms = numeric(),
+      p50_latency_ms = numeric(), p95_latency_ms = numeric(),
+      call_count = integer(), stringsAsFactors = FALSE
+    ))
+  }
+
+  cutoff_date <- Sys.Date() - days
+
+  dbGetQuery(con, "
+    SELECT
+      model,
+      CAST(AVG(duration_ms) AS INTEGER) as avg_latency_ms,
+      CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS INTEGER) as p50_latency_ms,
+      CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) AS INTEGER) as p95_latency_ms,
+      COUNT(*) as call_count
+    FROM cost_log
+    WHERE duration_ms IS NOT NULL
+      AND DATE(created_at) >= ?
+    GROUP BY model
+    ORDER BY avg_latency_ms DESC
+  ", list(as.character(cutoff_date)))
+}
+
+#' Get average latency per operation type
+#'
+#' @param con DuckDB connection
+#' @param days Number of days to look back (default 7)
+#' @return Data frame with columns: operation, avg_latency_ms, p50_latency_ms, p95_latency_ms, call_count
+get_latency_by_operation <- function(con, days = 7) {
+  has_col <- tryCatch("duration_ms" %in% DBI::dbListFields(con, "cost_log"), error = function(e) FALSE)
+  if (!has_col) {
+    return(data.frame(
+      operation = character(), avg_latency_ms = numeric(),
+      p50_latency_ms = numeric(), p95_latency_ms = numeric(),
+      call_count = integer(), stringsAsFactors = FALSE
+    ))
+  }
+
+  cutoff_date <- Sys.Date() - days
+
+  dbGetQuery(con, "
+    SELECT
+      operation,
+      CAST(AVG(duration_ms) AS INTEGER) as avg_latency_ms,
+      CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS INTEGER) as p50_latency_ms,
+      CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) AS INTEGER) as p95_latency_ms,
+      COUNT(*) as call_count
+    FROM cost_log
+    WHERE duration_ms IS NOT NULL
+      AND DATE(created_at) >= ?
+    GROUP BY operation
+    ORDER BY avg_latency_ms DESC
+  ", list(as.character(cutoff_date)))
+}
+
+#' Get daily latency trend
+#'
+#' @param con DuckDB connection
+#' @param days Number of days to look back (default 30)
+#' @return Data frame with columns: date, avg_latency_ms, call_count
+get_latency_trend <- function(con, days = 30) {
+  has_col <- tryCatch("duration_ms" %in% DBI::dbListFields(con, "cost_log"), error = function(e) FALSE)
+  if (!has_col) {
+    return(data.frame(
+      date = as.Date(character()), avg_latency_ms = numeric(),
+      call_count = integer(), stringsAsFactors = FALSE
+    ))
+  }
+
+  cutoff_date <- Sys.Date() - days
+
+  result <- dbGetQuery(con, "
+    SELECT
+      DATE(created_at) as date,
+      CAST(AVG(duration_ms) AS INTEGER) as avg_latency_ms,
+      COUNT(*) as call_count
+    FROM cost_log
+    WHERE duration_ms IS NOT NULL
+      AND DATE(created_at) >= ?
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  ", list(as.character(cutoff_date)))
+
+  if (nrow(result) > 0) {
+    result$date <- as.Date(result$date)
+  }
+
+  result
+}
+
+#' Get overall average latency
+#'
+#' @param con DuckDB connection
+#' @param days Number of days to look back (default 7)
+#' @return Named list with avg_latency_ms, total_calls, or NULL if no data
+get_latency_summary <- function(con, days = 7) {
+  has_col <- tryCatch("duration_ms" %in% DBI::dbListFields(con, "cost_log"), error = function(e) FALSE)
+  if (!has_col) return(NULL)
+
+  cutoff_date <- Sys.Date() - days
+
+  row <- dbGetQuery(con, "
+    SELECT
+      CAST(AVG(duration_ms) AS INTEGER) as avg_latency_ms,
+      COUNT(*) as total_calls
+    FROM cost_log
+    WHERE duration_ms IS NOT NULL
+      AND DATE(created_at) >= ?
+  ", list(as.character(cutoff_date)))
+
+  if (nrow(row) == 0 || is.na(row$avg_latency_ms[1]) || row$total_calls[1] == 0) {
+    return(NULL)
+  }
+
+  list(avg_latency_ms = row$avg_latency_ms[1], total_calls = row$total_calls[1])
+}
+
 # --- OpenAlex Usage Queries ---
 
 #' Get today's aggregated OA usage
