@@ -461,6 +461,21 @@ icon_check_double <- function(...) shiny::icon("check-double", ...)
 #' @return Icon tag
 icon_ban <- function(...) shiny::icon("ban", ...)
 
+#' Image icon (figures/photos)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_image <- function(...) shiny::icon("image", ...)
+
+#' List icon (list view toggle)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_list <- function(...) shiny::icon("list", ...)
+
+#' Grid/table-cells icon (grid view toggle)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_grid <- function(...) shiny::icon("table-cells", ...)
+
 #' Rotate icon (refresh/reload)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
