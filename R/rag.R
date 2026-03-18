@@ -105,7 +105,18 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   }
 
   # Build prompt
-  system_prompt <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. Always cite your sources using the format [Document Name, p.X] or [Paper Title]. If the sources don't contain enough information to fully answer the question, say so clearly."
+  system_prompt <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. If the sources don't contain enough information to fully answer the question, say so clearly.
+
+CITATION RULES:
+- Cite every substantive claim using (Author, Year, p.X) format
+- When page metadata is available: (Author, Year, p.X)
+- When source is an abstract only: (Author, Year, abstract)
+- When page number is missing: (Author, Year, chunk N)
+- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)
+- Extract author name and year from the source labels provided (e.g., [DocName, p.X] or [Paper Title])
+
+Correct: \"Studies show increased resistance rates (WHO, 2024, p.12; Smith, 2023, p.45).\"
+Wrong: \"Studies show increased resistance rates [WHO Report, p.12].\""
 
   user_prompt <- sprintf("Sources:\n%s\n\nQuestion: %s", context, question)
 
@@ -205,7 +216,18 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   # Build context
   context <- build_context(chunks)
 
-  system_prompt <- "You are a helpful research assistant. Generate the requested content based on the provided sources. Be thorough and well-organized."
+  system_prompt <- "You are a helpful research assistant. Generate the requested content based on the provided sources. Be thorough and well-organized.
+
+CITATION RULES:
+- Cite every substantive claim using (Author, Year, p.X) format
+- When page metadata is available: (Author, Year, p.X)
+- When source is an abstract only: (Author, Year, abstract)
+- When page number is missing: (Author, Year, chunk N)
+- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)
+- Extract author name and year from the source labels provided (e.g., [DocName, p.X] or [Paper Title])
+
+Correct: \"Machine learning improves diagnostic accuracy (Chen, 2023, p.15; WHO, 2024, p.8).\"
+Wrong: \"Machine learning improves diagnostic accuracy.\""
   user_prompt <- sprintf("Sources:\n%s\n\nTask: %s", context, prompt)
 
   messages <- format_chat_messages(system_prompt, user_prompt)
@@ -365,12 +387,23 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
 
 IMPORTANT: Base your synthesis ONLY on the provided sources. Do not invent findings or cite sources not provided. If sources conflict, note the disagreement explicitly.
 
+CITATION RULES:
+- Cite every substantive claim using (Author, Year, p.X) format
+- When page metadata is available: (Author, Year, p.X)
+- When source is an abstract only: (Author, Year, abstract)
+- When page number is missing: (Author, Year, chunk N)
+- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)
+- Extract author name and year from the source labels provided
+
+Correct: \"Multiple studies confirm reduced efficacy (Smith, 2023, p.14; Jones, 2022, p.8).\"
+Wrong: \"Multiple studies confirm reduced efficacy [Source Name].\"
+
 OUTPUT FORMAT:
 ## Research Conclusions
-[Synthesized conclusions with citations using [Source Name] format]
+[Synthesized conclusions with (Author, Year, p.X) citations]
 
 ## Agreements & Disagreements
-[Where sources agree and diverge, with specific citations]"
+[Where sources agree and diverge, with specific (Author, Year, p.X) citations]"
 
   user_prompt <- sprintf("===== BEGIN RESEARCH SOURCES =====
 %s
@@ -528,7 +561,14 @@ Organize key points under thematic subheadings in this order: Background/Context
 Each subheading should contain 3-5 bullet points.
 Do not use a flat bullet list - group all related points under their subheading.
 
-IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings.",
+IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings.
+
+CITATION RULES:
+- Cite every substantive claim using (Author, Year, p.X) format
+- For abstracts: (Author, Year, abstract)
+- For missing page numbers: (Author, Year, chunk N)
+- When multiple sources support a claim, cite all
+- Extract author/year from the source labels in the provided data",
       depth_instruction
     )
     user_prompt <- sprintf("%s\n\nGenerate an Overview with a Summary and thematically organized Key Points.",
@@ -556,7 +596,7 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
   # Helper: "Thorough" Call 1 — Summary only
   call_overview_summary <- function(df) {
     system_prompt <- sprintf(
-      "You are a research summarizer. %s Cover main themes, key findings, and conclusions. Base the summary ONLY on the provided sources.",
+      "You are a research summarizer. %s Cover main themes, key findings, and conclusions. Base the summary ONLY on the provided sources. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N).",
       depth_instruction
     )
     user_prompt <- sprintf("%s\n\n%s",
@@ -584,7 +624,7 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
 
   # Helper: "Thorough" Call 2 — Key Points only
   call_overview_keypoints <- function(df) {
-    system_prompt <- "You are a research analyst. Extract key points organized by theme from the provided research. Base all content ONLY on the provided sources. Do not invent findings."
+    system_prompt <- "You are a research analyst. Extract key points organized by theme from the provided research. Base all content ONLY on the provided sources. Do not invent findings. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N)."
     user_prompt <- sprintf(
       "%s\n\nExtract key points organized under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps. Each subheading: 3-5 bullet points.",
       wrap_sources(df)
@@ -781,7 +821,9 @@ INSTRUCTIONS:
 OUTPUT FORMAT:
 - Numbered list of questions, each followed by an indented rationale
 - No introductory paragraph or scope note
-- Each rationale MUST name specific papers by 'Author et al. (Year)' format
+- Each rationale MUST name specific papers with page numbers: 'Smith et al. (2023, p.14) found that...'
+- Each rationale MUST include page numbers where available: Author et al. (Year, p.X)
+- When no page number is available (abstract-only source): Author et al. (Year, abstract)
 - When a gap spans multiple papers, name ALL relevant papers
 
 SCALING:
@@ -1003,8 +1045,12 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
       "- Each cell: brief phrases (2-5 words), NOT full sentences\n",
       "- Key Findings: single consolidated statement per paper, no bullet points\n",
       "- For N/A columns: use contextual notes (e.g., 'Theoretical framework', 'Systematic review') instead of literal 'N/A'\n",
-      "- Output ONLY the markdown table. No introduction, no summary, no notes before or after the table.\n",
-      "- Every line of the table must have exactly 6 pipe characters (| col1 | col2 | col3 | col4 | col5 |)"
+      "- Output ONLY the markdown table followed by a Sources section. No introduction before the table.\n",
+      "- Every line of the table must have exactly 6 pipe characters (| col1 | col2 | col3 | col4 | col5 |)\n\n",
+      "FOOTNOTES:\n",
+      "After the table, add a '### Sources' section with numbered footnotes linking key findings to specific page numbers.\n",
+      "Format: [1] Author (Year), p.X — brief finding description\n",
+      "Only include footnotes for Key Findings column entries."
     )
 
     # User prompt
@@ -1207,8 +1253,12 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
       "- Statistical Methods: specific tests or analytical approaches (e.g., regression, ANOVA, thematic analysis)\n",
       "- Tools/Instruments: software, scales, measurement tools\n",
       "- For papers with no clear methodology: use 'Not described' or contextual notes (e.g., 'Theoretical framework')\n",
-      "- Output ONLY the markdown table. No introduction, no summary, no notes.\n",
-      "- Every line must have exactly 7 pipe characters"
+      "- Output ONLY the markdown table followed by a Sources section. No introduction before the table.\n",
+      "- Every line must have exactly 7 pipe characters\n\n",
+      "FOOTNOTES:\n",
+      "After the table, add a '### Sources' section with numbered footnotes linking methodology details to specific page numbers.\n",
+      "Format: [1] Author (Year), p.X — methodology detail\n",
+      "Include footnotes for Study Design and Statistical Methods columns."
     )
 
     # User prompt
@@ -1430,7 +1480,8 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
       "## Theoretical Gaps\n\n",
       "RULES:\n",
       "- Write in narrative prose, not bullet points\n",
-      "- Weave inline citations naturally: 'Smith et al. (2020) found...', 'contradicting Johnson (2018)'\n",
+      "- Weave inline citations with page numbers: 'Smith et al. (2020, p.14) found...', 'contradicting Johnson (2018, p.8)'\n",
+      "- When citing abstracts without page numbers, use: 'Smith et al. (2020, abstract)'\n",
       "- When no gaps found in a category: 'No significant [type] gaps identified across the reviewed papers.'\n",
       "- Actively search for contradictions between papers\n",
       "- Format contradictions as visually separated blockquotes on their own line:\n",
