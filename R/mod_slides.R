@@ -663,22 +663,11 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       # Re-save with clean frontmatter
       writeLines(qmd_content, heal_result$qmd_path)
 
-      # Re-stage figures for healed QMD (may be in a different temp path)
+      # Inline figure data URIs in healed QMD
       figs <- generation_state$figures
-      staged <- stage_figures_for_quarto(figs, dirname(heal_result$qmd_path))
-
-      # Replace relative figure refs with absolute paths for embed-resources
-      if (length(staged) > 0) {
-        heal_dir <- normalizePath(dirname(heal_result$qmd_path), winslash = "/")
-        healed_qmd <- readLines(heal_result$qmd_path)
-        healed_text <- paste(healed_qmd, collapse = "\n")
-        for (fig_id in names(staged)) {
-          healed_text <- gsub(
-            paste0(fig_id, ".png"),
-            paste0(heal_dir, "/", fig_id, ".png"),
-            healed_text, fixed = TRUE
-          )
-        }
+      if (!is.null(figs) && nrow(figs) > 0) {
+        healed_text <- paste(readLines(heal_result$qmd_path), collapse = "\n")
+        healed_text <- inline_figure_data_uris(healed_text, figs)
         writeLines(healed_text, heal_result$qmd_path)
       }
 

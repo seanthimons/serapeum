@@ -249,6 +249,70 @@ test_that("stage_figures_for_quarto handles multiple figures without collision",
 })
 
 # =============================================================================
+# inline_figure_data_uris()
+# =============================================================================
+
+test_that("inline_figure_data_uris replaces references with data URIs", {
+  src_dir <- file.path(tempdir(), "test_inline_src")
+  dir.create(src_dir, showWarnings = FALSE)
+  on.exit(unlink(src_dir, recursive = TRUE))
+
+  # Create a small fake PNG
+  src_file <- file.path(src_dir, "fig.png")
+  writeBin(as.raw(c(0x89, 0x50, 0x4E, 0x47)), src_file)
+
+  figs <- data.frame(
+    id = "abc-123",
+    file_path = src_file,
+    stringsAsFactors = FALSE
+  )
+
+  qmd <- "## Slide\n\n![Caption](abc-123.png){width=\"90%\"}"
+  result <- inline_figure_data_uris(qmd, figs)
+
+  expect_true(grepl("data:image/png;base64,", result, fixed = TRUE))
+  expect_false(grepl("abc-123.png", result, fixed = TRUE))
+})
+
+test_that("inline_figure_data_uris skips unreferenced figures", {
+  src_dir <- file.path(tempdir(), "test_inline_skip")
+  dir.create(src_dir, showWarnings = FALSE)
+  on.exit(unlink(src_dir, recursive = TRUE))
+
+  src_file <- file.path(src_dir, "fig.png")
+  writeBin(as.raw(c(0x89, 0x50)), src_file)
+
+  figs <- data.frame(
+    id = "not-in-qmd",
+    file_path = src_file,
+    stringsAsFactors = FALSE
+  )
+
+  qmd <- "## Slide\n\nNo figures here."
+  result <- inline_figure_data_uris(qmd, figs)
+  expect_equal(result, qmd)
+})
+
+test_that("inline_figure_data_uris warns on missing files", {
+  figs <- data.frame(
+    id = "missing-fig",
+    file_path = "/nonexistent/fig.png",
+    stringsAsFactors = FALSE
+  )
+
+  qmd <- "![Alt](missing-fig.png)"
+  expect_warning(
+    inline_figure_data_uris(qmd, figs),
+    "Figure file missing"
+  )
+})
+
+test_that("inline_figure_data_uris handles NULL input", {
+  expect_equal(inline_figure_data_uris("some content", NULL), "some content")
+  expect_equal(inline_figure_data_uris("some content", data.frame()), "some content")
+})
+
+# =============================================================================
 # build_slides_prompt() with figures
 # =============================================================================
 

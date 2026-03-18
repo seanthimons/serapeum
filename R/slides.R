@@ -357,24 +357,15 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
   writeLines(qmd_content, qmd_path)
 
-  # Stage figure PNGs next to the QMD so Quarto can resolve image paths
-  staged_figures <- stage_figures_for_quarto(figures, dirname(qmd_path))
-
-  # Replace relative figure references with absolute paths so Quarto's
-  # embed-resources can find them (Quarto may copy QMD to its own temp dir)
-  if (length(staged_figures) > 0) {
-    qmd_dir <- normalizePath(dirname(qmd_path), winslash = "/")
-    for (fig_id in names(staged_figures)) {
-      # Only replace in image syntax: (uuid.png) → (/absolute/path/uuid.png)
-      rel_ref <- paste0(fig_id, ".png")
-      abs_ref <- paste0(qmd_dir, "/", fig_id, ".png")
-      qmd_content <- gsub(rel_ref, abs_ref, qmd_content, fixed = TRUE)
-    }
+  # Inline figure images as base64 data URIs directly in the QMD.
+  # This bypasses all file-path resolution issues with Quarto/Pandoc
+  # and makes both the preview and downloaded HTML self-contained.
+  if (!is.null(figures) && nrow(figures) > 0) {
+    qmd_content <- inline_figure_data_uris(qmd_content, figures)
     writeLines(qmd_content, qmd_path)
   }
 
-  list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation,
-       staged_figures = staged_figures)
+  list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation)
 }
 
 #' Validate YAML frontmatter in QMD content
@@ -649,6 +640,34 @@ build_figure_manifest <- function(figures, max_figures = 15L) {
   }, character(1))
 
   paste(entries, collapse = "\n\n---\n\n")
+}
+
+#' Replace figure filename references with base64 data URIs in QMD content
+#' @param qmd_content QMD string with image references like (uuid.png)
+#' @param figures Data frame with id and file_path columns
+#' @return Modified QMD content with data URIs inlined
+inline_figure_data_uris <- function(qmd_content, figures) {
+  if (is.null(figures) || nrow(figures) == 0) return(qmd_content)
+
+  for (i in seq_len(nrow(figures))) {
+    fig_id <- figures$id[i]
+    src_path <- figures$file_path[i]
+    ref_pattern <- paste0(fig_id, ".png")
+
+    # Skip if this figure isn't referenced in the QMD
+    if (!grepl(ref_pattern, qmd_content, fixed = TRUE)) next
+
+    if (!file.exists(src_path)) {
+      warning(sprintf("Figure file missing, cannot inline: %s", src_path))
+      next
+    }
+
+    raw_data <- readBin(src_path, "raw", file.info(src_path)$size)
+    b64 <- base64enc::base64encode(raw_data)
+    data_uri <- paste0("data:image/png;base64,", b64)
+    qmd_content <- gsub(ref_pattern, data_uri, qmd_content, fixed = TRUE)
+  }
+  qmd_content
 }
 
 #' Stage figure PNG files to a directory for Quarto rendering
