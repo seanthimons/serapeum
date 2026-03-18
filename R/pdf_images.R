@@ -281,17 +281,20 @@ describe_figure <- function(api_key, image_data, figure_label = NULL,
 #' @param notebook_id Notebook UUID
 #' @param pdf_path Path to the PDF file
 #' @param session_id Shiny session ID for cost logging (NULL to skip logging)
-#' @param extraction_config Config list (default: extraction_config())
-#' @param vision_config Config list (default: figure_vision_config())
+#' @param ext_config Extraction config list (default: extraction_config())
+#' @param vis_config Vision config list (default: figure_vision_config())
 #' @param progress Optional progress callback: function(value, detail) where
 #'   value is 0-1 fraction
 #' @return Named list: n_extracted, n_described, n_failed, figures (data.frame)
 extract_and_describe_figures <- function(con, api_key = NULL,
                                          document_id, notebook_id, pdf_path,
                                          session_id = NULL,
-                                         extraction_config = extraction_config(),
-                                         vision_config = figure_vision_config(),
+                                         ext_config = NULL,
+                                         vis_config = NULL,
                                          progress = NULL) {
+  # Resolve defaults outside the signature to avoid recursive default reference
+  if (is.null(ext_config)) ext_config <- extraction_config()
+  if (is.null(vis_config)) vis_config <- figure_vision_config()
   # Step 1: Clean up existing figures (idempotent re-extraction)
   db_delete_figures_for_document(con, document_id)
 
@@ -299,7 +302,7 @@ extract_and_describe_figures <- function(con, api_key = NULL,
   if (!is.null(progress)) progress(0.1, "Extracting figures from PDF...")
 
   figures_df <- tryCatch(
-    extract_figures_from_pdf(pdf_path, extraction_config),
+    extract_figures_from_pdf(pdf_path, ext_config),
     error = function(e) {
       message(sprintf("[pipeline] Extraction failed: %s", conditionMessage(e)))
       empty_figures_df()
@@ -363,7 +366,7 @@ extract_and_describe_figures <- function(con, api_key = NULL,
         image_data         = fig$image_data[[1]],
         figure_label       = if ("figure_label" %in% names(fig)) fig$figure_label else NULL,
         extracted_caption  = if ("caption" %in% names(fig)) fig$caption else NULL,
-        vision_config      = vision_config
+        vision_config      = vis_config
       )
 
       if (desc$success) {

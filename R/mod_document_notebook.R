@@ -739,23 +739,21 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           div(
             class = "d-flex align-items-center gap-2",
             span(paste(doc$page_count, "pg"), class = "text-muted small"),
-            # Figure count badge + view toggle (if figures exist)
-            if (fig_count > 0) {
+            # Figures: single button — badge toggles gallery, icon extracts
+            if (is_pdf && fig_count > 0) {
               actionLink(
                 ns(view_figs_id),
                 span(paste0(fig_count, " fig", if (fig_count != 1) "s"),
                      class = "badge bg-success"),
                 title = "View/hide figures"
               )
-            },
-            # Extract figures button (PDF only)
-            if (is_pdf) {
+            } else if (is_pdf) {
               actionLink(
                 ns(extract_id),
                 icon_image(),
-                class = if (fig_count > 0) "text-success" else "text-muted",
+                class = "text-muted",
                 style = "cursor: pointer; opacity: 0.7;",
-                title = if (fig_count > 0) "Re-extract figures" else "Extract figures"
+                title = "Extract figures"
               )
             },
             tags$a(
@@ -822,6 +820,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           }
         ),
         error = function(e) {
+          message(sprintf("[figure-ui] Extraction error: %s", conditionMessage(e)))
           list(n_extracted = 0L, n_described = 0L, n_failed = 0L,
                error = conditionMessage(e))
         }
@@ -875,6 +874,41 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       gallery_view("grid")
       fig_refresh(fig_refresh() + 1)
     })
+
+    # Re-extract from gallery header
+    observeEvent(input$gallery_reextract, {
+      doc_id <- selected_fig_doc()
+      req(doc_id)
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      doc <- get_document(con(), doc_id)
+      req(doc)
+
+      existing <- tryCatch(
+        nrow(db_get_figures_for_document(con(), doc_id)),
+        error = function(e) 0L
+      )
+
+      showModal(modalDialog(
+        title = "Re-extract figures?",
+        tags$p(sprintf("This will replace %d existing figures for %s.",
+                       existing, doc$filename)),
+        footer = tagList(
+          actionButton(ns("confirm_gallery_reextract"), "Replace", class = "btn-warning"),
+          modalButton("Cancel")
+        ),
+        easyClose = TRUE
+      ))
+    })
+
+    observeEvent(input$confirm_gallery_reextract, {
+      removeModal()
+      doc_id <- selected_fig_doc()
+      nb_id <- notebook_id()
+      doc <- get_document(con(), doc_id)
+      run_figure_extraction(doc_id, nb_id, doc$filepath, doc$filename)
+    }, ignoreInit = TRUE)
 
     # Figure gallery renderUI
     output$figure_gallery <- renderUI({
@@ -993,21 +1027,28 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         }
       })
 
-      # Gallery header with view toggle and close button
+      # Gallery header with view toggle and re-extract
       header <- div(
         class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom",
         tags$strong(
           sprintf("Figures (%d)", nrow(figures))
         ),
         div(
-          class = "btn-group btn-group-sm",
-          actionButton(ns("gallery_view_list"), icon_list(),
-            class = if (view == "list") "btn-primary" else "btn-outline-secondary",
-            title = "List view"
+          class = "d-flex gap-2",
+          div(
+            class = "btn-group btn-group-sm",
+            actionButton(ns("gallery_view_list"), icon_list(),
+              class = if (view == "list") "btn-primary" else "btn-outline-secondary",
+              title = "List view"
+            ),
+            actionButton(ns("gallery_view_grid"), icon_grid(),
+              class = if (view == "grid") "btn-primary" else "btn-outline-secondary",
+              title = "Grid view"
+            )
           ),
-          actionButton(ns("gallery_view_grid"), icon_grid(),
-            class = if (view == "grid") "btn-primary" else "btn-outline-secondary",
-            title = "Grid view"
+          actionButton(ns("gallery_reextract"), icon_refresh(),
+            class = "btn-outline-warning btn-sm",
+            title = "Re-extract figures"
           )
         )
       )
