@@ -122,27 +122,26 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
               valueField = "value"
             )
           ),
-          # Upload link (triggers hidden file input)
-          actionLink(
-            ns("upload_theme_link"),
-            tagList(icon("upload"), " Upload custom theme (.scss)"),
-            class = "small text-muted"
+          # Upload link: <label for=...> targeting the native file input ID.
+          # This is a direct browser-native trigger — no JS required, and it works
+          # even when the fileInput container is visually hidden, because the label
+          # click is treated as a trusted event by the browser.
+          tags$label(
+            `for` = ns("theme_file"),
+            class = "small text-muted d-inline-flex align-items-center gap-1",
+            style = "cursor:pointer; margin-bottom:0;",
+            icon("upload"),
+            " Upload custom theme (.scss)"
           ),
-          # Hidden file input (triggered by upload link click)
+          # fileInput hidden off-screen (not display:none — that blocks label click
+          # on some browsers). position:absolute + clip makes it invisible but
+          # label-clickable.
           div(
-            style = "display:none;",
+            style = "position:absolute; width:0; height:0; overflow:hidden;",
             fileInput(ns("theme_file"), NULL, accept = ".scss")
           ),
           # Inline validation error output
-          uiOutput(ns("upload_error")),
-          # JS: wire actionLink click -> hidden fileInput
-          tags$script(HTML(sprintf(
-            "$(document).on('click', '#%s', function(e) {
-              e.preventDefault();
-              $('#%s').find('input[type=file]').click();
-            });",
-            ns("upload_theme_link"), ns("theme_file")
-          )))
+          uiOutput(ns("upload_error"))
         )
       ),
 
