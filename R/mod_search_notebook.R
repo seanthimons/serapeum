@@ -1825,13 +1825,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
                 ""
               )
 
-              # Escape keyword for safe JS embedding
-              k_escaped <- htmltools::htmlEscape(k_lower, attribute = TRUE)
+              # Escape keyword for safe JS embedding (JSON produces a quoted string)
+              k_js <- jsonlite::toJSON(k_lower, auto_unbox = TRUE)
 
               onclick_js <- sprintf(
-                "Shiny.setInputValue('%s', {keyword: '%s', nonce: Math.random()})",
+                "Shiny.setInputValue('%s', {keyword: %s, nonce: Math.random()})",
                 ns("abstract_kw_click"),
-                k_escaped
+                k_js
               )
 
               tags$span(

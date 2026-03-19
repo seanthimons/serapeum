@@ -305,15 +305,23 @@ mod_research_refiner_server <- function(id, con_r, config_r,
     })
 
     # --- Remove individual seeds ---
+    seed_observers <- reactiveValues()
     observe({
       seeds <- seed_papers()
+      # Destroy previous observers
+      for (nm in names(seed_observers)) {
+        seed_observers[[nm]]$destroy()
+        seed_observers[[nm]] <- NULL
+      }
+      # Create fresh observers for current seed count
       lapply(seq_along(seeds), function(i) {
-        observeEvent(input[[paste0("remove_seed_", i)]], {
+        obs <- observeEvent(input[[paste0("remove_seed_", i)]], {
           current <- seed_papers()
           if (i <= length(current)) {
             seed_papers(current[-i])
           }
         }, ignoreInit = TRUE, once = TRUE)
+        seed_observers[[paste0("obs_", i)]] <- obs
       })
     })
 
@@ -911,9 +919,10 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           ", list(target, p$paper_id))
           if (nrow(existing) > 0) next
 
+          authors_vec <- jsonlite::fromJSON(p$authors)
           abstract_id <- create_abstract(
             con, target, p$paper_id, p$title,
-            p$authors, p$abstract,
+            authors_vec, p$abstract,
             p$year, p$venue, NULL,
             cited_by_count = p$cited_by_count,
             fwci = p$fwci,

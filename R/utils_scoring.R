@@ -101,7 +101,7 @@ get_preset_weights <- function(mode = "discovery") {
 #' Compute composite utility score with weight re-normalization
 #'
 #' When a scoring component is unavailable (NA/NULL), its weight is excluded
-#' and the remaining weights are re-normalized to sum to the original total.
+#' and the remaining weights are re-normalized to sum to 1.0.
 #' This avoids penalizing papers that lack certain metadata (e.g., preprints
 #' without FWCI, candidates without graph data for bridge scores).
 #'
@@ -124,7 +124,7 @@ compute_utility_score <- function(seed_connectivity, bridge_score,
     list(val = citation_velocity,   w = weights$w3, penalty = FALSE),
     list(val = fwci,                w = weights$w4, penalty = FALSE),
     list(val = ubiquity_penalty,    w = weights$w5, penalty = TRUE),
-    list(val = embedding_similarity, w = weights$w6 %||% 0, penalty = FALSE)
+    list(val = embedding_similarity, w = if (is.null(weights$w6)) 0 else weights$w6, penalty = FALSE)
   )
 
   # Separate available from missing

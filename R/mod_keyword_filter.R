@@ -311,9 +311,11 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
     return(list(
       filtered_papers = reactive(filtered_papers()),
       set_keyword_state = function(keyword, state) {
+        keyword <- tolower(keyword)
         keyword_states[[keyword]] <- state
       },
       get_keyword_state = function(keyword) {
+        keyword <- tolower(keyword)
         keyword_states[[keyword]] %||% "neutral"
       }
     ))
