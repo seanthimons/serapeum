@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Completed 59-01-PLAN.md
-last_updated: "2026-03-19T18:28:20.069Z"
+stopped_at: "Completed 59-02 Task 1 (checkpoint:human-verify pending for Task 2)"
+last_updated: "2026-03-19T18:35:07.876Z"
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 ---
@@ -62,6 +62,8 @@ Recent decisions affecting v16.0 work:
 - [Phase 58]: Use basename(custom_scss) in YAML so directory paths don't leak into QMD frontmatter
 - [Phase 58]: custom_scss=NULL in last_options is explicit placeholder for Phase 59+ UI wiring
 - [Phase 59]: Custom value in build_theme_choices_df is filename-only (e.g. epa-owm.scss); Plan 02 server wiring prepends data/themes/ when setting custom_scss
+- [Phase 59]: Namespace prefix for JS delete button callback baked in from ns('') in the UI function rather than using session\ in server
+- [Phase 59]: selectizeInput(choices=NULL) in UI + updateSelectizeInput(server=TRUE) in server avoids rendering full choices in initial HTML payload
 
 ### Pending Todos
 
@@ -74,8 +76,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:28:20.065Z
-Stopped at: Completed 59-01-PLAN.md
+Last session: 2026-03-19T18:35:07.870Z
+Stopped at: Completed 59-02 Task 1 (checkpoint:human-verify pending for Task 2)
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---
