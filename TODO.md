@@ -46,8 +46,8 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#145](https://github.com/seanthimons/serapeum/issues/145) | Citation audit filters and controls (sorting, filtering by year/citation/FWCI) | Medium | Medium |
-| [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
+| ~~[#145](https://github.com/seanthimons/serapeum/issues/145)~~ | ~~Citation audit filters and controls (sorting, filtering by year/citation/FWCI)~~ | ~~Medium~~ | ~~Medium~~ |
+| ~~[#135](https://github.com/seanthimons/serapeum/issues/135)~~ | ~~Changing citation size by new calculation metric~~ | ~~High~~ | ~~Medium~~ |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Export from network graph to abstract search + vice versa | High | Medium |
 | [#126](https://github.com/seanthimons/serapeum/issues/126) | Partial BFS graph as intentional visualization mode | Medium | Medium |
 | ~~[#6](https://github.com/seanthimons/serapeum/issues/6)~~ | ~~Timeline heatmap~~ | ~~Medium~~ | ~~Low~~ |
@@ -228,6 +228,8 @@ High-effort, high-payoff features for the future.
 - [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 - [x] feat: Community-aware edge weighting for citation network cluster separation
+- [x] [#145](https://github.com/seanthimons/serapeum/issues/145): Citation audit filters and controls — ASC/DESC sort, FWCI sort/filter, year range, min citations/frequency (v14.0)
+- [x] [#135](https://github.com/seanthimons/serapeum/issues/135): Node sizing by citations, age-weighted, FWCI, or connectivity + FWCI in network tooltips (v14.0)
 
 ---
 
