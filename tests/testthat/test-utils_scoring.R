@@ -114,7 +114,7 @@ test_that("get_preset_weights returns valid weights for all modes", {
   for (mode in c("discovery", "comprehensive", "emerging")) {
     w <- get_preset_weights(mode)
     expect_true(is.list(w))
-    expect_named(w, c("w1", "w2", "w3", "w4", "w5"))
+    expect_named(w, c("w1", "w2", "w3", "w4", "w5", "w6"))
     # All weights should be positive
     expect_true(all(vapply(w, function(x) x >= 0, logical(1))))
   }

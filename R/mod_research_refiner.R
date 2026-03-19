@@ -337,6 +337,7 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       updateSliderInput(session, "w3", value = weights$w3)
       updateSliderInput(session, "w4", value = weights$w4)
       updateSliderInput(session, "w5", value = weights$w5)
+      updateSliderInput(session, "w6", value = weights$w6)
     })
 
     # --- Candidate count badge ---

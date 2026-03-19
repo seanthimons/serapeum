@@ -155,6 +155,7 @@ compute_utility_score <- function(seed_connectivity, bridge_score,
 #' @return Numeric vector scaled to [0, 1]
 normalize_01 <- function(x) {
   if (length(x) == 0) return(numeric(0))
+  if (all(is.na(x))) return(x)
   rng <- range(x, na.rm = TRUE)
   if (rng[1] == rng[2]) return(rep(0.5, length(x)))
   (x - rng[1]) / (rng[2] - rng[1])
