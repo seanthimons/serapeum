@@ -58,6 +58,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
         venue = character(),
         doi = character(),
         cited_by_count = integer(),
+        fwci = numeric(),
         is_seed = logical(),
         stringsAsFactors = FALSE
       ),
@@ -82,6 +83,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
     venue = seed_paper$venue %||% NA_character_,
     doi = seed_paper$doi %||% NA_character_,
     cited_by_count = seed_paper$cited_by_count %||% 0L,
+    fwci = seed_paper$fwci %||% NA_real_,
     is_seed = TRUE
   )
   visited <- c(visited, seed_paper_id)
@@ -116,6 +118,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
           venue = character(),
           doi = character(),
           cited_by_count = integer(),
+          fwci = numeric(),
           is_seed = logical(),
           stringsAsFactors = FALSE
         )
@@ -258,6 +261,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
           venue = paper$venue %||% NA_character_,
           doi = paper$doi %||% NA_character_,
           cited_by_count = paper$cited_by_count %||% 0L,
+          fwci = paper$fwci %||% NA_real_,
           is_seed = FALSE
         )
 
@@ -452,6 +456,7 @@ fetch_multi_seed_citation_network <- function(seed_paper_ids, email, api_key = N
         venue = character(),
         doi = character(),
         cited_by_count = integer(),
+        fwci = numeric(),
         is_seed = logical(),
         is_overlap = logical(),
         stringsAsFactors = FALSE
@@ -565,15 +570,15 @@ map_year_to_color <- function(years, palette = "viridis") {
   colors
 }
 
-#' Compute node sizes from citation counts
+#' Compute node sizes from a numeric metric
 #'
 #' Applies cube-root transform to handle power-law distribution,
 #' then scales to visNetwork size range.
 #'
-#' @param cited_by_counts Numeric vector of citation counts
+#' @param values Numeric vector of metric values (citations, FWCI, etc.)
 #' @return Numeric vector of node sizes (10-100)
-compute_node_sizes <- function(cited_by_counts) {
-  n <- length(cited_by_counts)
+compute_node_sizes <- function(values) {
+  n <- length(values)
 
   if (n == 0) return(numeric(0))
   if (n == 1) return(30)
@@ -582,7 +587,9 @@ compute_node_sizes <- function(cited_by_counts) {
   # cbrt(100)=4.6, cbrt(1000)=10, cbrt(15000)=24.7
   # Gives 5x visual difference between 1k and 15k citations
   # (log1p only gives 1.4x — high-citation nodes look the same)
-  transformed <- pmax(cited_by_counts, 0)^(1/3)
+  safe_values <- pmax(values, 0, na.rm = TRUE)
+  safe_values[is.na(safe_values)] <- 0
+  transformed <- safe_values^(1/3)
 
   count_range <- range(transformed, na.rm = TRUE)
   if (count_range[2] - count_range[1] == 0) {
@@ -595,6 +602,38 @@ compute_node_sizes <- function(cited_by_counts) {
   10 + normalized * 90
 }
 
+#' Get sizing metric values for network nodes
+#'
+#' Extracts the appropriate metric vector from nodes_df based on
+#' the selected sizing mode.
+#'
+#' @param nodes_df Data frame with node data
+#' @param size_by Sizing mode: "citations", "age_weighted", "fwci", or "connectivity"
+#' @return Numeric vector of metric values
+get_sizing_metric <- function(nodes_df, size_by = "citations") {
+  switch(size_by,
+    "age_weighted" = {
+      current_year <- as.integer(format(Sys.Date(), "%Y"))
+      age <- current_year - nodes_df$year + 1L
+      age[is.na(age) | age < 1] <- 1L
+      nodes_df$cited_by_count / age
+    },
+    "fwci" = {
+      fwci_vals <- if (!is.null(nodes_df$fwci)) nodes_df$fwci else rep(NA_real_, nrow(nodes_df))
+      # Papers without FWCI get minimum size (0 pre-transform)
+      fwci_vals[is.na(fwci_vals)] <- 0
+      fwci_vals
+    },
+    "connectivity" = {
+      # Count edges per node (in-degree + out-degree)
+      # This is computed externally and passed in; fall back to cited_by_count
+      if (!is.null(nodes_df$connectivity)) nodes_df$connectivity else nodes_df$cited_by_count
+    },
+    # Default: raw citations
+    nodes_df$cited_by_count
+  )
+}
+
 #' Build visNetwork-ready graph data
 #'
 #' Adds visNetwork-specific columns to nodes: color, size, shape, tooltip, etc.
@@ -604,7 +643,8 @@ compute_node_sizes <- function(cited_by_counts) {
 #' @param palette Viridis palette name
 #' @param seed_paper_id OpenAlex Work ID of seed paper
 #' @return List with nodes and edges data frames ready for visNetwork
-build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_paper_id = NULL) {
+build_network_data <- function(nodes_df, edges_df, palette = "viridis",
+                               seed_paper_id = NULL, size_by = "citations") {
   if (nrow(nodes_df) == 0) {
     return(list(nodes = nodes_df, edges = edges_df))
   }
@@ -615,10 +655,22 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
     nodes_df$is_seed <- nodes_df$paper_id %in% seed_paper_id
   }
 
+  # Compute connectivity (degree) from edges for "connectivity" sizing mode
+  if (size_by == "connectivity" && nrow(edges_df) > 0) {
+    from_counts <- table(edges_df$from_paper_id)
+    to_counts <- table(edges_df$to_paper_id)
+    nodes_df$connectivity <- vapply(nodes_df$paper_id, function(pid) {
+      fc <- from_counts[pid]
+      tc <- to_counts[pid]
+      as.integer(ifelse(is.na(fc), 0L, fc)) + as.integer(ifelse(is.na(tc), 0L, tc))
+    }, integer(1))
+  }
+
   # Add visNetwork columns
   nodes_df$id <- nodes_df$paper_id
   nodes_df$label <- NA  # No labels by default (show on hover)
-  nodes_df$value <- compute_node_sizes(nodes_df$cited_by_count)
+  sizing_values <- get_sizing_metric(nodes_df, size_by)
+  nodes_df$value <- compute_node_sizes(sizing_values)
 
   # Handle missing is_overlap column (old saved networks)
   if (is.null(nodes_df$is_overlap)) {
@@ -670,12 +722,18 @@ build_network_data <- function(nodes_df, edges_df, palette = "viridis", seed_pap
 
   # Tooltip HTML stored in custom column — our onRender JS reads this via innerHTML.
   # NOT stored in 'title' because vis.js renders title as plain text, not HTML.
+  fwci_line <- if (!is.null(nodes_df$fwci)) {
+    ifelse(is.na(nodes_df$fwci), "", sprintf("<br>FWCI: %.2f", nodes_df$fwci))
+  } else {
+    rep("", nrow(nodes_df))
+  }
   nodes_df$tooltip_html <- sprintf(
-    "<div style='max-width:300px;word-wrap:break-word'><b>%s</b><br>%s<br>Year: %s<br>Citations: %s</div>",
+    "<div style='max-width:300px;word-wrap:break-word'><b>%s</b><br>%s<br>Year: %s<br>Citations: %s%s</div>",
     htmltools::htmlEscape(nodes_df$paper_title),
     htmltools::htmlEscape(author_display),
     ifelse(is.na(nodes_df$year), "N/A", nodes_df$year),
-    nodes_df$cited_by_count
+    nodes_df$cited_by_count,
+    fwci_line
   )
 
   # Clear title so vis.js does NOT show its default (text-only) tooltip
