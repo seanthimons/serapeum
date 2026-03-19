@@ -446,15 +446,17 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         }
       }
       # Min collection frequency filter
-      if (!is.null(input$min_frequency) && input$min_frequency > 2) {
+      if (!is.null(input$min_frequency) && input$min_frequency > 1) {
         results <- results[results$collection_frequency >= input$min_frequency, , drop = FALSE]
       }
 
       sel <- selected_ids()
-      has_fwci_data <- "fwci" %in% names(results) && any(!is.na(results$fwci))
+
+      # Compute FWCI availability from unfiltered data so UI stays stable
+      all_results <- audit_results()
+      has_fwci_data <- "fwci" %in% names(all_results) && any(!is.na(all_results$fwci))
 
       # Compute year bounds for filter
-      all_results <- audit_results()
       valid_years <- all_results$year[!is.na(all_results$year)]
       yr_bounds <- if (length(valid_years) > 0) {
         c(min(valid_years), max(valid_years))
