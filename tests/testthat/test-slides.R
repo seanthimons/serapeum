@@ -327,3 +327,32 @@ test_that("get_healing_chips returns Quarto fix chip on render error", {
 
   expect_true("Fix Quarto formatting" %in% chips)
 })
+
+# --- Phase 58: Custom SCSS theme support tests ---
+
+test_that("build_qmd_frontmatter emits array theme when custom_scss provided", {
+  fm <- build_qmd_frontmatter("Talk", "moon", "www/themes/epa-owm.scss")
+  expect_true(grepl("theme: \\[moon, epa-owm.scss\\]", fm))
+  expect_true(grepl("^---\\n", fm))
+})
+
+test_that("build_qmd_frontmatter uses basename of custom_scss path", {
+  fm <- build_qmd_frontmatter("Talk", "default", "www/themes/epa-owm.scss")
+  expect_true(grepl("theme: \\[default, epa-owm.scss\\]", fm))
+  expect_false(grepl("www/themes/", fm))
+})
+
+test_that("build_qmd_frontmatter preserves scalar theme when custom_scss is NULL", {
+  fm1 <- build_qmd_frontmatter("Talk", "moon", NULL)
+  fm2 <- build_qmd_frontmatter("Talk", "moon")
+  expect_true(grepl("theme: moon", fm1))
+  expect_false(grepl("\\[", fm1))
+  expect_true(grepl("theme: moon", fm2))
+  expect_false(grepl("\\[", fm2))
+})
+
+test_that("build_qmd_frontmatter default behavior unchanged without custom_scss", {
+  fm <- build_qmd_frontmatter("Default Talk")
+  expect_true(grepl("theme: default", fm))
+  expect_false(grepl("\\[", fm))
+})
