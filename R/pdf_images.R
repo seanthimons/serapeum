@@ -340,7 +340,7 @@ extract_and_describe_figures <- function(con, api_key = NULL,
       width            = fig$width,
       height           = fig$height,
       file_size        = fig$file_size,
-      image_type       = fig$method
+      extraction_method = fig$method
     ))
   }
 

@@ -282,6 +282,7 @@ init_schema <- function(con) {
       height INTEGER,
       file_size INTEGER,
       image_type VARCHAR,
+      extraction_method VARCHAR,
       quality_score REAL,
       is_excluded BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -2007,8 +2008,9 @@ db_insert_figure <- function(con, figure_data) {
     INSERT INTO document_figures
       (id, document_id, notebook_id, page_number, file_path,
        extracted_caption, llm_description, figure_label,
-       width, height, file_size, image_type, quality_score, is_excluded)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       width, height, file_size, image_type, extraction_method,
+       quality_score, is_excluded)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ", list(
     id,
     figure_data$document_id,
@@ -2022,6 +2024,7 @@ db_insert_figure <- function(con, figure_data) {
     if (is.null(figure_data$height)) NA_integer_ else as.integer(figure_data$height),
     if (is.null(figure_data$file_size)) NA_integer_ else as.integer(figure_data$file_size),
     if (is.null(figure_data$image_type)) NA_character_ else figure_data$image_type,
+    if (is.null(figure_data$extraction_method)) NA_character_ else figure_data$extraction_method,
     if (is.null(figure_data$quality_score)) NA_real_ else as.numeric(figure_data$quality_score),
     if (is.null(figure_data$is_excluded)) FALSE else as.logical(figure_data$is_excluded)
   ))
@@ -2108,7 +2111,7 @@ db_update_figure <- function(con, figure_id, ...) {
 
   allowed_fields <- c("extracted_caption", "llm_description", "figure_label",
                        "quality_score", "is_excluded", "width", "height",
-                       "file_size", "image_type")
+                       "file_size", "image_type", "extraction_method")
   fields <- intersect(names(updates), allowed_fields)
   if (length(fields) == 0) return(invisible(TRUE))
 

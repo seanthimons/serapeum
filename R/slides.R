@@ -623,8 +623,8 @@ build_figure_manifest <- function(figures, max_figures = 15L) {
                       fig$doc_name %||% "unknown",
                       fig$page_number,
                       aspect_class,
-                      fig$width %||% 0L,
-                      fig$height %||% 0L)
+                      if (is.na(fig$width)) 0L else fig$width,
+                      if (is.na(fig$height)) 0L else fig$height)
 
     parts <- header
     if (!is.null(fig$image_type) && !is.na(fig$image_type) && nchar(fig$image_type) > 0) {

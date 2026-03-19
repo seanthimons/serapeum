@@ -163,7 +163,7 @@ extract_figures_from_pdf <- function(pdf_path, config = extraction_config()) {
       g <- good_gaps[[gi]]
       y1 <- max(1, g$start)
       y2 <- min(page_h, g$end)
-      crop_h <- y2 - y1
+      crop_h <- y2 - y1 + 1L
       crop_w <- page_w
 
       if (crop_w < config$min_width || crop_h < config$min_height) next
