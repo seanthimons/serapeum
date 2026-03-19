@@ -631,6 +631,10 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                          icon = icon("times"), class = "btn-sm btn-outline-danger")
           )
         ),
+        if (nrow(results) > 100) div(
+          class = "card-body py-1 px-3 text-muted small border-bottom",
+          paste0("Showing top 100 of ", nrow(results), " papers")
+        ),
         div(
           class = "card-body p-0",
           style = "max-height: 600px; overflow-y: auto;",
@@ -789,13 +793,13 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         return()
       }
 
-      for (idx in to_accept) {
-        dbExecute(con, "
-          UPDATE refiner_results SET user_action = 'accepted'
-          WHERE run_id = ? AND paper_id = ?
-        ", list(run_id, results$paper_id[[idx]]))
-        results$user_action[[idx]] <- "accepted"
-      }
+      paper_ids <- results$paper_id[to_accept]
+      placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+      dbExecute(con, paste0(
+        "UPDATE refiner_results SET user_action = 'accepted' ",
+        "WHERE run_id = ? AND paper_id IN (", placeholders, ")"
+      ), c(list(run_id), as.list(paper_ids)))
+      results$user_action[to_accept] <- "accepted"
 
       scored_results(results)
       showNotification(paste("Accepted top", length(to_accept), "papers"), type = "message")
@@ -820,13 +824,13 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         return()
       }
 
-      for (idx in to_reject) {
-        dbExecute(con, "
-          UPDATE refiner_results SET user_action = 'rejected'
-          WHERE run_id = ? AND paper_id = ?
-        ", list(run_id, results$paper_id[[idx]]))
-        results$user_action[[idx]] <- "rejected"
-      }
+      paper_ids <- results$paper_id[to_reject]
+      placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+      dbExecute(con, paste0(
+        "UPDATE refiner_results SET user_action = 'rejected' ",
+        "WHERE run_id = ? AND paper_id IN (", placeholders, ")"
+      ), c(list(run_id), as.list(paper_ids)))
+      results$user_action[to_reject] <- "rejected"
 
       scored_results(results)
       showNotification(paste("Rejected", length(to_reject), "papers"), type = "message")

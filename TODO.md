@@ -4,6 +4,17 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 ---
 
+## Pending PRs (Resolve Immediately)
+
+- [ ] PR #168: feat: v14.0 citation audit filters + network node sizing [open] — v14-citation-network-evolution
+- [ ] PR #163: feat: v17.0 PDF image pipeline [open] — v17-pdf-image-pipeline
+- [ ] PR #162: feat: v15 AI Infrastructure [open] — v15-ai-infrastructure
+- [ ] PR #161: feat: v13 Search & Discovery — Research Refiner + keyword filtering [open] — v13-search-discovery
+- [ ] PR #156: feat: v12 UX Polish & Onboarding [open] — v12-ux-polish-onboarding
+- [ ] PR #155: fix: restore paper count status line [open] — fix/paper-count-status
+
+---
+
 ## Milestone Execution Notes
 
 - **v12 through v16 are fully parallel** — no cross-milestone dependencies; any can be started independently
@@ -33,6 +44,9 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
+| [#176](https://github.com/seanthimons/serapeum/issues/176) | Research Refiner: add index on refiner_results(run_id) | Low | Medium |
+| [#174](https://github.com/seanthimons/serapeum/issues/174) | Research Refiner: batch accept/reject uses per-row DB writes | Low | Medium |
+| [#173](https://github.com/seanthimons/serapeum/issues/173) | Research Refiner: results UI silently caps at 100 papers | Low | Medium |
 | ~~[#151](https://github.com/seanthimons/serapeum/issues/151)~~ | ~~Duplicate keyword ban/keep behavior to per-abstract keywords~~ | ~~Medium~~ | ~~Medium~~ |
 | ~~[#125](https://github.com/seanthimons/serapeum/issues/125)~~ | ~~Update file/document filter types reported by OpenAlex~~ | ~~Medium~~ | ~~Medium~~ |
 | ~~[#11](https://github.com/seanthimons/serapeum/issues/11)~~ | ~~Recursive abstract searching~~ | ~~High~~ | ~~High~~ |

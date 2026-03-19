@@ -312,6 +312,10 @@ init_schema <- function(con) {
     )
   ")
 
+  dbExecute(con, "
+    CREATE INDEX IF NOT EXISTS idx_refiner_results_run_id ON refiner_results(run_id)
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
