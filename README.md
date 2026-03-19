@@ -146,6 +146,42 @@ openalex:
   email: "your@email.com"  # For polite pool access (faster rate limits)
 ```
 
+### Local LLM Setup (Optional)
+
+Serapeum can use local models via any OpenAI-compatible server instead of (or alongside) OpenRouter. This means your data never leaves your machine.
+
+**Supported servers:** [Ollama](https://ollama.com/), [LM Studio](https://lmstudio.ai/), [vLLM](https://docs.vllm.ai/), or any OpenAI-compatible endpoint.
+
+#### Quick start with LM Studio
+
+1. Install [LM Studio](https://lmstudio.ai/) and download a chat model (e.g., Gemma 3, Llama 3, Qwen 2.5)
+2. Optionally download an embedding model (e.g., `nomic-embed-text-v1.5`)
+3. Start the local server (Developer tab → Start Server, default port 1234)
+4. In Serapeum **Settings → Providers**, click **Add Provider**:
+   - **Name:** `LM Studio`
+   - **Base URL:** `http://localhost:1234/v1`
+   - **API Key:** leave blank
+5. Click **Test** to verify connectivity
+6. In **Settings → Models**, select your local models for each slot:
+   - **Quality model:** your chat model
+   - **Fast model:** same chat model (or a smaller one)
+   - **Embedding model:** your embedding model
+
+#### Quick start with Ollama
+
+1. Install [Ollama](https://ollama.com/) and pull models:
+   ```bash
+   ollama pull llama3.2
+   ollama pull nomic-embed-text
+   ```
+2. In Serapeum **Settings → Providers**, click **Add Provider**:
+   - **Name:** `Ollama`
+   - **Base URL:** `http://localhost:11434/v1`
+   - **API Key:** leave blank
+3. Select your models in **Settings → Models**
+
+Local models are tracked at **$0.00** in the Cost Tracker. No OpenRouter API key is needed if you only use local models.
+
 ### Run
 
 ```r
