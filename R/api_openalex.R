@@ -8,7 +8,7 @@ OPENALEX_BASE_URL <- "https://api.openalex.org"
 #' @return httr2 response
 perform_openalex <- function(req) {
   if (isTRUE(getOption("serapeum.verbose_api", FALSE))) {
-    url <- req$url
+    url <- gsub("api_key=[^&]+", "api_key=<REDACTED>", req$url)
     message("[OpenAlex API] ", url)
   }
   req_perform(req)

@@ -17,7 +17,6 @@ Upload PDFs and chat with your documents using RAG (Retrieval-Augmented Generati
 - **Markdown rendering** - Assistant responses display with formatted headers, tables, lists, and code blocks
 - **One-click presets** - Summarize, Key Points, Study Guide, Outline, and more
 - **Synthesis progress feedback** - Status modal with rotating stage indicators for long-running presets
-- **Editable prompts** - Expand the prompt editor to view and customize LLM prompts before sending
 - **Chat export** - Download conversations as Markdown (.md) or styled HTML (.html)
 - **Full-text search** - Vector embeddings for semantic search across documents
 - **Slide generation** - Generate Quarto RevealJS presentations from your research

@@ -668,6 +668,7 @@ server <- function(input, output, session) {
   observe({
     con <- con_r()
     req(con)
+    req(!is.null(input$has_seen_wizard))
     notebooks <- list_notebooks(con)
     has_seen <- isTRUE(input$has_seen_wizard)
     if (nrow(notebooks) == 0 && !has_seen) {

@@ -135,13 +135,6 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   response
 }
 
-#' Generate preset content (summary, key points, etc.)
-#' @param con Database connection
-#' @param config App config
-#' @param notebook_id Notebook ID
-#' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline")
-#' @param session_id Optional Shiny session ID for cost logging (default NULL)
-#' @return Generated content
 #' Get the task instruction for a preset type
 #' @param preset_type Preset type string
 #' @return Task instruction string, or NULL if unknown
@@ -160,6 +153,15 @@ get_preset_instruction <- function(preset_type) {
   presets[[preset_type]]
 }
 
+#' Generate preset content (summary, key points, etc.)
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline",
+#'   "overview", "conclusions", "lit_review", "methodology_extractor", "gap_analysis")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @param custom_prompt Optional custom prompt to override the default preset instruction
+#' @return Generated content
 generate_preset <- function(con, config, notebook_id, preset_type, session_id = NULL,
                             custom_prompt = NULL) {
   prompt <- custom_prompt %||% get_preset_instruction(preset_type)

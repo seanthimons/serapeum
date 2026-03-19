@@ -3351,6 +3351,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
       show_synthesis_modal("Conclusion Synthesis")
 
@@ -3389,6 +3398,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
       show_synthesis_modal("Research Questions")
 
