@@ -747,9 +747,11 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       title <- stripped$title %||% generation_state$title %||% "Presentation"
       theme <- generation_state$last_options$theme %||% "default"
       custom_scss <- generation_state$last_options$custom_scss
-      # Re-copy .scss to tempdir for healed render
+      # Re-copy .scss to tempdir and resolve to absolute path for Quarto
       if (!is.null(custom_scss)) {
-        file.copy(custom_scss, file.path(tempdir(), basename(custom_scss)), overwrite = TRUE)
+        scss_dest <- file.path(tempdir(), basename(custom_scss))
+        file.copy(custom_scss, scss_dest, overwrite = TRUE)
+        custom_scss <- normalizePath(scss_dest, winslash = "/", mustWork = FALSE)
       }
       frontmatter <- build_qmd_frontmatter(title, theme, custom_scss)
       qmd_content <- paste0(frontmatter, "\n", stripped$content)

@@ -152,7 +152,7 @@ build_qmd_frontmatter <- function(title, theme = "default", custom_scss = NULL) 
   theme_val <- if (is.null(theme) || theme == "default") "default" else theme
 
   theme_line <- if (!is.null(custom_scss)) {
-    paste0("    theme: [", theme_val, ", ", tools::file_path_sans_ext(basename(custom_scss)), "]\n")
+    paste0("    theme: [", theme_val, ", ", custom_scss, "]\n")
   } else {
     paste0("    theme: ", theme_val, "\n")
   }
@@ -319,6 +319,16 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   title <- llm_title %||% notebook_name
   theme <- options$theme %||% "default"
   custom_scss <- options$custom_scss
+
+  # Copy custom .scss to tempdir and resolve to absolute path for Quarto
+  if (!is.null(custom_scss)) {
+    scss_dest <- file.path(tempdir(), basename(custom_scss))
+    if (!file.copy(custom_scss, scss_dest, overwrite = TRUE)) {
+      warning("Failed to copy custom .scss file: ", custom_scss)
+    }
+    custom_scss <- normalizePath(scss_dest, winslash = "/", mustWork = FALSE)
+  }
+
   frontmatter <- build_qmd_frontmatter(title, theme, custom_scss)
 
   # Combine: clean YAML + LLM slide content
@@ -329,14 +339,6 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
 
   # Save to temp file
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
-
-  # Copy custom .scss to tempdir so relative path in YAML resolves
-  if (!is.null(custom_scss)) {
-    scss_dest <- file.path(tempdir(), basename(custom_scss))
-    if (!file.copy(custom_scss, scss_dest, overwrite = TRUE)) {
-      warning("Failed to copy custom .scss file: ", custom_scss)
-    }
-  }
 
   writeLines(qmd_content, qmd_path)
 
