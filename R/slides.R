@@ -126,7 +126,7 @@ build_slides_prompt <- function(chunks, options) {
 #' @param title Presentation title
 #' @param theme RevealJS theme name (default "default")
 #' @return YAML frontmatter string including --- delimiters
-build_qmd_frontmatter <- function(title, theme = "default") {
+build_qmd_frontmatter <- function(title, theme = "default", custom_scss = NULL) {
   # CSS for footnote sizing — smaller, positioned at bottom
   css_block <- paste0(
     "    css:\n",
@@ -151,13 +151,19 @@ build_qmd_frontmatter <- function(title, theme = "default") {
 
   theme_val <- if (is.null(theme) || theme == "default") "default" else theme
 
+  theme_line <- if (!is.null(custom_scss)) {
+    paste0("    theme: [", theme_val, ", ", basename(custom_scss), "]\n")
+  } else {
+    paste0("    theme: ", theme_val, "\n")
+  }
+
   paste0(
     "---\n",
     "title: \"", gsub('"', '\\\\"', title), "\"\n",
     "format:\n",
     "  revealjs:\n",
-		"    embed-resources: true\n",
-    "    theme: ", theme_val, "\n",
+    "    embed-resources: true\n",
+    theme_line,
     "    smaller: true\n",
     "    scrollable: true\n",
     "    reference-location: document\n",
@@ -312,7 +318,8 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   # Build YAML frontmatter programmatically (no regex injection)
   title <- llm_title %||% notebook_name
   theme <- options$theme %||% "default"
-  frontmatter <- build_qmd_frontmatter(title, theme)
+  custom_scss <- options$custom_scss
+  frontmatter <- build_qmd_frontmatter(title, theme, custom_scss)
 
   # Combine: clean YAML + LLM slide content
   qmd_content <- paste0(frontmatter, "\n", slide_content)
@@ -322,6 +329,15 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
 
   # Save to temp file
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
+
+  # Copy custom .scss to tempdir so relative path in YAML resolves
+  if (!is.null(custom_scss)) {
+    scss_dest <- file.path(tempdir(), basename(custom_scss))
+    if (!file.copy(custom_scss, scss_dest, overwrite = TRUE)) {
+      warning("Failed to copy custom .scss file: ", custom_scss)
+    }
+  }
+
   writeLines(qmd_content, qmd_path)
 
   list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation)

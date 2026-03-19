@@ -397,6 +397,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         citation_style = input$citation_style,
         include_notes = input$include_notes,
         theme = input$theme,
+        custom_scss = NULL,
         custom_instructions = input$custom_instructions
       )
 
@@ -619,7 +620,12 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       stripped <- strip_llm_yaml(heal_result$qmd)
       title <- stripped$title %||% generation_state$title %||% "Presentation"
       theme <- generation_state$last_options$theme %||% "default"
-      frontmatter <- build_qmd_frontmatter(title, theme)
+      custom_scss <- generation_state$last_options$custom_scss
+      # Re-copy .scss to tempdir for healed render
+      if (!is.null(custom_scss)) {
+        file.copy(custom_scss, file.path(tempdir(), basename(custom_scss)), overwrite = TRUE)
+      }
+      frontmatter <- build_qmd_frontmatter(title, theme, custom_scss)
       qmd_content <- paste0(frontmatter, "\n", stripped$content)
       generation_state$qmd_content <- qmd_content
 
