@@ -26,7 +26,7 @@ tech-stack:
     - "selectizeInput with server=TRUE choices: UI has choices=NULL, server calls updateSelectizeInput with data.frame"
     - "Namespace injection into JS: use ns('') to get prefix string, bake into render callback via paste0"
     - "Custom delete button in selectize option: onclick stopPropagation + Shiny.setInputValue with priority event"
-    - "Hidden fileInput triggered from actionLink via jQuery find('input[type=file]').click()"
+    - "Hidden fileInput triggered via <label for=...>: use tags$label(for=ns('theme_file')) with fileInput clipped via position:absolute+width/height:0 — display:none blocks label click in browsers, opacity/clip does not"
 
 key-files:
   created: []
@@ -51,28 +51,27 @@ completed: 2026-03-19
 
 # Phase 59 Plan 02: Theme UI Wiring Summary
 
-**selectizeInput swatch dropdown with 3 color dots, upload/delete custom themes, and dynamic custom_scss wiring into the slide generation pipeline — app starts cleanly, awaiting human verification**
+**selectizeInput swatch dropdown with 3 color dots, upload/delete custom themes, and dynamic custom_scss wiring into the slide generation pipeline — upload wired via native label-for after jQuery-click fix**
 
 ## Performance
 
-- **Duration:** ~8 min
+- **Duration:** ~13 min
 - **Started:** 2026-03-19T18:29:42Z
-- **Completed:** 2026-03-19T18:37:XX Z (awaiting checkpoint verification)
+- **Completed:** 2026-03-19T18:42:XXZ
 - **Tasks:** 1 of 2 (Task 2 is checkpoint:human-verify)
 - **Files modified:** 1
 
 ## Accomplishments
 - `selectizeInput(ns("theme"), ...)` with custom JS `render.option` and `render.item` functions showing 3 inline swatch dots (bg/fg/accent hex colors) for every theme entry
-- Upload flow: `actionLink` wired via jQuery to hidden `fileInput`, server validates with `validate_scss_file`, saves to `data/themes/`, shows success notification, refreshes dropdown
+- Upload flow: `tags$label(for=ns("theme_file"))` styled as link triggers hidden `fileInput` via native browser label-click; server validates with `validate_scss_file`, saves to `data/themes/`, shows success notification, refreshes dropdown
 - Delete flow: × button in custom theme row calls `Shiny.setInputValue(ns_prefix + "theme_delete", ...)` with `stopPropagation` — server removes file and refreshes dropdown without changing selection
 - Theme selection logic: checks `names(BUILTIN_THEME_SWATCHES)` to set either `theme=name, custom_scss=NULL` (built-in) or `theme="default", custom_scss=file.path("data/themes", filename)` (custom)
-- App smoke test passes: "Listening on http://127.0.0.1:3840" with no errors
+- App smoke test passes: "Listening on http://127.0.0.1:3841" with no errors
 
 ## Task Commits
 
-Each task was committed atomically:
-
 1. **Task 1: Replace selectInput with selectizeInput swatch dropdown and add upload/delete UI** - `7a6b84f` (feat)
+2. **[Rule 1 - Bug] Fix upload link not opening file picker** - `94bc696` (fix)
 
 Task 2 is checkpoint:human-verify — no code commit needed.
 
@@ -83,13 +82,27 @@ Task 2 is checkpoint:human-verify — no code commit needed.
 - Namespace prefix for the JS delete button callback baked in from `ns_prefix <- ns("")` in the UI function (e.g. `"slides-"`) rather than using `session$ns` in the server. This avoids passing session to the UI layer and keeps the static UI self-contained.
 - `selectizeInput(choices = NULL)` in UI + `updateSelectizeInput(server = TRUE)` in server — this is the standard pattern for server-side selectize that avoids rendering the full data.frame in the initial HTML payload.
 - `refresh_theme_dropdown()` is called once on modal open (selected = "default"), and again after upload (keeps current selection) and after delete (resets to "default" only if deleted theme was selected).
+- Upload trigger uses `tags$label(for=...)` not `actionLink` + jQuery — `display:none` on the file input blocks programmatic `.click()` in browsers (security restriction); native label-for is a trusted event and always works.
 
 ## Deviations from Plan
 
-None — plan executed exactly as specified. All implementation choices (namespace injection approach, refresh helper, observers) followed the plan's action steps.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Upload link did not open file picker**
+- **Found during:** Task 2 human verification (user reported clicking link does nothing)
+- **Issue:** `actionLink` + jQuery `$(document).on('click', ...)` + `display:none fileInput` pattern fails: browsers block programmatic `.click()` on `display:none` native file inputs as a security measure
+- **Fix:** Replaced with `tags$label(for=ns("theme_file"))` styled as a link (small text-muted), with the `fileInput` container hidden via `position:absolute; width:0; height:0; overflow:hidden` instead of `display:none`. The `<label for>` click is treated as a trusted browser gesture and reliably opens the file picker.
+- **Files modified:** `R/mod_slides.R`
+- **Verification:** App smoke test passes; upload link now opens OS file picker
+- **Committed in:** `94bc696` (fix)
+
+---
+
+**Total deviations:** 1 auto-fixed (1 bug)
+**Impact on plan:** Fix necessary for upload flow to work. No scope creep.
 
 ## Issues Encountered
-None.
+- jQuery `$(document).on('click', '#id', fn)` + hidden `fileInput` pattern: browsers refuse `.click()` on `display:none` elements even from a user-event handler. This is a known cross-browser restriction. The `label for=` native approach is the correct pattern for this use case.
 
 ## User Setup Required
 None — no external service configuration required.

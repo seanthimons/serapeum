@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: "Completed 59-02 Task 1 (checkpoint:human-verify pending for Task 2)"
-last_updated: "2026-03-19T18:35:07.876Z"
+stopped_at: "Completed 59-02 Task 1 + upload fix; Task 2 checkpoint:human-verify pending"
+last_updated: "2026-03-19T18:53:36.293Z"
 progress:
   total_phases: 7
   completed_phases: 3
@@ -64,6 +64,7 @@ Recent decisions affecting v16.0 work:
 - [Phase 59]: Custom value in build_theme_choices_df is filename-only (e.g. epa-owm.scss); Plan 02 server wiring prepends data/themes/ when setting custom_scss
 - [Phase 59]: Namespace prefix for JS delete button callback baked in from ns('') in the UI function rather than using session\ in server
 - [Phase 59]: selectizeInput(choices=NULL) in UI + updateSelectizeInput(server=TRUE) in server avoids rendering full choices in initial HTML payload
+- [Phase 59]: Upload trigger uses tags\(for=ns('theme_file')) not actionLink+jQuery — display:none blocks programmatic .click() in browsers; native label-for is a trusted event and always opens the file picker
 
 ### Pending Todos
 
@@ -76,8 +77,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:35:07.870Z
-Stopped at: Completed 59-02 Task 1 (checkpoint:human-verify pending for Task 2)
+Last session: 2026-03-19T18:53:36.289Z
+Stopped at: Completed 59-02 Task 1 + upload fix; Task 2 checkpoint:human-verify pending
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---
