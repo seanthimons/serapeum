@@ -54,7 +54,7 @@ mod_settings_ui <- function(id) {
             "Changes only apply to newly uploaded documents."),
           bslib::input_switch(ns("verbose_mode"), "Verbose API logging", value = FALSE),
           p(class = "text-muted small",
-            "Log OpenAlex API calls to the browser console for debugging."),
+            "Log OpenAlex API calls to the R console for debugging."),
           hr(),
           h5(icon_search(), " Search"),
           numericInput(ns("abstracts_per_search"), "Abstracts per Search",

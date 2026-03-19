@@ -156,9 +156,10 @@ ui <- page_sidebar(
       localStorage.setItem('theme', message.theme);
     });
 
-    // Verbose API logging to browser console
-    Shiny.addCustomMessageHandler('consoleLog', function(data) {
-      console.log('[' + data.label + ']', data.url);
+    // Synthesis progress modal status updates (global so both notebook modules can use it)
+    Shiny.addCustomMessageHandler('updateSynthesisStatus', function(data) {
+      var msg = document.getElementById(data.msg_id);
+      if (msg) msg.textContent = data.message;
     });
 
     // Restore theme on page load
@@ -649,8 +650,8 @@ server <- function(input, output, session) {
                   "Import papers by DOI or BibTeX, upload PDFs into document notebooks.",
                   "wizard_import", "Import Papers", "btn-outline-peach"),
       wizard_step("4", icon_brain, "Analyze",
-                  "Chat with your papers, generate synthesis presets, and visualize citation networks.",
-                  "wizard_analyze", "New Document Notebook", "btn-outline-success"),
+                  "Build structured queries to explore the literature and find related work.",
+                  "wizard_analyze", "Query Builder", "btn-outline-success"),
       wizard_step("5", icon_audit, "Audit",
                   "Run citation audits to find missing seminal papers and gaps in your collection.",
                   "wizard_audit", "Citation Audit", "btn-outline-sky"),

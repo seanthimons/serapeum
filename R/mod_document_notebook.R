@@ -23,17 +23,6 @@ mod_document_notebook_ui <- function(id) {
       }
     ", ns("send")))),
 
-    # JavaScript handler for synthesis progress modal status updates
-    tags$script(HTML("
-      if (!window._synthStatusRegistered) {
-        window._synthStatusRegistered = true;
-        Shiny.addCustomMessageHandler('updateSynthesisStatus', function(data) {
-          var msg = document.getElementById(data.msg_id);
-          if (msg) msg.textContent = data.message;
-        });
-      }
-    ")),
-
     # JavaScript handler for re-index progress updates
     tags$script(HTML("
       Shiny.addCustomMessageHandler('updateReindexProgress', function(data) {
@@ -45,27 +34,6 @@ mod_document_notebook_ui <- function(id) {
         }
         if (msg) msg.textContent = data.message;
       });
-    ")),
-
-    # JavaScript: track prompt editor open/closed state
-    tags$script(HTML(sprintf("
-      $(document).on('toggle', '#%s', function() {
-        Shiny.setInputValue('%s', this.open, {priority: 'event'});
-      });
-    ", ns("prompt_details"), ns("prompt_editor_open")))),
-
-    # JavaScript: handler to populate prompt editor textarea
-    tags$script(HTML("
-      if (!window._populatePromptRegistered) {
-        window._populatePromptRegistered = true;
-        Shiny.addCustomMessageHandler('populatePromptEditor', function(data) {
-          var el = document.getElementById(data.input_id);
-          if (el) {
-            el.value = data.text;
-            $(el).trigger('change');
-          }
-        });
-      }
     ")),
 
     div(class = "text-muted mb-3 d-flex align-items-center gap-2",
@@ -182,21 +150,6 @@ mod_document_notebook_ui <- function(id) {
             style = "background-color: var(--bs-tertiary-bg); border-radius: 0.5rem;",
             uiOutput(ns("messages"))
           ),
-          # Collapsible prompt editor (opt-in)
-          tags$details(
-            id = ns("prompt_details"),
-            class = "mb-2",
-            tags$summary(class = "text-muted small", style = "cursor: pointer;",
-                         icon_edit(), " View/Edit Prompt"),
-            div(
-              class = "border rounded p-2 mt-1",
-              textAreaInput(ns("prompt_edit"), NULL,
-                            placeholder = "The assembled prompt will appear here when you type a message or click a preset...",
-                            rows = 4, width = "100%"),
-              p(class = "text-muted small mb-0",
-                "Edit the prompt text before sending. Collapse this section to use the default prompts.")
-            )
-          ),
           div(
             class = "d-flex gap-2",
             div(
@@ -232,6 +185,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
+    processing_doc_count <- reactiveVal(0L)
 
     # Reactive: slides trigger
     slides_trigger <- reactiveVal(0)
@@ -899,7 +853,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Add loading spinner if processing
       if (is_processing()) {
-        doc_count <- tryCatch(nrow(list_documents(con(), notebook_id())), error = function(e) 0L)
+        doc_count <- processing_doc_count()
         status_text <- if (doc_count > 0) {
           sprintf("Analyzing %d document%s...", doc_count, if (doc_count == 1) "" else "s")
         } else {
@@ -959,31 +913,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       user_msg <- trimws(input$user_input)
       if (nchar(user_msg) == 0) return()
 
-      # If prompt editor is expanded and empty, populate it with the system prompt
-      # and wait for the user to review/edit before sending
-      edited_prompt <- trimws(input$prompt_edit %||% "")
-      editor_open <- isTRUE(input$prompt_editor_open)
-      if (editor_open && nchar(edited_prompt) == 0) {
-        rag_system <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. Always cite your sources using the format [Document Name, p.X] or [Paper Title]."
-        assembled <- paste0("[System Prompt]\n", rag_system, "\n\n[Your Question]\n", user_msg)
-        session$sendCustomMessage("populatePromptEditor", list(
-          input_id = ns("prompt_edit"),
-          text = assembled
-        ))
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        # Re-enable the send button (it was disabled by the click handler JS)
-        session$sendCustomMessage("docChatReady", ns(""))
-        return()
-      }
-
-      effective_msg <- if (nchar(edited_prompt) > 0) edited_prompt else user_msg
-
       updateTextInput(session, "user_input", value = "")
-      if (nchar(edited_prompt) > 0) updateTextAreaInput(session, "prompt_edit", value = "")
+      processing_doc_count(tryCatch(nrow(list_documents(con(), notebook_id())), error = function(e) 0L))
       is_processing(TRUE)
 
-      # Add user message (show original question in chat, not edited prompt)
+      # Add user message
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = user_msg, timestamp = Sys.time())))
       messages(msgs)
@@ -993,7 +927,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       cfg <- config()
 
       response <- tryCatch({
-        rag_query(con(), cfg, effective_msg, nb_id, session_id = session$token)
+        rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
@@ -1032,18 +966,6 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       ))
     }
 
-    # Helper: populate prompt editor and return TRUE, or return FALSE if editor is closed
-    populate_if_editor_open <- function(prompt_text) {
-      editor_open <- isTRUE(input$prompt_editor_open)
-      if (editor_open) {
-        session$sendCustomMessage("populatePromptEditor", list(
-          input_id = ns("prompt_edit"),
-          text = prompt_text
-        ))
-      }
-      editor_open
-    }
-
     # Preset buttons
     handle_preset <- function(preset_type, label) {
       req(!is_processing())
@@ -1060,14 +982,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # If prompt editor is expanded, populate it with the preset instruction and wait
-      instruction <- get_preset_instruction(preset_type)
-      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        return()
-      }
-
+      processing_doc_count(doc_count)
       is_processing(TRUE)
 
       show_synthesis_modal(label)
@@ -1079,18 +994,10 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
-      # Check if user edited the prompt
-      custom_prompt <- NULL
-      edited <- trimws(input$prompt_edit %||% "")
-      if (nchar(edited) > 0) {
-        custom_prompt <- edited
-        updateTextAreaInput(session, "prompt_edit", value = "")
-      }
-
       update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_preset(con(), cfg, nb_id, preset_type,
-                        session_id = session$token, custom_prompt = custom_prompt)
+                        session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
@@ -1129,15 +1036,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       depth_label <- if (identical(depth, "detailed")) "Detailed" else "Concise"
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
-      # If prompt editor is expanded, populate and wait
-      instruction <- get_preset_instruction("overview")
-      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        toggle_popover(id = ns("overview_popover"))
-        return()
-      }
-
+      processing_doc_count(doc_count)
       is_processing(TRUE)
 
       toggle_popover(id = ns("overview_popover"))
@@ -1192,14 +1091,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # If prompt editor is expanded, populate and wait
-      instruction <- get_preset_instruction("conclusions")
-      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        return()
-      }
-
+      processing_doc_count(doc_count)
       is_processing(TRUE)
       show_synthesis_modal("Conclusion Synthesis")
 
@@ -1244,14 +1136,6 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # If prompt editor is expanded, populate and wait
-      instruction <- get_preset_instruction("lit_review")
-      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        return()
-      }
-
       # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
@@ -1260,6 +1144,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
       show_synthesis_modal("Literature Review Table")
 
@@ -1313,14 +1198,6 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # If prompt editor is expanded, populate and wait
-      instruction <- get_preset_instruction("methodology_extractor")
-      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        return()
-      }
-
       # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
@@ -1329,6 +1206,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
       show_synthesis_modal("Methodology Extractor")
 
@@ -1389,14 +1267,6 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # If prompt editor is expanded, populate and wait
-      instruction <- get_preset_instruction("gap_analysis")
-      if (!is.null(instruction) && populate_if_editor_open(instruction)) {
-        showNotification("Prompt loaded into editor. Edit and click Send when ready.",
-                         type = "message", duration = 3)
-        return()
-      }
-
       # Warning toast for large notebooks (15+ papers)
       if (doc_count >= 15L) {
         showNotification(
@@ -1405,6 +1275,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
       show_synthesis_modal("Research Gaps")
 

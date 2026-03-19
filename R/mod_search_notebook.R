@@ -417,20 +417,6 @@ mod_search_notebook_ui <- function(id) {
         # Input area
         div(
           class = "border-top p-3",
-          # Collapsible prompt editor (opt-in)
-          tags$details(
-            class = "mb-2",
-            tags$summary(class = "text-muted small", style = "cursor: pointer;",
-                         icon_edit(), " View/Edit Prompt"),
-            div(
-              class = "border rounded p-2 mt-1",
-              textAreaInput(ns("prompt_edit"), NULL,
-                            placeholder = "The assembled prompt will appear here when you type a message or click a preset...",
-                            rows = 4, width = "100%"),
-              p(class = "text-muted small mb-0",
-                "Edit the prompt text before sending. Collapse this section to use the default prompts.")
-            )
-          ),
           div(
             class = "d-flex gap-2",
             div(
@@ -3297,6 +3283,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        toggle_popover(id = ns("overview_popover"))
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
 
       depth <- input$overview_depth %||% "concise"
