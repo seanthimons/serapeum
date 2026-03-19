@@ -54,6 +54,8 @@ Generate presentation slides from notebook content using Quarto RevealJS.
 
 - **Configurable options** - Length, audience level, theme selection
 - **11 RevealJS themes** - moon, sky, beige, serif, and more
+- **Figure integration** - Include extracted figures in slides with layout-aware placement
+- **Aspect-ratio guidance** - Wide, standard, and tall figures get appropriate slide layouts
 - **Speaker notes** - Optional auto-generated presenter notes
 - **Multiple formats** - Preview in-app, download .qmd, export to HTML/PDF
 - **Custom instructions** - Guide the AI on focus areas

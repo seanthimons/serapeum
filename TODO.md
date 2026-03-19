@@ -83,17 +83,17 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 ## v17.0: PDF Image Pipeline
 
-*Epic [#44](https://github.com/seanthimons/serapeum/issues/44) — 7 sequential stages. Each stage depends on the previous. Independent of all other milestones.*
+*Epic [#44](https://github.com/seanthimons/serapeum/issues/44) — 7 sequential stages. Stages 1-3, 5-7 complete. Stage 4 deferred.*
 
 | Stage | Issue | Title | Complexity | Impact |
 |-------|-------|-------|------------|--------|
-| 1 | [#38](https://github.com/seanthimons/serapeum/issues/38) | PDF image extraction (pdftools) | High | High |
-| 2 | [#146](https://github.com/seanthimons/serapeum/issues/146) | Figure storage schema & DB helpers | Medium | High |
-| 3 | [#28](https://github.com/seanthimons/serapeum/issues/28) | Caption extraction (heuristic pass) | High | High |
-| 4 | [#147](https://github.com/seanthimons/serapeum/issues/147) | Figure quality filtering & dedup | Medium | Medium |
-| 5 | [#148](https://github.com/seanthimons/serapeum/issues/148) | Vision model enrichment (optional) | High | High |
-| 6 | [#37](https://github.com/seanthimons/serapeum/issues/37) | Figure review & selection UI | Medium | Medium |
-| 7 | [#29](https://github.com/seanthimons/serapeum/issues/29) | Figure injection into Quarto slides | High | High |
+| ~~1~~ | ~~[#38](https://github.com/seanthimons/serapeum/issues/38)~~ | ~~PDF image extraction (pdftools)~~ | ~~High~~ | ~~High~~ |
+| ~~2~~ | ~~[#146](https://github.com/seanthimons/serapeum/issues/146)~~ | ~~Figure storage schema & DB helpers~~ | ~~Medium~~ | ~~High~~ |
+| ~~3~~ | ~~[#28](https://github.com/seanthimons/serapeum/issues/28)~~ | ~~Caption extraction (heuristic pass)~~ | ~~High~~ | ~~High~~ |
+| 4 | [#147](https://github.com/seanthimons/serapeum/issues/147) | Figure quality filtering & dedup (deferred) | Medium | Medium |
+| ~~5~~ | ~~[#148](https://github.com/seanthimons/serapeum/issues/148)~~ | ~~Vision model enrichment (optional)~~ | ~~High~~ | ~~High~~ |
+| ~~6~~ | ~~[#37](https://github.com/seanthimons/serapeum/issues/37)~~ | ~~Figure review & selection UI~~ | ~~Medium~~ | ~~Medium~~ |
+| ~~7~~ | ~~[#29](https://github.com/seanthimons/serapeum/issues/29)~~ | ~~Figure injection into Quarto slides~~ | ~~High~~ | ~~High~~ |
 
 ---
 
@@ -228,6 +228,13 @@ High-effort, high-payoff features for the future.
 - [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 - [x] feat: Community-aware edge weighting for citation network cluster separation
+- [x] [#44](https://github.com/seanthimons/serapeum/issues/44): Epic: PDF Image Pipeline (v17.0)
+- [x] [#38](https://github.com/seanthimons/serapeum/issues/38): PDF image extraction via page rendering + text-gap cropping (v17.0 Stage 1)
+- [x] [#146](https://github.com/seanthimons/serapeum/issues/146): Figure storage schema & DB helpers (v17.0 Stage 2)
+- [x] [#28](https://github.com/seanthimons/serapeum/issues/28): Caption extraction with continuation line following (v17.0 Stage 3)
+- [x] [#148](https://github.com/seanthimons/serapeum/issues/148): Vision model figure description via GPT-4.1 Nano (v17.0 Stage 5)
+- [x] [#37](https://github.com/seanthimons/serapeum/issues/37): Figure review & selection UI with gallery views (v17.0 Stage 6)
+- [x] [#29](https://github.com/seanthimons/serapeum/issues/29): Figure injection into Quarto slides with manifest-driven selection (v17.0 Stage 7)
 
 ---
 
