@@ -20,7 +20,7 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 - [ ] **THME-09**: Base theme selector determines starting point for custom themes
 - [ ] **THME-10**: AI-generated values populate color picker fields for manual tweaking
 - [ ] **THME-11**: Font selector offers curated list of widely-available professional fonts
-- [ ] **THME-12**: Custom themes applied via `theme: [base, custom.scss]` in QMD frontmatter
+- [x] **THME-12**: Custom themes applied via `theme: [base, custom.scss]` in QMD frontmatter
 
 ### Prompt Editing
 
@@ -68,7 +68,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | THME-09 | Phase 59 | Pending |
 | THME-10 | Phase 60 | Pending |
 | THME-11 | Phase 60 | Pending |
-| THME-12 | Phase 58 | Pending |
+| THME-12 | Phase 58 | Complete |
 | PRMT-01 | Phase 63 | Pending |
 | PRMT-02 | Phase 63 | Pending |
 | PRMT-03 | Phase 63 | Pending |

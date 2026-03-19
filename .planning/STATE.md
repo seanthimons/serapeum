@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Phase 58 context gathered
-last_updated: "2026-03-19T14:26:46.822Z"
+stopped_at: Completed 58-01-PLAN.md
+last_updated: "2026-03-19T16:53:22.934Z"
 last_activity: 2026-03-18 — v16.0 roadmap created (phases 57-63)
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 ---
@@ -61,6 +61,8 @@ Recent decisions affecting v16.0 work:
 - v7.0: Quarto `^[text]` inline footnotes are correct RevealJS syntax — page citations use this format in slide prompts (CITE-02)
 - v10.0: Semantic icon wrappers in theme_catppuccin.R — new UI elements use wrappers, not raw `icon()` calls
 - [Phase 57]: (Author, Year, p.X) APA-like citation format adopted for all non-slide prose AI presets in R/rag.R
+- [Phase 58]: Use basename(custom_scss) in YAML so directory paths don't leak into QMD frontmatter
+- [Phase 58]: custom_scss=NULL in last_options is explicit placeholder for Phase 59+ UI wiring
 
 ### Pending Todos
 
@@ -73,8 +75,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-19T14:26:46.818Z
-Stopped at: Phase 58 context gathered
+Last session: 2026-03-19T16:53:22.930Z
+Stopped at: Completed 58-01-PLAN.md
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---

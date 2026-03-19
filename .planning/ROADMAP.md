@@ -183,7 +183,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 **Milestone Goal:** Give users more control over generated content — rich slide themes with AI generation, editable AI preset prompts, and page-level citation traceability across all outputs.
 
 - [x] **Phase 57: Citation Traceability** - Prompt-level page citations in all AI presets and slide outputs (completed 2026-03-18)
-- [ ] **Phase 58: Theme Infrastructure** - Custom .scss frontmatter plumbing enabling all subsequent theme layers
+- [x] **Phase 58: Theme Infrastructure** - Custom .scss frontmatter plumbing enabling all subsequent theme layers (completed 2026-03-19)
 - [ ] **Phase 59: Theme Swatches, Upload, and Management** - Visual swatch previews, .scss upload/persist/manage, base theme selector
 - [ ] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population
 - [ ] **Phase 61: AI Theme Generation** - Freeform description to structured JSON to validated .scss
@@ -288,7 +288,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 57. Citation Traceability | 1/1 | Complete    | 2026-03-18 |
-| 58. Theme Infrastructure | 0/1 | Planning complete | - |
+| 58. Theme Infrastructure | 1/1 | Complete   | 2026-03-19 |
 | 59. Theme Swatches, Upload, and Management | 0/TBD | Not started | - |
 | 60. Color Picker and Font Selector | 0/TBD | Not started | - |
 | 61. AI Theme Generation | 0/TBD | Not started | - |
