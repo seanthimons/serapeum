@@ -3,6 +3,17 @@ library(jsonlite)
 
 OPENALEX_BASE_URL <- "https://api.openalex.org"
 
+#' Perform an OpenAlex API request with optional verbose logging
+#' @param req httr2 request object
+#' @return httr2 response
+perform_openalex <- function(req) {
+  if (isTRUE(getOption("serapeum.verbose_api", FALSE))) {
+    url <- gsub("api_key=[^&]+", "api_key=<REDACTED>", req$url)
+    message("[OpenAlex API] ", url)
+  }
+  req_perform(req)
+}
+
 #' Classify an API error into user-friendly message with details
 #' @param e Error object or condition
 #' @param service Service name ("OpenAlex" or "OpenRouter")
@@ -399,7 +410,7 @@ search_papers <- function(query, email, api_key = NULL,
   }
 
   resp <- tryCatch({
-    req_perform(req)
+    perform_openalex(req)
   }, error = function(e) {
     stop_api_error(e, "OpenAlex")
   })
@@ -542,7 +553,7 @@ get_paper <- function(paper_id, email, api_key = NULL) {
   }
 
   resp <- tryCatch({
-    req_perform(req)
+    perform_openalex(req)
   }, error = function(e) {
     return(NULL)
   })
@@ -605,7 +616,7 @@ get_citing_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
     )
 
   resp <- tryCatch({
-    req_perform(req)
+    perform_openalex(req)
   }, error = function(e) {
     err <- classify_api_error(e, "OpenAlex")
     message("OpenAlex API error in get_citing_papers: ", err$message, " (", err$details, ")")
@@ -644,7 +655,7 @@ get_cited_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
     )
 
   resp <- tryCatch({
-    req_perform(req)
+    perform_openalex(req)
   }, error = function(e) {
     err <- classify_api_error(e, "OpenAlex")
     message("OpenAlex API error in get_cited_papers: ", err$message, " (", err$details, ")")
@@ -683,7 +694,7 @@ get_related_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
     )
 
   resp <- tryCatch({
-    req_perform(req)
+    perform_openalex(req)
   }, error = function(e) {
     err <- classify_api_error(e, "OpenAlex")
     message("OpenAlex API error in get_related_papers: ", err$message, " (", err$details, ")")
@@ -714,7 +725,7 @@ validate_openalex_email <- function(email) {
   tryCatch({
     req <- build_openalex_request("works", email) |>
       req_url_query(per_page = 1)
-    resp <- req_perform(req)
+    resp <- perform_openalex(req)
     list(valid = TRUE, error = NULL)
   }, error = function(e) {
     list(valid = FALSE, error = e$message)
@@ -807,7 +818,7 @@ fetch_all_topics <- function(email, api_key = NULL, per_page = 100) {
 
     # Perform request with error handling
     resp <- tryCatch({
-      req_perform(req)
+      perform_openalex(req)
     }, error = function(e) {
       stop_api_error(e, "OpenAlex")
     })
@@ -920,7 +931,7 @@ fetch_single_batch <- function(dois, email, api_key = NULL, parse = TRUE) {
       backoff = function(tries) 2^(tries - 1)  # 1s, 2s, 4s
     )
 
-  resp <- httr2::req_perform(req)
+  resp <- perform_openalex(req)
   body <- httr2::resp_body_json(resp)
 
   if (is.null(body$results)) {

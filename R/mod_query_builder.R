@@ -6,6 +6,10 @@ mod_query_builder_ui <- function(id) {
   card(
     card_header("Build a Research Query"),
     card_body(
+      div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+        icon_circle_info(class = "text-primary"),
+        "Describe your research interest and AI will help build an effective OpenAlex search query."
+      ),
       textAreaInput(
         ns("nl_query"),
         "Describe what you're looking for:",

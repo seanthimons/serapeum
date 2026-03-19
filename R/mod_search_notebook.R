@@ -127,6 +127,11 @@ mod_search_notebook_ui <- function(id) {
       }
     ", ns("send")))),
 
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Search OpenAlex for academic papers, filter results, and import papers for analysis."
+    ),
+
     layout_columns(
       col_widths = c(5, 7),
       # Left: Paper list
@@ -467,6 +472,30 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     select_all_state <- reactiveVal(list(all_selected = FALSE, exceptions = character()))
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+
+    # Synthesis progress modal helpers
+    show_synthesis_modal <- function(label) {
+      showModal(modalDialog(
+        title = tagList(icon_spinner(class = "fa-spin"), paste(" Generating:", label)),
+        div(
+          class = "text-center py-3",
+          div(class = "spinner-border text-primary mb-3", role = "status",
+              style = "width: 3rem; height: 3rem;"),
+          div(id = ns("synthesis_status"), class = "text-muted", "Preparing context...")
+        ),
+        footer = NULL,
+        easyClose = FALSE,
+        size = "m"
+      ))
+    }
+
+    update_synthesis_status <- function(message) {
+      session$sendCustomMessage("updateSynthesisStatus", list(
+        msg_id = ns("synthesis_status"),
+        message = message
+      ))
+    }
+
     seed_request <- reactiveVal(NULL)
     network_seed_request <- reactiveVal(NULL)
     # Track which paper IDs already have delete observers to prevent duplicates
@@ -3206,13 +3235,19 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       # Add loading spinner if processing
       if (is_processing()) {
+        paper_count <- pagination_state$total_fetched
+        status_text <- if (paper_count > 0) {
+          sprintf("Analyzing %d paper%s...", paper_count, if (paper_count == 1) "" else "s")
+        } else {
+          "Thinking..."
+        }
         msg_list <- c(msg_list, list(
           div(
             class = "d-flex justify-content-start mb-2",
             div(
               class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
               div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
-              span(class = "text-muted", "Thinking...")
+              span(class = "text-muted", status_text)
             )
           )
         ))
@@ -3273,6 +3308,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        toggle_popover(id = ns("overview_popover"))
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
 
       depth <- input$overview_depth %||% "concise"
@@ -3282,6 +3327,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
       toggle_popover(id = ns("overview_popover"))
+      show_synthesis_modal(paste0("Overview (", depth_label, ", ", mode_label, ")"))
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -3295,6 +3341,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "search",
                                  depth = depth, mode = mode, session_id = session$token)
@@ -3308,6 +3355,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         "Sorry, I encountered an error generating the overview."
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -3316,6 +3364,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Conclusions preset handler
@@ -3327,7 +3376,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Conclusion Synthesis")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
@@ -3336,6 +3395,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
@@ -3348,9 +3408,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         "Sorry, I encountered an error generating the synthesis."
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Phase 27: Research Questions preset handler
@@ -3361,7 +3423,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Research Questions")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -3375,6 +3447,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_research_questions(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
@@ -3387,6 +3460,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         "Sorry, I encountered an error generating research questions."
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -3395,6 +3469,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Return reactives for app.R to consume
