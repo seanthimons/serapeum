@@ -239,10 +239,10 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 
 **Latest shipped:** v11.0 Search Notebook UX (2026-03-11)
 **Total milestones:** 14 shipped (v1.0–v11.0)
-**Total phases:** 58 complete across 95 plans
+**Total phases:** 59 complete across 97 plans
 **Current:** v16.0 Content & Output Quality
 
-**v11.0 shipped:** Cursor-based OpenAlex pagination with Refresh + Load More split. Toolbar overhaul with icon+text labels, semantic colors, workflow ordering, and tooltips. Full 16-type document taxonomy with distribution panel and filter chips. Year slider/histogram CSS fix. Import run history modal.
+**Phase 59 complete:** Theme swatches, upload, and management — R/themes.R helper module (11 built-in RevealJS themes with swatch colors, SCSS parsing, validation), selectizeInput with color swatch dots, custom theme upload/delete, absolute-path fix for Quarto rendering.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -250,4 +250,4 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-18 after v16.0 milestone start*
+*Last updated: 2026-03-19 after phase 59 completion*
