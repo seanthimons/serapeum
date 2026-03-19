@@ -204,6 +204,14 @@ User clicks "Generate Slides"
 | Healing changes figure references | Acceptable — healer sees full QMD with image syntax, figures already staged |
 | PDF export with figures | `render_qmd_to_pdf()` uses same tempdir — figures are already staged, should work |
 
+## Failed Approaches (Image Embedding)
+
+- **Relative paths + `embed-resources: true`**: Quarto copies QMD to its own temp dir during rendering, so relative `uuid.png` references can't be resolved by Pandoc.
+- **`wd = dirname(qmd_path)` on processx::run**: Didn't help — Quarto still couldn't find the co-located PNGs.
+- **Absolute filesystem paths in QMD**: Fixed embed-resources but broke the Shiny preview iframe (browser can't access `C:/...` paths from an HTTP context).
+- **Working solution: base64 data URIs**: `inline_figure_data_uris()` reads each PNG, base64-encodes it, and replaces `uuid.png` references with `data:image/png;base64,...` directly in the QMD. Self-contained everywhere.
+- **LLM prepending `FIGURE_` to UUIDs**: Prompt instruction `![caption](FIGURE_ID.png)` was interpreted literally. Fixed by showing an explicit UUID example and adding "Do NOT add any prefix".
+
 ## Non-Goals
 
 - Per-figure picker in the slide modal (the gallery Keep/Ban is sufficient)
@@ -220,7 +228,7 @@ User clicks "Generate Slides"
 - [x] LLM receives figure manifest with ID, label, document, page, aspect class, type, caption, description
 - [x] LLM-generated QMD contains `![caption](fig_id.png)` references for relevant figures
 - [x] Figure PNGs staged to tempdir before Quarto render
-- [ ] Figures render correctly in RevealJS HTML preview (needs manual UAT)
+- [x] Figures render correctly in RevealJS HTML preview
 - [ ] Wide figures appear full-width; standard figures in column layouts (needs manual UAT)
 - [x] Unchecking "Include figures" produces text-only slides (regression)
 - [x] Healing preserves or adjusts figure references
