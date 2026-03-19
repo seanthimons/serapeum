@@ -516,7 +516,7 @@ get_oa_daily_usage <- function(con) {
                 last_updated = NA))
   }
 
-  today <- as.character(Sys.Date())
+  today <- as.character(as.Date(as.POSIXct(Sys.time(), tz = "UTC")))
 
   row <- dbGetQuery(con, "
     SELECT
@@ -609,7 +609,7 @@ oa_budget_color <- function(pct) {
 oa_toast_should_fire <- function(con, pct) {
   if (is.na(pct) || pct < 90) return(FALSE)
 
-  today <- as.character(Sys.Date())
+  today <- as.character(as.Date(as.POSIXct(Sys.time(), tz = "UTC")))
   last_fired <- tryCatch(get_db_setting(con, "oa_toast_last_fired_date"), error = function(e) NULL)
 
   if (!is.null(last_fired) && last_fired == today) return(FALSE)
@@ -621,5 +621,5 @@ oa_toast_should_fire <- function(con, pct) {
 #'
 #' @param con DuckDB connection
 oa_toast_mark_fired <- function(con) {
-  save_db_setting(con, "oa_toast_last_fired_date", as.character(Sys.Date()))
+  save_db_setting(con, "oa_toast_last_fired_date", as.character(as.Date(as.POSIXct(Sys.time(), tz = "UTC"))))
 }

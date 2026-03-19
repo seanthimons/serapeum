@@ -168,9 +168,9 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
                               embed_model = "openai/text-embedding-3-small") {
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
-  # Require provider with API key (needed for embed function)
-  if (is.null(provider) || is.null(provider$api_key) || nchar(provider$api_key) == 0) {
-    stop("Provider with API key required to create/open ragnar store for embedding")
+  # Require provider (needed for embed function; local providers may have NULL api_key)
+  if (is.null(provider)) {
+    stop("Provider required to create/open ragnar store for embedding")
   }
 
   embed_fn <- make_embed_function(provider, embed_model)
@@ -948,7 +948,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, provider, embed_mode
 
     # Mark store schema as current
     if (!is.null(con)) {
-      mark_ragnar_store_current(con, notebook_id)
+      mark_ragnar_store_current(con, notebook_id, embed_model)
     }
 
     # Disconnect store

@@ -410,7 +410,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
       embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Rebuild with progress (per user decision: withProgress with document count)
@@ -455,7 +455,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
       embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
@@ -726,7 +726,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
         incProgress(0.5, detail = "Generating embeddings")
 
-        provider <- provider_from_config(cfg)
+        provider <- provider_from_config(cfg, con())
         embed_model <- resolve_model_for_operation(cfg, "embedding")
 
         # Insert into per-notebook ragnar store (Phase 22: per-notebook store)

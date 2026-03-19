@@ -920,7 +920,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     # Attach embed function for query vectorization (ragnar_retrieve needs it)
-    has_provider <- !is.null(provider) && !is.null(provider$api_key) && nchar(provider$api_key) > 0
+    has_provider <- !is.null(provider)
     if (!is.null(store) && has_provider) {
       store@embed <- make_embed_function(provider, embed_model)
     }

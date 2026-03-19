@@ -353,7 +353,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       # Get models
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
       models <- tryCatch({
         provider_list_models(provider)
       }, error = function(e) {
@@ -431,7 +431,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         paste0("Generating slides with ", input$model, "..."),
         id = "slides_progress", duration = NULL, type = "message"
       )
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
 
       result <- generate_slides(
         provider = provider,
@@ -514,7 +514,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       attempt <- generation_state$heal_attempts
 
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
 
       # Check if we've exceeded the retry limit
       if (attempt > 2) {
@@ -655,7 +655,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       docs <- list_documents(con(), nb_id)
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
 
       models <- tryCatch({
         provider_list_models(provider)

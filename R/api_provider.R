@@ -72,7 +72,7 @@ build_provider_request <- function(provider, endpoint) {
   req <- request(paste0(provider$base_url, "/", endpoint)) |>
     req_headers("Content-Type" = "application/json")
 
-  if (!is.null(provider$api_key) && nchar(provider$api_key) > 0) {
+  if (!is.null(provider$api_key) && !is.na(provider$api_key) && nchar(provider$api_key) > 0) {
     req <- req |> req_headers("Authorization" = paste("Bearer", provider$api_key))
   }
 
@@ -398,13 +398,33 @@ resolve_model_for_operation <- function(config, operation) {
 
 #' Build provider config from effective_config
 #'
-#' Extracts the OpenRouter API key from the effective_config list
-#' and returns a provider_config. This bridges the existing settings
-#' system with the provider layer.
+#' Resolves the default provider from the providers table when a DB
+#' connection is available. Falls back to building an OpenRouter
+#' provider from the settings API key.
 #'
 #' @param config effective_config list (from mod_settings_server)
-#' @return provider_config for OpenRouter
-provider_from_config <- function(config) {
+#' @param con Optional DuckDB connection (enables DB-backed provider resolution)
+#' @return provider_config object
+provider_from_config <- function(config, con = NULL) {
+  # Try DB-backed default provider first
+  if (!is.null(con)) {
+    providers <- tryCatch(get_providers(con), error = function(e) data.frame())
+    if (nrow(providers) > 0) {
+      default_row <- providers[providers$is_default == TRUE, , drop = FALSE]
+      if (nrow(default_row) > 0) {
+        row <- default_row[1, ]
+        # For OpenRouter default, inject API key from settings (settings key is canonical)
+        key_override <- if (identical(row$provider_type, "openrouter")) {
+          get_setting(config, "openrouter", "api_key")
+        } else {
+          NULL
+        }
+        return(provider_row_to_config(row, api_key_override = key_override))
+      }
+    }
+  }
+
+  # Fallback: legacy OpenRouter-only path (no con, or no providers table yet)
   api_key <- get_setting(config, "openrouter", "api_key")
   openrouter_provider(api_key)
 }

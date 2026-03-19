@@ -512,7 +512,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 22: Async re-index task (mirai worker)
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir, db_path) {
       mirai::mirai({
         source(file.path(app_dir, "R", "interrupt.R"))
         source(file.path(app_dir, "R", "config.R"))
@@ -529,12 +529,13 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           abstracts = abstracts,
           interrupt_flag = interrupt_flag,
           progress_file = progress_file,
+          db_path = db_path,
           progress_callback = NULL
         )
         result
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
          provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         progress_file = progress_file, app_dir = app_dir, db_path = db_path)
     })
 
     # Phase 38: ExtendedTask for batch abstract import (50+ papers)
@@ -700,7 +701,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb_id)
 
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
       embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
@@ -746,7 +747,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r())
     })
 
     # Phase 22: Rebuild handler (corruption recovery — same async pattern)
@@ -756,7 +757,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb_id)
 
       cfg <- config()
-      provider <- provider_from_config(cfg)
+      provider <- provider_from_config(cfg, con())
       embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
@@ -795,7 +796,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
       reindex_poller(poller)
 
-      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r())
     })
 
     # Phase 22: Cancel re-index handler
@@ -1027,8 +1028,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Reactive: check if API key is configured
     has_api_key <- reactive({
       cfg <- config()
-      provider <- provider_from_config(cfg)
-      !is.null(provider$api_key) && nchar(provider$api_key) > 0
+      provider <- provider_from_config(cfg, con())
+      (!is.null(provider$api_key) && nchar(provider$api_key) > 0) || is_local_provider(provider)
     })
 
     # Restore filter state when notebook changes
@@ -2764,11 +2765,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       withProgress(message = "Embedding papers...", value = 0, {
         cfg <- config()
-        provider_or <- provider_from_config(cfg)
+        provider_or <- provider_from_config(cfg, con())
         embed_model <- resolve_model_for_operation(cfg, "embedding")
 
-        if (is.null(provider_or$api_key) || nchar(provider_or$api_key) == 0) {
-          showNotification("OpenRouter API key required for embedding", type = "error")
+        if ((is.null(provider_or$api_key) || nchar(provider_or$api_key) == 0) && !is_local_provider(provider_or)) {
+          showNotification("API key required for embedding (unless using a local provider)", type = "error")
           return()
         }
 

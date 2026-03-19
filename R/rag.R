@@ -115,7 +115,8 @@ generate_query_variants <- function(query, provider, model, con = NULL,
   if (!is.null(con) && !is.null(session_id) && !is.null(result$usage)) {
     cost <- estimate_cost(model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
     log_cost(con, "query_reformulation", model,
              result$usage$prompt_tokens %||% 0,
              result$usage$completion_tokens %||% 0,
@@ -189,7 +190,7 @@ build_context <- function(chunks) {
 #' @return Generated response with citations
 rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   # Build provider from config
-  provider <- provider_from_config(config)
+  provider <- provider_from_config(config, con)
 
   chat_model <- resolve_model_for_operation(config, "chat")
 
@@ -250,7 +251,8 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "chat", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
@@ -287,7 +289,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
     return(sprintf("Unknown preset type: %s", preset_type))
   }
 
-  provider <- provider_from_config(config)
+  provider <- provider_from_config(config, con)
 
   chat_model <- resolve_model_for_operation(config, "chat")
 
@@ -348,7 +350,8 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "chat", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
@@ -379,7 +382,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
 #' @return Generated synthesis content (plain markdown, no AI disclaimer)
 generate_conclusions_preset <- function(con, config, notebook_id, notebook_type = "document", session_id = NULL) {
   # Extract settings
-  provider <- provider_from_config(config)
+  provider <- provider_from_config(config, con)
 
   chat_model <- resolve_model_for_operation(config, "conclusion_synthesis")
   embed_model <- resolve_model_for_operation(config, "embedding")
@@ -518,7 +521,8 @@ Synthesize the key conclusions and identify where sources agree or diverge.", co
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "conclusion_synthesis", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
@@ -555,7 +559,7 @@ generate_overview_preset <- function(con, config, notebook_id,
                                      mode = "quick",
                                      session_id = NULL) {
   # Extract settings with defensive scalar checks
-  provider <- provider_from_config(config)
+  provider <- provider_from_config(config, con)
 
   chat_model <- resolve_model_for_operation(config, "overview")
 
@@ -670,7 +674,8 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
@@ -700,7 +705,8 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview_summary", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
@@ -728,7 +734,8 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview_keypoints", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
@@ -792,7 +799,7 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
 #' @return Generated research questions as markdown string
 generate_research_questions <- function(con, config, notebook_id, notebook_type = "search", session_id = NULL) {
   # Extract settings
-  provider <- provider_from_config(config)
+  provider <- provider_from_config(config, con)
 
   chat_model <- resolve_model_for_operation(config, "research_questions")
   embed_model <- resolve_model_for_operation(config, "embedding")
@@ -940,7 +947,8 @@ IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. E
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "research_questions", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
@@ -1006,7 +1014,7 @@ validate_gfm_table <- function(text) {
 generate_lit_review_table <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    provider <- provider_from_config(config)
+    provider <- provider_from_config(config, con)
     api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
@@ -1152,7 +1160,8 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "lit_review_table", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
@@ -1207,7 +1216,7 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
 generate_methodology_extractor <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    provider <- provider_from_config(config)
+    provider <- provider_from_config(config, con)
     api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
@@ -1358,7 +1367,8 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "methodology_extractor", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
@@ -1418,7 +1428,7 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
 generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    provider <- provider_from_config(config)
+    provider <- provider_from_config(config, con)
     api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
@@ -1590,7 +1600,8 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "gap_analysis", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
