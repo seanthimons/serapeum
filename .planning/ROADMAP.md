@@ -226,9 +226,9 @@ Plans:
   3. Uploaded themes appear in the theme selector alongside built-in themes
   4. User can delete an uploaded theme via a management UI (list with delete buttons); deleted themes are removed from disk and selector
   5. Selecting a base theme (built-in or uploaded) sets it as the starting point for any custom modifications
-**Plans**: 1 plan
-Plans:
-- [ ] TBD
+**Plans**: 2 plans
+- [ ] 59-01-PLAN.md — TDD: theme helper module (swatch table, SCSS parsing, file ops)
+- [ ] 59-02-PLAN.md — Wire theme UI into slide generation modal (selectize dropdown, upload, delete)
 
 ### Phase 60: Color Picker and Font Selector
 **Goal**: Users can manually customize slide theme colors and font via pickers that are also populated by AI-generated values
