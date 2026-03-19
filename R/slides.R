@@ -152,7 +152,7 @@ build_qmd_frontmatter <- function(title, theme = "default", custom_scss = NULL) 
   theme_val <- if (is.null(theme) || theme == "default") "default" else theme
 
   theme_line <- if (!is.null(custom_scss)) {
-    paste0("    theme: [", theme_val, ", ", basename(custom_scss), "]\n")
+    paste0("    theme: [", theme_val, ", ", tools::file_path_sans_ext(basename(custom_scss)), "]\n")
   } else {
     paste0("    theme: ", theme_val, "\n")
   }
