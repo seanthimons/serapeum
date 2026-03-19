@@ -5,9 +5,8 @@
 #' @param models Data frame of available models (id, name)
 #' @param current_model Currently selected model ID
 mod_slides_modal_ui <- function(ns, documents, models, current_model) {
-  # RevealJS themes
-  themes <- c("default", "beige", "blood", "dark", "league",
-              "moon", "night", "serif", "simple", "sky", "solarized")
+  # Namespace prefix for JS strings (e.g. "slides-")
+  ns_prefix <- ns("")
 
   modalDialog(
     title = tagList(icon_file_powerpoint(), "Generate Slides"),
@@ -84,12 +83,66 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
           selected = "footnotes"
         ),
 
-        # Theme
-        selectInput(
-          ns("theme"),
-          "Theme",
-          choices = themes,
-          selected = "default"
+        # Theme (swatch dropdown — populated server-side via updateSelectizeInput)
+        div(
+          selectizeInput(
+            ns("theme"),
+            "Theme",
+            choices = NULL,
+            options = list(
+              render = I(paste0(
+                '{option: function(item, escape) {',
+                '  var dots = \'<span style="display:inline-flex;gap:3px;margin-right:6px;">\' +',
+                '    \'<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:\' + escape(item.bg) + \';border:2px solid rgba(128,128,128,0.3)"></span>\' +',
+                '    \'<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:\' + escape(item.fg) + \';border:2px solid rgba(128,128,128,0.3)"></span>\' +',
+                '    \'<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:\' + escape(item.accent) + \';border:2px solid rgba(128,128,128,0.3)"></span>\' +',
+                '    \'</span>\';',
+                '  var del = item.group === "custom"',
+                '    ? \'<span class="theme-delete-btn" data-value="\' + escape(item.value) + \'"',
+                '        onclick="event.stopPropagation();event.preventDefault();',
+                '          Shiny.setInputValue(\\\'', ns_prefix, 'theme_delete\\\',',
+                '          this.getAttribute(\\\'data-value\\\'), {priority:\\\'event\\\'});return false;"',
+                '        style="margin-left:auto;cursor:pointer;color:#dc3545;padding:2px 6px;font-size:16px;line-height:1;">&#215;</span>\'',
+                '    : \'\';',
+                '  return \'<div style="display:flex;align-items:center;">\' + dots + escape(item.label) + del + \'</div>\';',
+                '},',
+                'item: function(item, escape) {',
+                '  var dots = \'<span style="display:inline-flex;gap:3px;margin-right:6px;">\' +',
+                '    \'<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:\' + escape(item.bg) + \';border:2px solid rgba(128,128,128,0.3)"></span>\' +',
+                '    \'<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:\' + escape(item.fg) + \';border:2px solid rgba(128,128,128,0.3)"></span>\' +',
+                '    \'<span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:\' + escape(item.accent) + \';border:2px solid rgba(128,128,128,0.3)"></span>\' +',
+                '    \'</span>\';',
+                '  return \'<div style="display:flex;align-items:center;">\' + dots + escape(item.label) + \'</div>\';',
+                '}}'
+              )),
+              optgroupField = "group",
+              optgroups = I('[{"value":"builtin","label":"Built-in"},{"value":"custom","label":"Custom"}]'),
+              searchField = list("label"),
+              labelField = "label",
+              valueField = "value"
+            )
+          ),
+          # Upload link (triggers hidden file input)
+          actionLink(
+            ns("upload_theme_link"),
+            tagList(icon("upload"), " Upload custom theme (.scss)"),
+            class = "small text-muted"
+          ),
+          # Hidden file input (triggered by upload link click)
+          div(
+            style = "display:none;",
+            fileInput(ns("theme_file"), NULL, accept = ".scss")
+          ),
+          # Inline validation error output
+          uiOutput(ns("upload_error")),
+          # JS: wire actionLink click -> hidden fileInput
+          tags$script(HTML(sprintf(
+            "$(document).on('click', '#%s', function(e) {
+              e.preventDefault();
+              $('#%s').find('input[type=file]').click();
+            });",
+            ns("upload_theme_link"), ns("theme_file")
+          )))
         )
       ),
 
@@ -303,6 +356,18 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
     # Store current chip labels for chip click handling
     current_chips <- reactiveVal(character(0))
 
+    # Helper: rebuild and push the theme dropdown choices
+    refresh_theme_dropdown <- function(selected = NULL) {
+      custom <- list_custom_themes()
+      df <- build_theme_choices_df(custom)
+      updateSelectizeInput(
+        session, "theme",
+        choices = df,
+        selected = selected %||% isolate(input$theme) %||% "default",
+        server = TRUE
+      )
+    }
+
     # Helper to show results modal with current state
     show_results <- function(preview_url = NULL, error = NULL) {
       showModal(mod_slides_results_ui(
@@ -373,7 +438,56 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       generation_state$last_chunks <- NULL
 
       showModal(mod_slides_modal_ui(ns, docs, models, current_model))
+      # Populate theme dropdown with swatch choices after modal is shown
+      refresh_theme_dropdown(selected = "default")
     }, ignoreInit = TRUE)
+
+    # Handle upload of a custom theme .scss file
+    observeEvent(input$theme_file, {
+      req(input$theme_file)
+      scss_text <- paste(readLines(input$theme_file$datapath, warn = FALSE), collapse = "\n")
+
+      if (!validate_scss_file(scss_text)) {
+        output$upload_error <- renderUI(
+          div(
+            class = "alert alert-danger py-1 px-2 small mt-1",
+            "Invalid .scss file. Must contain /*-- scss:defaults --*/ and /*-- scss:rules --*/ sections."
+          )
+        )
+        return()
+      }
+
+      # Clear previous error
+      output$upload_error <- renderUI(NULL)
+
+      # Save to data/themes/
+      dir.create("data/themes", recursive = TRUE, showWarnings = FALSE)
+      dest <- file.path("data/themes", input$theme_file$name)
+      file.copy(input$theme_file$datapath, dest, overwrite = TRUE)
+
+      showNotification(
+        paste0("Theme '", input$theme_file$name, "' uploaded."),
+        type = "message",
+        duration = 3
+      )
+
+      # Refresh dropdown to include new theme, keep current selection
+      refresh_theme_dropdown()
+    })
+
+    # Handle delete of a custom theme
+    observeEvent(input$theme_delete, {
+      req(input$theme_delete)
+      theme_filename <- input$theme_delete
+      theme_path <- file.path("data/themes", theme_filename)
+      if (file.exists(theme_path)) {
+        file.remove(theme_path)
+      }
+      # If the deleted theme was selected, reset to default
+      current_sel <- isolate(input$theme)
+      new_sel <- if (!is.null(current_sel) && current_sel == theme_filename) "default" else current_sel
+      refresh_theme_dropdown(selected = new_sel)
+    })
 
     # Handle generation
     observeEvent(input$generate, {
@@ -389,6 +503,19 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         return()
       }
 
+      # Resolve theme vs custom_scss based on selected value
+      selected_theme <- input$theme
+      if (!is.null(selected_theme) && selected_theme %in% names(BUILTIN_THEME_SWATCHES)) {
+        theme_val      <- selected_theme
+        custom_scss_val <- NULL
+      } else if (!is.null(selected_theme) && nzchar(selected_theme)) {
+        theme_val      <- "default"
+        custom_scss_val <- file.path("data/themes", selected_theme)
+      } else {
+        theme_val      <- "default"
+        custom_scss_val <- NULL
+      }
+
       # Store options for regeneration
       generation_state$last_options <- list(
         model = input$model,
@@ -396,8 +523,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         audience = input$audience,
         citation_style = input$citation_style,
         include_notes = input$include_notes,
-        theme = input$theme,
-        custom_scss = NULL,
+        theme = theme_val,
+        custom_scss = custom_scss_val,
         custom_instructions = input$custom_instructions
       )
 
@@ -675,6 +802,9 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
                        "google/gemini-3.1-flash-lite-preview"
 
       showModal(mod_slides_modal_ui(ns, docs, models, current_model))
+      # Restore previously selected theme in dropdown (built-in or custom)
+      last_theme <- generation_state$last_options$theme %||% "default"
+      refresh_theme_dropdown(selected = last_theme)
     })
 
     # Download handlers
