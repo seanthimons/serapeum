@@ -9,15 +9,15 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 
 ### Slide Themes
 
-- [ ] **THME-01**: User sees color swatches (bg/fg/accent) next to each built-in theme in the dropdown
-- [ ] **THME-02**: User can upload a custom `.scss` file as a slide theme
-- [ ] **THME-03**: Uploaded themes are stored in `data/themes/` and persist across sessions
-- [ ] **THME-04**: User can manage (list/delete) uploaded custom themes
+- [x] **THME-01**: User sees color swatches (bg/fg/accent) next to each built-in theme in the dropdown
+- [x] **THME-02**: User can upload a custom `.scss` file as a slide theme
+- [x] **THME-03**: Uploaded themes are stored in `data/themes/` and persist across sessions
+- [x] **THME-04**: User can manage (list/delete) uploaded custom themes
 - [ ] **THME-05**: User can type a freeform description to generate a theme via AI
 - [ ] **THME-06**: AI returns structured JSON (8-9 variables), app templates into valid `.scss`
 - [ ] **THME-07**: AI-generated themes validated for hex colors and real font names before saving
 - [ ] **THME-08**: User can manually customize theme via color pickers (bg/text/accent/link) and font selector
-- [ ] **THME-09**: Base theme selector determines starting point for custom themes
+- [x] **THME-09**: Base theme selector determines starting point for custom themes
 - [ ] **THME-10**: AI-generated values populate color picker fields for manual tweaking
 - [ ] **THME-11**: Font selector offers curated list of widely-available professional fonts
 - [x] **THME-12**: Custom themes applied via `theme: [base, custom.scss]` in QMD frontmatter
@@ -57,15 +57,15 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| THME-01 | Phase 59 | Pending |
-| THME-02 | Phase 59 | Pending |
-| THME-03 | Phase 59 | Pending |
-| THME-04 | Phase 59 | Pending |
+| THME-01 | Phase 59 | Complete |
+| THME-02 | Phase 59 | Complete |
+| THME-03 | Phase 59 | Complete |
+| THME-04 | Phase 59 | Complete |
 | THME-05 | Phase 61 | Pending |
 | THME-06 | Phase 61 | Pending |
 | THME-07 | Phase 61 | Pending |
 | THME-08 | Phase 60 | Pending |
-| THME-09 | Phase 59 | Pending |
+| THME-09 | Phase 59 | Complete |
 | THME-10 | Phase 60 | Pending |
 | THME-11 | Phase 60 | Pending |
 | THME-12 | Phase 58 | Complete |

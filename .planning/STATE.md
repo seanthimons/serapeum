@@ -3,14 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Phase 59 UI-SPEC approved
-last_updated: "2026-03-19T17:45:35.819Z"
-last_activity: 2026-03-18 — v16.0 roadmap created (phases 57-63)
+stopped_at: Completed 59-01-PLAN.md
+last_updated: "2026-03-19T18:28:20.069Z"
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 ---
@@ -34,14 +33,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 57 — Citation Traceability (v16.0 start)
+**Current focus:** Phase 59 — theme-swatches-upload-and-management
 
 ## Current Position
 
-Phase: 57 of 63 (Citation Traceability)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-03-18 — v16.0 roadmap created (phases 57-63)
+Phase: 59 (theme-swatches-upload-and-management) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -64,6 +61,7 @@ Recent decisions affecting v16.0 work:
 - [Phase 57]: (Author, Year, p.X) APA-like citation format adopted for all non-slide prose AI presets in R/rag.R
 - [Phase 58]: Use basename(custom_scss) in YAML so directory paths don't leak into QMD frontmatter
 - [Phase 58]: custom_scss=NULL in last_options is explicit placeholder for Phase 59+ UI wiring
+- [Phase 59]: Custom value in build_theme_choices_df is filename-only (e.g. epa-owm.scss); Plan 02 server wiring prepends data/themes/ when setting custom_scss
 
 ### Pending Todos
 
@@ -76,8 +74,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-19T17:45:35.815Z
-Stopped at: Phase 59 UI-SPEC approved
+Last session: 2026-03-19T18:28:20.065Z
+Stopped at: Completed 59-01-PLAN.md
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---
