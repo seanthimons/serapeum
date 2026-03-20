@@ -8,6 +8,65 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
   # Namespace prefix for JS strings (e.g. "slides-")
   ns_prefix <- ns("")
 
+  # Helper: native color input + hex text field pair
+  # Returns a div with label, swatch + hex field, and bidirectional JS sync
+  color_picker_pair <- function(ns, id, label) {
+    swatch_id <- ns(paste0(id, "_swatch"))
+    hex_id    <- ns(paste0(id, "_hex"))
+    div(
+      class = "mb-2",
+      tags$label(label, `for` = hex_id, class = "form-label small fw-semibold"),
+      div(
+        class = "d-flex align-items-center gap-2",
+        tags$input(
+          type = "color",
+          id = swatch_id,
+          value = "#ffffff",
+          style = "width:40px;height:38px;padding:2px;border:1px solid #ced4da;border-radius:4px;cursor:pointer;"
+        ),
+        textInput(hex_id, NULL, value = "#FFFFFF", width = "100px", placeholder = "#RRGGBB")
+      ),
+      # JS: swatch -> hex (live, on every color picker change)
+      tags$script(HTML(sprintf(
+        "document.addEventListener('DOMContentLoaded', function() {
+           var sw = document.getElementById('%s');
+           var hx = document.getElementById('%s');
+           if (sw && hx) {
+             sw.addEventListener('input', function(e) {
+               hx.value = e.target.value.toUpperCase();
+               hx.dispatchEvent(new Event('change'));
+             });
+           }
+         });",
+        swatch_id, hex_id
+      ))),
+      # JS: hex -> swatch (updates swatch when valid hex typed)
+      tags$script(HTML(sprintf(
+        "document.addEventListener('DOMContentLoaded', function() {
+           var hx = document.getElementById('%s');
+           var sw = document.getElementById('%s');
+           if (hx && sw) {
+             hx.addEventListener('input', function(e) {
+               var v = e.target.value.trim();
+               if (/^#[0-9A-Fa-f]{6}$/.test(v)) {
+                 sw.value = v.toLowerCase();
+               }
+             });
+             hx.addEventListener('blur', function(e) {
+               var v = e.target.value.trim();
+               if (/^#[0-9A-Fa-f]{6}$/.test(v)) {
+                 e.target.classList.remove('is-invalid');
+               } else {
+                 e.target.classList.add('is-invalid');
+               }
+             });
+           }
+         });",
+        hex_id, swatch_id
+      )))
+    )
+  }
+
   modalDialog(
     title = tagList(icon_file_powerpoint(), "Generate Slides"),
     size = "l",
@@ -142,6 +201,62 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
           ),
           # Inline validation error output
           uiOutput(ns("upload_error"))
+        )
+      ),
+
+      # Customize colors & font — collapsible panel
+      div(
+        # Chevron CSS for rotation animation
+        tags$style(HTML(sprintf(
+          "#%s.show ~ * .customize-chevron,
+           [aria-expanded='true'] .customize-chevron {
+             transform: rotate(90deg);
+           }
+           .customize-chevron { transition: transform 0.2s; }",
+          ns("customize_panel")
+        ))),
+        # Toggle link
+        tags$a(
+          class = "small text-muted d-flex align-items-center gap-1 mt-2 customize-toggle",
+          style = "cursor:pointer; text-decoration:none;",
+          `data-bs-toggle` = "collapse",
+          href = paste0("#", ns("customize_panel")),
+          role = "button",
+          `aria-expanded` = "false",
+          `aria-controls` = ns("customize_panel"),
+          icon("chevron-right", class = "customize-chevron"),
+          " Customize colors & font"
+        ),
+        # Collapsible content
+        div(
+          id = ns("customize_panel"),
+          class = "collapse mt-2 p-3 border rounded bg-body-secondary",
+          # Custom message handler for swatch updates from server
+          tags$script(HTML(
+            "Shiny.addCustomMessageHandler('update_color_swatch', function(msg) {
+               for (var i = 0; i < msg.ids.length; i++) {
+                 var el = document.getElementById(msg.ids[i]);
+                 if (el) el.value = msg.values[i];
+               }
+             });"
+          )),
+          # 2x2 color picker grid
+          layout_columns(
+            col_widths = c(6, 6),
+            color_picker_pair(ns, "bg",     "Background"),
+            color_picker_pair(ns, "text",   "Text"),
+            color_picker_pair(ns, "accent", "Accent"),
+            color_picker_pair(ns, "link",   "Link")
+          ),
+          # Font selector
+          selectInput(ns("font"), "Font", choices = CURATED_FONTS, selected = "Source Sans Pro"),
+          # Save row
+          div(
+            class = "d-flex align-items-center gap-2 mt-3",
+            textInput(ns("custom_theme_name"), NULL, placeholder = "Theme name...", width = "200px"),
+            actionButton(ns("save_custom_theme"), "Save as custom theme",
+                         class = "btn-primary btn-sm", icon = icon_save())
+          )
         )
       ),
 
