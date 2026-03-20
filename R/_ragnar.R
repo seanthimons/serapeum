@@ -148,7 +148,12 @@ make_embed_function <- function(provider, embed_model) {
   force(provider)
   force(embed_model)
   function(texts) {
-    result <- provider_get_embeddings(provider, embed_model, texts)
+    result <- tryCatch(
+      provider_get_embeddings(provider, embed_model, texts),
+      error = function(e) {
+        stop("Embedding failed (", provider$name, "): ", e$message)
+      }
+    )
     do.call(rbind, result$embeddings)
   }
 }

@@ -305,6 +305,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
     # Helper to show results modal with current state
     show_results <- function(preview_url = NULL, error = NULL) {
+      removeModal()
       showModal(mod_slides_results_ui(
         ns,
         preview_url = preview_url,

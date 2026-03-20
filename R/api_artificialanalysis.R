@@ -48,7 +48,14 @@ fetch_aa_models <- function(api_key) {
     stop("Failed to reach Artificial Analytics API: ", e$message)
   })
 
-  body <- resp_body_json(resp)
+  body <- tryCatch({
+    resp_body_json(resp)
+  }, error = function(e) {
+    warning("Artificial Analytics API returned non-JSON response: ", e$message)
+    return(empty_aa_frame())
+  })
+
+  if (inherits(body, "data.frame")) return(body)
 
   # API returns an array of model objects
   models <- if (is.list(body) && !is.null(body$data)) body$data else body

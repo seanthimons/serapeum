@@ -130,6 +130,10 @@ provider_chat_completion <- function(provider, model, messages) {
     stop(provider$name, " error: ", body$error$message)
   }
 
+  if (is.null(body$choices) || length(body$choices) == 0) {
+    stop(provider$name, " error: Empty response (no choices returned)")
+  }
+
   list(
     content = body$choices[[1]]$message$content,
     usage = normalize_usage(body$usage),
@@ -168,6 +172,10 @@ provider_get_embeddings <- function(provider, model, text) {
 
   if (!is.null(body$error)) {
     stop(provider$name, " error: ", body$error$message)
+  }
+
+  if (is.null(body$data) || length(body$data) == 0) {
+    stop(provider$name, " error: No embeddings returned")
   }
 
   list(
