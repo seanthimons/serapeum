@@ -254,9 +254,12 @@ Plans:
   3. All returned hex values are validated as valid 6-digit hex colors; all font names are validated against the curated font list before saving
   4. Invalid values trigger a user-visible error with specific fields flagged — the theme is not saved in a broken state
   5. After AI generation, the color picker and font selector fields are populated with the AI values for manual tweaking before saving
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [ ] TBD
+- [ ] 61-01-PLAN.md — TDD: AI theme generation helpers (JSON extraction, hex/font validation, LLM call)
+- [ ] 61-02-PLAN.md — Wire AI Generate UI into slide generation modal
+
+
 
 ### Phase 62: Prompt Storage Schema
 **Goal**: DuckDB schema exists to store date-versioned prompt history for all AI presets, enabling the prompt editing UI
@@ -292,10 +295,10 @@ Plans:
 | 58. Theme Infrastructure | 1/1 | Complete    | 2026-03-19 |
 | 59. Theme Swatches, Upload, and Management | 2/2 | Complete    | 2026-03-19 |
 | 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
-| 61. AI Theme Generation | 0/TBD | Not started | - |
+| 61. AI Theme Generation | 0/2 | Not started | - |
 | 62. Prompt Storage Schema | 0/TBD | Not started | - |
 | 63. Prompt Editing UI | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-20 — Phase 60 planned (2 plans)*
+*Last updated: 2026-03-20 — Phase 61 planned (2 plans)*
