@@ -26,6 +26,7 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
 
 - **Smart search** - Query across titles, abstracts, or full text
 - **Document type filters** - Filter by article, review, preprint, book, dissertation, dataset
+- **Keyword filters** - Ban or keep keywords from the global panel or directly on any abstract card; promoted keywords appear in the global chip bin
 - **Quality filters** - Exclude retracted papers, flag predatory journals/publishers
 - **Citation filters** - Set minimum citation thresholds
 - **Rich metadata display**:
@@ -63,6 +64,18 @@ Explore citation relationships through interactive network graphs.
 - **Color palettes** - Five viridis color schemes with live-switching
 - **Save & reload** - Persist networks to database with layout positions preserved
 - **Collapsible legend** - Minimizable legend with shape key and gradient preview
+
+### Research Refiner
+Score, rank, and curate papers against your research focus.
+
+- **Multiple anchor types** - Start from seed papers, a research intent, an entire notebook, or a combination
+- **Tier 1 scoring** - Citation velocity, FWCI, seed connectivity, bridge score, ubiquity penalty
+- **Tier 2 semantic scoring** - BM25 + vector similarity via ragnar against embedded notebooks
+- **Scoring modes** - Discovery (novel connections), Comprehensive (balanced), Emerging (recent high-velocity)
+- **Advanced weights** - Fine-tune component weights with sliders; auto-normalized to sum to 1.0
+- **Curation workflow** - Accept/reject individual papers, batch accept top N, reject bottom half
+- **Import results** - Send curated papers to an existing or new notebook
+- **Notebook anchor** - Use all papers in a notebook as seeds, fetch related candidates from OpenAlex with configurable per-seed limits
 
 ### Dark Mode
 

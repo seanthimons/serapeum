@@ -232,6 +232,14 @@ ui <- page_sidebar(
         "Check your collection for missing references and gaps",
         placement = "bottom",
         options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("research_refiner", "Research Refiner",
+                     class = "btn-outline-danger",
+                     icon = icon_funnel()),
+        "Score and rank papers against your research anchor",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
       )
     ),
     # Divider between sidebar buttons and saved notebooks
@@ -744,6 +752,12 @@ server <- function(input, output, session) {
     current_view("citation_audit")
   })
 
+  # Research refiner button
+  observeEvent(input$research_refiner, {
+    current_notebook(NULL)
+    current_view("refiner")
+  })
+
   # Import papers button (sidebar)
   observeEvent(input$import_papers, {
     sidebar_import_api$show_import_modal()
@@ -1094,6 +1108,10 @@ server <- function(input, output, session) {
       return(mod_citation_audit_ui("citation_audit"))
     }
 
+    if (view == "refiner") {
+      return(mod_research_refiner_ui("refiner"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
       # Check setup status for live indicators
       cfg <- effective_config()
@@ -1268,6 +1286,17 @@ server <- function(input, output, session) {
   # Citation audit module
   mod_citation_audit_server("citation_audit", con, config_r = effective_config,
     db_path = db_path,
+    navigate_to_notebook = function(notebook_id) {
+      current_notebook(notebook_id)
+      current_view("notebook")
+      notebook_refresh(notebook_refresh() + 1)
+    },
+    notebook_refresh = notebook_refresh
+  )
+
+  # Research refiner module
+  mod_research_refiner_server("refiner", con_r,
+    config_r = effective_config,
     navigate_to_notebook = function(notebook_id) {
       current_notebook(notebook_id)
       current_view("notebook")

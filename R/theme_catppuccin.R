@@ -271,6 +271,11 @@ icon_diagram <- function(...) shiny::icon("diagram-project", ...)
 #' @return Icon tag
 icon_audit <- function(...) shiny::icon("magnifying-glass-chart", ...)
 
+#' Filter/funnel icon (research refiner)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_funnel <- function(...) shiny::icon("filter", ...)
+
 #' File import icon (import papers)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag

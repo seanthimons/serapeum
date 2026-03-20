@@ -39,7 +39,8 @@ COST_OPERATION_META <- list(
   "research_questions" = list(label = "Research Questions", icon_fun = "icon_lightbulb", accent_class = "text-warning"),
   "lit_review_table" = list(label = "Literature Review Table", icon_fun = "icon_table", accent_class = "text-success"),
   "methodology_extractor" = list(label = "Methodology Extractor", icon_fun = "icon_flask", accent_class = "text-danger"),
-  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info")
+  "gap_analysis" = list(label = "Gap Analysis", icon_fun = "icon_search", accent_class = "text-info"),
+  "refiner_eval" = list(label = "Research Refiner", icon_fun = "icon_funnel", accent_class = "text-warning")
 )
 
 KNOWN_MODEL_LABELS <- c(

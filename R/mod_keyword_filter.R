@@ -26,22 +26,28 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
     # Reactively store keyword states: "neutral", "include", "exclude"
     keyword_states <- reactiveValues()
 
-    # Aggregate keywords from papers_data
+    # Aggregate keywords from papers_data (top-30 + any user-acted keywords)
     all_keywords <- reactive({
       papers <- papers_data()
       if (nrow(papers) == 0) return(data.frame(keyword = character(), count = integer()))
 
-      # Parse keywords from each paper
+      # Parse keywords from each paper, normalize to lowercase
       keyword_list <- lapply(seq_len(nrow(papers)), function(i) {
         kw <- papers$keywords[i]
         if (is.na(kw) || is.null(kw) || nchar(kw) == 0) return(character())
         tryCatch({
-          jsonlite::fromJSON(kw)
+          tolower(jsonlite::fromJSON(kw))
         }, error = function(e) character())
       })
 
       all_kw <- unlist(keyword_list)
-      if (length(all_kw) == 0) return(data.frame(keyword = character(), count = integer()))
+      if (length(all_kw) == 0) {
+        # Even with no paper keywords, promoted keywords should still appear
+        all_states <- reactiveValuesToList(keyword_states)
+        acted <- names(all_states)[vapply(all_states, function(s) s != "neutral", logical(1))]
+        if (length(acted) == 0) return(data.frame(keyword = character(), count = integer()))
+        return(data.frame(keyword = acted, count = rep(0L, length(acted)), stringsAsFactors = FALSE))
+      }
 
       # Count and sort
       kw_table <- table(all_kw)
@@ -52,8 +58,29 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
       )
       kw_df <- kw_df[order(-kw_df$count), ]
 
-      # Limit to top 30
-      head(kw_df, 30)
+      # Top 30 by frequency
+      top_30 <- head(kw_df, 30)
+
+      # Append any user-acted keywords not already in top-30 (#151)
+      all_states <- reactiveValuesToList(keyword_states)
+      acted_keywords <- names(all_states)[vapply(all_states, function(s) s != "neutral", logical(1))]
+      promoted <- setdiff(acted_keywords, top_30$keyword)
+
+      if (length(promoted) > 0) {
+        promoted_counts <- vapply(promoted, function(k) {
+          s <- kw_table[k]
+          if (is.na(s)) 0L else as.integer(s)
+        }, integer(1))
+        promoted_df <- data.frame(
+          keyword = promoted,
+          count = promoted_counts,
+          stringsAsFactors = FALSE
+        )
+        promoted_df <- promoted_df[order(-promoted_df$count), ]
+        top_30 <- rbind(top_30, promoted_df)
+      }
+
+      top_30
     })
 
     # Initialize keyword states for new keywords only (preserve existing include/exclude)
@@ -178,21 +205,14 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
       })
     })
 
-    # Filter summary
+    # Filter summary — count ALL keyword states, not just top-30
     output$filter_summary <- renderUI({
-      # Count active filters
-      keywords <- all_keywords()
-      if (nrow(keywords) == 0) return(NULL)
+      all_states <- reactiveValuesToList(keyword_states)
+      if (length(all_states) == 0) return(NULL)
 
-      include_count <- sum(sapply(keywords$keyword, function(kw) {
-        state <- keyword_states[[kw]] %||% "neutral"
-        state == "include"
-      }))
-
-      exclude_count <- sum(sapply(keywords$keyword, function(kw) {
-        state <- keyword_states[[kw]] %||% "neutral"
-        state == "exclude"
-      }))
+      state_values <- unlist(all_states)
+      include_count <- sum(state_values == "include")
+      exclude_count <- sum(state_values == "exclude")
 
       if (include_count == 0 && exclude_count == 0) return(NULL)
 
@@ -214,17 +234,12 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
       )
     })
 
-    # Clear filters link
+    # Clear filters link — check ALL keyword states
     output$clear_link <- renderUI({
-      # Show only if any filter is active
-      keywords <- all_keywords()
-      if (nrow(keywords) == 0) return(NULL)
+      all_states <- reactiveValuesToList(keyword_states)
+      if (length(all_states) == 0) return(NULL)
 
-      has_active <- any(sapply(keywords$keyword, function(kw) {
-        state <- keyword_states[[kw]] %||% "neutral"
-        state != "neutral"
-      }))
-
+      has_active <- any(vapply(all_states, function(s) s != "neutral", logical(1)))
       if (!has_active) return(NULL)
 
       div(
@@ -233,34 +248,23 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
       )
     })
 
-    # Clear filters handler
+    # Clear filters handler — reset ALL keyword states including promoted
     observeEvent(input$clear_filters, {
-      keywords <- all_keywords()
-      for (kw in keywords$keyword) {
+      all_states <- reactiveValuesToList(keyword_states)
+      for (kw in names(all_states)) {
         keyword_states[[kw]] <- "neutral"
       }
     })
 
-    # Filtered papers reactive (the key output)
+    # Filtered papers reactive — uses ALL keyword states (including promoted)
     filtered_papers <- reactive({
       papers <- papers_data()
       if (nrow(papers) == 0) return(papers)
 
-      keywords <- all_keywords()
-      if (nrow(keywords) == 0) return(papers)
-
-      # Collect included and excluded keywords
-      include_set <- character()
-      exclude_set <- character()
-
-      for (kw in keywords$keyword) {
-        state <- keyword_states[[kw]] %||% "neutral"
-        if (state == "include") {
-          include_set <- c(include_set, kw)
-        } else if (state == "exclude") {
-          exclude_set <- c(exclude_set, kw)
-        }
-      }
+      # Collect include/exclude from ALL keyword states, not just all_keywords()
+      all_states <- reactiveValuesToList(keyword_states)
+      include_set <- names(all_states)[vapply(all_states, function(s) s == "include", logical(1))]
+      exclude_set <- names(all_states)[vapply(all_states, function(s) s == "exclude", logical(1))]
 
       # If no filters active, return all papers
       if (length(include_set) == 0 && length(exclude_set) == 0) {
@@ -273,12 +277,12 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
       for (i in seq_len(nrow(papers))) {
         paper_kw_json <- papers$keywords[i]
 
-        # Parse paper keywords
+        # Parse paper keywords, normalize to lowercase for matching
         paper_keywords <- if (is.na(paper_kw_json) || is.null(paper_kw_json) || nchar(paper_kw_json) == 0) {
           character()
         } else {
           tryCatch({
-            jsonlite::fromJSON(paper_kw_json)
+            tolower(jsonlite::fromJSON(paper_kw_json))
           }, error = function(e) character())
         }
 
@@ -286,14 +290,14 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
         include_pass <- if (length(include_set) > 0) {
           any(paper_keywords %in% include_set)
         } else {
-          TRUE  # No include filter, passes by default
+          TRUE
         }
 
         # Check exclude filter (must NOT have any excluded keyword)
         exclude_pass <- if (length(exclude_set) > 0) {
           !any(paper_keywords %in% exclude_set)
         } else {
-          TRUE  # No exclude filter, passes by default
+          TRUE
         }
 
         # Both filters must pass (AND logic)
@@ -303,7 +307,17 @@ mod_keyword_filter_server <- function(id, papers_data, remaining_count = reactiv
       papers[keep_indices, ]
     })
 
-    # Return filtered papers reactive
-    return(reactive(filtered_papers()))
+    # Return list with filtered papers + state accessors (like mod_journal_filter pattern)
+    return(list(
+      filtered_papers = reactive(filtered_papers()),
+      set_keyword_state = function(keyword, state) {
+        keyword <- tolower(keyword)
+        keyword_states[[keyword]] <- state
+      },
+      get_keyword_state = function(keyword) {
+        keyword <- tolower(keyword)
+        keyword_states[[keyword]] %||% "neutral"
+      }
+    ))
   })
 }
