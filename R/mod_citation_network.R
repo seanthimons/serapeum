@@ -498,7 +498,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       }
 
       # Update via proxy (no full re-render)
-      visNetwork::visNetworkProxy(ns("network_graph")) |>
+      visNetwork::visNetworkProxy(session$ns("network_graph")) |>
         visNetwork::visUpdateNodes(nodes[, c("id", "value")])
     }, ignoreInit = TRUE)
 

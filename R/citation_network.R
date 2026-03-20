@@ -171,6 +171,7 @@ fetch_citation_network <- function(seed_paper_id, email, api_key = NULL,
             venue = character(),
             doi = character(),
             cited_by_count = integer(),
+            fwci = numeric(),
             is_seed = logical(),
             stringsAsFactors = FALSE
           )
