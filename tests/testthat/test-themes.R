@@ -359,3 +359,139 @@ test_that("generate_custom_scss includes scss:rules block with accentColor headi
   expect_true(grepl(".reveal h1", contents, fixed = TRUE))
   expect_true(grepl("$accentColor", contents, fixed = TRUE))
 })
+
+# ── extract_theme_json ─────────────────────────────────────────────────────
+
+test_that("extract_theme_json extracts valid JSON from markdown fence", {
+  response <- '```json\n{"backgroundColor":"#1A2B3C","mainColor":"#FFFFFF","accentColor":"#FF0000","linkColor":"#00FF00","mainFont":"Lato"}\n```'
+  result <- extract_theme_json(response)
+  expect_type(result, "list")
+  expect_equal(result$backgroundColor, "#1A2B3C")
+  expect_equal(result$mainFont, "Lato")
+})
+
+test_that("extract_theme_json returns NULL when no fence block", {
+  expect_null(extract_theme_json("just some text without json"))
+})
+
+test_that("extract_theme_json returns NULL for malformed JSON in fence", {
+  response <- '```json\n{not valid json}\n```'
+  expect_null(extract_theme_json(response))
+})
+
+test_that("extract_theme_json handles whitespace variations in fence", {
+  # No newline after opening fence
+  r1 <- '```json{"backgroundColor":"#AABBCC","mainColor":"#112233","accentColor":"#445566","linkColor":"#778899","mainFont":"Roboto"}\n```'
+  expect_type(extract_theme_json(r1), "list")
+
+  # Extra whitespace
+  r2 <- '```json  \n{"backgroundColor":"#AABBCC","mainColor":"#112233","accentColor":"#445566","linkColor":"#778899","mainFont":"Roboto"}\n```'
+  expect_type(extract_theme_json(r2), "list")
+})
+
+test_that("extract_theme_json handles surrounding text before/after fence", {
+  response <- 'Here is your theme:\n```json\n{"backgroundColor":"#000000","mainColor":"#FFFFFF","accentColor":"#FF0000","linkColor":"#00FF00","mainFont":"Lato"}\n```\nEnjoy!'
+  result <- extract_theme_json(response)
+  expect_equal(result$backgroundColor, "#000000")
+})
+
+# ── validate_theme_colors ──────────────────────────────────────────────────
+
+test_that("validate_theme_colors returns empty vector for valid hex colors", {
+  theme <- list(backgroundColor = "#1A2B3C", mainColor = "#FFFFFF",
+                accentColor = "#ff0000", linkColor = "#00FF00")
+  expect_length(validate_theme_colors(theme), 0)
+})
+
+test_that("validate_theme_colors returns bad field names for invalid hex", {
+  theme <- list(backgroundColor = "#FFF", mainColor = "#FFFFFF",
+                accentColor = "red", linkColor = "#00FF00")
+  bad <- validate_theme_colors(theme)
+  expect_true("backgroundColor" %in% bad)
+  expect_true("accentColor" %in% bad)
+  expect_false("mainColor" %in% bad)
+  expect_false("linkColor" %in% bad)
+})
+
+test_that("validate_theme_colors rejects 8-digit hex", {
+  theme <- list(backgroundColor = "#FFFFFF00", mainColor = "#000000",
+                accentColor = "#FF0000", linkColor = "#00FF00")
+  bad <- validate_theme_colors(theme)
+  expect_true("backgroundColor" %in% bad)
+})
+
+test_that("validate_theme_colors rejects missing fields", {
+  theme <- list(backgroundColor = "#FFFFFF", mainColor = "#000000")
+  bad <- validate_theme_colors(theme)
+  expect_true("accentColor" %in% bad)
+  expect_true("linkColor" %in% bad)
+})
+
+# ── validate_and_fix_font ──────────────────────────────────────────────────
+
+test_that("validate_and_fix_font accepts valid CURATED_FONTS member", {
+  result <- validate_and_fix_font("Lato")
+  expect_equal(result$font, "Lato")
+  expect_null(result$warning)
+})
+
+test_that("validate_and_fix_font falls back to Source Sans Pro for unknown font", {
+  result <- validate_and_fix_font("Comic Sans MS")
+  expect_equal(result$font, "Source Sans Pro")
+  expect_true(grepl("not recognized", result$warning))
+})
+
+test_that("validate_and_fix_font handles whitespace", {
+  result <- validate_and_fix_font("  Lato  ")
+  expect_equal(result$font, "Lato")
+  expect_null(result$warning)
+})
+
+test_that("validate_and_fix_font handles case-insensitive matching", {
+  result <- validate_and_fix_font("source sans pro")
+  expect_equal(result$font, "Source Sans Pro")
+  expect_null(result$warning)
+})
+
+# ── generate_theme_from_description ────────────────────────────────────────
+
+test_that("generate_theme_from_description system prompt contains CURATED_FONTS", {
+  # Capture the messages argument passed to chat_completion
+  captured_messages <- NULL
+  mock_chat <- function(api_key, model, messages) {
+    captured_messages <<- messages
+    list(
+      content = '```json\n{"backgroundColor":"#000000","mainColor":"#FFFFFF","accentColor":"#FF0000","linkColor":"#00FF00","mainFont":"Lato"}\n```',
+      usage = list(prompt_tokens = 100, completion_tokens = 50)
+    )
+  }
+
+  # Temporarily override chat_completion
+  original_fn <- if (exists("chat_completion", envir = .GlobalEnv)) get("chat_completion", envir = .GlobalEnv) else NULL
+  assign("chat_completion", mock_chat, envir = .GlobalEnv)
+  on.exit({
+    if (is.null(original_fn)) rm("chat_completion", envir = .GlobalEnv)
+    else assign("chat_completion", original_fn, envir = .GlobalEnv)
+  })
+
+  # Also need format_chat_messages
+  if (!exists("format_chat_messages", envir = .GlobalEnv)) {
+    assign("format_chat_messages", function(system_prompt, user_message, history = list()) {
+      messages <- list(list(role = "system", content = system_prompt))
+      messages <- c(messages, history)
+      messages <- c(messages, list(list(role = "user", content = user_message)))
+      messages
+    }, envir = .GlobalEnv)
+  }
+
+  result <- generate_theme_from_description("fake-key", "fake-model", "ocean blues")
+
+  # System prompt should mention all curated fonts
+  sys_prompt <- captured_messages[[1]]$content
+  expect_true(grepl("Source Sans Pro", sys_prompt, fixed = TRUE))
+  expect_true(grepl("Lato", sys_prompt, fixed = TRUE))
+  expect_true(grepl("Merriweather", sys_prompt, fixed = TRUE))
+  expect_true(grepl("IBM Plex Mono", sys_prompt, fixed = TRUE))
+  expect_true(grepl("backgroundColor", sys_prompt, fixed = TRUE))
+  expect_equal(result$content, '```json\n{"backgroundColor":"#000000","mainColor":"#FFFFFF","accentColor":"#FF0000","linkColor":"#00FF00","mainFont":"Lato"}\n```')
+})

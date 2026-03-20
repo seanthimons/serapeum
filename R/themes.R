@@ -336,3 +336,109 @@ generate_custom_scss <- function(name, bg_color, text_color, accent_color, link_
     file_path
   }, error = function(e) NULL)
 }
+
+# ── JSON extraction from LLM response ────────────────────────────────────────
+
+#' Extract a JSON object from a markdown ```json ... ``` fence block.
+#'
+#' Uses a permissive regex that handles whitespace variations in the fence
+#' markers (no newline, extra spaces, \r\n). Returns the parsed list or
+#' NULL if extraction or parsing fails.
+#'
+#' @param llm_response Character string — the raw LLM response text.
+#' @return Parsed list from JSON, or NULL on failure.
+extract_theme_json <- function(llm_response) {
+  # Permissive regex: ```json optionally followed by whitespace/newline, then
+  # capture everything up to the closing ``` (non-greedy, dotall mode).
+  m <- regexpr("```json\\s*(\\{.*?\\})\\s*```", llm_response, perl = TRUE, useBytes = FALSE)
+  if (m == -1) {
+    # Try dotall mode for multi-line JSON
+    m <- regexpr("(?s)```json\\s*(\\{.*?\\})\\s*```", llm_response, perl = TRUE)
+  }
+  if (m == -1) return(NULL)
+  matched <- regmatches(llm_response, m)
+  # Strip the fence markers
+  json_str <- sub("^```json\\s*", "", matched)
+  json_str <- sub("\\s*```$", "", json_str)
+  tryCatch(jsonlite::fromJSON(json_str, simplifyVector = FALSE), error = function(e) NULL)
+}
+
+# ── Hex colour validation ─────────────────────────────────────────────────────
+
+#' Validate that all 4 colour fields in a theme list are valid 6-digit hex.
+#'
+#' @param theme_list Named list with expected keys: backgroundColor, mainColor,
+#'   accentColor, linkColor.
+#' @return Character vector of invalid field names (empty if all valid).
+validate_theme_colors <- function(theme_list) {
+  fields <- c("backgroundColor", "mainColor", "accentColor", "linkColor")
+  is_valid_hex <- function(v) {
+    is.character(v) && length(v) == 1 && grepl("^#[0-9A-Fa-f]{6}$", v)
+  }
+  bad <- fields[!vapply(fields, function(f) {
+    val <- theme_list[[f]]
+    if (is.null(val)) return(FALSE)
+    is_valid_hex(val)
+  }, logical(1))]
+  bad
+}
+
+# ── Font validation with fallback ─────────────────────────────────────────────
+
+#' Validate a font name against CURATED_FONTS, falling back to Source Sans Pro.
+#'
+#' Applies trimws() and case-insensitive matching as safety nets.
+#'
+#' @param font_name Character string — font name from LLM response.
+#' @return list(font = validated_name, warning = message_or_NULL)
+validate_and_fix_font <- function(font_name) {
+  font_name <- trimws(font_name)
+  all_fonts <- unlist(CURATED_FONTS)
+  # Exact match first
+  if (font_name %in% all_fonts) {
+    return(list(font = font_name, warning = NULL))
+  }
+  # Case-insensitive fallback
+  idx <- match(tolower(font_name), tolower(all_fonts))
+  if (!is.na(idx)) {
+    return(list(font = all_fonts[[idx]], warning = NULL))
+  }
+  list(font = "Source Sans Pro",
+       warning = "Font not recognized \u2014 using Source Sans Pro instead.")
+}
+
+# ── AI theme generation via LLM ───────────────────────────────────────────────
+
+#' Generate a theme description via LLM and return raw response.
+#'
+#' Builds a system prompt that includes all CURATED_FONTS names and instructs
+#' the LLM to return JSON in a markdown fence block with 5 required fields:
+#' backgroundColor, mainColor, accentColor, linkColor, mainFont.
+#'
+#' @param api_key Character — OpenRouter API key.
+#' @param model Character — model ID (e.g. "openai/gpt-4o-mini").
+#' @param description Character — user's freeform theme description.
+#' @return list(content = LLM_text, usage = list(prompt_tokens, completion_tokens))
+generate_theme_from_description <- function(api_key, model, description) {
+  font_list <- paste(unlist(CURATED_FONTS), collapse = ", ")
+  system_prompt <- paste0(
+    "You are a slide theme designer for RevealJS presentations. ",
+    "Given a description, create a cohesive color scheme and font choice.\n\n",
+    "Return ONLY a JSON object inside a markdown code fence like this:\n",
+    "```json\n{...}\n```\n\n",
+    "Required fields (all mandatory):\n",
+    "- backgroundColor: slide background color as 6-digit hex (e.g. \"#1A2B3C\")\n",
+    "- mainColor: body text color as 6-digit hex\n",
+    "- accentColor: heading/accent color as 6-digit hex\n",
+    "- linkColor: hyperlink color as 6-digit hex\n",
+    "- mainFont: font family name, must be exactly one of: ", font_list, "\n\n",
+    "Rules:\n",
+    "- All hex values MUST be exactly 6 digits with # prefix\n",
+    "- Ensure sufficient contrast between backgroundColor and mainColor\n",
+    "- Choose colors that match the mood/aesthetic described\n",
+    "- Do not include any text outside the JSON fence block"
+  )
+  messages <- format_chat_messages(system_prompt, description)
+  result <- chat_completion(api_key, model, messages)
+  list(content = result$content, usage = result$usage)
+}
