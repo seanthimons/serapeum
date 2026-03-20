@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Completed 61-01-PLAN.md
-last_updated: "2026-03-20T23:38:00.376Z"
+stopped_at: Completed 61-02-PLAN.md
+last_updated: "2026-03-20T23:43:42.085Z"
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 ---
@@ -71,6 +71,8 @@ Recent decisions affecting v16.0 work:
 - [Phase 60]: color_picker_pair() local helper used for DRY UI; session$sendCustomMessage replaced shinyjs (no useShinyjs() in app); JS event listeners use DOMContentLoaded guard for modal-rendered elements
 - [Phase 61-ai-theme-generation]: extract_theme_json uses DOTALL perl regex to handle multi-line JSON across fence blocks
 - [Phase 61-ai-theme-generation]: generate_theme_from_description returns raw list(content, usage) only — JSON parsing delegated to Plan 02 UI wiring
+- [Phase 61-ai-theme-generation]: Used Bootstrap 5 collapse block (not popover) for AI Generate form — avoids Shiny input registration issues with dynamically-inserted DOM
+- [Phase 61-ai-theme-generation]: ai_generated reactiveVal gates Regenerate button via uiOutput, resets on save_custom_theme
 
 ### Pending Todos
 
@@ -83,8 +85,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-20T23:38:00.373Z
-Stopped at: Completed 61-01-PLAN.md
+Last session: 2026-03-20T23:43:42.082Z
+Stopped at: Completed 61-02-PLAN.md
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---
