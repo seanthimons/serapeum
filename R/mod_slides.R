@@ -665,10 +665,12 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       # Re-save with clean frontmatter
       writeLines(qmd_content, heal_result$qmd_path)
 
-      # Inline figure data URIs in healed QMD
+      # Post-process figures in healed QMD: fix .png, inject layouts, inline base64
       figs <- generation_state$figures
       if (!is.null(figs) && nrow(figs) > 0) {
         healed_text <- paste(readLines(heal_result$qmd_path), collapse = "\n")
+        healed_text <- normalize_figure_refs(healed_text, figs$id)
+        healed_text <- post_process_figure_layouts(healed_text, figs)
         healed_text <- inline_figure_data_uris(healed_text, figs)
         writeLines(healed_text, heal_result$qmd_path)
       }

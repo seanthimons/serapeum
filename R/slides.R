@@ -389,10 +389,11 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
   writeLines(qmd_content, qmd_path)
 
-  # Inline figure images as base64 data URIs directly in the QMD.
-  # This bypasses all file-path resolution issues with Quarto/Pandoc
-  # and makes both the preview and downloaded HTML self-contained.
+  # Post-process figures: fix missing .png extensions, inject layout attrs,
+  # then inline as base64 data URIs for self-contained output.
   if (!is.null(figures) && nrow(figures) > 0) {
+    qmd_content <- normalize_figure_refs(qmd_content, figures$id)
+    qmd_content <- post_process_figure_layouts(qmd_content, figures)
     qmd_content <- inline_figure_data_uris(qmd_content, figures)
     writeLines(qmd_content, qmd_path)
   }
@@ -712,6 +713,74 @@ build_figure_manifest <- function(figures, max_figures = 15L) {
   }, character(1))
 
   paste(entries, collapse = "\n\n---\n\n")
+}
+
+#' Normalize bare UUID figure references by adding .png extension
+#'
+#' LLMs sometimes emit ![caption](uuid) without the .png extension.
+#' This function finds bare UUID references and adds the extension so that
+#' inline_figure_data_uris() can match them.
+#'
+#' @param qmd_content QMD string
+#' @param figure_ids Character vector of figure UUIDs to look for
+#' @return Modified QMD content with .png extensions added where missing
+normalize_figure_refs <- function(qmd_content, figure_ids) {
+  if (length(figure_ids) == 0) return(qmd_content)
+
+  for (fid in figure_ids) {
+    # Match ](uuid) or ](uuid){ but NOT ](uuid.png)
+    # Use a negative lookahead for .png
+    pattern <- paste0("(\\]\\()", gsub("([\\-])", "\\\\\\1", fid), "(?!\\.png)(\\)|\\{)")
+    replacement <- paste0("\\1", fid, ".png\\2")
+    qmd_content <- gsub(pattern, replacement, qmd_content, perl = TRUE)
+  }
+  qmd_content
+}
+
+#' Post-process QMD to inject layout attributes for figures missing them
+#'
+#' When the LLM emits bare ![caption](uuid.png) without layout attributes,
+#' this function adds appropriate {width/height} based on the figure's
+#' aspect ratio class.
+#'
+#' @param qmd_content QMD string
+#' @param figures Data frame with id, width, height columns
+#' @return Modified QMD content with layout attributes injected
+post_process_figure_layouts <- function(qmd_content, figures) {
+  if (is.null(figures) || nrow(figures) == 0) return(qmd_content)
+
+  for (i in seq_len(nrow(figures))) {
+    fig_id <- figures$id[i]
+    ref <- paste0(fig_id, ".png")
+
+    # Skip if not referenced
+    if (!grepl(ref, qmd_content, fixed = TRUE)) next
+
+    # Check if this reference already has {attributes}
+    # Pattern: ref followed by ){...} means it already has attrs
+    attr_pattern <- paste0(gsub("([\\-\\.])", "\\\\\\1", ref), "\\)\\{")
+    if (grepl(attr_pattern, qmd_content, perl = TRUE)) next
+
+    # No attributes — inject based on aspect class
+    aspect <- classify_aspect_ratio(figures$width[i], figures$height[i])
+    attrs <- switch(aspect,
+      "wide"      = '{width="90%" fig-align="center"}',
+      "landscape"  = '{width="85%" fig-align="center"}',
+      "square"     = '{width="100%"}',
+      "portrait"   = '{height="500px"}',
+      "tall"       = '{height="400px"}',
+      '{width="85%"}'
+    )
+
+    # Replace ](uuid.png) with ](uuid.png){attrs}
+    qmd_content <- gsub(
+      paste0("(", gsub("([\\-\\.])", "\\\\\\1", ref), "\\))"),
+      paste0("\\1", attrs),
+      qmd_content,
+      perl = TRUE
+    )
+  }
+  qmd_content
 }
 
 #' Replace figure filename references with base64 data URIs in QMD content

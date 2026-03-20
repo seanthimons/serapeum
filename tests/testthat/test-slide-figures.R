@@ -384,6 +384,80 @@ test_that("inline_figure_data_uris handles NULL input", {
 })
 
 # =============================================================================
+# normalize_figure_refs()
+# =============================================================================
+
+test_that("normalize_figure_refs adds .png to bare UUID references", {
+  qmd <- "![Caption](abc-123-def)\n\nSome text"
+  result <- normalize_figure_refs(qmd, "abc-123-def")
+  expect_true(grepl("abc-123-def.png)", result, fixed = TRUE))
+})
+
+test_that("normalize_figure_refs adds .png before { attributes", {
+  qmd <- '![Caption](abc-123){width="90%"}'
+  result <- normalize_figure_refs(qmd, "abc-123")
+  expect_true(grepl('abc-123.png){width="90%"}', result, fixed = TRUE))
+})
+
+test_that("normalize_figure_refs does not double-add .png", {
+  qmd <- "![Caption](abc-123.png)"
+  result <- normalize_figure_refs(qmd, "abc-123")
+  # Should NOT become abc-123.png.png
+  expect_false(grepl(".png.png", result, fixed = TRUE))
+  expect_true(grepl("abc-123.png)", result, fixed = TRUE))
+})
+
+test_that("normalize_figure_refs handles multiple figures", {
+  qmd <- "![A](fig-1)\n![B](fig-2)"
+  result <- normalize_figure_refs(qmd, c("fig-1", "fig-2"))
+  expect_true(grepl("fig-1.png)", result, fixed = TRUE))
+  expect_true(grepl("fig-2.png)", result, fixed = TRUE))
+})
+
+test_that("normalize_figure_refs handles empty figure_ids", {
+  qmd <- "no figures here"
+  expect_equal(normalize_figure_refs(qmd, character(0)), qmd)
+})
+
+# =============================================================================
+# post_process_figure_layouts()
+# =============================================================================
+
+test_that("post_process_figure_layouts adds attrs to bare wide figure", {
+  qmd <- "![Caption](abc.png)"
+  figs <- data.frame(id = "abc", width = 1200L, height = 400L, stringsAsFactors = FALSE)
+  result <- post_process_figure_layouts(qmd, figs)
+  expect_true(grepl('width="90%"', result))
+})
+
+test_that("post_process_figure_layouts adds height for portrait figure", {
+  qmd <- "![Caption](abc.png)"
+  figs <- data.frame(id = "abc", width = 1240L, height = 1648L, stringsAsFactors = FALSE)
+  result <- post_process_figure_layouts(qmd, figs)
+  expect_true(grepl('height="500px"', result))
+})
+
+test_that("post_process_figure_layouts skips figures with existing attrs", {
+  qmd <- '![Caption](abc.png){width="50%"}'
+  figs <- data.frame(id = "abc", width = 1200L, height = 400L, stringsAsFactors = FALSE)
+  result <- post_process_figure_layouts(qmd, figs)
+  # Should NOT modify — already has attributes
+  expect_equal(result, qmd)
+})
+
+test_that("post_process_figure_layouts skips unreferenced figures", {
+  qmd <- "No figures here."
+  figs <- data.frame(id = "abc", width = 1200L, height = 400L, stringsAsFactors = FALSE)
+  result <- post_process_figure_layouts(qmd, figs)
+  expect_equal(result, qmd)
+})
+
+test_that("post_process_figure_layouts handles NULL input", {
+  expect_equal(post_process_figure_layouts("content", NULL), "content")
+  expect_equal(post_process_figure_layouts("content", data.frame()), "content")
+})
+
+# =============================================================================
 # build_slides_prompt() with figures
 # =============================================================================
 
