@@ -177,3 +177,185 @@ test_that("build_theme_choices_df custom value is filename not full path", {
   expect_false(grepl("\\\\", custom_rows$value))
   expect_equal(custom_rows$value, "epa-owm.scss")
 })
+
+# ── CURATED_FONTS ─────────────────────────────────────────────────────────────
+
+test_that("CURATED_FONTS is a named list with at least 2 groups", {
+  expect_type(CURATED_FONTS, "list")
+  expect_gte(length(CURATED_FONTS), 2)
+  expect_true(!is.null(names(CURATED_FONTS)))
+})
+
+test_that("CURATED_FONTS contains at least 10 total font names", {
+  total_fonts <- sum(lengths(CURATED_FONTS))
+  expect_gte(total_fonts, 10)
+})
+
+test_that("CURATED_FONTS has Sans-serif, Serif, Monospace groups", {
+  expect_true("Sans-serif" %in% names(CURATED_FONTS))
+  expect_true("Serif" %in% names(CURATED_FONTS))
+  expect_true("Monospace" %in% names(CURATED_FONTS))
+})
+
+test_that("CURATED_FONTS includes required sans-serif fonts", {
+  sans <- CURATED_FONTS[["Sans-serif"]]
+  expect_true("Source Sans Pro" %in% sans)
+  expect_true("Lato" %in% sans)
+  expect_true("Fira Sans" %in% sans)
+  expect_true("Roboto" %in% sans)
+  expect_true("Open Sans" %in% sans)
+})
+
+test_that("CURATED_FONTS includes required serif fonts", {
+  serif <- CURATED_FONTS[["Serif"]]
+  expect_true("Merriweather" %in% serif)
+  expect_true("PT Serif" %in% serif)
+  expect_true("Roboto Slab" %in% serif)
+  expect_true("Playfair Display" %in% serif)
+})
+
+test_that("CURATED_FONTS includes required monospace fonts", {
+  mono <- CURATED_FONTS[["Monospace"]]
+  expect_true("IBM Plex Mono" %in% mono)
+  expect_true("Fira Code" %in% mono)
+})
+
+# ── parse_scss_colors_full ────────────────────────────────────────────────────
+
+test_that("parse_scss_colors_full returns fallback list for empty string", {
+  result <- parse_scss_colors_full("")
+  expect_named(result, c("bg", "fg", "accent", "link", "font"), ignore.order = TRUE)
+  expect_equal(result$bg, "#FFFFFF")
+  expect_equal(result$fg, "#000000")
+  expect_equal(result$accent, "#157efb")
+  expect_equal(result$link, "#157efb")
+  expect_equal(result$font, "Source Sans Pro")
+})
+
+test_that("parse_scss_colors_full extracts all 5 fields from generated scss style", {
+  scss_text <- paste0(
+    "/*-- scss:defaults --*/\n",
+    "$backgroundColor: #AABBCC;\n",
+    "$mainColor: #112233;\n",
+    "$linkColor: #445566;\n",
+    "$accentColor: #778899;\n",
+    '$mainFont: "Lato", sans-serif;\n',
+    "/*-- scss:rules --*/"
+  )
+  result <- parse_scss_colors_full(scss_text)
+  expect_equal(result$bg, "#AABBCC")
+  expect_equal(result$fg, "#112233")
+  expect_equal(result$link, "#445566")
+  expect_equal(result$accent, "#778899")
+  expect_equal(result$font, "Lato")
+})
+
+test_that("parse_scss_colors_full handles body-bg / body-color style variable names", {
+  scss_text <- paste0(
+    "/*-- scss:defaults --*/\n",
+    "$body-bg: #FF0000;\n",
+    "$body-color: #0000FF;\n",
+    "$link-color: #00FF00;\n",
+    "$presentation-heading-font: \"Merriweather\", serif;\n",
+    "/*-- scss:rules --*/"
+  )
+  result <- parse_scss_colors_full(scss_text)
+  expect_equal(result$bg, "#FF0000")
+  expect_equal(result$fg, "#0000FF")
+  expect_equal(result$link, "#00FF00")
+  expect_equal(result$font, "Merriweather")
+})
+
+test_that("parse_scss_colors_full returns fallback font when no font variable present", {
+  scss_text <- "/*-- scss:defaults --*/\n$body-bg: #FF0000;\n/*-- scss:rules --*/"
+  result <- parse_scss_colors_full(scss_text)
+  expect_equal(result$font, "Source Sans Pro")
+})
+
+# ── generate_custom_scss ──────────────────────────────────────────────────────
+
+test_that("generate_custom_scss writes a valid .scss file with 5 variables", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  path <- generate_custom_scss(
+    name        = "My Theme",
+    bg_color    = "#FFFFFF",
+    text_color  = "#000000",
+    accent_color = "#157efb",
+    link_color  = "#157efb",
+    font_name   = "Source Sans Pro",
+    themes_dir  = tmp_dir
+  )
+
+  expect_false(is.null(path))
+  expect_true(file.exists(path))
+
+  contents <- paste(readLines(path), collapse = "\n")
+  expect_true(grepl("$backgroundColor", contents, fixed = TRUE))
+  expect_true(grepl("$mainColor", contents, fixed = TRUE))
+  expect_true(grepl("$linkColor", contents, fixed = TRUE))
+  expect_true(grepl("$accentColor", contents, fixed = TRUE))
+  expect_true(grepl("$mainFont", contents, fixed = TRUE))
+})
+
+test_that("generate_custom_scss includes both section markers", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  path <- generate_custom_scss("Test", "#FFF", "#000", "#123456", "#654321", "Lato", tmp_dir)
+  contents <- paste(readLines(path), collapse = "\n")
+  expect_true(validate_scss_file(contents))
+})
+
+test_that("generate_custom_scss sanitizes filename special characters", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  path <- generate_custom_scss("Hello World!", "#FFF", "#000", "#123456", "#654321", "Lato", tmp_dir)
+  expect_false(is.null(path))
+  filename <- basename(path)
+  expect_equal(filename, "Hello-World-.scss")
+})
+
+test_that("generate_custom_scss wraps multi-word font name in double quotes", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  path <- generate_custom_scss("Theme", "#FFF", "#000", "#123456", "#654321", "Source Sans Pro", tmp_dir)
+  contents <- paste(readLines(path), collapse = "\n")
+  expect_true(grepl('"Source Sans Pro"', contents, fixed = TRUE))
+})
+
+test_that("generate_custom_scss overwrites existing file silently", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  path1 <- generate_custom_scss("Dupe", "#FFF", "#000", "#111111", "#222222", "Lato", tmp_dir)
+  path2 <- generate_custom_scss("Dupe", "#FFF", "#000", "#333333", "#444444", "Roboto", tmp_dir)
+  expect_equal(path1, path2)
+  contents <- paste(readLines(path2), collapse = "\n")
+  expect_true(grepl("#333333", contents, fixed = TRUE))
+})
+
+test_that("generate_custom_scss returns NULL when directory does not exist", {
+  path <- generate_custom_scss("Test", "#FFF", "#000", "#123456", "#654321", "Lato",
+                                themes_dir = "/this/path/does/not/exist/at/all")
+  expect_null(path)
+})
+
+test_that("generate_custom_scss includes scss:rules block with accentColor heading styles", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  path <- generate_custom_scss("Theme", "#FFF", "#000", "#123456", "#654321", "Lato", tmp_dir)
+  contents <- paste(readLines(path), collapse = "\n")
+  expect_true(grepl(".reveal h1", contents, fixed = TRUE))
+  expect_true(grepl("$accentColor", contents, fixed = TRUE))
+})
