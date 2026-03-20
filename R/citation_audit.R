@@ -472,7 +472,6 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
     if (!"year" %in% names(ranked)) ranked$year <- NA_integer_
     if (!"doi" %in% names(ranked)) ranked$doi <- NA_character_
     if (!"cited_by_count" %in% names(ranked)) ranked$cited_by_count <- 0L
-    if (!"fwci" %in% names(ranked)) ranked$fwci <- NA_real_
     return(ranked)
   }
 
@@ -490,8 +489,7 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
       authors = authors_str,
       year = paper$year %||% NA_integer_,
       doi = paper$doi %||% NA_character_,
-      cited_by_count = paper$cited_by_count %||% 0L,
-      fwci = paper$fwci %||% NA_real_
+      cited_by_count = paper$cited_by_count %||% 0L
     )
   }
 
@@ -515,10 +513,6 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
   ranked$cited_by_count <- vapply(ranked$work_id, function(wid) {
     if (!is.null(meta_lookup[[wid]])) as.integer(meta_lookup[[wid]]$cited_by_count) else 0L
   }, integer(1))
-
-  ranked$fwci <- vapply(ranked$work_id, function(wid) {
-    if (!is.null(meta_lookup[[wid]])) as.numeric(meta_lookup[[wid]]$fwci) else NA_real_
-  }, numeric(1))
 
   ranked
 }
