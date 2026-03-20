@@ -116,6 +116,8 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
+- ✓ Color picker with 4 native swatch+hex pairs, font selector, save-as-custom-theme (THME-08, THME-10, THME-11) — v16.0 Phase 60
+
 ## Current Milestone: v16.0 Content & Output Quality
 
 **Goal:** Give users more control over generated content — rich slide themes with AI generation, editable AI preset prompts, and page-level citation traceability across all outputs.
