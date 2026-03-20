@@ -55,7 +55,9 @@ Explore citation relationships through interactive network graphs.
 - **Multi-seed networks** - Seed from all papers in a notebook or BibTeX import
 - **Overlap detection** - Papers cited by multiple seeds highlighted as diamonds
 - **Shape encoding** - Stars (seeds), diamonds (overlap), dots (regular) with year color gradient
+- **Node sizing modes** - Size nodes by citations, age-weighted citations, FWCI, or connectivity (degree)
 - **Missing papers discovery** - Find frequently-cited papers not in your collection, import with one click
+- **Audit filters** - Sort (ASC/DESC) by frequency, citations, year, or FWCI; filter by year range, min citations, min FWCI, min frequency
 - **Directional control** - Explore forward citations, backward references, or both
 - **Configurable depth** - Traverse 1-3 hops from seed papers
 - **Node cap** - Per-seed node limits to keep graphs readable
@@ -243,6 +245,7 @@ serapeum/
 │   ├── cost_tracking.R   # API cost tracking and pricing
 │   ├── theme_catppuccin.R # Catppuccin Latte/Mocha dark mode CSS
 │   ├── citation_network.R # Citation graph data and layout
+│   ├── citation_audit.R  # Citation audit business logic
 │   ├── quality_filter.R  # Predatory/retraction filtering + auto-seed
 │   ├── interrupt.R       # Graceful request cancellation
 │   ├── utils_doi.R       # DOI normalization and citation keys
@@ -251,6 +254,7 @@ serapeum/
 │   ├── utils_filters.R   # Search filter utilities
 │   ├── mod_about.R       # About page
 │   ├── mod_citation_network.R  # Network visualization UI
+│   ├── mod_citation_audit.R   # Citation audit UI
 │   ├── mod_cost_tracker.R      # Cost tracking dashboard
 │   ├── mod_document_notebook.R
 │   ├── mod_search_notebook.R

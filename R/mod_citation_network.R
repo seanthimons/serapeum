@@ -86,8 +86,9 @@ mod_citation_network_ui <- function(id) {
         )
       ),
 
-      # Year filter row (hidden until network is built)
-      uiOutput(ns("year_filter_panel"))
+      # Year filter row and sizing control (hidden until network is built)
+      uiOutput(ns("year_filter_panel")),
+      uiOutput(ns("sizing_control_panel"))
     ),
 
     # Main content area with side panel
@@ -404,6 +405,107 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
         )
       )
     })
+
+    # --- Node sizing control (appears after network is built) ---
+    output$sizing_control_panel <- renderUI({
+      net_data <- current_network_data()
+      req(net_data)
+      ns <- session$ns
+
+      # Check if FWCI data is available on any nodes
+      has_fwci <- !is.null(net_data$nodes$fwci) && any(!is.na(net_data$nodes$fwci))
+      fwci_count <- if (has_fwci) sum(!is.na(net_data$nodes$fwci)) else 0L
+
+      choices <- c(
+        "Citations" = "citations",
+        "Age-Weighted Citations" = "age_weighted",
+        "Connectivity (Degree)" = "connectivity"
+      )
+      if (has_fwci) {
+        choices <- c(choices, c("FWCI" = "fwci"))
+      }
+
+      div(
+        class = "mt-2 pt-2 border-top",
+        layout_columns(
+          col_widths = c(4, 8),
+          div(
+            selectInput(
+              ns("size_by"),
+              tags$span("Size Nodes By",
+                        title = "Control what determines node size. Age-weighted divides citations by paper age to surface newer impactful papers."),
+              choices = choices,
+              selected = "citations"
+            )
+          ),
+          div(
+            class = "pt-4 text-muted small",
+            if (has_fwci) {
+              sprintf("FWCI available for %d of %d nodes", fwci_count, nrow(net_data$nodes))
+            } else {
+              "FWCI not available for network nodes (only returned by some OpenAlex endpoints)"
+            }
+          )
+        )
+      )
+    })
+
+    # Live re-size nodes when sizing metric changes
+    observeEvent(input$size_by, {
+      net_data <- current_network_data()
+      req(net_data)
+
+      size_by <- input$size_by
+      nodes <- net_data$nodes
+      edges <- net_data$edges
+
+      # Compute connectivity if needed
+      if (size_by == "connectivity" && nrow(edges) > 0) {
+        edge_from <- if (!is.null(edges$from_paper_id)) edges$from_paper_id else edges$from
+        edge_to <- if (!is.null(edges$to_paper_id)) edges$to_paper_id else edges$to
+        from_counts <- table(edge_from)
+        to_counts <- table(edge_to)
+        nodes$connectivity <- vapply(nodes$paper_id, function(pid) {
+          fc <- from_counts[pid]
+          tc <- to_counts[pid]
+          as.integer(ifelse(is.na(fc), 0L, fc)) + as.integer(ifelse(is.na(tc), 0L, tc))
+        }, integer(1))
+      }
+
+      sizing_values <- get_sizing_metric(nodes, size_by)
+      nodes$value <- compute_node_sizes(sizing_values)
+
+      # Update stored data
+      net_data$nodes <- nodes
+      net_data$metadata$size_by <- size_by
+      current_network_data(net_data)
+
+      # Also update unfiltered snapshot
+      uf_data <- unfiltered_network_data()
+      if (!is.null(uf_data)) {
+        uf_nodes <- uf_data$nodes
+        if (size_by == "connectivity" && nrow(uf_data$edges) > 0) {
+          uf_edge_from <- if (!is.null(uf_data$edges$from_paper_id)) uf_data$edges$from_paper_id else uf_data$edges$from
+          uf_edge_to <- if (!is.null(uf_data$edges$to_paper_id)) uf_data$edges$to_paper_id else uf_data$edges$to
+          uf_from <- table(uf_edge_from)
+          uf_to <- table(uf_edge_to)
+          uf_nodes$connectivity <- vapply(uf_nodes$paper_id, function(pid) {
+            fc <- uf_from[pid]
+            tc <- uf_to[pid]
+            as.integer(ifelse(is.na(fc), 0L, fc)) + as.integer(ifelse(is.na(tc), 0L, tc))
+          }, integer(1))
+        }
+        uf_sizing <- get_sizing_metric(uf_nodes, size_by)
+        uf_nodes$value <- compute_node_sizes(uf_sizing)
+        uf_data$nodes <- uf_nodes
+        uf_data$metadata$size_by <- size_by
+        unfiltered_network_data(uf_data)
+      }
+
+      # Update via proxy (no full re-render)
+      visNetwork::visNetworkProxy(session$ns("network_graph")) |>
+        visNetwork::visUpdateNodes(nodes[, c("id", "value")])
+    }, ignoreInit = TRUE)
 
     # Dynamic slider bounds from unfiltered data (stable — not affected by filtering)
     observe({
