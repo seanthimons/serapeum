@@ -410,38 +410,129 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
 
       # Sort control
       sort_by <- input$sort_by %||% "collection_frequency"
+      sort_dir <- input$sort_dir %||% "desc"
+      sort_desc <- sort_dir == "desc"
+
       results <- switch(sort_by,
-        "collection_frequency" = results[order(-results$collection_frequency), ],
-        "cited_by_count" = results[order(-results$cited_by_count), ],
-        "year" = results[order(-results$year, na.last = TRUE), ],
+        "collection_frequency" = results[order(results$collection_frequency, decreasing = sort_desc), ],
+        "cited_by_count" = results[order(results$cited_by_count, decreasing = sort_desc), ],
+        "year" = results[order(results$year, decreasing = sort_desc, na.last = TRUE), ],
+        "fwci" = results[order(results$fwci, decreasing = sort_desc, na.last = TRUE), ],
         results
       )
 
+      # Apply filters
+      # Year range filter
+      if (!is.null(input$audit_year_range)) {
+        yr_min <- input$audit_year_range[1]
+        yr_max <- input$audit_year_range[2]
+        results <- results[
+          is.na(results$year) | (results$year >= yr_min & results$year <= yr_max),
+          , drop = FALSE
+        ]
+      }
+      # Min citations filter
+      if (!is.null(input$min_citations) && input$min_citations > 0) {
+        results <- results[results$cited_by_count >= input$min_citations, , drop = FALSE]
+      }
+      # Min FWCI filter
+      if (!is.null(input$min_fwci) && input$min_fwci > 0) {
+        has_fwci_col <- "fwci" %in% names(results)
+        if (has_fwci_col) {
+          results <- results[
+            !is.na(results$fwci) & results$fwci >= input$min_fwci,
+            , drop = FALSE
+          ]
+        }
+      }
+      # Min collection frequency filter
+      if (!is.null(input$min_frequency) && input$min_frequency > 1) {
+        results <- results[results$collection_frequency >= input$min_frequency, , drop = FALSE]
+      }
+
       sel <- selected_ids()
 
+      # Compute FWCI availability from unfiltered data so UI stays stable
+      all_results <- audit_results()
+      has_fwci_data <- "fwci" %in% names(all_results) && any(!is.na(all_results$fwci))
+
+      # Compute year bounds for filter
+      valid_years <- all_results$year[!is.na(all_results$year)]
+      yr_bounds <- if (length(valid_years) > 0) {
+        c(min(valid_years), max(valid_years))
+      } else {
+        c(1900L, as.integer(format(Sys.Date(), "%Y")))
+      }
+
+      # Sort choices — include FWCI only if data exists
+      sort_choices <- c("Collection Frequency" = "collection_frequency",
+                        "Global Citations" = "cited_by_count",
+                        "Year" = "year")
+      if (has_fwci_data) {
+        sort_choices <- c(sort_choices, "FWCI" = "fwci")
+      }
+
       tagList(
-        # Controls bar
+        # Sort and filter controls
         div(
-          class = "d-flex justify-content-between align-items-center mb-2",
+          class = "card mb-2",
           div(
-            class = "d-flex align-items-center gap-3",
-            radioButtons(ns("sort_by"), NULL,
-              choices = c("Collection Frequency" = "collection_frequency",
-                          "Global Citations" = "cited_by_count",
-                          "Year" = "year"),
-              selected = sort_by, inline = TRUE
-            )
-          ),
-          div(
-            class = "d-flex align-items-center gap-2",
-            if (length(sel) > 0) {
-              tagList(
-                span(class = "badge bg-primary", paste(length(sel), "selected")),
-                actionButton(ns("batch_import"), "Import Selected",
-                             class = "btn-sm btn-success", icon = icon_download())
+            class = "card-body py-2",
+            # Sort row
+            div(
+              class = "d-flex justify-content-between align-items-center mb-2",
+              div(
+                class = "d-flex align-items-center gap-3",
+                radioButtons(ns("sort_by"), NULL,
+                  choices = sort_choices,
+                  selected = sort_by, inline = TRUE
+                ),
+                radioButtons(ns("sort_dir"), NULL,
+                  choices = c("Desc" = "desc", "Asc" = "asc"),
+                  selected = sort_dir, inline = TRUE
+                )
+              ),
+              div(
+                class = "d-flex align-items-center gap-2",
+                if (length(sel) > 0) {
+                  tagList(
+                    span(class = "badge bg-primary", paste(length(sel), "selected")),
+                    actionButton(ns("batch_import"), "Import Selected",
+                                 class = "btn-sm btn-success", icon = icon_download())
+                  )
+                },
+                checkboxInput(ns("select_all"), "Select All", value = FALSE, width = "auto")
               )
-            },
-            checkboxInput(ns("select_all"), "Select All", value = FALSE, width = "auto")
+            ),
+            # Filter row
+            div(
+              class = "d-flex align-items-end gap-3 pt-2 border-top",
+              div(
+                style = "min-width: 200px;",
+                sliderInput(ns("audit_year_range"), "Year Range",
+                            min = yr_bounds[1], max = yr_bounds[2],
+                            value = yr_bounds,
+                            step = 1, sep = "", ticks = FALSE)
+              ),
+              div(
+                numericInput(ns("min_citations"), "Min Citations",
+                             value = 0, min = 0, step = 10, width = "120px")
+              ),
+              if (has_fwci_data) {
+                div(
+                  numericInput(ns("min_fwci"), "Min FWCI",
+                               value = 0, min = 0, step = 0.5, width = "120px")
+                )
+              },
+              div(
+                numericInput(ns("min_frequency"), "Min Frequency",
+                             value = 2, min = 2, step = 1, width = "120px")
+              ),
+              div(
+                class = "text-muted small pb-3",
+                sprintf("Showing %d of %d results", nrow(results), nrow(all_results))
+              )
+            )
           )
         ),
 
@@ -460,6 +551,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
                 tags$th("Forward", width = "80px", class = "text-center"),
                 tags$th("Frequency", width = "90px", class = "text-center"),
                 tags$th("Citations", width = "90px", class = "text-center"),
+                if (has_fwci_data) tags$th("FWCI", width = "70px", class = "text-center"),
                 tags$th(width = "90px")  # action
               )
             ),
@@ -494,6 +586,18 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
                   ""
                 }
 
+                # FWCI badge
+                fwci_el <- if (has_fwci_data) {
+                  fwci_val <- row$fwci
+                  tags$td(
+                    class = "text-center",
+                    if (!is.na(fwci_val)) {
+                      fwci_class <- if (fwci_val >= 1.0) "text-success" else "text-muted"
+                      span(class = fwci_class, sprintf("%.1f", fwci_val))
+                    }
+                  )
+                }
+
                 tags$tr(
                   class = if (is_imported) "table-success" else NULL,
                   tags$td(
@@ -510,6 +614,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
                   tags$td(class = "text-center fw-bold", row$collection_frequency),
                   tags$td(class = "text-center text-muted",
                           format(row$cited_by_count, big.mark = ",")),
+                  fwci_el,
                   tags$td(
                     if (is_imported) {
                       span(class = "badge bg-success", "Imported")
