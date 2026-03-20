@@ -16,10 +16,10 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 - [ ] **THME-05**: User can type a freeform description to generate a theme via AI
 - [ ] **THME-06**: AI returns structured JSON (8-9 variables), app templates into valid `.scss`
 - [ ] **THME-07**: AI-generated themes validated for hex colors and real font names before saving
-- [ ] **THME-08**: User can manually customize theme via color pickers (bg/text/accent/link) and font selector
+- [x] **THME-08**: User can manually customize theme via color pickers (bg/text/accent/link) and font selector
 - [x] **THME-09**: Base theme selector determines starting point for custom themes
 - [ ] **THME-10**: AI-generated values populate color picker fields for manual tweaking
-- [ ] **THME-11**: Font selector offers curated list of widely-available professional fonts
+- [x] **THME-11**: Font selector offers curated list of widely-available professional fonts
 - [x] **THME-12**: Custom themes applied via `theme: [base, custom.scss]` in QMD frontmatter
 
 ### Prompt Editing
@@ -64,10 +64,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | THME-05 | Phase 61 | Pending |
 | THME-06 | Phase 61 | Pending |
 | THME-07 | Phase 61 | Pending |
-| THME-08 | Phase 60 | Pending |
+| THME-08 | Phase 60 | Complete |
 | THME-09 | Phase 59 | Complete |
 | THME-10 | Phase 60 | Pending |
-| THME-11 | Phase 60 | Pending |
+| THME-11 | Phase 60 | Complete |
 | THME-12 | Phase 58 | Complete |
 | PRMT-01 | Phase 63 | Pending |
 | PRMT-02 | Phase 63 | Pending |

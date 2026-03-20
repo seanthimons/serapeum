@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Phase 60 context gathered
-last_updated: "2026-03-20T13:28:19.785Z"
+stopped_at: Completed 60-01-PLAN.md
+last_updated: "2026-03-20T17:21:25.166Z"
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 ---
@@ -33,12 +33,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 59 — theme-swatches-upload-and-management
+**Current focus:** Phase 60 — color-picker-and-font-selector
 
 ## Current Position
 
-Phase: 59 (theme-swatches-upload-and-management) — EXECUTING
-Plan: 1 of 2
+Phase: 60 (color-picker-and-font-selector) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -65,6 +65,8 @@ Recent decisions affecting v16.0 work:
 - [Phase 59]: Namespace prefix for JS delete button callback baked in from ns('') in the UI function rather than using session\ in server
 - [Phase 59]: selectizeInput(choices=NULL) in UI + updateSelectizeInput(server=TRUE) in server avoids rendering full choices in initial HTML payload
 - [Phase 59]: Upload trigger uses tags\(for=ns('theme_file')) not actionLink+jQuery — display:none blocks programmatic .click() in browsers; native label-for is a trusted event and always opens the file picker
+- [Phase 60]: parse_scss_colors_full prioritizes accentColor over linkColor for accent field to correctly capture heading color in generated SCSS
+- [Phase 60]: generate_custom_scss always appends sans-serif fallback in font value regardless of category — safe default for RevealJS
 
 ### Pending Todos
 
@@ -77,8 +79,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-20T13:28:19.780Z
-Stopped at: Phase 60 context gathered
+Last session: 2026-03-20T17:21:25.162Z
+Stopped at: Completed 60-01-PLAN.md
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---
