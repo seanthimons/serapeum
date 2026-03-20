@@ -2111,7 +2111,8 @@ db_update_figure <- function(con, figure_id, ...) {
 
   allowed_fields <- c("extracted_caption", "llm_description", "figure_label",
                        "quality_score", "is_excluded", "width", "height",
-                       "file_size", "image_type", "extraction_method")
+                       "file_size", "image_type", "extraction_method",
+                       "presentation_hint")
   fields <- intersect(names(updates), allowed_fields)
   if (length(fields) == 0) return(invisible(TRUE))
 

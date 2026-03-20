@@ -105,12 +105,13 @@ test_that("build_vision_messages works with file path", {
 # =============================================================================
 
 test_that("parse_vision_response handles clean JSON", {
-  json <- '{"type": "plot", "summary": "A scatter plot", "details": "X vs Y", "suggested_caption": "Fig 1"}'
+  json <- '{"type": "plot", "summary": "A scatter plot", "details": "X vs Y", "suggested_caption": "Fig 1", "presentation_hint": "hero"}'
   result <- parse_vision_response(json)
   expect_equal(result$type, "plot")
   expect_equal(result$summary, "A scatter plot")
   expect_equal(result$details, "X vs Y")
   expect_equal(result$suggested_caption, "Fig 1")
+  expect_equal(result$presentation_hint, "hero")
 })
 
 test_that("parse_vision_response strips markdown code fences", {
@@ -140,4 +141,11 @@ test_that("parse_vision_response handles missing fields", {
   expect_equal(result$summary, "A microscope image")
   expect_true(is.na(result$details))
   expect_true(is.na(result$suggested_caption))
+  # Missing presentation_hint defaults to "supporting"
+  expect_equal(result$presentation_hint, "supporting")
+})
+
+test_that("parse_vision_response defaults presentation_hint on fallback", {
+  result <- parse_vision_response("Not JSON")
+  expect_equal(result$presentation_hint, "supporting")
 })

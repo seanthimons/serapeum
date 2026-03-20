@@ -109,8 +109,12 @@ build_figure_system_prompt <- function() {
     "2. **summary**: A 1-2 sentence plain-language summary of what the figure shows\n",
     "3. **details**: Key observations — axes, trends, notable data points, labels, ",
     "or structural elements\n",
-    "4. **suggested_caption**: A concise, publication-quality caption\n\n",
-    "Respond in JSON format with these exact keys: type, summary, details, suggested_caption\n\n",
+    "4. **suggested_caption**: A concise, publication-quality caption\n",
+    "5. **presentation_hint**: One of: \"hero\", \"supporting\", \"reference\"\n",
+    "   - \"hero\": Complex, detailed, or visually striking figure that deserves a dedicated slide\n",
+    "   - \"supporting\": Simple chart or diagram that works alongside text in a column layout\n",
+    "   - \"reference\": Dense data table, methodology diagram, or supplementary — better as appendix or omit from slides\n\n",
+    "Respond in JSON format with these exact keys: type, summary, details, suggested_caption, presentation_hint\n\n",
     "Be precise and scientific. If you cannot determine something, say so rather than guessing."
   )
 }
@@ -178,7 +182,8 @@ parse_vision_response <- function(raw_content) {
       type = parsed$type %||% "unknown",
       summary = parsed$summary %||% NA_character_,
       details = parsed$details %||% NA_character_,
-      suggested_caption = parsed$suggested_caption %||% NA_character_
+      suggested_caption = parsed$suggested_caption %||% NA_character_,
+      presentation_hint = parsed$presentation_hint %||% "supporting"
     )
   }, error = function(e) {
     message("[vision] Warning: could not parse JSON, using raw text as summary")
@@ -186,7 +191,8 @@ parse_vision_response <- function(raw_content) {
       type = "unknown",
       summary = raw_content,
       details = NA_character_,
-      suggested_caption = NA_character_
+      suggested_caption = NA_character_,
+      presentation_hint = "supporting"
     )
   })
 }
@@ -242,6 +248,7 @@ describe_figure <- function(api_key, image_data, figure_label = NULL,
       success = FALSE,
       type = NA_character_, summary = NA_character_,
       details = NA_character_, suggested_caption = NA_character_,
+      presentation_hint = NA_character_,
       model_used = NA_character_,
       prompt_tokens = 0L, completion_tokens = 0L
     ))
@@ -255,6 +262,7 @@ describe_figure <- function(api_key, image_data, figure_label = NULL,
     summary = parsed$summary,
     details = parsed$details,
     suggested_caption = parsed$suggested_caption,
+    presentation_hint = parsed$presentation_hint,
     model_used = result$model_used,
     prompt_tokens = result$usage$prompt_tokens %||% 0L,
     completion_tokens = result$usage$completion_tokens %||% 0L
@@ -378,20 +386,27 @@ extract_and_describe_figures <- function(con, api_key = NULL,
 
         db_update_figure(con, fig_id,
           llm_description = description_text,
-          image_type = desc$type
+          image_type = desc$type,
+          presentation_hint = desc$presentation_hint
         )
         n_described <- n_described + 1L
 
-        # Log cost
+        # Log cost (guarded so failures don't crash the description loop)
         if (!is.null(session_id) && (desc$prompt_tokens > 0 || desc$completion_tokens > 0)) {
-          cost <- estimate_cost(desc$model_used, desc$prompt_tokens, desc$completion_tokens)
-          log_cost(con, "figure_description", desc$model_used,
-                   desc$prompt_tokens, desc$completion_tokens,
-                   desc$prompt_tokens + desc$completion_tokens,
-                   cost, session_id)
+          tryCatch({
+            cost <- estimate_cost(desc$model_used, desc$prompt_tokens, desc$completion_tokens)
+            log_cost(con, "figure_description", desc$model_used,
+                     desc$prompt_tokens, desc$completion_tokens,
+                     desc$prompt_tokens + desc$completion_tokens,
+                     cost, session_id)
+          }, error = function(e) {
+            warning(sprintf("[pipeline] Cost logging failed for figure %d: %s", i, e$message))
+          })
         }
       } else {
         n_failed <- n_failed + 1L
+        warning(sprintf("[pipeline] Figure %d (page %d) description failed",
+                        i, fig$page_number))
       }
 
       # Rate limiting pause between API calls

@@ -509,8 +509,9 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       generation_state$html_path <- html_result$path
       generation_state$error <- NULL
 
-      # Create resource path for preview
+      # Create resource path for preview (remove stale path first)
       preview_name <- basename(html_result$path)
+      tryCatch(removeResourcePath("slides_preview"), error = function(e) NULL)
       addResourcePath("slides_preview", dirname(html_result$path))
       preview_url <- paste0("slides_preview/", preview_name)
 
@@ -591,6 +592,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
         generation_state$html_path <- html_result$path
         preview_name <- basename(html_result$path)
+        tryCatch(removeResourcePath("slides_preview"), error = function(e) NULL)
         addResourcePath("slides_preview", dirname(html_result$path))
         preview_url <- paste0("slides_preview/", preview_name)
 
@@ -683,6 +685,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       generation_state$html_path <- html_result$path
       preview_name <- basename(html_result$path)
+      tryCatch(removeResourcePath("slides_preview"), error = function(e) NULL)
       addResourcePath("slides_preview", dirname(html_result$path))
       preview_url <- paste0("slides_preview/", preview_name)
 

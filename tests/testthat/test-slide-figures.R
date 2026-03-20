@@ -12,36 +12,56 @@ source(file.path(project_root, "R", "slides.R"))
 # =============================================================================
 
 test_that("classify_aspect_ratio identifies wide figures", {
-  expect_equal(classify_aspect_ratio(1200, 400), "wide")
-  expect_equal(classify_aspect_ratio(1800, 900), "wide")  # ratio = 2.0
+  expect_equal(classify_aspect_ratio(1200, 400), "wide")   # ratio = 3.0
+  expect_equal(classify_aspect_ratio(1800, 900), "wide")   # ratio = 2.0
+  expect_equal(classify_aspect_ratio(1240, 190), "wide")   # ratio = 6.5
+})
+
+test_that("classify_aspect_ratio identifies landscape figures", {
+  expect_equal(classify_aspect_ratio(800, 600), "landscape")  # ratio = 1.33
+  expect_equal(classify_aspect_ratio(150, 100), "landscape")  # ratio = 1.5
+})
+
+test_that("classify_aspect_ratio identifies square figures", {
+  expect_equal(classify_aspect_ratio(500, 500), "square")  # ratio = 1.0
+  expect_equal(classify_aspect_ratio(900, 800), "square")  # ratio = 1.125
+  expect_equal(classify_aspect_ratio(800, 900), "square")  # ratio = 0.89
+})
+
+test_that("classify_aspect_ratio identifies portrait figures", {
+  expect_equal(classify_aspect_ratio(1240, 1630), "portrait")  # ratio = 0.76
+  expect_equal(classify_aspect_ratio(600, 800), "portrait")    # ratio = 0.75
+  expect_equal(classify_aspect_ratio(1240, 1648), "portrait")  # ratio = 0.75
 })
 
 test_that("classify_aspect_ratio identifies tall figures", {
-  expect_equal(classify_aspect_ratio(300, 800), "tall")
-  expect_equal(classify_aspect_ratio(100, 500), "tall")  # ratio = 0.2
-})
-
-test_that("classify_aspect_ratio identifies standard figures", {
-  expect_equal(classify_aspect_ratio(600, 500), "standard")  # ratio = 1.2
-  expect_equal(classify_aspect_ratio(800, 600), "standard")  # ratio = 1.33
-  expect_equal(classify_aspect_ratio(500, 500), "standard")  # square = 1.0
+  expect_equal(classify_aspect_ratio(300, 800), "tall")   # ratio = 0.375
+  expect_equal(classify_aspect_ratio(100, 500), "tall")   # ratio = 0.2
 })
 
 test_that("classify_aspect_ratio handles boundary values", {
-  # Exactly at 1.8 boundary — should be standard (not wide)
-  expect_equal(classify_aspect_ratio(180, 100), "standard")
+  # Exactly at 1.8 boundary — should be landscape (not wide)
+  expect_equal(classify_aspect_ratio(180, 100), "landscape")
   # Just above 1.8
   expect_equal(classify_aspect_ratio(181, 100), "wide")
-  # Exactly at 0.6 boundary — should be standard (not tall)
-  expect_equal(classify_aspect_ratio(60, 100), "standard")
+  # Exactly at 1.2 boundary — should be landscape (not square)
+  expect_equal(classify_aspect_ratio(120, 100), "landscape")
+  # Just below 1.2
+  expect_equal(classify_aspect_ratio(119, 100), "square")
+  # Exactly at 0.8 boundary — should be square (not portrait)
+  expect_equal(classify_aspect_ratio(80, 100), "square")
+  # Just below 0.8
+  expect_equal(classify_aspect_ratio(79, 100), "portrait")
+  # Exactly at 0.6 boundary — should be portrait (not tall)
+  expect_equal(classify_aspect_ratio(60, 100), "portrait")
   # Just below 0.6
   expect_equal(classify_aspect_ratio(59, 100), "tall")
 })
 
 test_that("classify_aspect_ratio handles edge cases", {
-  expect_equal(classify_aspect_ratio(NA, 100), "standard")
-  expect_equal(classify_aspect_ratio(100, NA), "standard")
-  expect_equal(classify_aspect_ratio(100, 0), "standard")
+  expect_equal(classify_aspect_ratio(NA, 100), "square")
+  expect_equal(classify_aspect_ratio(100, NA), "square")
+  expect_equal(classify_aspect_ratio(100, 0), "square")
 })
 
 # =============================================================================
@@ -91,6 +111,7 @@ make_test_figures <- function(n = 3) {
     image_type = rep(c("chart", "plot", "diagram"), length.out = n),
     quality_score = rep(NA_real_, n),
     is_excluded = rep(FALSE, n),
+    presentation_hint = rep(c("hero", "supporting", "reference"), length.out = n),
     doc_name = rep("test_paper.pdf", n),
     stringsAsFactors = FALSE
   )
@@ -112,11 +133,11 @@ test_that("build_figure_manifest includes all figure IDs", {
 test_that("build_figure_manifest includes aspect ratio classification", {
   figs <- make_test_figures()
   manifest <- build_figure_manifest(figs)
-  # fig_1: 1200x400 = wide
+  # fig_1: 1200x400 = wide (ratio 3.0)
   expect_true(grepl("wide", manifest))
-  # fig_2: 600x500 = standard
-  expect_true(grepl("standard", manifest))
-  # fig_3: 300x800 = tall
+  # fig_2: 600x500 = landscape (ratio 1.2)
+  expect_true(grepl("landscape", manifest))
+  # fig_3: 300x800 = tall (ratio 0.375)
   expect_true(grepl("tall", manifest))
 })
 
@@ -164,13 +185,23 @@ test_that("build_figure_manifest handles missing optional fields", {
   figs$image_type <- NA_character_
   figs$extracted_caption <- NA_character_
   figs$llm_description <- NA_character_
+  figs$presentation_hint <- NA_character_
   manifest <- build_figure_manifest(figs)
   # Should still produce a valid manifest entry
   expect_true(grepl("fig_1", manifest))
-  # Should not have Type/Caption/Description lines
+  # Should not have Hint/Type/Caption/Description lines
+  expect_false(grepl("Hint:", manifest))
   expect_false(grepl("Type:", manifest))
   expect_false(grepl("Caption:", manifest))
   expect_false(grepl("Description:", manifest))
+})
+
+test_that("build_figure_manifest includes presentation hint", {
+  figs <- make_test_figures(2)
+  figs$presentation_hint <- c("hero", "supporting")
+  manifest <- build_figure_manifest(figs)
+  expect_true(grepl("Hint: hero", manifest))
+  expect_true(grepl("Hint: supporting", manifest))
 })
 
 # =============================================================================
@@ -333,7 +364,7 @@ test_that("build_slides_prompt without figures matches original behavior", {
   expect_false(grepl("Available figures", prompt_no_figs$user))
 })
 
-test_that("build_slides_prompt with figures adds instructions to system prompt", {
+test_that("build_slides_prompt with figures adds layout patterns to system prompt", {
   chunks <- data.frame(
     content = "Some content",
     doc_name = "paper.pdf",
@@ -346,10 +377,14 @@ test_that("build_slides_prompt with figures adds instructions to system prompt",
 
   prompt <- build_slides_prompt(chunks, options, figures = figs)
   expect_true(grepl("Figure Integration", prompt$system))
-  expect_true(grepl("the-uuid-here\\.png", prompt$system))
-  expect_true(grepl("wide", prompt$system))
-  expect_true(grepl("standard", prompt$system))
-  expect_true(grepl("tall", prompt$system))
+  # Should have concrete layout pattern examples
+  expect_true(grepl("Pattern 1: Hero Image Slide", prompt$system))
+  expect_true(grepl("Pattern 2: Two-Column Layout", prompt$system))
+  expect_true(grepl("Pattern 3: Height-Constrained Column", prompt$system))
+  expect_true(grepl("Pattern 4: Full-Width Below Heading", prompt$system))
+  expect_true(grepl("Pattern 5: Skip", prompt$system))
+  # Should instruct to vary layouts
+  expect_true(grepl("Vary your layouts", prompt$system))
 })
 
 test_that("build_slides_prompt with figures adds manifest to user prompt", {
