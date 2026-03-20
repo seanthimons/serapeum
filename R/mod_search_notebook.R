@@ -127,6 +127,11 @@ mod_search_notebook_ui <- function(id) {
       }
     ", ns("send")))),
 
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Search OpenAlex for academic papers, filter results, and import papers for analysis."
+    ),
+
     layout_columns(
       col_widths = c(5, 7),
       # Left: Paper list
@@ -272,6 +277,11 @@ mod_search_notebook_ui <- function(id) {
               class = "form-check-label small text-muted",
               "Select all"
             )
+          ),
+          # Paper count status line
+          div(
+            class = "text-muted small mb-2",
+            textOutput(ns("paper_count_status"), inline = TRUE)
           ),
           div(
             id = ns("paper_list_container"),
@@ -462,6 +472,30 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     select_all_state <- reactiveVal(list(all_selected = FALSE, exceptions = character()))
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+
+    # Synthesis progress modal helpers
+    show_synthesis_modal <- function(label) {
+      showModal(modalDialog(
+        title = tagList(icon_spinner(class = "fa-spin"), paste(" Generating:", label)),
+        div(
+          class = "text-center py-3",
+          div(class = "spinner-border text-primary mb-3", role = "status",
+              style = "width: 3rem; height: 3rem;"),
+          div(id = ns("synthesis_status"), class = "text-muted", "Preparing context...")
+        ),
+        footer = NULL,
+        easyClose = FALSE,
+        size = "m"
+      ))
+    }
+
+    update_synthesis_status <- function(message) {
+      session$sendCustomMessage("updateSynthesisStatus", list(
+        msg_id = ns("synthesis_status"),
+        message = message
+      ))
+    }
+
     seed_request <- reactiveVal(NULL)
     network_seed_request <- reactiveVal(NULL)
     # Track which paper IDs already have delete observers to prevent duplicates
@@ -820,37 +854,39 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observe({
       result <- reindex_task$result()
 
-      poller <- reindex_poller()
-      if (!is.null(poller)) poller$destroy()
-      reindex_poller(NULL)
+      isolate({
+        poller <- reindex_poller()
+        if (!is.null(poller)) poller$destroy()
+        reindex_poller(NULL)
 
-      clear_interrupt_flag(current_interrupt_flag())
-      clear_progress_file(current_progress_file())
-      current_interrupt_flag(NULL)
-      current_progress_file(NULL)
+        clear_interrupt_flag(current_interrupt_flag())
+        clear_progress_file(current_progress_file())
+        current_interrupt_flag(NULL)
+        current_progress_file(NULL)
 
-      removeModal()
+        removeModal()
 
-      if (isTRUE(result$partial)) {
-        # Cancelled — delete partial store
-        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
-        rag_ready(FALSE)
-        store_healthy(FALSE)
-        showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
-      } else if (isTRUE(result$success)) {
-        rag_ready(TRUE)
-        store_healthy(TRUE)
-        tryCatch({
-          abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
-          mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
-        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
-        paper_refresh(paper_refresh() + 1)
-        showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
-      } else {
-        rag_ready(FALSE)
-        store_healthy(FALSE)
-        showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
-      }
+        if (isTRUE(result$partial)) {
+          # Cancelled — delete partial store
+          tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
+        } else if (isTRUE(result$success)) {
+          rag_ready(TRUE)
+          store_healthy(TRUE)
+          tryCatch({
+            abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
+            mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
+          }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+          paper_refresh(paper_refresh() + 1)
+          showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
+        } else {
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
+        }
+      })
     })
 
     # Phase 22: Render send button (disabled when rag_available is FALSE)
@@ -946,8 +982,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       remaining
     })
 
-    # Keyword filter module - returns filtered papers reactive
-    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
+    # Keyword filter module - returns list with filtered_papers + state accessors
+    keyword_filter_result <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
+    keyword_filtered_papers <- keyword_filter_result$filtered_papers
+
+    # Delegated click handler for per-abstract keyword toggles (#151)
+    observeEvent(input$abstract_kw_click, {
+      kw <- input$abstract_kw_click$keyword
+      if (is.null(kw) || !nzchar(kw)) return()
+
+      current_state <- keyword_filter_result$get_keyword_state(kw)
+      new_state <- switch(current_state,
+        "neutral" = "include",
+        "include" = "exclude",
+        "exclude" = "neutral",
+        "include"
+      )
+      keyword_filter_result$set_keyword_state(kw, new_state)
+    }, ignoreInit = TRUE)
 
     # Phase 55: Type filter - client-side filtering between keyword and journal
     type_filtered_papers <- reactive({
@@ -1216,6 +1268,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       count <- get_unknown_year_count(con(), nb_id)
       if (count > 0) {
         paste0("(", count, " unknown)")
+      } else {
+        ""
+      }
+    })
+
+    # Paper count status line (visible / loaded / total)
+    output$paper_count_status <- renderText({
+      visible <- nrow(filtered_papers())
+      loaded <- nrow(papers_data())
+      total <- pagination_state$api_total
+
+      if (total > 0) {
+        sprintf("%s visible / %s loaded / %s total",
+                format_large_number(visible),
+                format_large_number(loaded),
+                format_large_number(total))
+      } else if (loaded > 0) {
+        sprintf("%s visible / %s loaded",
+                format_large_number(visible),
+                format_large_number(loaded))
       } else {
         ""
       }
@@ -1775,7 +1847,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         paste(authors, collapse = ", ")
       }
 
-      # Parse keywords
+      # Parse keywords — interactive badges with ban/keep toggle
       keywords_ui <- NULL
       if (!is.null(paper$keywords) && !is.na(paper$keywords) && nchar(paper$keywords) > 0) {
         keywords <- tryCatch({
@@ -1787,7 +1859,46 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = "mt-2",
             tags$small(class = "text-muted", "Keywords: "),
             lapply(keywords, function(k) {
-              span(class = "badge bg-secondary me-1", k)
+              # Look up current state from global keyword filter
+              k_lower <- tolower(k)
+              state <- keyword_filter_result$get_keyword_state(k_lower)
+
+              badge_class <- switch(state,
+                "include" = "badge bg-success me-1",
+                "exclude" = "badge bg-danger me-1",
+                "badge bg-secondary me-1"
+              )
+
+              badge_icon <- switch(state,
+                "include" = icon_add(class = "me-1"),
+                "exclude" = icon_minus(class = "me-1"),
+                NULL
+              )
+
+              badge_title <- switch(state,
+                "neutral" = paste0("Click to include '", k, "' in filter"),
+                "include" = paste0("Click to exclude '", k, "'"),
+                "exclude" = paste0("Click to clear '", k, "' filter"),
+                ""
+              )
+
+              # Escape keyword for safe JS embedding (JSON produces a quoted string)
+              k_js <- jsonlite::toJSON(k_lower, auto_unbox = TRUE)
+
+              onclick_js <- sprintf(
+                "Shiny.setInputValue('%s', {keyword: %s, nonce: Math.random()})",
+                ns("abstract_kw_click"),
+                k_js
+              )
+
+              tags$span(
+                class = badge_class,
+                style = "cursor: pointer;",
+                onclick = onclick_js,
+                title = badge_title,
+                badge_icon,
+                k
+              )
             })
           )
         }
@@ -3184,13 +3295,19 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       # Add loading spinner if processing
       if (is_processing()) {
+        paper_count <- pagination_state$total_fetched
+        status_text <- if (paper_count > 0) {
+          sprintf("Analyzing %d paper%s...", paper_count, if (paper_count == 1) "" else "s")
+        } else {
+          "Thinking..."
+        }
         msg_list <- c(msg_list, list(
           div(
             class = "d-flex justify-content-start mb-2",
             div(
               class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
               div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
-              span(class = "text-muted", "Thinking...")
+              span(class = "text-muted", status_text)
             )
           )
         ))
@@ -3251,6 +3368,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        toggle_popover(id = ns("overview_popover"))
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
 
       depth <- input$overview_depth %||% "concise"
@@ -3260,6 +3387,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
       toggle_popover(id = ns("overview_popover"))
+      show_synthesis_modal(paste0("Overview (", depth_label, ", ", mode_label, ")"))
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -3273,6 +3401,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "search",
                                  depth = depth, mode = mode, session_id = session$token)
@@ -3286,6 +3415,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         "Sorry, I encountered an error generating the overview."
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -3294,6 +3424,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Conclusions preset handler
@@ -3305,7 +3436,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Conclusion Synthesis")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
@@ -3314,6 +3455,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
@@ -3326,9 +3468,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         "Sorry, I encountered an error generating the synthesis."
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Phase 27: Research Questions preset handler
@@ -3339,7 +3483,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Research Questions")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -3353,6 +3507,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_research_questions(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
@@ -3365,6 +3520,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         "Sorry, I encountered an error generating research questions."
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -3373,6 +3529,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Return reactives for app.R to consume

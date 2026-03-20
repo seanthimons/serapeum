@@ -45,3 +45,4 @@ package.json
 !.gitignore
 !.planning/
 !.github/
+.worktrees

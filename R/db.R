@@ -259,12 +259,62 @@ init_schema <- function(con) {
       year INTEGER,
       doi VARCHAR,
       cited_by_count INTEGER DEFAULT 0,
+      fwci DOUBLE,
       backward_count INTEGER DEFAULT 0,
       forward_count INTEGER DEFAULT 0,
       collection_frequency INTEGER DEFAULT 0,
       imported BOOLEAN DEFAULT FALSE,
       FOREIGN KEY (run_id) REFERENCES citation_audit_runs(id)
     )
+  ")
+
+  # Research refiner tables
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS refiner_runs (
+      id VARCHAR PRIMARY KEY,
+      anchor_type VARCHAR NOT NULL,
+      anchor_intent VARCHAR,
+      anchor_seed_ids VARCHAR,
+      source_type VARCHAR NOT NULL,
+      source_notebook_id VARCHAR,
+      mode VARCHAR DEFAULT 'discovery',
+      weights VARCHAR,
+      status VARCHAR DEFAULT 'running',
+      total_candidates INTEGER DEFAULT 0,
+      scored_count INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS refiner_results (
+      id VARCHAR PRIMARY KEY,
+      run_id VARCHAR NOT NULL,
+      paper_id VARCHAR NOT NULL,
+      title VARCHAR,
+      authors VARCHAR,
+      abstract VARCHAR,
+      year INTEGER,
+      venue VARCHAR,
+      doi VARCHAR,
+      cited_by_count INTEGER DEFAULT 0,
+      fwci DOUBLE,
+      seed_connectivity DOUBLE DEFAULT 0,
+      bridge_score DOUBLE DEFAULT 0,
+      citation_velocity DOUBLE DEFAULT 0,
+      ubiquity_penalty DOUBLE DEFAULT 0,
+      utility_score DOUBLE DEFAULT 0,
+      embedding_similarity DOUBLE,
+      llm_utility_score DOUBLE,
+      llm_rationale VARCHAR,
+      user_action VARCHAR DEFAULT 'pending',
+      FOREIGN KEY (run_id) REFERENCES refiner_runs(id)
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE INDEX IF NOT EXISTS idx_refiner_results_run_id ON refiner_results(run_id)
   ")
 
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
@@ -2020,6 +2070,7 @@ save_audit_results <- function(con, run_id, notebook_id, results_df) {
     year = as.integer(results_df$year %||% NA_integer_),
     doi = as.character(results_df$doi %||% NA_character_),
     cited_by_count = as.integer(results_df$cited_by_count %||% 0L),
+    fwci = as.numeric(results_df$fwci %||% NA_real_),
     backward_count = as.integer(results_df$backward_count %||% 0L),
     forward_count = as.integer(results_df$forward_count %||% 0L),
     collection_frequency = as.integer(results_df$collection_frequency %||% 0L),
@@ -2089,4 +2140,145 @@ check_audit_imports <- function(con, run_id, notebook_id) {
       AND work_id IN (SELECT paper_id FROM abstracts WHERE notebook_id = ?)
   ", list(run_id, notebook_id))
   invisible(TRUE)
+}
+
+# ---- Research Refiner DB Helpers ----
+
+#' Create a new refiner run
+#' @param con DuckDB connection
+#' @param anchor_type Character: "seeds", "intent", or "both"
+#' @param source_type Character: "notebook" or "fetch"
+#' @param anchor_intent Optional natural language intent
+#' @param anchor_seed_ids Optional JSON array of seed paper IDs
+#' @param source_notebook_id Optional source notebook ID
+#' @param mode Scoring mode: "discovery", "comprehensive", "emerging", "custom"
+#' @param weights JSON string of weight configuration
+#' @return Run ID
+create_refiner_run <- function(con, anchor_type, source_type,
+                                anchor_intent = NULL, anchor_seed_ids = NULL,
+                                source_notebook_id = NULL, mode = "discovery",
+                                weights = NULL) {
+  id <- uuid::UUIDgenerate()
+  dbExecute(con, "
+    INSERT INTO refiner_runs (id, anchor_type, anchor_intent, anchor_seed_ids,
+                               source_type, source_notebook_id, mode, weights)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, anchor_type,
+          anchor_intent %||% NA_character_,
+          anchor_seed_ids %||% NA_character_,
+          source_type,
+          source_notebook_id %||% NA_character_,
+          mode,
+          weights %||% NA_character_))
+  id
+}
+
+#' Update a refiner run status
+#' @param con DuckDB connection
+#' @param run_id Run ID
+#' @param status New status
+#' @param total_candidates Total candidates (optional)
+#' @param scored_count Scored count (optional)
+update_refiner_run <- function(con, run_id, status = NULL,
+                                total_candidates = NULL, scored_count = NULL) {
+  updates <- c()
+  params <- list()
+
+  if (!is.null(status)) {
+    updates <- c(updates, "status = ?")
+    params <- c(params, list(status))
+  }
+  if (!is.null(total_candidates)) {
+    updates <- c(updates, "total_candidates = ?")
+    params <- c(params, list(as.integer(total_candidates)))
+  }
+  if (!is.null(scored_count)) {
+    updates <- c(updates, "scored_count = ?")
+    params <- c(params, list(as.integer(scored_count)))
+  }
+
+  if (!is.null(status) && status %in% c("completed", "failed", "cancelled")) {
+    updates <- c(updates, "completed_at = CURRENT_TIMESTAMP")
+  }
+
+  if (length(updates) == 0) return(invisible(NULL))
+
+  sql <- paste0("UPDATE refiner_runs SET ", paste(updates, collapse = ", "), " WHERE id = ?")
+  params <- c(params, list(run_id))
+  dbExecute(con, sql, params)
+  invisible(NULL)
+}
+
+#' Save refiner results (bulk insert)
+#' @param con DuckDB connection
+#' @param run_id Refiner run ID
+#' @param results_df Data frame with scored candidates
+#' @return Number of rows inserted
+save_refiner_results <- function(con, run_id, results_df) {
+  if (is.null(results_df) || nrow(results_df) == 0) return(invisible(0L))
+
+  ids <- vapply(seq_len(nrow(results_df)), function(i) uuid::UUIDgenerate(), character(1))
+
+  insert_df <- data.frame(
+    id = ids,
+    run_id = run_id,
+    paper_id = as.character(results_df$paper_id),
+    title = as.character(results_df$title %||% NA_character_),
+    authors = as.character(results_df$authors %||% NA_character_),
+    abstract = as.character(results_df$abstract %||% NA_character_),
+    year = as.integer(results_df$year %||% NA_integer_),
+    venue = as.character(results_df$venue %||% NA_character_),
+    doi = as.character(results_df$doi %||% NA_character_),
+    cited_by_count = as.integer(results_df$cited_by_count %||% 0L),
+    fwci = as.numeric(results_df$fwci %||% NA_real_),
+    seed_connectivity = as.numeric(results_df$seed_connectivity %||% 0),
+    bridge_score = as.numeric(results_df$bridge_score %||% 0),
+    citation_velocity = as.numeric(results_df$citation_velocity %||% 0),
+    ubiquity_penalty = as.numeric(results_df$ubiquity_penalty %||% 0),
+    utility_score = as.numeric(results_df$utility_score %||% 0),
+    embedding_similarity = as.numeric(results_df$embedding_similarity %||% NA_real_),
+    llm_utility_score = NA_real_,
+    llm_rationale = NA_character_,
+    user_action = "pending",
+    stringsAsFactors = FALSE
+  )
+
+  dbWriteTable(con, "refiner_results", insert_df, append = TRUE)
+  invisible(nrow(insert_df))
+}
+
+#' Get refiner results for a run
+#' @param con DuckDB connection
+#' @param run_id Refiner run ID
+#' @return Data frame ordered by utility_score DESC
+get_refiner_results <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM refiner_results
+    WHERE run_id = ?
+    ORDER BY utility_score DESC
+  ", list(run_id))
+}
+
+#' Update user action on a refiner result
+#' @param con DuckDB connection
+#' @param result_id Result row ID
+#' @param action "accepted", "rejected", or "pending"
+update_refiner_result_action <- function(con, result_id, action) {
+  dbExecute(con, "
+    UPDATE refiner_results SET user_action = ? WHERE id = ?
+  ", list(action, result_id))
+  invisible(TRUE)
+}
+
+#' Get the latest refiner run
+#' @param con DuckDB connection
+#' @return Single-row data frame or NULL
+get_latest_refiner_run <- function(con) {
+  result <- dbGetQuery(con, "
+    SELECT * FROM refiner_runs
+    ORDER BY created_at DESC
+    LIMIT 1
+  ")
+  if (nrow(result) == 0) return(NULL)
+  result
 }

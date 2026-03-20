@@ -1,3 +1,6 @@
+# App version — single source of truth
+SERAPEUM_VERSION <- "12.0.0"
+
 #' Load configuration from YAML file or environment variables
 #' @param path Path to config file
 #' @return List of config values (from file, env vars, or NULL)

@@ -3,6 +3,17 @@ library(jsonlite)
 
 OPENALEX_BASE_URL <- "https://api.openalex.org"
 
+#' Perform an OpenAlex API request with optional verbose logging
+#' @param req httr2 request object
+#' @return httr2 response
+perform_openalex <- function(req) {
+  if (isTRUE(getOption("serapeum.verbose_api", FALSE))) {
+    url <- gsub("api_key=[^&]+", "api_key=<REDACTED>", req$url)
+    message("[OpenAlex API] ", url)
+  }
+  req_perform(req)
+}
+
 #' Classify an API error into user-friendly message with details
 #' @param e Error object or condition
 #' @param service Service name ("OpenAlex" or "OpenRouter")
@@ -184,7 +195,7 @@ log_oa_usage <- function(con, operation, endpoint = NA_character_, usage, cost_u
 #' @param operation Operation label for the log (default "request")
 #' @return Parsed JSON body (same as resp_body_json would return)
 perform_oa_request <- function(req, con = NULL, operation = "request") {
-  resp <- req_perform(req)
+  resp <- perform_openalex(req)
   body <- resp_body_json(resp)
 
   # Parse usage headers and log if connection provided

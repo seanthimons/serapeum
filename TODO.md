@@ -4,6 +4,17 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 ---
 
+## Pending PRs (Resolve Immediately)
+
+- [ ] PR #168: feat: v14.0 citation audit filters + network node sizing [open] — v14-citation-network-evolution
+- [ ] PR #163: feat: v17.0 PDF image pipeline [open] — v17-pdf-image-pipeline
+- [ ] PR #162: feat: v15 AI Infrastructure [open] — v15-ai-infrastructure
+- [ ] PR #161: feat: v13 Search & Discovery — Research Refiner + keyword filtering [open] — v13-search-discovery
+- [ ] PR #156: feat: v12 UX Polish & Onboarding [open] — v12-ux-polish-onboarding
+- [ ] PR #155: fix: restore paper count status line [open] — fix/paper-count-status
+
+---
+
 ## Milestone Execution Notes
 
 - **v12 through v16 are fully parallel** — no cross-milestone dependencies; any can be started independently
@@ -33,9 +44,13 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#151](https://github.com/seanthimons/serapeum/issues/151) | Duplicate keyword ban/keep behavior to per-abstract keywords | Medium | Medium |
+| [#176](https://github.com/seanthimons/serapeum/issues/176) | Research Refiner: add index on refiner_results(run_id) | Low | Medium |
+| [#174](https://github.com/seanthimons/serapeum/issues/174) | Research Refiner: batch accept/reject uses per-row DB writes | Low | Medium |
+| [#173](https://github.com/seanthimons/serapeum/issues/173) | Research Refiner: results UI silently caps at 100 papers | Low | Medium |
+| ~~[#151](https://github.com/seanthimons/serapeum/issues/151)~~ | ~~Duplicate keyword ban/keep behavior to per-abstract keywords~~ | ~~Medium~~ | ~~Medium~~ |
 | ~~[#125](https://github.com/seanthimons/serapeum/issues/125)~~ | ~~Update file/document filter types reported by OpenAlex~~ | ~~Medium~~ | ~~Medium~~ |
-| [#11](https://github.com/seanthimons/serapeum/issues/11) | Recursive abstract searching | High | High |
+| ~~[#11](https://github.com/seanthimons/serapeum/issues/11)~~ | ~~Recursive abstract searching~~ | ~~High~~ | ~~High~~ |
+| ~~[#160](https://github.com/seanthimons/serapeum/issues/160)~~ | ~~Research Refiner: start from notebook option~~ | ~~Medium~~ | ~~High~~ |
 | [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
 
 ---
@@ -46,8 +61,8 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#145](https://github.com/seanthimons/serapeum/issues/145) | Citation audit filters and controls (sorting, filtering by year/citation/FWCI) | Medium | Medium |
-| [#135](https://github.com/seanthimons/serapeum/issues/135) | Changing citation size by new calculation metric | High | Medium |
+| ~~[#145](https://github.com/seanthimons/serapeum/issues/145)~~ | ~~Citation audit filters and controls (sorting, filtering by year/citation/FWCI)~~ | ~~Medium~~ | ~~Medium~~ |
+| ~~[#135](https://github.com/seanthimons/serapeum/issues/135)~~ | ~~Changing citation size by new calculation metric~~ | ~~High~~ | ~~Medium~~ |
 | [#84](https://github.com/seanthimons/serapeum/issues/84) | Export from network graph to abstract search + vice versa | High | Medium |
 | [#126](https://github.com/seanthimons/serapeum/issues/126) | Partial BFS graph as intentional visualization mode | Medium | Medium |
 | ~~[#6](https://github.com/seanthimons/serapeum/issues/6)~~ | ~~Timeline heatmap~~ | ~~Medium~~ | ~~Low~~ |
@@ -229,6 +244,11 @@ High-effort, high-payoff features for the future.
 - [x] [#125](https://github.com/seanthimons/serapeum/issues/125): Update file/document filter types reported by OpenAlex (v13.0)
 - [x] [#6](https://github.com/seanthimons/serapeum/issues/6): Timeline heatmap (v14.0)
 - [x] feat: Community-aware edge weighting for citation network cluster separation
+- [x] [#151](https://github.com/seanthimons/serapeum/issues/151): Per-abstract keyword ban/keep filtering (v13.0)
+- [x] [#11](https://github.com/seanthimons/serapeum/issues/11): Recursive abstract searching — Research Refiner with Tier 1 citation scoring + Tier 2 semantic relevance via ragnar BM25+VSS (v13.0)
+- [x] [#160](https://github.com/seanthimons/serapeum/issues/160): Research Refiner "From Notebook" anchor type — use entire notebook as seed set (v13.0)
+- [x] [#145](https://github.com/seanthimons/serapeum/issues/145): Citation audit filters and controls — ASC/DESC sort, FWCI sort/filter, year range, min citations/frequency (v14.0)
+- [x] [#135](https://github.com/seanthimons/serapeum/issues/135): Node sizing by citations, age-weighted, FWCI, or connectivity + FWCI in network tooltips (v14.0)
 - [x] [#157](https://github.com/seanthimons/serapeum/issues/157): OA request usage tracking (v15.0)
 - [x] [#142](https://github.com/seanthimons/serapeum/issues/142): Advanced Retrieval Pipeline — contextual headers, stale detection, query reformulation (v15.0)
 - [x] [#48](https://github.com/seanthimons/serapeum/issues/48): Tighter RAG document retrieval controls (v15.0)

@@ -40,6 +40,7 @@ COST_OPERATION_META <- list(
   "lit_review_table" = list(label = "Literature Review Table", slot = "quality", icon_fun = "icon_table", accent_class = "text-success"),
   "methodology_extractor" = list(label = "Methodology Extractor", slot = "quality", icon_fun = "icon_flask", accent_class = "text-danger"),
   "gap_analysis" = list(label = "Gap Analysis", slot = "quality", icon_fun = "icon_search", accent_class = "text-info"),
+  "refiner_eval" = list(label = "Research Refiner", slot = "quality", icon_fun = "icon_funnel", accent_class = "text-warning"),
   "openalex_search" = list(label = "OA Search", slot = NA, icon_fun = "icon_search", accent_class = "text-success"),
   "openalex_fetch" = list(label = "OA Fetch", slot = NA, icon_fun = "icon_download", accent_class = "text-success"),
   "openalex_topics" = list(label = "OA Topics", slot = "fast", icon_fun = "icon_layer_group", accent_class = "text-success"),

@@ -16,6 +16,7 @@ Upload PDFs and chat with your documents using RAG (Retrieval-Augmented Generati
 - **Chat with citations** - Get answers with document name and page number references
 - **Markdown rendering** - Assistant responses display with formatted headers, tables, lists, and code blocks
 - **One-click presets** - Summarize, Key Points, Study Guide, Outline, and more
+- **Synthesis progress feedback** - Status modal with rotating stage indicators for long-running presets
 - **Chat export** - Download conversations as Markdown (.md) or styled HTML (.html)
 - **Full-text search** - Vector embeddings for semantic search across documents
 - **Slide generation** - Generate Quarto RevealJS presentations from your research
@@ -25,6 +26,7 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
 
 - **Smart search** - Query across titles, abstracts, or full text
 - **Document type filters** - Filter by article, review, preprint, book, dissertation, dataset
+- **Keyword filters** - Ban or keep keywords from the global panel or directly on any abstract card; promoted keywords appear in the global chip bin
 - **Quality filters** - Exclude retracted papers, flag predatory journals/publishers
 - **Citation filters** - Set minimum citation thresholds
 - **Rich metadata display**:
@@ -53,7 +55,9 @@ Explore citation relationships through interactive network graphs.
 - **Multi-seed networks** - Seed from all papers in a notebook or BibTeX import
 - **Overlap detection** - Papers cited by multiple seeds highlighted as diamonds
 - **Shape encoding** - Stars (seeds), diamonds (overlap), dots (regular) with year color gradient
+- **Node sizing modes** - Size nodes by citations, age-weighted citations, FWCI, or connectivity (degree)
 - **Missing papers discovery** - Find frequently-cited papers not in your collection, import with one click
+- **Audit filters** - Sort (ASC/DESC) by frequency, citations, year, or FWCI; filter by year range, min citations, min FWCI, min frequency
 - **Directional control** - Explore forward citations, backward references, or both
 - **Configurable depth** - Traverse 1-3 hops from seed papers
 - **Node cap** - Per-seed node limits to keep graphs readable
@@ -62,6 +66,18 @@ Explore citation relationships through interactive network graphs.
 - **Color palettes** - Five viridis color schemes with live-switching
 - **Save & reload** - Persist networks to database with layout positions preserved
 - **Collapsible legend** - Minimizable legend with shape key and gradient preview
+
+### Research Refiner
+Score, rank, and curate papers against your research focus.
+
+- **Multiple anchor types** - Start from seed papers, a research intent, an entire notebook, or a combination
+- **Tier 1 scoring** - Citation velocity, FWCI, seed connectivity, bridge score, ubiquity penalty
+- **Tier 2 semantic scoring** - BM25 + vector similarity via ragnar against embedded notebooks
+- **Scoring modes** - Discovery (novel connections), Comprehensive (balanced), Emerging (recent high-velocity)
+- **Advanced weights** - Fine-tune component weights with sliders; auto-normalized to sum to 1.0
+- **Curation workflow** - Accept/reject individual papers, batch accept top N, reject bottom half
+- **Import results** - Send curated papers to an existing or new notebook
+- **Notebook anchor** - Use all papers in a notebook as seeds, fetch related candidates from OpenAlex with configurable per-seed limits
 
 ### Dark Mode
 
@@ -95,12 +111,20 @@ Flexible model routing with multi-provider support.
 - **Zero-cost local models** - Local provider calls tracked at $0 with graceful handling of missing usage tokens
 - **Embedding dimension detection** - Warns when switching to a model with different dimensions
 
+### Onboarding
+
+- **Guided welcome wizard** - 5-step workflow modal for new users (Set Up → Find → Collect → Analyze → Audit)
+- **Welcome landing page** - Persistent home screen with live setup status indicators and action buttons
+- **Contextual help text** - Each sidebar section shows a brief description on first load
+- **Version tracking** - Version badge in the title bar, What's New section on the About page
+
 ### Settings & Configuration
 
 - **API key validation** - Visual indicators show if keys are configured and working
 - **Model selection** - Choose quality, fast, and embedding models with AA benchmark enrichment
 - **Providers** - Manage multiple OpenAI-compatible API endpoints
 - **Quality data downloads** - Fetch predatory journal lists and retraction databases
+- **Verbose API logging** - Toggle to log OpenAlex API calls to the R console for debugging
 
 ### Local-First Architecture
 
@@ -194,7 +218,7 @@ Open http://localhost:8080 in your browser.
 
 - DuckDB database is created automatically
 - Quality data (predatory journals, retraction watch, OpenAlex topics) is seeded from bundled RDS files — no download needed
-- Startup wizard guides you through your first search
+- Welcome wizard guides you through setup, search, and analysis in 5 steps
 
 ## Usage
 
@@ -275,6 +299,7 @@ serapeum/
 │   ├── cost_tracking.R   # API cost tracking and pricing
 │   ├── theme_catppuccin.R # Catppuccin Latte/Mocha dark mode CSS
 │   ├── citation_network.R # Citation graph data and layout
+│   ├── citation_audit.R  # Citation audit business logic
 │   ├── quality_filter.R  # Predatory/retraction filtering + auto-seed
 │   ├── interrupt.R       # Graceful request cancellation
 │   ├── utils_doi.R       # DOI normalization and citation keys
@@ -283,6 +308,7 @@ serapeum/
 │   ├── utils_filters.R   # Search filter utilities
 │   ├── mod_about.R       # About page
 │   ├── mod_citation_network.R  # Network visualization UI
+│   ├── mod_citation_audit.R   # Citation audit UI
 │   ├── mod_cost_tracker.R      # Cost tracking dashboard
 │   ├── mod_document_notebook.R
 │   ├── mod_search_notebook.R

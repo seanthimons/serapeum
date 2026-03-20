@@ -257,15 +257,7 @@ build_cost_operation_table <- function(df) {
 
 build_cost_tooltip_panel_style <- function(theme_mode) {
   base_style <- paste(
-    "position: absolute;",
-    "top: 24px;",
-    "right: 24px;",
-    "left: auto;",
-    "max-width: 360px;",
-    "width: calc(100% - 48px);",
-    "z-index: 1050;",
-    "box-sizing: border-box;",
-    "overflow: hidden;"
+    "box-sizing: border-box;"
   )
 
   if (identical(theme_mode, "dark")) {
@@ -378,19 +370,19 @@ mod_cost_tracker_ui <- function(id) {
         ),
         div(
           class = "small text-muted mb-2",
-          "Click a stack segment for operation detail, or click a day to inspect daily usage."
+          "Click a segment for detail, again for day view, once more to dismiss."
         ),
         div(
-          class = "cost-history-chart-wrap",
-          plotOutput(
-            ns("cost_history_plot"),
-            height = "280px",
-            click = clickOpts(ns("cost_history_click"), clip = TRUE)
-          ),
+          class = "cost-history-row",
           div(
-            class = "cost-history-tooltip-layer",
-            uiOutput(ns("cost_history_tooltip"))
-          )
+            class = "cost-history-chart-wrap",
+            plotOutput(
+              ns("cost_history_plot"),
+              height = "280px",
+              click = clickOpts(ns("cost_history_click"), clip = TRUE)
+            )
+          ),
+          uiOutput(ns("cost_history_tooltip"))
         ),
         hr(),
         h6("Cost by Operation"),
@@ -591,19 +583,36 @@ mod_cost_tracker_server <- function(id, con_r, session_id_r, config_r = NULL, th
       chart <- cost_history_chart()
       req(!is.null(click), nrow(chart) > 0)
 
-      segment_row <- locate_cost_history_segment(chart, click)
-      if (!is.null(segment_row)) {
-        selected_cost_segment(list(mode = "segment", date = segment_row$date[1], segment_row = segment_row))
-        return()
-      }
+      current <- selected_cost_segment()
 
+      # Determine which date was clicked (segment or day)
+      segment_row <- locate_cost_history_segment(chart, click)
       day_row <- locate_cost_history_day(chart, click)
-      if (is.null(day_row)) {
+      clicked_date <- if (!is.null(segment_row)) segment_row$date[1]
+                      else if (!is.null(day_row)) day_row$date[1]
+                      else NULL
+
+      if (is.null(clicked_date)) {
         selected_cost_segment(NULL)
         return()
       }
 
-      selected_cost_segment(list(mode = "day", date = day_row$date[1]))
+      # If clicking the same date, cycle: segment -> day -> dismiss
+      if (!is.null(current) && identical(as.character(current$date), as.character(clicked_date))) {
+        if (identical(current$mode, "segment")) {
+          selected_cost_segment(list(mode = "day", date = clicked_date))
+        } else {
+          selected_cost_segment(NULL)
+        }
+        return()
+      }
+
+      # New date: show segment if available, otherwise day
+      if (!is.null(segment_row)) {
+        selected_cost_segment(list(mode = "segment", date = clicked_date, segment_row = segment_row))
+      } else {
+        selected_cost_segment(list(mode = "day", date = clicked_date))
+      }
     })
 
     output$cost_history_tooltip <- renderUI({

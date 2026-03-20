@@ -269,22 +269,36 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   response
 }
 
-#' Generate preset content (summary, key points, etc.)
-#' @param con Database connection
-#' @param config App config
-#' @param notebook_id Notebook ID
-#' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline")
-#' @param session_id Optional Shiny session ID for cost logging (default NULL)
-#' @return Generated content
-generate_preset <- function(con, config, notebook_id, preset_type, session_id = NULL) {
+#' Get the task instruction for a preset type
+#' @param preset_type Preset type string
+#' @return Task instruction string, or NULL if unknown
+get_preset_instruction <- function(preset_type) {
   presets <- list(
     summarize = "Provide a comprehensive summary of all the documents. Highlight the main themes, key findings, and important conclusions. Organize your summary with clear sections.",
     keypoints = "Extract the key points from these documents as a bulleted list. Focus on the most important facts, findings, arguments, and conclusions. Group related points together.",
     studyguide = "Create a study guide based on these documents. Include:\n1. Key concepts and definitions\n2. Important facts and figures\n3. Main arguments and their supporting evidence\n4. Potential exam questions with brief answers",
-    outline = "Create a structured outline of the main topics covered in these documents. Use hierarchical headings (I, A, 1, a) to organize the content logically. Include brief descriptions under each heading."
+    outline = "Create a structured outline of the main topics covered in these documents. Use hierarchical headings (I, A, 1, a) to organize the content logically. Include brief descriptions under each heading.",
+    overview = "Generate an overview with a summary and thematically organized key points from the research sources.",
+    conclusions = "Synthesize the conclusions, limitations, and future research directions from these papers. Identify common themes and divergences across studies.",
+    lit_review = "Create a literature review comparison table with columns: Paper, Year, Methods, Key Findings, Limitations. Cover all papers in the collection.",
+    methodology_extractor = "Extract and compare research methodologies across these papers. For each paper, identify: study design, data sources, sample/population, analytical methods, and key variables.",
+    gap_analysis = "Identify research gaps by analyzing what topics, methods, and questions are NOT covered by the current collection. Suggest specific future research directions."
   )
+  presets[[preset_type]]
+}
 
-  prompt <- presets[[preset_type]]
+#' Generate preset content (summary, key points, etc.)
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline",
+#'   "overview", "conclusions", "lit_review", "methodology_extractor", "gap_analysis")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @param custom_prompt Optional custom prompt to override the default preset instruction
+#' @return Generated content
+generate_preset <- function(con, config, notebook_id, preset_type, session_id = NULL,
+                            custom_prompt = NULL) {
+  prompt <- custom_prompt %||% get_preset_instruction(preset_type)
   if (is.null(prompt)) {
     return(sprintf("Unknown preset type: %s", preset_type))
   }

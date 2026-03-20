@@ -271,6 +271,11 @@ icon_diagram <- function(...) shiny::icon("diagram-project", ...)
 #' @return Icon tag
 icon_audit <- function(...) shiny::icon("magnifying-glass-chart", ...)
 
+#' Filter/funnel icon (research refiner)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_funnel <- function(...) shiny::icon("filter", ...)
+
 #' File import icon (import papers)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
@@ -795,6 +800,29 @@ catppuccin_dark_css <- function() {
 
 [data-bs-theme="dark"] .shiny-progress-notification .progress-text {
   color: ', MOCHA$text, ';
+}
+
+/* V12: Modal dark mode — synthesis progress and welcome wizard */
+[data-bs-theme="dark"] .modal-content {
+  background-color: ', MOCHA$base, ' !important;
+  color: ', MOCHA$text, ' !important;
+  border-color: ', MOCHA$surface1, ' !important;
+}
+
+[data-bs-theme="dark"] .modal-header {
+  border-bottom-color: ', MOCHA$surface1, ' !important;
+}
+
+/* V12: Prompt editor details/summary dark mode */
+[data-bs-theme="dark"] details.mb-2 > .border {
+  border-color: ', MOCHA$surface1, ' !important;
+  background-color: ', MOCHA$surface0, ';
+}
+
+/* V12: Version badge dark mode — use subtle surface color */
+[data-bs-theme="dark"] .badge.bg-secondary {
+  background-color: ', MOCHA$surface1, ' !important;
+  color: ', MOCHA$subtext1, ' !important;
 }
 ')
 }
