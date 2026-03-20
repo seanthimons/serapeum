@@ -231,12 +231,23 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
         div(
           id = ns("customize_panel"),
           class = "collapse mt-2 p-3 border rounded bg-body-secondary",
-          # Custom message handler for swatch updates from server
+          # Custom message handlers for server-driven updates
           tags$script(HTML(
             "Shiny.addCustomMessageHandler('update_color_swatch', function(msg) {
                for (var i = 0; i < msg.ids.length; i++) {
                  var el = document.getElementById(msg.ids[i]);
                  if (el) el.value = msg.values[i];
+               }
+             });
+             Shiny.addCustomMessageHandler('focus_element', function(id) {
+               var el = document.getElementById(id);
+               if (el) el.focus();
+             });
+             Shiny.addCustomMessageHandler('collapse_panel', function(id) {
+               var el = document.getElementById(id);
+               if (el && el.classList.contains('show')) {
+                 var bsCollapse = bootstrap.Collapse.getInstance(el);
+                 if (bsCollapse) { bsCollapse.hide(); } else { new bootstrap.Collapse(el).hide(); }
                }
              });"
           )),
@@ -603,6 +614,100 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       refresh_theme_dropdown(selected = new_sel)
     })
 
+    # Theme pre-fill: when theme dropdown changes, populate all picker fields
+    observeEvent(input$theme, {
+      sel <- input$theme
+      req(sel)
+
+      if (sel %in% names(BUILTIN_THEME_SWATCHES)) {
+        sw  <- BUILTIN_THEME_SWATCHES[[sel]]
+        bg  <- sw$bg
+        fg  <- sw$fg
+        acc <- sw$accent
+        lnk <- sw$accent  # fallback: link = accent for built-ins
+        fnt <- "Source Sans Pro"
+      } else if (nzchar(sel)) {
+        path <- file.path("data/themes", sel)
+        if (file.exists(path)) {
+          scss_text <- paste(readLines(path, warn = FALSE), collapse = "\n")
+          full <- parse_scss_colors_full(scss_text)
+          bg  <- full$bg
+          fg  <- full$fg
+          acc <- full$accent
+          lnk <- full$link
+          fnt <- full$font
+        } else {
+          return()
+        }
+      } else {
+        return()
+      }
+
+      updateTextInput(session, "bg_hex",     value = bg)
+      updateTextInput(session, "text_hex",   value = fg)
+      updateTextInput(session, "accent_hex", value = acc)
+      updateTextInput(session, "link_hex",   value = lnk)
+      updateSelectInput(session, "font",     selected = fnt)
+
+      # Update native color swatches via JS (Shiny doesn't bind raw <input type="color">)
+      session$sendCustomMessage("update_color_swatch", list(
+        ids    = list(ns("bg_swatch"), ns("text_swatch"), ns("accent_swatch"), ns("link_swatch")),
+        values = list(tolower(bg), tolower(fg), tolower(acc), tolower(lnk))
+      ))
+    }, ignoreInit = TRUE)
+
+    # Swatch dot live update: rebuild dropdown choices with overridden colors for current theme
+    observe({
+      bg_val  <- input$bg_hex
+      fg_val  <- input$text_hex
+      acc_val <- input$accent_hex
+      req(bg_val, fg_val, acc_val)
+
+      is_hex <- function(v) grepl("^#[0-9A-Fa-f]{6}$", v)
+      if (!all(sapply(c(bg_val, fg_val, acc_val), is_hex))) return()
+
+      sel <- isolate(input$theme)
+      req(sel)
+
+      custom <- list_custom_themes()
+      df <- build_theme_choices_df(custom)
+      row_idx <- which(df$value == sel)
+      if (length(row_idx) == 1) {
+        df$bg[row_idx]     <- toupper(bg_val)
+        df$fg[row_idx]     <- toupper(fg_val)
+        df$accent[row_idx] <- toupper(acc_val)
+      }
+      updateSelectizeInput(session, "theme", choices = df, selected = sel, server = TRUE)
+    })
+
+    # Save custom theme: write .scss, auto-select, collapse panel, show toast
+    observeEvent(input$save_custom_theme, {
+      name <- trimws(input$custom_theme_name)
+      if (!nzchar(name)) {
+        # Focus the name field via JS
+        session$sendCustomMessage("focus_element", ns("custom_theme_name"))
+        return()
+      }
+
+      path <- generate_custom_scss(
+        name         = name,
+        bg_color     = input$bg_hex,
+        text_color   = input$text_hex,
+        accent_color = input$accent_hex,
+        link_color   = input$link_hex,
+        font_name    = input$font
+      )
+
+      if (!is.null(path)) {
+        refresh_theme_dropdown(selected = basename(path))
+        showNotification(paste0("Theme '", name, "' saved"), type = "message")
+        # Collapse the panel via JS
+        session$sendCustomMessage("collapse_panel", ns("customize_panel"))
+      } else {
+        showNotification("Could not save theme. Check file permissions.", type = "error")
+      }
+    })
+
     # Handle generation
     observeEvent(input$generate, {
       req(input$selected_docs)
@@ -618,6 +723,9 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       }
 
       # Resolve theme vs custom_scss based on selected value
+      # Theme resolution: if a picker-generated custom theme was saved and auto-selected,
+      # it appears as a custom .scss filename in input$theme (same path as uploaded themes).
+      # No special handling needed — the existing custom_scss logic covers it.
       selected_theme <- input$theme
       if (!is.null(selected_theme) && selected_theme %in% names(BUILTIN_THEME_SWATCHES)) {
         theme_val      <- selected_theme
