@@ -100,56 +100,51 @@ build_slides_prompt <- function(chunks, options, figures = NULL) {
     # Figure integration instructions (only when figures provided)
     if (!is.null(figures) && nrow(figures) > 0) paste0(
       "\n\nFigure Integration:\n",
-      "- You have access to extracted figures from the source documents (listed in the user prompt).\n",
-      "- Each figure has an ID (a UUID). Reference using: ![caption](uuid.png){attributes}\n",
-      "- Do NOT add any prefix — use the bare UUID with .png extension.\n",
-      "- Do NOT reference figure IDs that don't appear in the Available Figures list.\n",
-      "- Each figure in the manifest has a shape class and a hint (hero/supporting/reference).\n\n",
-      "LAYOUT PATTERNS — choose the pattern matching each figure's shape and hint.\n",
-      "IMPORTANT: Vary your layouts! Do NOT use the same pattern for every figure.\n\n",
-      "**Pattern 1: Hero Image Slide** (for hint=hero, or wide/portrait figures)\n",
-      "The figure IS the slide. Title + image only. Explanation in speaker notes or NEXT slide.\n\n",
-      "## Embedding Visualizations\n\n",
-      "![PCA, UMAP, and VAE comparison](uuid.png){width=\"90%\" fig-align=\"center\"}\n\n",
+      "- Figures are listed in the user prompt with IDs, shapes, and a >>> Recommended layout.\n",
+      "- Reference figures using: ![caption](uuid.png){attributes}\n",
+      "- Use the bare UUID with .png extension. Do NOT add prefixes.\n",
+      "- Do NOT reference figure IDs not in the Available Figures list.\n\n",
+      "CRITICAL: Each figure has a '>>> Recommended:' line. You MUST follow it.\n\n",
+      "LAYOUT PATTERNS:\n\n",
+      "Pattern 1 — Hero Image Slide (figure IS the slide, title + image only):\n",
+      "## Title\n\n",
+      "![Caption](uuid.png){width=\"90%\" fig-align=\"center\"}\n\n",
       "::: {.notes}\n",
-      "This figure shows three distinct clustering patterns...\n",
+      "Explanation goes here, not on the slide.\n",
       ":::\n\n",
-      "**Pattern 2: Two-Column Layout** (for hint=supporting with square/landscape figures)\n",
-      "Figure alongside bullet points in a 50/50 or 40/60 split.\n\n",
-      "## Classification Performance\n\n",
+      "Pattern 2 — Two-Column (figure beside bullets, 50/50 split):\n",
+      "## Title\n\n",
       ":::: {.columns}\n",
       "::: {.column width=\"50%\"}\n\n",
-      "- VAE shows highest MCC scores\n",
-      "- PCA filters noise effectively\n",
-      "- UMAP captures local topology\n\n",
+      "- Bullet point one\n",
+      "- Bullet point two\n\n",
       ":::\n",
       "::: {.column width=\"50%\"}\n\n",
-      "![MCC scores by classifier](uuid.png){width=\"100%\"}\n\n",
+      "![Caption](uuid.png){width=\"100%\"}\n\n",
       ":::\n",
       "::::\n\n",
-      "**Pattern 3: Height-Constrained Column** (for portrait/tall figures)\n",
-      "Constrain height and pair with text in columns.\n\n",
-      "## Prediction Calibration\n\n",
+      "Pattern 3 — Height-Constrained Column (for tall/portrait figures):\n",
+      "## Title\n\n",
       ":::: {.columns}\n",
       "::: {.column width=\"55%\"}\n\n",
-      "- Uncertainty-aware models provide calibrated confidence\n",
-      "- Distance-based calibration aligns RMU with error\n\n",
+      "- Bullet point one\n",
+      "- Bullet point two\n\n",
       ":::\n",
       "::: {.column width=\"45%\"}\n\n",
-      "![Calibration results](uuid.png){height=\"500px\"}\n\n",
+      "![Caption](uuid.png){height=\"500px\"}\n\n",
       ":::\n",
       "::::\n\n",
-      "**Pattern 4: Full-Width Below Heading** (for landscape figures with hint=supporting)\n\n",
-      "## Neighborhood Preservation\n\n",
-      "![Average preservation metrics](uuid.png){width=\"85%\" fig-align=\"center\"}\n\n",
-      "- Nonlinear methods outperform PCA across all feature sets\n\n",
-      "**Pattern 5: Skip** (for hint=reference figures)\n",
-      "Dense methodology diagrams or supplementary — do not embed, mention in notes if relevant.\n\n",
-      "RULES:\n",
-      "- Use Pattern 1 (hero) for the most impactful, visually striking figures.\n",
-      "- Use Pattern 2 or 3 for figures that support a point alongside text.\n",
-      "- wide/landscape → Pattern 1 or 4. square → Pattern 2. portrait/tall → Pattern 1 or 3.\n",
-      "- Not every slide needs a figure. Use figures to reinforce key points, not fill space.\n",
+      "Pattern 4 — Full-Width Below Heading (figure + bullets on same slide):\n",
+      "## Title\n\n",
+      "![Caption](uuid.png){width=\"85%\" fig-align=\"center\"}\n\n",
+      "- Key takeaway one\n",
+      "- Key takeaway two\n\n",
+      "HARD RULES:\n",
+      "- ALWAYS follow the >>> Recommended layout for each figure.\n",
+      "- NEVER put wide or landscape figures inside a column layout.\n",
+      "- NEVER use {width=\"90%\"} on portrait or tall figures — use {height=\"500px\"} in a column.\n",
+      "- Vary your layouts across slides — do not repeat the same pattern for every figure.\n",
+      "- Not every slide needs a figure. Only include figures that reinforce key points.\n",
       "- Use the figure's caption or description for the ![caption] alt text."
     ) else ""
   )
@@ -638,6 +633,33 @@ extract_description_summary <- function(description) {
   trimws(parts[1])
 }
 
+#' Recommend a layout pattern based on aspect class and presentation hint
+#' @param aspect_class Character from classify_aspect_ratio()
+#' @param hint Character: "hero", "supporting", "reference", or NULL
+#' @return Character string like "Pattern 1 (hero slide)" with instruction
+recommend_layout <- function(aspect_class, hint = NULL) {
+  hint <- hint %||% "supporting"
+
+  # Reference figures should always be skipped
+
+  if (hint == "reference") return("SKIP — do not embed this figure")
+
+  # Hero hint overrides shape-based defaults
+  if (hint == "hero") {
+    return("Pattern 1 (hero slide — figure IS the slide, no bullets)")
+  }
+
+  # Shape-based recommendations for "supporting" hint
+  switch(aspect_class,
+    "wide"      = "Pattern 1 or 4 (full-width — do NOT put in a column)",
+    "landscape"  = "Pattern 4 (full-width below heading with bullets underneath)",
+    "square"     = "Pattern 2 (two-column — figure beside bullet points)",
+    "portrait"   = "Pattern 3 (height-constrained in column — use {height=\"500px\"})",
+    "tall"       = "Pattern 3 (height-constrained in column — use {height=\"400px\"})",
+    "Pattern 2 (two-column)"
+  )
+}
+
 #' Build a figure manifest string for the slide generation LLM
 #' @param figures Data frame from db_get_slide_figures() with added doc_name column
 #' @param max_figures Maximum figures to include in manifest (default 15)
@@ -674,6 +696,9 @@ build_figure_manifest <- function(figures, max_figures = 15L) {
     if (!is.null(hint)) {
       parts <- paste0(parts, "\nHint: ", hint)
     }
+    # Add recommended layout based on shape + hint
+    layout_rec <- recommend_layout(aspect_class, hint)
+    parts <- paste0(parts, "\n>>> Recommended: ", layout_rec)
     if (!is.null(fig$image_type) && !is.na(fig$image_type) && nchar(fig$image_type) > 0) {
       parts <- paste0(parts, "\nType: ", fig$image_type)
     }

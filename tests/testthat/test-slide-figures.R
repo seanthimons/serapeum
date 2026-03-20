@@ -65,6 +65,33 @@ test_that("classify_aspect_ratio handles edge cases", {
 })
 
 # =============================================================================
+# recommend_layout()
+# =============================================================================
+
+test_that("recommend_layout returns skip for reference hint", {
+  expect_true(grepl("SKIP", recommend_layout("wide", "reference")))
+  expect_true(grepl("SKIP", recommend_layout("square", "reference")))
+})
+
+test_that("recommend_layout returns hero for hero hint regardless of shape", {
+  expect_true(grepl("Pattern 1", recommend_layout("square", "hero")))
+  expect_true(grepl("Pattern 1", recommend_layout("tall", "hero")))
+})
+
+test_that("recommend_layout maps shapes correctly for supporting hint", {
+  expect_true(grepl("Pattern 1 or 4", recommend_layout("wide", "supporting")))
+  expect_true(grepl("Pattern 4", recommend_layout("landscape", "supporting")))
+  expect_true(grepl("Pattern 2", recommend_layout("square", "supporting")))
+  expect_true(grepl("Pattern 3", recommend_layout("portrait", "supporting")))
+  expect_true(grepl("Pattern 3", recommend_layout("tall", "supporting")))
+})
+
+test_that("recommend_layout defaults hint to supporting when NULL", {
+  expect_true(grepl("Pattern 2", recommend_layout("square", NULL)))
+  expect_true(grepl("Pattern 4", recommend_layout("landscape")))
+})
+
+# =============================================================================
 # extract_description_summary()
 # =============================================================================
 
@@ -202,6 +229,19 @@ test_that("build_figure_manifest includes presentation hint", {
   manifest <- build_figure_manifest(figs)
   expect_true(grepl("Hint: hero", manifest))
   expect_true(grepl("Hint: supporting", manifest))
+})
+
+test_that("build_figure_manifest includes recommended layout", {
+  figs <- make_test_figures(3)
+  # fig_1: 1200x400 = wide, hint = hero → Pattern 1
+  # fig_2: 600x500 = landscape, hint = supporting → Pattern 4
+  # fig_3: 300x800 = tall, hint = reference → SKIP
+  figs$presentation_hint <- c("hero", "supporting", "reference")
+  manifest <- build_figure_manifest(figs)
+  expect_true(grepl(">>> Recommended:", manifest))
+  expect_true(grepl("Pattern 1", manifest))  # hero override
+  expect_true(grepl("Pattern 4", manifest))  # landscape + supporting
+  expect_true(grepl("SKIP", manifest))       # reference
 })
 
 # =============================================================================
@@ -377,12 +417,15 @@ test_that("build_slides_prompt with figures adds layout patterns to system promp
 
   prompt <- build_slides_prompt(chunks, options, figures = figs)
   expect_true(grepl("Figure Integration", prompt$system))
-  # Should have concrete layout pattern examples
-  expect_true(grepl("Pattern 1: Hero Image Slide", prompt$system))
-  expect_true(grepl("Pattern 2: Two-Column Layout", prompt$system))
-  expect_true(grepl("Pattern 3: Height-Constrained Column", prompt$system))
-  expect_true(grepl("Pattern 4: Full-Width Below Heading", prompt$system))
-  expect_true(grepl("Pattern 5: Skip", prompt$system))
+  # Should have layout patterns
+  expect_true(grepl("Pattern 1", prompt$system))
+  expect_true(grepl("Pattern 2", prompt$system))
+  expect_true(grepl("Pattern 3", prompt$system))
+  expect_true(grepl("Pattern 4", prompt$system))
+  # Should have hard rules enforcing recommendations
+  expect_true(grepl("MUST follow", prompt$system))
+  expect_true(grepl("NEVER put wide", prompt$system))
+  expect_true(grepl("NEVER use.*width.*90.*portrait", prompt$system))
   # Should instruct to vary layouts
   expect_true(grepl("Vary your layouts", prompt$system))
 })
