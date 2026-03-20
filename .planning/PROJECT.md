@@ -241,10 +241,10 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 
 **Latest shipped:** v11.0 Search Notebook UX (2026-03-11)
 **Total milestones:** 14 shipped (v1.0–v11.0)
-**Total phases:** 59 complete across 97 plans
+**Total phases:** 61 complete across 101 plans
 **Current:** v16.0 Content & Output Quality
 
-**Phase 59 complete:** Theme swatches, upload, and management — R/themes.R helper module (11 built-in RevealJS themes with swatch colors, SCSS parsing, validation), selectizeInput with color swatch dots, custom theme upload/delete, absolute-path fix for Quarto rendering.
+**Phase 61 complete:** AI theme generation — users describe a theme in plain language, LLM returns validated JSON (5 fields: bg, fg, accent, link, font), hex colors validated, font matched against curated list with fallback, values populate color pickers for manual tweaking before save.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -252,4 +252,4 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-19 after phase 59 completion*
+*Last updated: 2026-03-20 after phase 61 completion*
