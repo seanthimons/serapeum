@@ -239,9 +239,10 @@ Plans:
   2. Font selector offers a curated list of widely-available professional fonts (not a free-text field)
   3. When AI generates a theme (Phase 61), the returned hex colors and font name populate these picker fields for further manual adjustment
   4. Saving the customized theme produces a .scss file that Quarto renders with the chosen values
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [ ] TBD
+- [ ] 60-01-PLAN.md — TDD: theme helper functions (generate_custom_scss, parse_scss_colors_full, CURATED_FONTS)
+- [ ] 60-02-PLAN.md — Wire color picker/font selector UI into slide generation modal
 
 ### Phase 61: AI Theme Generation
 **Goal**: Users can describe a slide theme in plain language and receive a validated, editable .scss theme file
@@ -290,11 +291,11 @@ Plans:
 | 57. Citation Traceability | 1/1 | Complete    | 2026-03-18 |
 | 58. Theme Infrastructure | 1/1 | Complete    | 2026-03-19 |
 | 59. Theme Swatches, Upload, and Management | 2/2 | Complete    | 2026-03-19 |
-| 60. Color Picker and Font Selector | 0/TBD | Not started | - |
+| 60. Color Picker and Font Selector | 0/2 | Not started | - |
 | 61. AI Theme Generation | 0/TBD | Not started | - |
 | 62. Prompt Storage Schema | 0/TBD | Not started | - |
 | 63. Prompt Editing UI | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-19 — Phase 58 planned (1 plan)*
+*Last updated: 2026-03-20 — Phase 60 planned (2 plans)*
