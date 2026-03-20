@@ -24,7 +24,10 @@ fetch_anchor_refs <- function(seed_ids, email, api_key = NULL) {
     req <- build_openalex_request("works", email, api_key) |>
       req_url_query(filter = paste0("openalex_id:", sid))
 
-    resp <- tryCatch(req_perform(req), error = function(e) NULL)
+    resp <- tryCatch(req_perform(req), error = function(e) {
+      warning("Failed to fetch anchor refs for ", sid, ": ", e$message)
+      NULL
+    })
     if (is.null(resp)) next
 
     body <- resp_body_json(resp)
@@ -67,8 +70,9 @@ prepare_candidates_from_notebook <- function(con, notebook_id, exclude_ids = cha
     papers <- papers[!papers$paper_id %in% exclude_ids, , drop = FALSE]
   }
 
-  # Ensure numeric types
+  # Ensure numeric types (replace both NULL columns and NA values)
   papers$cited_by_count <- as.integer(papers$cited_by_count %||% 0L)
+  papers$cited_by_count[is.na(papers$cited_by_count)] <- 0L
   papers$year <- as.integer(papers$year)
   papers$fwci <- as.numeric(papers$fwci)
 
@@ -123,7 +127,7 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
                                          per_page = 50,
                                          progress_callback = NULL) {
   all_papers <- list()
-  seen_ids <- character(0)
+  seen_ids <- new.env(hash = TRUE, parent = emptyenv())
 
   for (i in seq_along(seed_ids)) {
     sid <- seed_ids[i]
@@ -134,21 +138,30 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
     # Fetch citing, cited, and related
     citing <- tryCatch(
       get_citing_papers(sid, email, api_key, per_page = per_page),
-      error = function(e) list()
+      error = function(e) {
+        warning("Failed to fetch citing papers for ", sid, ": ", e$message)
+        list()
+      }
     )
     cited <- tryCatch(
       get_cited_papers(sid, email, api_key, per_page = per_page),
-      error = function(e) list()
+      error = function(e) {
+        warning("Failed to fetch cited papers for ", sid, ": ", e$message)
+        list()
+      }
     )
     related <- tryCatch(
       get_related_papers(sid, email, api_key, per_page = per_page),
-      error = function(e) list()
+      error = function(e) {
+        warning("Failed to fetch related papers for ", sid, ": ", e$message)
+        list()
+      }
     )
 
     for (paper in c(citing, cited, related)) {
-      if (paper$paper_id %in% seen_ids) next
+      if (exists(paper$paper_id, envir = seen_ids, inherits = FALSE)) next
       if (paper$paper_id %in% seed_ids) next  # Exclude seeds from candidates
-      seen_ids <- c(seen_ids, paper$paper_id)
+      assign(paper$paper_id, TRUE, envir = seen_ids)
       all_papers <- c(all_papers, list(paper))
     }
   }
@@ -175,9 +188,15 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
     year = vapply(all_papers, function(p) as.integer(p$year %||% NA_integer_), integer(1)),
     venue = vapply(all_papers, function(p) p$venue %||% NA_character_, character(1)),
     doi = vapply(all_papers, function(p) p$doi %||% NA_character_, character(1)),
-    cited_by_count = vapply(all_papers, function(p) as.integer(p$cited_by_count %||% 0L), integer(1)),
+    cited_by_count = vapply(all_papers, function(p) {
+      v <- p$cited_by_count %||% 0L
+      if (is.na(v)) 0L else as.integer(v)
+    }, integer(1)),
     fwci = vapply(all_papers, function(p) as.numeric(p$fwci %||% NA_real_), numeric(1)),
-    referenced_works_count = vapply(all_papers, function(p) as.integer(p$referenced_works_count %||% 0L), integer(1)),
+    referenced_works_count = vapply(all_papers, function(p) {
+      v <- p$referenced_works_count %||% 0L
+      if (is.na(v)) 0L else as.integer(v)
+    }, integer(1)),
     seed_connectivity = NA_real_,
     bridge_score = NA_real_,
     stringsAsFactors = FALSE
@@ -312,23 +331,19 @@ score_with_temp_ragnar <- function(candidates, query_text, openrouter_api_key,
 
   store <- get_ragnar_store(temp_path, openrouter_api_key, embed_model)
 
-  # Ingest candidate abstracts
-  for (i in seq_len(nrow(scoreable))) {
-    if (!is.null(progress_callback)) {
-      progress_callback(paste0("Embedding abstract ", i, "/", nrow(scoreable), "..."))
-    }
-    row <- scoreable[i, ]
-    origin <- paste0("abstract:", row$paper_id)
-    chunks <- data.frame(
-      content = row$abstract,
-      page_number = NA_integer_,
-      chunk_index = 0,
-      context = "",
-      origin = origin,
-      stringsAsFactors = FALSE
-    )
-    insert_chunks_to_ragnar(store, chunks, row$paper_id, "abstract")
+  # Ingest candidate abstracts (batched for efficiency)
+  if (!is.null(progress_callback)) {
+    progress_callback(paste0("Embedding ", nrow(scoreable), " abstracts..."))
   }
+  chunks <- data.frame(
+    content = scoreable$abstract,
+    page_number = NA_integer_,
+    chunk_index = 0L,
+    context = "",
+    origin = paste0("abstract:", scoreable$paper_id),
+    stringsAsFactors = FALSE
+  )
+  insert_chunks_to_ragnar(store, chunks, "batch", "abstract")
 
   # Build index for BM25
   build_ragnar_index(store)

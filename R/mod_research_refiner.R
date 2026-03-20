@@ -419,40 +419,36 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       weights <- get_current_weights()
       seed_ids <- vapply(seeds, function(p) p$paper_id, character(1))
 
-      withProgress(message = "Scoring papers...", {
-        # Step 1: Get candidates
-        incProgress(0.1, detail = "Loading candidates...")
-
-        if (anchor_type == "notebook_anchor") {
-          # Load all notebook papers as seeds, fetch candidates from OpenAlex
-          anchor_nb_id <- input$anchor_notebook_id
-          nb_papers <- prepare_candidates_from_notebook(con, anchor_nb_id)
-          if (nrow(nb_papers) == 0) {
-            showNotification("Anchor notebook has no papers.", type = "warning")
-            return()
-          }
-          seed_ids <- nb_papers$paper_id
-          per_seed <- input$per_seed_count %||% 25
-          incProgress(0.15, detail = paste0("Fetching candidates for ", nrow(nb_papers), " seeds..."))
-          candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
-                                                     per_page = per_seed)
-        } else if (input$source_type == "notebook") {
-          nb_id <- input$source_notebook_id
-          if (is.null(nb_id) || nchar(nb_id) == 0) {
-            showNotification("Please select a source notebook.", type = "warning")
-            return()
-          }
-          candidates <- prepare_candidates_from_notebook(con, nb_id, exclude_ids = seed_ids)
-        } else {
-          candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
-                                                     per_page = 50)
-        }
-
-        if (nrow(candidates) == 0) {
-          showNotification("No candidates found to score.", type = "warning")
+      # Step 1: Get candidates (outside withProgress to avoid frozen progress bar on early return)
+      if (anchor_type == "notebook_anchor") {
+        anchor_nb_id <- input$anchor_notebook_id
+        nb_papers <- prepare_candidates_from_notebook(con, anchor_nb_id)
+        if (nrow(nb_papers) == 0) {
+          showNotification("Anchor notebook has no papers.", type = "warning")
           return()
         }
+        seed_ids <- nb_papers$paper_id
+        per_seed <- input$per_seed_count %||% 25
+        candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
+                                                   per_page = per_seed)
+      } else if (input$source_type == "notebook") {
+        nb_id <- input$source_notebook_id
+        if (is.null(nb_id) || nchar(nb_id) == 0) {
+          showNotification("Please select a source notebook.", type = "warning")
+          return()
+        }
+        candidates <- prepare_candidates_from_notebook(con, nb_id, exclude_ids = seed_ids)
+      } else {
+        candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
+                                                   per_page = 50)
+      }
 
+      if (nrow(candidates) == 0) {
+        showNotification("No candidates found to score.", type = "warning")
+        return()
+      }
+
+      withProgress(message = "Scoring papers...", {
         # Step 2: Compute seed connectivity (if we have seeds)
         incProgress(0.3, detail = "Computing connectivity...")
         if (length(seed_ids) > 0) {
@@ -793,7 +789,7 @@ mod_research_refiner_server <- function(id, con_r, config_r,
       req(results, run_id)
 
       # Only accept non-rejected papers, walking down the ranked list
-      eligible <- which(results$user_action != "rejected")
+      eligible <- which(is.na(results$user_action) | results$user_action != "rejected")
       to_accept <- head(eligible, 25)
 
       if (length(to_accept) == 0) {
@@ -825,7 +821,7 @@ mod_research_refiner_server <- function(id, con_r, config_r,
 
       # Only reject non-accepted papers in the bottom half
       bottom_indices <- (mid + 1):nrow(results)
-      to_reject <- bottom_indices[results$user_action[bottom_indices] != "accepted"]
+      to_reject <- bottom_indices[is.na(results$user_action[bottom_indices]) | results$user_action[bottom_indices] != "accepted"]
 
       if (length(to_reject) == 0) {
         showNotification("No eligible papers to reject (all accepted).", type = "warning")
@@ -919,7 +915,18 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           ", list(target, p$paper_id))
           if (nrow(existing) > 0) next
 
-          authors_vec <- jsonlite::fromJSON(p$authors)
+          authors_vec <- tryCatch(
+            jsonlite::fromJSON(p$authors),
+            error = function(e) {
+              showNotification(
+                paste0("Skipping paper with malformed author data: ", p$title),
+                type = "warning"
+              )
+              NULL
+            }
+          )
+          if (is.null(authors_vec)) next
+
           abstract_id <- create_abstract(
             con, target, p$paper_id, p$title,
             authors_vec, p$abstract,
