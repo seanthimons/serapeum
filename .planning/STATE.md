@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Phase 61 context gathered
-last_updated: "2026-03-20T21:21:03.736Z"
+stopped_at: Completed 61-01-PLAN.md
+last_updated: "2026-03-20T23:38:00.376Z"
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
 ---
 
 ---
@@ -33,12 +33,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 60 — color-picker-and-font-selector
+**Current focus:** Phase 61 — ai-theme-generation
 
 ## Current Position
 
-Phase: 60 (color-picker-and-font-selector) — EXECUTING
-Plan: 2 of 2
+Phase: 61 (ai-theme-generation) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -69,6 +69,8 @@ Recent decisions affecting v16.0 work:
 - [Phase 60]: generate_custom_scss always appends sans-serif fallback in font value regardless of category — safe default for RevealJS
 - [Phase 60]: color_picker_pair() local helper used for DRY UI; shinyjs replaced with session$sendCustomMessage for panel collapse (no useShinyjs() in app)
 - [Phase 60]: color_picker_pair() local helper used for DRY UI; session$sendCustomMessage replaced shinyjs (no useShinyjs() in app); JS event listeners use DOMContentLoaded guard for modal-rendered elements
+- [Phase 61-ai-theme-generation]: extract_theme_json uses DOTALL perl regex to handle multi-line JSON across fence blocks
+- [Phase 61-ai-theme-generation]: generate_theme_from_description returns raw list(content, usage) only — JSON parsing delegated to Plan 02 UI wiring
 
 ### Pending Todos
 
@@ -81,8 +83,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-20T21:21:03.732Z
-Stopped at: Phase 61 context gathered
+Last session: 2026-03-20T23:38:00.373Z
+Stopped at: Completed 61-01-PLAN.md
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---

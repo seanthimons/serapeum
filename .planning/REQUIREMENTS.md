@@ -13,9 +13,9 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 - [x] **THME-02**: User can upload a custom `.scss` file as a slide theme
 - [x] **THME-03**: Uploaded themes are stored in `data/themes/` and persist across sessions
 - [x] **THME-04**: User can manage (list/delete) uploaded custom themes
-- [ ] **THME-05**: User can type a freeform description to generate a theme via AI
-- [ ] **THME-06**: AI returns structured JSON (8-9 variables), app templates into valid `.scss`
-- [ ] **THME-07**: AI-generated themes validated for hex colors and real font names before saving
+- [x] **THME-05**: User can type a freeform description to generate a theme via AI
+- [x] **THME-06**: AI returns structured JSON (8-9 variables), app templates into valid `.scss`
+- [x] **THME-07**: AI-generated themes validated for hex colors and real font names before saving
 - [x] **THME-08**: User can manually customize theme via color pickers (bg/text/accent/link) and font selector
 - [x] **THME-09**: Base theme selector determines starting point for custom themes
 - [x] **THME-10**: AI-generated values populate color picker fields for manual tweaking
@@ -61,9 +61,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | THME-02 | Phase 59 | Complete |
 | THME-03 | Phase 59 | Complete |
 | THME-04 | Phase 59 | Complete |
-| THME-05 | Phase 61 | Pending |
-| THME-06 | Phase 61 | Pending |
-| THME-07 | Phase 61 | Pending |
+| THME-05 | Phase 61 | Complete |
+| THME-06 | Phase 61 | Complete |
+| THME-07 | Phase 61 | Complete |
 | THME-08 | Phase 60 | Complete |
 | THME-09 | Phase 59 | Complete |
 | THME-10 | Phase 60 | Complete |
