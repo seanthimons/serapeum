@@ -324,7 +324,7 @@ mod_settings_server <- function(id, con, config_rv) {
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
 
       verbose_mode <- get_db_setting(con(), "verbose_mode") %||% FALSE
-      bslib::update_switch("verbose_mode", value = isTRUE(verbose_mode))
+      bslib::update_switch("verbose_mode", value = isTRUE(verbose_mode), session = session)
       options(serapeum.verbose_api = isTRUE(verbose_mode))
 
       # Search settings
