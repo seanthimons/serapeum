@@ -88,14 +88,28 @@ Full dark mode support with Catppuccin color palette.
 - **Auto-themed plots** - Chart backgrounds adapt automatically via thematic integration
 - **Comprehensive coverage** - All components styled: value boxes, alerts, chat messages, network graphs, tables
 
-### Cost Tracking
+### Cost & Latency Tracking
 
-Monitor API usage in real-time.
+Monitor API usage and performance in real-time.
 
 - **Session costs** - Live cost display in the sidebar footer
 - **OpenRouter balance** - View remaining credits and usage
-- **Cost history** - 30-day bar chart of daily API spending
+- **Cost history** - 30-day bar chart of daily API spending with operation breakdown
 - **Per-call breakdown** - Detailed log of every API call with model, tokens, and cost
+- **Latency analytics** - Average, p50, p95 latency per model and operation type
+- **Daily latency trend** - 30-day sparkline of response times
+
+### AI Infrastructure
+
+Flexible model routing with multi-provider support.
+
+- **3-slot model routing** - Assign different models to fast (query building), quality (chat, synthesis), and embedding operations
+- **Multi-provider support** - Use OpenRouter alongside local providers (Ollama, LM Studio, vLLM)
+- **Provider management** - Add, edit, test, and delete OpenAI-compatible endpoints from Settings
+- **Model benchmarks** - Quality scores, speed, and pricing from [Artificial Analytics](https://artificialanalysis.ai)
+- **Smart defaults** - Suggests optimal models for each slot based on benchmark data
+- **Zero-cost local models** - Local provider calls tracked at $0 with graceful handling of missing usage tokens
+- **Embedding dimension detection** - Warns when switching to a model with different dimensions
 
 ### Onboarding
 
@@ -107,8 +121,8 @@ Monitor API usage in real-time.
 ### Settings & Configuration
 
 - **API key validation** - Visual indicators show if keys are configured and working
-- **Model selection** - Choose from budget, mid-tier, or premium chat models
-- **Embedding models** - Select from OpenAI, Google, Mistral, and more
+- **Model selection** - Choose quality, fast, and embedding models with AA benchmark enrichment
+- **Providers** - Manage multiple OpenAI-compatible API endpoints
 - **Quality data downloads** - Fetch predatory journal lists and retraction databases
 - **Verbose API logging** - Toggle to log OpenAlex API calls to the R console for debugging
 
@@ -155,6 +169,42 @@ openrouter:
 openalex:
   email: "your@email.com"  # For polite pool access (faster rate limits)
 ```
+
+### Local LLM Setup (Optional)
+
+Serapeum can use local models via any OpenAI-compatible server instead of (or alongside) OpenRouter. This means your data never leaves your machine.
+
+**Supported servers:** [Ollama](https://ollama.com/), [LM Studio](https://lmstudio.ai/), [vLLM](https://docs.vllm.ai/), or any OpenAI-compatible endpoint.
+
+#### Quick start with LM Studio
+
+1. Install [LM Studio](https://lmstudio.ai/) and download a chat model (e.g., Gemma 3, Llama 3, Qwen 2.5)
+2. Optionally download an embedding model (e.g., `nomic-embed-text-v1.5`)
+3. Start the local server (Developer tab → Start Server, default port 1234)
+4. In Serapeum **Settings → Providers**, click **Add Provider**:
+   - **Name:** `LM Studio`
+   - **Base URL:** `http://localhost:1234/v1`
+   - **API Key:** leave blank
+5. Click **Test** to verify connectivity
+6. In **Settings → Models**, select your local models for each slot:
+   - **Quality model:** your chat model
+   - **Fast model:** same chat model (or a smaller one)
+   - **Embedding model:** your embedding model
+
+#### Quick start with Ollama
+
+1. Install [Ollama](https://ollama.com/) and pull models:
+   ```bash
+   ollama pull llama3.2
+   ollama pull nomic-embed-text
+   ```
+2. In Serapeum **Settings → Providers**, click **Add Provider**:
+   - **Name:** `Ollama`
+   - **Base URL:** `http://localhost:11434/v1`
+   - **API Key:** leave blank
+3. Select your models in **Settings → Models**
+
+Local models are tracked at **$0.00** in the Cost Tracker. No OpenRouter API key is needed if you only use local models.
 
 ### Run
 
@@ -218,6 +268,8 @@ Open http://localhost:8080 in your browser.
 - **R + Shiny + bslib**: Web framework with Bootstrap 5 UI components
 - **DuckDB**: Embedded analytical database for local storage
 - **OpenRouter**: Unified API for multiple LLM providers (Claude, GPT-4, Llama, etc.)
+- **Provider Abstraction**: OpenAI-compatible endpoint support for local models (Ollama, LM Studio, vLLM)
+- **Artificial Analytics**: Model benchmark data for quality/speed/price comparison
 - **OpenAlex**: Free, open academic paper search API
 - **Quarto**: Scientific publishing system for slide generation
 - **pdftools**: PDF text extraction
@@ -238,6 +290,8 @@ serapeum/
 │   ├── db_migrations.R   # Schema migrations
 │   ├── api_openrouter.R  # OpenRouter client
 │   ├── api_openalex.R    # OpenAlex client
+│   ├── api_provider.R    # Provider abstraction layer
+│   ├── api_artificialanalysis.R # AA benchmarks client
 │   ├── pdf.R             # PDF utilities
 │   ├── rag.R             # RAG pipeline
 │   ├── _ragnar.R         # Ragnar embedding store helpers

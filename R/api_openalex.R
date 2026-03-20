@@ -126,6 +126,130 @@ build_openalex_request <- function(endpoint, email = NULL, api_key = NULL) {
     )
 }
 
+#' Parse OpenAlex rate-limit headers from a response
+#'
+#' Extracts X-RateLimit-* headers. Returns NAs gracefully when headers
+#' are absent (polite-pool users without an API key).
+#'
+#' @param resp httr2 response object
+#' @return Named list with daily_limit, remaining, credits_used, reset_seconds (all numeric or NA)
+parse_oa_usage_headers <- function(resp) {
+  safe_header <- function(name) {
+    val <- tryCatch(httr2::resp_header(resp, name), error = function(e) NULL)
+    if (is.null(val) || is.na(val)) NA_real_ else as.numeric(val)
+  }
+
+  list(
+    daily_limit = safe_header("X-RateLimit-Limit"),
+    remaining = safe_header("X-RateLimit-Remaining"),
+    credits_used = safe_header("X-RateLimit-Credits-Used"),
+    reset_seconds = {
+      val <- safe_header("X-RateLimit-Reset")
+      if (is.na(val)) NA_integer_ else as.integer(val)
+    }
+  )
+}
+
+#' Log OpenAlex usage to the oa_usage_log table
+#'
+#' @param con DuckDB connection
+#' @param operation Operation label (e.g., "search", "fetch", "topics")
+#' @param endpoint API endpoint called
+#' @param usage Named list from parse_oa_usage_headers()
+#' @param cost_usd Optional cost_usd from response meta (numeric or NA)
+#' @return Inserted row ID (invisible)
+log_oa_usage <- function(con, operation, endpoint = NA_character_, usage, cost_usd = NA_real_) {
+  # Guard: table may not exist yet (first run before migration)
+  has_table <- tryCatch({
+    DBI::dbExistsTable(con, "oa_usage_log")
+  }, error = function(e) FALSE)
+
+  if (!has_table) return(invisible(NULL))
+
+  id <- uuid::UUIDgenerate()
+  DBI::dbExecute(con, "
+    INSERT INTO oa_usage_log (id, operation, endpoint, daily_limit, remaining, credits_used, cost_usd, reset_seconds)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(
+    id,
+    operation,
+    endpoint,
+    usage$daily_limit,
+    usage$remaining,
+    usage$credits_used,
+    cost_usd,
+    usage$reset_seconds
+  ))
+
+  invisible(id)
+}
+
+#' Perform an OpenAlex request with usage tracking
+#'
+#' Central wrapper that replaces direct req_perform() calls. Extracts
+#' rate-limit headers, logs usage, and returns the parsed JSON body —
+#' preserving the existing return contract.
+#'
+#' @param req httr2 request object (from build_openalex_request)
+#' @param con Optional DuckDB connection for logging (NULL skips logging)
+#' @param operation Operation label for the log (default "request")
+#' @return Parsed JSON body (same as resp_body_json would return)
+perform_oa_request <- function(req, con = NULL, operation = "request") {
+  resp <- perform_openalex(req)
+  body <- resp_body_json(resp)
+
+  # Parse usage headers and log if connection provided
+  if (!is.null(con)) {
+    usage <- parse_oa_usage_headers(resp)
+
+    # Extract cost_usd from response meta if present
+    cost_usd <- NA_real_
+    if (!is.null(body$meta) && !is.null(body$meta$cost_usd)) {
+      cost_usd <- as.numeric(body$meta$cost_usd)
+    }
+
+    # Extract endpoint from request URL for logging
+    endpoint <- tryCatch({
+      url <- req$url
+      parsed <- httr2::url_parse(url)
+      parsed$path
+    }, error = function(e) NA_character_)
+
+    tryCatch(
+      log_oa_usage(con, operation, endpoint, usage, cost_usd),
+      error = function(e) message("[oa_usage] Logging failed (non-fatal): ", e$message)
+    )
+  }
+
+  body
+}
+
+#' Check whether the OA migration nudge should be shown
+#'
+#' Returns TRUE when the user has an email configured but no API key,
+#' and hasn't dismissed the nudge.
+#'
+#' @param email Current openalex email (character or "")
+#' @param api_key Current openalex API key (character or "")
+#' @param con DuckDB connection (to check dismiss flag)
+#' @return logical
+should_show_oa_migration_nudge <- function(email, api_key, con = NULL) {
+  # Must have an email set
+  if (is.null(email) || !nzchar(trimws(email))) return(FALSE)
+
+  # Must NOT have an API key set
+  if (!is.null(api_key) && nzchar(trimws(api_key))) return(FALSE)
+
+  # Check dismiss flag
+
+  if (!is.null(con)) {
+    dismissed <- tryCatch(get_db_setting(con, "oa_migration_nudge_dismissed"), error = function(e) NULL)
+    if (isTRUE(dismissed)) return(FALSE)
+  }
+
+  TRUE
+}
+
 #' Reconstruct abstract from inverted index
 #' @param inverted_index OpenAlex inverted index format
 #' @return Plain text abstract
@@ -409,13 +533,12 @@ search_papers <- function(query, email, api_key = NULL,
     req <- req |> req_url_query(sort = sort)
   }
 
-  resp <- tryCatch({
-    perform_openalex(req)
+  body <- tryCatch({
+    perform_oa_request(req, con = NULL, operation = "search")
   }, error = function(e) {
     stop_api_error(e, "OpenAlex")
   })
 
-  body <- resp_body_json(resp)
   parse_search_response(body)
 }
 
@@ -552,15 +675,14 @@ get_paper <- function(paper_id, email, api_key = NULL) {
     req <- build_openalex_request(paste0("works/", URLencode(paper_id, reserved = TRUE)), email, api_key)
   }
 
-  resp <- tryCatch({
-    perform_openalex(req)
+  body <- tryCatch({
+    perform_oa_request(req, con = NULL, operation = "fetch")
   }, error = function(e) {
     return(NULL)
   })
 
-  if (is.null(resp)) return(NULL)
+  if (is.null(body)) return(NULL)
 
-  body <- resp_body_json(resp)
   parse_openalex_work(body)
 }
 
@@ -615,21 +737,15 @@ get_citing_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
       per_page = per_page
     )
 
-  resp <- tryCatch({
-    perform_openalex(req)
+  body <- tryCatch({
+    perform_oa_request(req, con = NULL, operation = "citing")
   }, error = function(e) {
     err <- classify_api_error(e, "OpenAlex")
     message("OpenAlex API error in get_citing_papers: ", err$message, " (", err$details, ")")
     return(NULL)
   })
 
-  if (is.null(resp)) return(list())
-
-  body <- resp_body_json(resp)
-
-  if (is.null(body$results)) {
-    return(list())
-  }
+  if (is.null(body) || is.null(body$results)) return(list())
 
   results <- lapply(body$results, parse_openalex_work)
   attr(results, "total_count") <- body$meta$count %||% 0
@@ -654,21 +770,15 @@ get_cited_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
       per_page = per_page
     )
 
-  resp <- tryCatch({
-    perform_openalex(req)
+  body <- tryCatch({
+    perform_oa_request(req, con = NULL, operation = "cited_by")
   }, error = function(e) {
     err <- classify_api_error(e, "OpenAlex")
     message("OpenAlex API error in get_cited_papers: ", err$message, " (", err$details, ")")
     return(NULL)
   })
 
-  if (is.null(resp)) return(list())
-
-  body <- resp_body_json(resp)
-
-  if (is.null(body$results)) {
-    return(list())
-  }
+  if (is.null(body) || is.null(body$results)) return(list())
 
   results <- lapply(body$results, parse_openalex_work)
   attr(results, "total_count") <- body$meta$count %||% 0
@@ -693,21 +803,15 @@ get_related_papers <- function(paper_id, email, api_key = NULL, per_page = 25) {
       per_page = per_page
     )
 
-  resp <- tryCatch({
-    perform_openalex(req)
+  body <- tryCatch({
+    perform_oa_request(req, con = NULL, operation = "related")
   }, error = function(e) {
     err <- classify_api_error(e, "OpenAlex")
     message("OpenAlex API error in get_related_papers: ", err$message, " (", err$details, ")")
     return(NULL)
   })
 
-  if (is.null(resp)) return(list())
-
-  body <- resp_body_json(resp)
-
-  if (is.null(body$results)) {
-    return(list())
-  }
+  if (is.null(body) || is.null(body$results)) return(list())
 
   results <- lapply(body$results, parse_openalex_work)
   attr(results, "total_count") <- body$meta$count %||% 0
@@ -725,7 +829,7 @@ validate_openalex_email <- function(email) {
   tryCatch({
     req <- build_openalex_request("works", email) |>
       req_url_query(per_page = 1)
-    resp <- perform_openalex(req)
+    perform_oa_request(req, con = NULL, operation = "validate")
     list(valid = TRUE, error = NULL)
   }, error = function(e) {
     list(valid = FALSE, error = e$message)
@@ -817,13 +921,11 @@ fetch_all_topics <- function(email, api_key = NULL, per_page = 100) {
       )
 
     # Perform request with error handling
-    resp <- tryCatch({
-      perform_openalex(req)
+    body <- tryCatch({
+      perform_oa_request(req, con = NULL, operation = "topics")
     }, error = function(e) {
       stop_api_error(e, "OpenAlex")
     })
-
-    body <- resp_body_json(resp)
 
     # Check if we have results
     if (is.null(body$results) || length(body$results) == 0) {
@@ -931,8 +1033,7 @@ fetch_single_batch <- function(dois, email, api_key = NULL, parse = TRUE) {
       backoff = function(tries) 2^(tries - 1)  # 1s, 2s, 4s
     )
 
-  resp <- perform_openalex(req)
-  body <- httr2::resp_body_json(resp)
+  body <- perform_oa_request(req, con = NULL, operation = "batch_fetch")
 
   if (is.null(body$results)) {
     return(match_results_to_dois(list(), dois))

@@ -751,6 +751,115 @@ get_db_setting <- function(con, key) {
   jsonlite::fromJSON(result$value[1])
 }
 
+# --- Provider CRUD ---
+
+#' Save or update a provider
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID (e.g., "ollama-local")
+#' @param name Human-readable name
+#' @param base_url Base URL for the OpenAI-compatible API
+#' @param api_key Optional API key (NULL for local providers)
+#' @param provider_type Provider type: "openrouter" or "openai-compatible"
+#' @param timeout_chat Timeout in seconds for chat completions
+#' @param timeout_embed Timeout in seconds for embeddings
+#' @return The provider ID
+save_provider <- function(con, id, name, base_url, api_key = NULL,
+                          provider_type = "openai-compatible",
+                          timeout_chat = 300L, timeout_embed = 600L) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(id)
+
+  # DuckDB can't bind NULL in param lists — use NA_character_ for NULL api_key
+  api_key_val <- if (is.null(api_key)) NA_character_ else api_key
+
+  dbExecute(con, "
+    INSERT INTO providers (id, name, base_url, api_key, provider_type, timeout_chat, timeout_embed)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      base_url = EXCLUDED.base_url,
+      api_key = EXCLUDED.api_key,
+      provider_type = EXCLUDED.provider_type,
+      timeout_chat = EXCLUDED.timeout_chat,
+      timeout_embed = EXCLUDED.timeout_embed
+  ", list(id, name, base_url, api_key_val, provider_type,
+          as.integer(timeout_chat), as.integer(timeout_embed)))
+
+  id
+}
+
+#' Get all providers
+#'
+#' @param con DuckDB connection
+#' @return Data frame of providers (empty if table doesn't exist yet)
+get_providers <- function(con) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) {
+    return(data.frame(
+      id = character(), name = character(), base_url = character(),
+      api_key = character(), provider_type = character(),
+      timeout_chat = integer(), timeout_embed = integer(),
+      is_default = logical(), created_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  dbGetQuery(con, "SELECT * FROM providers ORDER BY is_default DESC, name ASC")
+}
+
+#' Get a single provider by ID
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID
+#' @return Named list of provider fields, or NULL if not found
+get_provider <- function(con, id) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(NULL)
+
+  row <- dbGetQuery(con, "SELECT * FROM providers WHERE id = ?", list(id))
+  if (nrow(row) == 0) return(NULL)
+
+  as.list(row[1, ])
+}
+
+#' Delete a provider
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID to delete
+#' @return logical — TRUE if deleted, FALSE if not found or is default
+delete_provider <- function(con, id) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(FALSE)
+
+  # Don't allow deleting the default provider
+  provider <- get_provider(con, id)
+  if (is.null(provider)) return(FALSE)
+  if (isTRUE(provider$is_default)) {
+    stop("Cannot delete the default provider '", provider$name, "'")
+  }
+
+  rows_affected <- dbExecute(con, "DELETE FROM providers WHERE id = ?", list(id))
+  rows_affected > 0
+}
+
+#' Build a provider_config from a stored provider row
+#'
+#' @param provider_row Named list or single-row data.frame from get_provider/get_providers
+#' @param api_key_override Optional API key override (e.g., from settings for OpenRouter)
+#' @return provider_config object
+provider_row_to_config <- function(provider_row, api_key_override = NULL) {
+  api_key <- api_key_override %||% provider_row$api_key
+  create_provider_config(
+    name = provider_row$name,
+    base_url = provider_row$base_url,
+    api_key = api_key,
+    provider_type = provider_row$provider_type,
+    timeout_chat = provider_row$timeout_chat %||% 300L,
+    timeout_embed = provider_row$timeout_embed %||% 600L
+  )
+}
+
 #' Update a notebook's search query and filters
 #' @param con DuckDB connection
 #' @param id Notebook ID
@@ -845,8 +954,10 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
                                   ragnar_store_path = NULL,
                                   section_filter = NULL,
-                                  api_key = NULL,
-                                  embed_model = "openai/text-embedding-3-small") {
+                                  provider = NULL,
+                                  embed_model = "openai/text-embedding-3-small",
+                                  config = NULL,
+                                  session_id = NULL) {
 
   # Derive store path from notebook_id if not provided (Phase 22: per-notebook stores)
   if (is.null(ragnar_store_path) && !is.null(notebook_id)) {
@@ -859,8 +970,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     # Attach embed function for query vectorization (ragnar_retrieve needs it)
-    if (!is.null(store) && !is.null(api_key) && nchar(api_key) > 0) {
-      store@embed <- make_embed_function(api_key, embed_model)
+    has_provider <- !is.null(provider)
+    if (!is.null(store) && has_provider) {
+      store@embed <- make_embed_function(provider, embed_model)
     }
 
     if (!is.null(store) && own_store) {
@@ -875,10 +987,32 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
       chunk_count <- tryCatch({
         DBI::dbGetQuery(store@con, "SELECT COUNT(*) as n FROM chunks")$n[1]
       }, error = function(e) NA)
-      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, api_key present: ", !is.null(api_key))
+      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, provider present: ", has_provider)
+
+      # Query reformulation: generate variants if enabled
+      search_queries <- query
+      if (!is.null(config) && has_provider) {
+        reformulation_enabled <- tryCatch(
+          get_db_setting(con, "rag_query_reformulation"),
+          error = function(e) NULL
+        )
+        # Default to enabled (TRUE) when setting doesn't exist
+        if (!isFALSE(reformulation_enabled)) {
+          chat_model <- resolve_model_for_operation(config, "query_reformulation")
+          search_queries <- tryCatch({
+            generate_query_variants(query, provider, chat_model, con, session_id)
+          }, error = function(e) {
+            message("[search_chunks_hybrid] Query reformulation failed: ", e$message)
+            query
+          })
+          if (length(search_queries) > 1) {
+            message("[search_chunks_hybrid] Reformulated into ", length(search_queries), " queries")
+          }
+        }
+      }
 
       results <- tryCatch({
-        retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
+        retrieve_with_ragnar(store, search_queries, top_k = limit * 2, con = con)  # Get extra for filtering
       }, error = function(e) {
         message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
         NULL

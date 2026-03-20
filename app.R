@@ -253,6 +253,8 @@ ui <- page_sidebar(
     # Compact footer
     div(
       class = "d-flex flex-column gap-1 mt-2",
+      # Row 0: OA budget badge (only shown when API key configured)
+      uiOutput("oa_sidebar_badge"),
       # Row 1: Session cost + Costs link
       div(
         class = "d-flex justify-content-between align-items-center",
@@ -413,6 +415,54 @@ server <- function(input, output, session) {
     costs <- get_session_costs(con, session_id)
     total <- attr(costs, "total_cost") %||% 0
     sprintf("$%.4f", total)
+  })
+
+  # OA sidebar budget badge — reactive on config + usage
+  output$oa_sidebar_badge <- renderUI({
+    invalidateLater(30000)  # Update every 30 seconds
+    cfg <- config_r()
+    oa_key <- cfg$openalex$api_key
+    if (is.null(oa_key) || !nzchar(trimws(oa_key))) return(NULL)
+
+    usage <- get_oa_daily_usage(con)
+
+    # Check for day rollover: if last data is from a previous UTC day, show 0%
+    pct <- oa_budget_percentage(usage$remaining, usage$daily_limit)
+    color <- oa_budget_color(pct)
+
+    if (is.na(pct) || is.null(color)) return(NULL)
+
+    # Fire toast at >= 90%
+    if (oa_toast_should_fire(con, pct)) {
+      oa_toast_mark_fired(con)
+      showNotification(
+        sprintf("OpenAlex daily budget is %d%% consumed. Resets at midnight UTC.", pct),
+        type = "warning",
+        duration = 10
+      )
+    }
+
+    badge_class <- switch(color,
+      "success" = "bg-success",
+      "warning" = "bg-warning text-dark",
+      "danger" = "bg-danger"
+    )
+
+    last_time <- if (!is.na(usage$last_updated)) {
+      format(as.POSIXct(usage$last_updated), "%H:%M")
+    } else {
+      ""
+    }
+
+    div(
+      class = "d-flex justify-content-between align-items-center mb-1",
+      span(class = "text-muted small", icon_search(), " OA Budget:"),
+      div(
+        class = "d-flex align-items-center gap-1",
+        span(class = paste("badge", badge_class, "small"), paste0(pct, "%")),
+        if (nchar(last_time) > 0) span(class = "text-muted small", last_time)
+      )
+    )
   })
 
   # Render notebook list

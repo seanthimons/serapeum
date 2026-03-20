@@ -305,6 +305,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
     # Helper to show results modal with current state
     show_results <- function(preview_url = NULL, error = NULL) {
+      removeModal()
       showModal(mod_slides_results_ui(
         ns,
         preview_url = preview_url,
@@ -353,14 +354,14 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       # Get models
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg, con())
       models <- tryCatch({
-        list_models(api_key)
+        provider_list_models(provider)
       }, error = function(e) {
         data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })
 
-      current_model <- get_setting(cfg, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+      current_model <- resolve_model_for_operation(cfg, "slide_generation")
 
       # Reset state
       generation_state$qmd_content <- NULL
@@ -431,10 +432,10 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         paste0("Generating slides with ", input$model, "..."),
         id = "slides_progress", duration = NULL, type = "message"
       )
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg, con())
 
       result <- generate_slides(
-        api_key = api_key,
+        provider = provider,
         model = input$model,
         chunks = chunks,
         options = generation_state$last_options,
@@ -514,7 +515,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       attempt <- generation_state$heal_attempts
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg, con())
 
       # Check if we've exceeded the retry limit
       if (attempt > 2) {
@@ -573,8 +574,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       instructions <- input$heal_instructions %||% ""
 
       model <- generation_state$last_options$model %||%
-        get_setting(cfg, "defaults", "chat_model") %||%
-        "google/gemini-3.1-flash-lite-preview"
+        resolve_model_for_operation(cfg, "slide_healing")
 
       showNotification(
         sprintf("Healing slides (attempt %d of 2)...", attempt),
@@ -582,7 +582,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       )
 
       heal_result <- heal_slides(
-        api_key = api_key,
+        provider = provider,
         model = model,
         previous_qmd = previous_qmd,
         errors = errors,
@@ -656,17 +656,16 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       docs <- list_documents(con(), nb_id)
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
+      provider <- provider_from_config(cfg, con())
 
       models <- tryCatch({
-        list_models(api_key)
+        provider_list_models(provider)
       }, error = function(e) {
         data.frame(id = "google/gemini-3.1-flash-lite-preview", name = "Gemini 3.1 Flash Lite", stringsAsFactors = FALSE)
       })
 
       current_model <- generation_state$last_options$model %||%
-                       get_setting(cfg, "defaults", "chat_model") %||%
-                       "google/gemini-3.1-flash-lite-preview"
+                       resolve_model_for_operation(cfg, "slide_generation")
 
       showModal(mod_slides_modal_ui(ns, docs, models, current_model))
     })

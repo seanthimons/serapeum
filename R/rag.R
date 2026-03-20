@@ -1,3 +1,135 @@
+#' Reciprocal Rank Fusion (RRF) merge of multiple ranked lists
+#'
+#' Combines ranked lists using the formula: score = SUM(1 / (k + rank_i))
+#' where rank_i is the 1-based position in each list.
+#'
+#' @param ranked_lists List of data frames, each must have a `hash` column for dedup
+#'   and a `text` column. Other columns (origin, etc.) are preserved from the first occurrence.
+#' @param k RRF constant (default 60, standard in literature)
+#' @return Data frame sorted by RRF score descending, with `rrf_score` column added
+rrf_merge <- function(ranked_lists, k = 60) {
+  # Filter out empty lists
+  ranked_lists <- ranked_lists[vapply(ranked_lists, function(df) {
+    is.data.frame(df) && nrow(df) > 0
+  }, logical(1))]
+
+  if (length(ranked_lists) == 0) {
+    return(data.frame(
+      text = character(), origin = character(), hash = character(),
+      rrf_score = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+
+  # Accumulate scores by hash
+  scores <- list()  # hash -> score
+  first_seen <- list()  # hash -> row data (preserve metadata from first occurrence)
+
+  for (df in ranked_lists) {
+    # Ensure hash column exists
+    if (!"hash" %in% names(df)) next
+
+    for (rank_i in seq_len(nrow(df))) {
+      h <- df$hash[rank_i]
+      if (is.na(h) || !nzchar(h)) next
+
+      rrf_contribution <- 1 / (k + rank_i)
+
+      if (is.null(scores[[h]])) {
+        scores[[h]] <- rrf_contribution
+        first_seen[[h]] <- df[rank_i, , drop = FALSE]
+      } else {
+        scores[[h]] <- scores[[h]] + rrf_contribution
+      }
+    }
+  }
+
+  if (length(scores) == 0) {
+    return(data.frame(
+      text = character(), origin = character(), hash = character(),
+      rrf_score = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+
+  # Build result data frame
+  result <- do.call(rbind, first_seen)
+  result$rrf_score <- vapply(result$hash, function(h) scores[[h]], numeric(1))
+
+  # Sort by RRF score descending
+  result <- result[order(-result$rrf_score), , drop = FALSE]
+  rownames(result) <- NULL
+
+  result
+}
+
+#' Parse LLM output into individual query variants
+#'
+#' Handles both plain newline-separated and numbered list formats.
+#'
+#' @param text Raw LLM response text
+#' @return Character vector of clean query variants
+parse_query_variants <- function(text) {
+  lines <- strsplit(text, "\n")[[1]]
+  lines <- trimws(lines)
+  lines <- lines[nchar(lines) > 0]
+
+  # Strip numbering: "1. query" or "1) query" or "- query"
+  lines <- sub("^\\d+[.):]\\s*", "", lines)
+  lines <- sub("^[-*]\\s*", "", lines)
+  lines <- trimws(lines)
+  lines <- lines[nchar(lines) > 0]
+
+  lines
+}
+
+#' Generate query variants for RAG-Fusion retrieval
+#'
+#' Uses a fast LLM call to generate alternative search queries that capture
+#' different vocabulary and angles. Always includes the original query.
+#'
+#' @param query Original user query
+#' @param provider provider_config object
+#' @param model LLM model to use
+#' @param con Optional DuckDB connection for cost logging
+#' @param session_id Optional session ID for cost logging
+#' @param n_variants Number of variants to generate (default 3)
+#' @return Character vector: original query + n_variants alternatives
+generate_query_variants <- function(query, provider, model, con = NULL,
+                                     session_id = NULL, n_variants = 3) {
+  system_prompt <- sprintf(
+    "Generate %d alternative search queries for the following research question. Each variant should use different vocabulary, synonyms, or approach the topic from a different angle. Return only the queries, one per line.",
+    n_variants
+  )
+
+  messages <- format_chat_messages(system_prompt, query)
+
+  result <- tryCatch({
+    provider_chat_completion(provider, model, messages)
+  }, error = function(e) {
+    message("[rag] Query reformulation failed: ", e$message)
+    return(NULL)
+  })
+
+  if (is.null(result)) return(query)
+
+  # Log cost
+  if (!is.null(con) && !is.null(session_id) && !is.null(result$usage)) {
+    cost <- estimate_cost(model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
+    log_cost(con, "query_reformulation", model,
+             result$usage$prompt_tokens %||% 0,
+             result$usage$completion_tokens %||% 0,
+             result$usage$total_tokens %||% 0,
+             cost, session_id,
+             duration_ms = result$duration_ms)
+  }
+
+  # Parse variants and prepend original
+  variants <- parse_query_variants(result$content)
+  unique(c(query, variants))
+}
+
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string
@@ -57,21 +189,20 @@ build_context <- function(chunks) {
 #' @param session_id Optional Shiny session ID for cost logging (default NULL)
 #' @return Generated response with citations
 rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
-  # Extract settings with defensive scalar checks
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  # Build provider from config
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "chat")
 
   # Safely check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Debug: check store existence
   store_path <- get_notebook_ragnar_path(notebook_id)
@@ -79,7 +210,8 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 
   chunks <- tryCatch({
     search_chunks_hybrid(con, question, notebook_id, limit = 5,
-                         api_key = api_key, embed_model = embed_model)
+                         provider = provider, embed_model = embed_model,
+                         config = config, session_id = session_id)
   }, error = function(e) {
     message("[rag_query] Ragnar search failed: ", e$message)
     NULL
@@ -113,18 +245,20 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 
   # Generate response
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "chat", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -169,13 +303,12 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
     return(sprintf("Unknown preset type: %s", preset_type))
   }
 
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "chat")
 
   # Safely check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -225,18 +358,20 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   messages <- format_chat_messages(system_prompt, user_prompt)
 
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "chat", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -261,15 +396,13 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
 #' @return Generated synthesis content (plain markdown, no AI disclaimer)
 generate_conclusions_preset <- function(con, config, notebook_id, notebook_type = "document", session_id = NULL) {
   # Extract settings
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
-
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  chat_model <- resolve_model_for_operation(config, "conclusion_synthesis")
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -294,7 +427,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         notebook_id = notebook_id,
         limit = 10,
         section_filter = c("conclusion", "limitations", "future_work", "discussion", "late_section"),
-        api_key = api_key, embed_model = embed_model
+        provider = provider, embed_model = embed_model
       )
     }, error = function(e) {
       message("[generate_conclusions_preset] Section-filtered search failed: ", e$message)
@@ -310,7 +443,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
           query = "conclusions results findings discussion agreements",
           notebook_id = notebook_id,
           limit = 10,
-          api_key = api_key, embed_model = embed_model
+          provider = provider, embed_model = embed_model
         )
       }, error = function(e) {
         message("[generate_conclusions_preset] Fallback search failed: ", e$message)
@@ -325,7 +458,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         query = "conclusions results findings discussion agreements",
         notebook_id = notebook_id,
         limit = 10,
-        api_key = api_key, embed_model = embed_model
+        provider = provider, embed_model = embed_model
       )
     }, error = function(e) {
       message("[generate_conclusions_preset] Search notebook retrieval failed: ", e$message)
@@ -396,18 +529,20 @@ Synthesize the key conclusions and identify where sources agree or diverge.", co
 
   # Generate response
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "conclusion_synthesis", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -438,13 +573,12 @@ generate_overview_preset <- function(con, config, notebook_id,
                                      mode = "quick",
                                      session_id = NULL) {
   # Extract settings with defensive scalar checks
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "overview")
 
   # Check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -550,16 +684,18 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     messages <- format_chat_messages(system_prompt, user_prompt)
 
     tryCatch({
-      result <- chat_completion(api_key, chat_model, messages)
+      result <- provider_chat_completion(provider, chat_model, messages)
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
                  result$usage$total_tokens %||% 0,
-                 cost, session_id)
+                 cost, session_id,
+               duration_ms = result$duration_ms)
       }
       result$content
     }, error = function(e) {
@@ -579,16 +715,18 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     messages <- format_chat_messages(system_prompt, user_prompt)
 
     tryCatch({
-      result <- chat_completion(api_key, chat_model, messages)
+      result <- provider_chat_completion(provider, chat_model, messages)
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview_summary", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
                  result$usage$total_tokens %||% 0,
-                 cost, session_id)
+                 cost, session_id,
+               duration_ms = result$duration_ms)
       }
       result$content
     }, error = function(e) {
@@ -606,16 +744,18 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     messages <- format_chat_messages(system_prompt, user_prompt)
 
     tryCatch({
-      result <- chat_completion(api_key, chat_model, messages)
+      result <- provider_chat_completion(provider, chat_model, messages)
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview_keypoints", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
                  result$usage$total_tokens %||% 0,
-                 cost, session_id)
+                 cost, session_id,
+               duration_ms = result$duration_ms)
       }
       result$content
     }, error = function(e) {
@@ -673,15 +813,13 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
 #' @return Generated research questions as markdown string
 generate_research_questions <- function(con, config, notebook_id, notebook_type = "search", session_id = NULL) {
   # Extract settings
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
-
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  chat_model <- resolve_model_for_operation(config, "research_questions")
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -736,7 +874,7 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
       query = "research gaps limitations future work methodology population understudied contradictions",
       notebook_id = notebook_id,
       limit = 15,
-      api_key = api_key, embed_model = embed_model
+      provider = provider, embed_model = embed_model
     )
   }, error = function(e) {
     message("[generate_research_questions] Hybrid search failed: ", e$message)
@@ -817,18 +955,20 @@ IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. E
 
   # Generate response
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "research_questions", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -888,11 +1028,12 @@ validate_gfm_table <- function(text) {
 generate_lit_review_table <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    provider <- provider_from_config(config, con)
+    api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+    chat_model <- resolve_model_for_operation(config, "lit_review_table")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1028,17 +1169,19 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     )
 
     messages <- format_chat_messages(system_prompt, user_prompt)
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "lit_review_table", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     response <- result$content
@@ -1087,12 +1230,13 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
 generate_methodology_extractor <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    provider <- provider_from_config(config, con)
+    api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+    chat_model <- resolve_model_for_operation(config, "methodology_extractor")
+    embed_model <- resolve_model_for_operation(config, "embedding")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1232,17 +1376,19 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     )
 
     messages <- format_chat_messages(system_prompt, user_prompt)
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "methodology_extractor", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     response <- result$content
@@ -1296,12 +1442,13 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
 generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    provider <- provider_from_config(config, con)
+    api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+    chat_model <- resolve_model_for_operation(config, "gap_analysis")
+    embed_model <- resolve_model_for_operation(config, "embedding")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1462,17 +1609,19 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     )
 
     messages <- format_chat_messages(system_prompt, user_prompt)
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "gap_analysis", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     response <- result$content
