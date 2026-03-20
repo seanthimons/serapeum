@@ -181,16 +181,52 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
               valueField = "value"
             )
           ),
-          # Upload link: <label for=...> targeting the native file input ID.
-          # This is a direct browser-native trigger — no JS required, and it works
-          # even when the fileInput container is visually hidden, because the label
-          # click is treated as a trusted event by the browser.
-          tags$label(
-            `for` = ns("theme_file"),
-            class = "small text-muted d-inline-flex align-items-center gap-1",
-            style = "cursor:pointer; margin-bottom:0;",
-            icon("upload"),
-            " Upload custom theme (.scss)"
+          # Upload + AI Generate links row
+          div(
+            class = "d-flex gap-3 align-items-center",
+            # Existing Upload link (browser-native label-for trigger)
+            tags$label(
+              `for` = ns("theme_file"),
+              class = "small text-muted d-inline-flex align-items-center gap-1",
+              style = "cursor:pointer; margin-bottom:0;",
+              icon("upload"),
+              " Upload custom theme (.scss)"
+            ),
+            # AI Generate trigger — Bootstrap 5 collapse toggle
+            tags$a(
+              class = "small text-muted d-inline-flex align-items-center gap-1",
+              style = "cursor:pointer; margin-bottom:0;",
+              `data-bs-toggle` = "collapse",
+              href = paste0("#", ns("ai_generate_form")),
+              role = "button",
+              `aria-expanded` = "false",
+              `aria-controls` = ns("ai_generate_form"),
+              `aria-label` = "Generate theme with AI",
+              icon("wand-magic-sparkles"),
+              " AI Generate"
+            )
+          ),
+          # AI Generate collapse form
+          div(
+            id = ns("ai_generate_form"),
+            class = "collapse mt-2 p-3 border rounded bg-body-secondary",
+            textAreaInput(
+              ns("ai_theme_description"),
+              NULL,
+              placeholder = "e.g., ocean blues, dark background, modern sans-serif font",
+              rows = 2,
+              width = "100%"
+            ),
+            tags$button(
+              id = ns("ai_generate_btn"),
+              type = "button",
+              class = "btn btn-primary btn-sm mt-2 w-100",
+              onclick = sprintf(
+                "Shiny.setInputValue('%s', Date.now(), {priority: 'event'});",
+                ns("ai_generate_btn")
+              ),
+              "Generate theme"
+            )
           ),
           # fileInput hidden off-screen (not display:none — that blocks label click
           # on some browsers). position:absolute + clip makes it invisible but
@@ -249,6 +285,24 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
                  var bsCollapse = bootstrap.Collapse.getInstance(el);
                  if (bsCollapse) { bsCollapse.hide(); } else { new bootstrap.Collapse(el).hide(); }
                }
+             });
+             Shiny.addCustomMessageHandler('expand_panel', function(id) {
+               var el = document.getElementById(id);
+               if (el && !el.classList.contains('show')) {
+                 bootstrap.Collapse.getOrCreateInstance(el).show();
+               }
+             });
+             Shiny.addCustomMessageHandler('set_button_loading', function(msg) {
+               var btn = document.getElementById(msg.id);
+               if (!btn) return;
+               if (msg.loading) {
+                 btn.disabled = true;
+                 btn.dataset.originalHtml = btn.innerHTML;
+                 btn.innerHTML = '<span class=\"spinner-border spinner-border-sm\" role=\"status\"><span class=\"visually-hidden\">Loading</span></span> ' + (msg.text || 'Generating...');
+               } else {
+                 btn.disabled = false;
+                 btn.innerHTML = btn.dataset.originalHtml || msg.label || 'Generate';
+               }
              });"
           )),
           # 2x2 color picker grid
@@ -261,6 +315,8 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
           ),
           # Font selector
           selectInput(ns("font"), "Font", choices = CURATED_FONTS, selected = "Source Sans Pro"),
+          # Regenerate button (rendered conditionally by server after AI generation)
+          uiOutput(ns("regenerate_btn_area")),
           # Save row
           div(
             class = "d-flex align-items-center gap-2 mt-3",
@@ -493,6 +549,11 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       )
     }
 
+    # Track whether AI generation has occurred (controls Regenerate button visibility)
+    ai_generated <- reactiveVal(FALSE)
+    # Store the last AI description for Regenerate
+    last_ai_description <- reactiveVal(NULL)
+
     # Helper to show results modal with current state
     show_results <- function(preview_url = NULL, error = NULL) {
       showModal(mod_slides_results_ui(
@@ -703,9 +764,224 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         showNotification(paste0("Theme '", name, "' saved"), type = "message")
         # Collapse the panel via JS
         session$sendCustomMessage("collapse_panel", ns("customize_panel"))
+        # Reset AI generation state
+        ai_generated(FALSE)
+        last_ai_description(NULL)
       } else {
         showNotification("Could not save theme. Check file permissions.", type = "error")
       }
+    })
+
+    # AI Theme Generation — Generate button observer
+    observeEvent(input$ai_generate_btn, {
+      description <- input$ai_theme_description
+      if (is.null(description) || !nzchar(trimws(description))) {
+        showNotification("Please enter a theme description.", type = "warning")
+        return()
+      }
+
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      model <- get_setting(cfg, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+
+      if (is.null(api_key) || !nzchar(api_key)) {
+        showNotification("Please set your API key in Settings first.", type = "error")
+        return()
+      }
+
+      # Save description for Regenerate
+      last_ai_description(trimws(description))
+
+      # Spinner on
+      session$sendCustomMessage("set_button_loading",
+        list(id = ns("ai_generate_btn"), loading = TRUE, text = "Generating..."))
+
+      # Attempt generation with 1 retry on JSON failure
+      attempt_generate <- function(desc, attempt_num = 1) {
+        result <- tryCatch(
+          generate_theme_from_description(api_key, model, desc),
+          error = function(e) list(content = NULL, usage = NULL)
+        )
+
+        # Log cost regardless of parse success
+        if (!is.null(result$usage)) {
+          cost <- estimate_cost(model,
+                                prompt_tokens = result$usage$prompt_tokens,
+                                completion_tokens = result$usage$completion_tokens)
+          log_cost(con(),
+                   operation = "theme_generation",
+                   model = model,
+                   prompt_tokens = result$usage$prompt_tokens,
+                   completion_tokens = result$usage$completion_tokens,
+                   estimated_cost = cost,
+                   session_id = session$token)
+        }
+
+        if (is.null(result$content)) {
+          if (attempt_num < 2) return(attempt_generate(desc, 2))
+          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+        }
+
+        json <- extract_theme_json(result$content)
+        if (is.null(json)) {
+          if (attempt_num < 2) return(attempt_generate(desc, 2))
+          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+        }
+
+        list(theme = json, usage = result$usage, error = NULL)
+      }
+
+      gen_result <- attempt_generate(description)
+
+      # Spinner off
+      session$sendCustomMessage("set_button_loading",
+        list(id = ns("ai_generate_btn"), loading = FALSE, label = "Generate theme"))
+
+      if (!is.null(gen_result$error)) {
+        showNotification(gen_result$error, type = "error")
+        return()
+      }
+
+      theme <- gen_result$theme
+
+      # Validate hex colors
+      bad_colors <- validate_theme_colors(theme)
+      if (length(bad_colors) > 0) {
+        showNotification(
+          paste0("Theme has invalid colors (", paste(bad_colors, collapse = ", "),
+                 "). Try a more specific description."),
+          type = "error")
+        return()
+      }
+
+      # Validate font
+      font_result <- validate_and_fix_font(if (is.null(theme$mainFont)) "" else theme$mainFont)
+      if (!is.null(font_result$warning)) {
+        showNotification(font_result$warning, type = "warning")
+      }
+
+      # Populate color pickers and font selector
+      bg  <- theme$backgroundColor
+      fg  <- theme$mainColor
+      acc <- theme$accentColor
+      lnk <- theme$linkColor
+      fnt <- font_result$font
+
+      updateTextInput(session, "bg_hex",     value = bg)
+      updateTextInput(session, "text_hex",   value = fg)
+      updateTextInput(session, "accent_hex", value = acc)
+      updateTextInput(session, "link_hex",   value = lnk)
+      updateSelectInput(session, "font",     selected = fnt)
+
+      session$sendCustomMessage("update_color_swatch", list(
+        ids    = list(ns("bg_swatch"), ns("text_swatch"), ns("accent_swatch"), ns("link_swatch")),
+        values = list(tolower(bg), tolower(fg), tolower(acc), tolower(lnk))
+      ))
+
+      # Expand customize panel
+      session$sendCustomMessage("expand_panel", ns("customize_panel"))
+
+      # Mark AI generation as complete (shows Regenerate button)
+      ai_generated(TRUE)
+
+      # Collapse the AI generate form
+      session$sendCustomMessage("collapse_panel", ns("ai_generate_form"))
+    })
+
+    # Regenerate button — only visible after AI generation
+    output$regenerate_btn_area <- renderUI({
+      if (!ai_generated()) return(NULL)
+      div(
+        class = "mt-2",
+        actionButton(ns("regenerate_theme"), "Regenerate",
+                     class = "btn btn-outline-secondary btn-sm",
+                     icon = icon("rotate"),
+                     `aria-label` = "Regenerate theme with AI")
+      )
+    })
+
+    # Regenerate observer — re-runs AI generation with last description
+    observeEvent(input$regenerate_theme, {
+      description <- last_ai_description()
+      if (is.null(description) || !nzchar(description)) return()
+
+      cfg <- config()
+      api_key <- get_setting(cfg, "openrouter", "api_key")
+      model <- get_setting(cfg, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+
+      session$sendCustomMessage("set_button_loading",
+        list(id = ns("regenerate_theme"), loading = TRUE, text = "Regenerating..."))
+
+      attempt_generate <- function(desc, attempt_num = 1) {
+        result <- tryCatch(
+          generate_theme_from_description(api_key, model, desc),
+          error = function(e) list(content = NULL, usage = NULL)
+        )
+        if (!is.null(result$usage)) {
+          cost <- estimate_cost(model,
+                                prompt_tokens = result$usage$prompt_tokens,
+                                completion_tokens = result$usage$completion_tokens)
+          log_cost(con(),
+                   operation = "theme_generation",
+                   model = model,
+                   prompt_tokens = result$usage$prompt_tokens,
+                   completion_tokens = result$usage$completion_tokens,
+                   estimated_cost = cost,
+                   session_id = session$token)
+        }
+        if (is.null(result$content)) {
+          if (attempt_num < 2) return(attempt_generate(desc, 2))
+          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+        }
+        json <- extract_theme_json(result$content)
+        if (is.null(json)) {
+          if (attempt_num < 2) return(attempt_generate(desc, 2))
+          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+        }
+        list(theme = json, usage = result$usage, error = NULL)
+      }
+
+      gen_result <- attempt_generate(description)
+
+      session$sendCustomMessage("set_button_loading",
+        list(id = ns("regenerate_theme"), loading = FALSE, label = "Regenerate"))
+
+      if (!is.null(gen_result$error)) {
+        showNotification(gen_result$error, type = "error")
+        return()
+      }
+
+      theme <- gen_result$theme
+      bad_colors <- validate_theme_colors(theme)
+      if (length(bad_colors) > 0) {
+        showNotification(
+          paste0("Theme has invalid colors (", paste(bad_colors, collapse = ", "),
+                 "). Try a more specific description."),
+          type = "error")
+        return()
+      }
+
+      font_result <- validate_and_fix_font(if (is.null(theme$mainFont)) "" else theme$mainFont)
+      if (!is.null(font_result$warning)) {
+        showNotification(font_result$warning, type = "warning")
+      }
+
+      bg  <- theme$backgroundColor
+      fg  <- theme$mainColor
+      acc <- theme$accentColor
+      lnk <- theme$linkColor
+      fnt <- font_result$font
+
+      updateTextInput(session, "bg_hex",     value = bg)
+      updateTextInput(session, "text_hex",   value = fg)
+      updateTextInput(session, "accent_hex", value = acc)
+      updateTextInput(session, "link_hex",   value = lnk)
+      updateSelectInput(session, "font",     selected = fnt)
+
+      session$sendCustomMessage("update_color_swatch", list(
+        ids    = list(ns("bg_swatch"), ns("text_swatch"), ns("accent_swatch"), ns("link_swatch")),
+        values = list(tolower(bg), tolower(fg), tolower(acc), tolower(lnk))
+      ))
     })
 
     # Handle generation
