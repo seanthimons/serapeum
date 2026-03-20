@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Completed 60-01-PLAN.md
-last_updated: "2026-03-20T17:21:25.166Z"
+stopped_at: "Completed 60-02 auto tasks; awaiting checkpoint:human-verify (Task 3)"
+last_updated: "2026-03-20T17:29:08.074Z"
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 ---
@@ -67,6 +67,7 @@ Recent decisions affecting v16.0 work:
 - [Phase 59]: Upload trigger uses tags\(for=ns('theme_file')) not actionLink+jQuery — display:none blocks programmatic .click() in browsers; native label-for is a trusted event and always opens the file picker
 - [Phase 60]: parse_scss_colors_full prioritizes accentColor over linkColor for accent field to correctly capture heading color in generated SCSS
 - [Phase 60]: generate_custom_scss always appends sans-serif fallback in font value regardless of category — safe default for RevealJS
+- [Phase 60]: color_picker_pair() local helper used for DRY UI; shinyjs replaced with session$sendCustomMessage for panel collapse (no useShinyjs() in app)
 
 ### Pending Todos
 
@@ -79,8 +80,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-20T17:21:25.162Z
-Stopped at: Completed 60-01-PLAN.md
+Last session: 2026-03-20T17:29:08.070Z
+Stopped at: Completed 60-02 auto tasks; awaiting checkpoint:human-verify (Task 3)
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---

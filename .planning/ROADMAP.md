@@ -185,7 +185,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 57: Citation Traceability** - Prompt-level page citations in all AI presets and slide outputs (completed 2026-03-18)
 - [x] **Phase 58: Theme Infrastructure** - Custom .scss frontmatter plumbing enabling all subsequent theme layers (completed 2026-03-19)
 - [x] **Phase 59: Theme Swatches, Upload, and Management** - Visual swatch previews, .scss upload/persist/manage, base theme selector (completed 2026-03-19)
-- [ ] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population
+- [x] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population (completed 2026-03-20)
 - [ ] **Phase 61: AI Theme Generation** - Freeform description to structured JSON to validated .scss
 - [ ] **Phase 62: Prompt Storage Schema** - DuckDB schema for date-versioned prompt history
 - [ ] **Phase 63: Prompt Editing UI** - View/edit/version/reset system prompts for all AI presets
@@ -291,7 +291,7 @@ Plans:
 | 57. Citation Traceability | 1/1 | Complete    | 2026-03-18 |
 | 58. Theme Infrastructure | 1/1 | Complete    | 2026-03-19 |
 | 59. Theme Swatches, Upload, and Management | 2/2 | Complete    | 2026-03-19 |
-| 60. Color Picker and Font Selector | 1/2 | In Progress|  |
+| 60. Color Picker and Font Selector | 2/2 | Complete   | 2026-03-20 |
 | 61. AI Theme Generation | 0/TBD | Not started | - |
 | 62. Prompt Storage Schema | 0/TBD | Not started | - |
 | 63. Prompt Editing UI | 0/TBD | Not started | - |
