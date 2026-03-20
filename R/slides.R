@@ -217,7 +217,6 @@ build_qmd_frontmatter <- function(title, theme = "default") {
 		"    embed-resources: true\n",
     "    theme: ", theme_val, "\n",
     "    smaller: true\n",
-    "    scrollable: true\n",
     "    reference-location: document\n",
     css_block,
     "---\n"
@@ -756,13 +755,29 @@ post_process_figure_layouts <- function(qmd_content, figures) {
     # Skip if not referenced
     if (!grepl(ref, qmd_content, fixed = TRUE)) next
 
+    aspect <- classify_aspect_ratio(figures$width[i], figures$height[i])
+
     # Check if this reference already has {attributes}
-    # Pattern: ref followed by ){...} means it already has attrs
-    attr_pattern <- paste0(gsub("([\\-\\.])", "\\\\\\1", ref), "\\)\\{")
-    if (grepl(attr_pattern, qmd_content, perl = TRUE)) next
+    ref_escaped <- gsub("([\\-\\.])", "\\\\\\1", ref)
+    attr_pattern <- paste0(ref_escaped, "\\)\\{")
+    has_attrs <- grepl(attr_pattern, qmd_content, perl = TRUE)
+
+    if (has_attrs) {
+      # For portrait/tall figures: fix width-based attrs → height-based
+      # LLMs often use {width="100%"} which causes overflow on tall images
+      if (aspect %in% c("portrait", "tall")) {
+        height_val <- if (aspect == "portrait") '500px' else '400px'
+        # Replace {width="..."} with {height="..."} for this figure
+        fix_pattern <- paste0("(", ref_escaped, "\\))\\{width=\"[^\"]*\"[^}]*\\}")
+        if (grepl(fix_pattern, qmd_content, perl = TRUE)) {
+          replacement <- paste0('\\1{height="', height_val, '"}')
+          qmd_content <- gsub(fix_pattern, replacement, qmd_content, perl = TRUE)
+        }
+      }
+      next
+    }
 
     # No attributes — inject based on aspect class
-    aspect <- classify_aspect_ratio(figures$width[i], figures$height[i])
     attrs <- switch(aspect,
       "wide"      = '{width="90%" fig-align="center"}',
       "landscape"  = '{width="85%" fig-align="center"}',
@@ -774,7 +789,7 @@ post_process_figure_layouts <- function(qmd_content, figures) {
 
     # Replace ](uuid.png) with ](uuid.png){attrs}
     qmd_content <- gsub(
-      paste0("(", gsub("([\\-\\.])", "\\\\\\1", ref), "\\))"),
+      paste0("(", ref_escaped, "\\))"),
       paste0("\\1", attrs),
       qmd_content,
       perl = TRUE

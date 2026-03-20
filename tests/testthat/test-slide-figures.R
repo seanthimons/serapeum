@@ -445,6 +445,15 @@ test_that("post_process_figure_layouts skips figures with existing attrs", {
   expect_equal(result, qmd)
 })
 
+test_that("post_process_figure_layouts overrides width with height for portrait figures", {
+  qmd <- '![Caption](abc.png){width="100%"}'
+  figs <- data.frame(id = "abc", width = 1240L, height = 1648L, stringsAsFactors = FALSE)
+  result <- post_process_figure_layouts(qmd, figs)
+  # Should replace width with height for portrait figure
+  expect_true(grepl('height="500px"', result))
+  expect_false(grepl('width="100%"', result))
+})
+
 test_that("post_process_figure_layouts skips unreferenced figures", {
   qmd <- "No figures here."
   figs <- data.frame(id = "abc", width = 1200L, height = 400L, stringsAsFactors = FALSE)
