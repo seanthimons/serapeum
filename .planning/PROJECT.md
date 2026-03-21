@@ -241,10 +241,10 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 
 **Latest shipped:** v11.0 Search Notebook UX (2026-03-11)
 **Total milestones:** 14 shipped (v1.0–v11.0)
-**Total phases:** 62 complete across 102 plans
+**Total phases:** 63 complete across 105 plans
 **Current:** v16.0 Content & Output Quality
 
-**Phase 62 complete:** Prompt storage schema — DuckDB migration 011 creates `prompt_versions` table with composite PK (preset_slug, version_date) for date-versioned prompt history. Supports UPSERT (one version per preset per day), no seeded defaults (absence = hardcoded default from R/rag.R). Foundation for Phase 63 prompt editing UI.
+**Phase 63 complete:** Prompt Editing UI — Settings page gains "AI Prompts" section with 11 presets (Quick/Deep groups). Modal editor for viewing/editing task instruction text with version history dropdown, save, and reset-to-default. RAG plumbing (citation rules, OWASP separators) hidden from users. R/prompt_helpers.R provides CRUD layer with PROMPT_DEFAULTS registry. All generators in R/rag.R and R/slides.R wired to use custom prompts via get_effective_prompt(). v16.0 milestone complete — all 7 phases shipped.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -252,4 +252,4 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 - Settings page two-column layout rebalancing
 
 ---
-*Last updated: 2026-03-21 after phase 62 completion*
+*Last updated: 2026-03-21 after phase 63 completion*
