@@ -134,7 +134,24 @@ mod_settings_ui <- function(id) {
                        icon = icon_trash_can()),
           textOutput(ns("cleanup_status"))
         )
-      )
+      ),
+      hr(),
+      h5(icon_edit(), " AI Prompts"),
+      p(class = "text-muted small",
+        "Customize the task instructions for each AI preset. Changes affect all future generations."),
+      lapply(names(PRESET_GROUPS), function(group_name) {
+        slugs <- PRESET_GROUPS[[group_name]]
+        tagList(
+          h6(group_name),
+          div(class = "d-flex flex-wrap gap-2 mb-3",
+            lapply(slugs, function(slug) {
+              actionLink(ns(paste0("edit_", slug)),
+                         label = PRESET_DISPLAY_NAMES[[slug]],
+                         class = "btn btn-outline-secondary btn-sm")
+            })
+          )
+        )
+      })
     )
   )
 }
