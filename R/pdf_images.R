@@ -368,7 +368,8 @@ extract_and_describe_figures <- function(con, api_key = NULL,
     })
   }
 
-  n_extracted <- sum(nchar(figure_ids) > 0)
+  successful_idx <- which(nchar(figure_ids) > 0)
+  n_extracted <- length(successful_idx)
   n_described <- 0L
   n_failed <- 0L
 
@@ -376,13 +377,14 @@ extract_and_describe_figures <- function(con, api_key = NULL,
   if (!is.null(api_key) && nchar(api_key) > 0) {
     if (!is.null(progress)) progress(0.5, "Describing figures with vision model...")
 
-    for (i in seq_len(n_extracted)) {
+    for (j in seq_along(successful_idx)) {
+      i <- successful_idx[j]
       fig <- figures_df[i, ]
       fig_id <- figure_ids[i]
 
       if (!is.null(progress)) {
-        progress(0.5 + 0.4 * (i / n_extracted),
-                 sprintf("Describing figure %d of %d...", i, n_extracted))
+        progress(0.5 + 0.4 * (j / n_extracted),
+                 sprintf("Describing figure %d of %d...", j, n_extracted))
       }
 
       desc <- describe_figure(
