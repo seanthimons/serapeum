@@ -271,7 +271,7 @@ Plans:
   3. The schema supports storing multiple versions per preset slug and retrieving the most recent active version
 **Plans**: 1 plan
 Plans:
-- [ ] TBD
+- [ ] 62-01-PLAN.md — Migration 011: prompt_versions table with composite PK and test
 
 ### Phase 63: Prompt Editing UI
 **Goal**: Users can view, edit, version, and reset the system prompts for all AI presets without seeing RAG plumbing
@@ -296,9 +296,9 @@ Plans:
 | 59. Theme Swatches, Upload, and Management | 2/2 | Complete    | 2026-03-19 |
 | 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
 | 61. AI Theme Generation | 2/2 | Complete    | 2026-03-20 |
-| 62. Prompt Storage Schema | 0/TBD | Not started | - |
+| 62. Prompt Storage Schema | 0/1 | Not started | - |
 | 63. Prompt Editing UI | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-20 — Phase 61 planned (2 plans)*
+*Last updated: 2026-03-20 — Phase 62 planned (1 plan)*
