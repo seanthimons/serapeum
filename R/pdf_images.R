@@ -26,6 +26,9 @@ create_figure_dir <- function(notebook_id, document_id = NULL) {
   }
 
   dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(path)) {
+    stop(sprintf("Failed to create figure directory: %s", path))
+  }
   path
 }
 
@@ -47,10 +50,15 @@ save_figure <- function(image_data, notebook_id, document_id, page, index = 1L) 
 
   if (is.character(image_data) && file.exists(image_data)) {
     # Copy from source path
-    file.copy(image_data, file_path, overwrite = TRUE)
+    if (!file.copy(image_data, file_path, overwrite = TRUE)) {
+      stop(sprintf("Failed to copy image from %s to %s", image_data, file_path))
+    }
   } else if (is.raw(image_data)) {
     # Write raw PNG bytes
-    writeBin(image_data, file_path)
+    tryCatch(
+      writeBin(image_data, file_path),
+      error = function(e) stop(sprintf("Failed to write PNG to %s: %s", file_path, e$message))
+    )
   } else {
     stop("image_data must be a raw vector or an existing file path")
   }
@@ -326,33 +334,41 @@ extract_and_describe_figures <- function(con, api_key = NULL,
   if (!is.null(progress)) progress(0.3, sprintf("Saving %d figures...", nrow(figures_df)))
 
   figure_ids <- character(nrow(figures_df))
+  save_failures <- 0L
 
   for (i in seq_len(nrow(figures_df))) {
     fig <- figures_df[i, ]
 
-    file_path <- save_figure(
-      image_data  = fig$image_data[[1]],
-      notebook_id = notebook_id,
-      document_id = document_id,
-      page        = fig$page,
-      index       = fig$figure_index
-    )
+    tryCatch({
+      file_path <- save_figure(
+        image_data  = fig$image_data[[1]],
+        notebook_id = notebook_id,
+        document_id = document_id,
+        page        = fig$page,
+        index       = fig$figure_index
+      )
 
-    figure_ids[i] <- db_insert_figure(con, list(
-      document_id      = document_id,
-      notebook_id      = notebook_id,
-      page_number      = fig$page,
-      file_path        = file_path,
-      extracted_caption = if ("caption" %in% names(fig)) fig$caption else NA_character_,
-      figure_label     = if ("figure_label" %in% names(fig)) fig$figure_label else NA_character_,
-      width            = fig$width,
-      height           = fig$height,
-      file_size        = fig$file_size,
-      extraction_method = fig$method
-    ))
+      figure_ids[i] <- db_insert_figure(con, list(
+        document_id       = document_id,
+        notebook_id       = notebook_id,
+        page_number       = fig$page,
+        file_path         = file_path,
+        extracted_caption = if ("caption" %in% names(fig)) fig$caption else NA_character_,
+        figure_label      = if ("figure_label" %in% names(fig)) fig$figure_label else NA_character_,
+        width             = fig$width,
+        height            = fig$height,
+        file_size         = fig$file_size,
+        extraction_method = fig$method,
+        caption_quality   = if ("caption_quality" %in% names(fig)) fig$caption_quality else NA_character_
+      ))
+    }, error = function(e) {
+      warning(sprintf("[pipeline] Failed to save/insert figure %d (page %d): %s",
+                      i, fig$page, e$message))
+      save_failures <<- save_failures + 1L
+    })
   }
 
-  n_extracted <- nrow(figures_df)
+  n_extracted <- sum(nchar(figure_ids) > 0)
   n_described <- 0L
   n_failed <- 0L
 

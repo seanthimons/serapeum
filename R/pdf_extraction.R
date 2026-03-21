@@ -262,7 +262,10 @@ to_png_bytes <- function(img_array) {
   if (n_ch >= 3) {
     img_array <- img_array[, , 1:3, drop = FALSE]
   }
-  writePNG(img_array / 255, tmp)
+  tryCatch(
+    writePNG(img_array / 255, tmp),
+    error = function(e) stop(sprintf("Failed to write PNG to %s: %s", tmp, e$message))
+  )
   readBin(tmp, "raw", file.info(tmp)$size)
 }
 

@@ -284,6 +284,7 @@ init_schema <- function(con) {
       image_type VARCHAR,
       extraction_method VARCHAR,
       quality_score REAL,
+      presentation_hint VARCHAR,
       is_excluded BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (document_id) REFERENCES documents(id),

@@ -313,7 +313,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       validation_errors = NULL,
       is_fallback = FALSE,
       last_chunks = NULL,
-      figures = NULL
+      figures = NULL,
+      title = NULL
     )
 
     # Store current chip labels for chip click handling
@@ -461,6 +462,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       # Get notebook name for title
       nb <- get_notebook(con(), nb_id)
       notebook_name <- nb$name %||% "Presentation"
+      generation_state$title <- notebook_name
 
       # Generate slides
       showNotification(
