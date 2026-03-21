@@ -40,11 +40,24 @@ Discover and curate academic papers via OpenAlex (240M+ scholarly works).
 - **Export to seed search** - Use any paper as a seed for a new discovery search with one click
 - **Import to documents** - Move curated papers to document notebooks for deeper analysis
 
+### PDF Figure Extraction
+Extract, describe, and manage figures from academic PDFs.
+
+- **Automatic extraction** - Renders PDF pages, detects text gaps, and crops figure regions
+- **Caption detection** - Associates extracted captions with their figures
+- **AI descriptions** - Vision model (GPT-4.1 Nano) generates structured descriptions for each figure
+- **Figure gallery** - Review figures in list view (detailed) or thumbnail grid (quick scan)
+- **Per-figure actions** - Keep, Ban (exclude from slides), or Retry (re-describe) each figure
+- **Watermark filtering** - Automatically removes publisher watermarks that interfere with extraction
+- **Cost tracked** - Vision API costs logged alongside other LLM usage
+
 ### Slide Deck Generation
 Generate presentation slides from notebook content using Quarto RevealJS.
 
 - **Configurable options** - Length, audience level, theme selection
 - **11 RevealJS themes** - moon, sky, beige, serif, and more
+- **Figure integration** - Include extracted figures in slides with layout-aware placement
+- **Aspect-ratio guidance** - Wide, standard, and tall figures get appropriate slide layouts
 - **Speaker notes** - Optional auto-generated presenter notes
 - **Multiple formats** - Preview in-app, download .qmd, export to HTML/PDF
 - **Custom instructions** - Guide the AI on focus areas
@@ -231,7 +244,8 @@ Open http://localhost:8080 in your browser.
 5. Click **"Embed Documents"** to generate embeddings
 6. Ask questions in the chat interface
 7. Use preset buttons for common tasks (Summary, Key Points, etc.)
-8. Generate slides with the **"Slides"** tab
+8. Click the image icon on a PDF to **extract figures** — review in gallery, ban unwanted ones
+9. Generate slides with the **"Slides"** tab
 
 ### Search Notebooks
 
@@ -272,7 +286,9 @@ Open http://localhost:8080 in your browser.
 - **Artificial Analytics**: Model benchmark data for quality/speed/price comparison
 - **OpenAlex**: Free, open academic paper search API
 - **Quarto**: Scientific publishing system for slide generation
-- **pdftools**: PDF text extraction
+- **pdftools**: PDF text extraction and page rendering (bundles Poppler)
+- **base64enc**: Image encoding for vision API
+- **digest**: Figure deduplication
 
 ## Project Structure
 
@@ -292,7 +308,9 @@ serapeum/
 │   ├── api_openalex.R    # OpenAlex client
 │   ├── api_provider.R    # Provider abstraction layer
 │   ├── api_artificialanalysis.R # AA benchmarks client
-│   ├── pdf.R             # PDF utilities
+│   ├── pdf.R             # PDF text extraction
+│   ├── pdf_extraction.R  # Figure extraction from PDFs
+│   ├── pdf_images.R      # Figure storage, vision description, orchestrator
 │   ├── rag.R             # RAG pipeline
 │   ├── _ragnar.R         # Ragnar embedding store helpers
 │   ├── slides.R          # Slide generation
@@ -322,6 +340,7 @@ serapeum/
 │   └── mod_slides.R
 ├── data/
 │   ├── support/          # Bundled RDS files (quality data, topics)
+│   ├── figures/          # Extracted figure PNGs (auto-created)
 │   └── notebooks.duckdb  # Database file (auto-created)
 ├── storage/              # Uploaded PDFs
 ├── output/               # Generated slides

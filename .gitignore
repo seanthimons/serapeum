@@ -19,6 +19,12 @@ config.yml
 
 # Storage
 storage/
+data/figures/
+
+# PDF pipeline dev artifacts
+test-data/
+extracted_figures/
+prototype_*.R
 
 # OS
 .DS_Store
