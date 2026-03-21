@@ -311,10 +311,7 @@ extract_and_describe_figures <- function(con, api_key = NULL,
   # Resolve defaults outside the signature to avoid recursive default reference
   if (is.null(ext_config)) ext_config <- extraction_config()
   if (is.null(vis_config)) vis_config <- figure_vision_config()
-  # Step 1: Clean up existing figures (idempotent re-extraction)
-  db_delete_figures_for_document(con, document_id)
-
-  # Step 2: Extract figures from PDF
+  # Step 1: Extract figures from PDF
   if (!is.null(progress)) progress(0.1, "Extracting figures from PDF...")
 
   figures_df <- tryCatch(
@@ -329,6 +326,9 @@ extract_and_describe_figures <- function(con, api_key = NULL,
     return(list(n_extracted = 0L, n_described = 0L, n_failed = 0L,
                 figures = data.frame()))
   }
+
+  # Step 2: Clean up existing figures now that extraction succeeded
+  db_delete_figures_for_document(con, document_id)
 
   # Step 3: Save PNGs and insert DB rows
   if (!is.null(progress)) progress(0.3, sprintf("Saving %d figures...", nrow(figures_df)))
@@ -428,7 +428,7 @@ extract_and_describe_figures <- function(con, api_key = NULL,
       }
 
       # Rate limiting pause between API calls
-      if (i < n_extracted) Sys.sleep(0.5)
+      if (j < n_extracted) Sys.sleep(0.5)
     }
   }
 

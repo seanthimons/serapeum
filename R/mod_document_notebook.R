@@ -419,6 +419,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           ),
           easyClose = FALSE
         ))
+      } else if (has_content) {
+        # Store is healthy — sync brain icon markers and check for unembedded docs
+        sync <- tryCatch(
+          sync_document_ragnar_statuses(con(), nb_id),
+          error = function(e) NULL
+        )
+        if (!is.null(sync) && sync$documents > sync$marked) {
+          missing <- sync$documents - sync$marked
+          # Surface rebuild button by marking index as incomplete
+          rag_ready(FALSE)
+          showNotification(
+            paste0(missing, " of ", sync$documents,
+                   " document(s) not in the search index. Use Rebuild Search Index to embed them."),
+            type = "warning", duration = 8
+          )
+        }
+        doc_refresh(doc_refresh() + 1)
       }
     })
 
@@ -452,6 +469,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       if (result$success) {
         store_healthy(TRUE)
         rag_ready(TRUE)
+        # Mark all documents as ragnar-indexed so brain icons show
+        tryCatch({
+          mark_as_ragnar_indexed(con(),
+            DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(nb_id))$id,
+            source_type = "document")
+        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
         doc_refresh(doc_refresh() + 1)
         showNotification(
           paste("Search index rebuilt successfully.", result$count, "items re-embedded."),
@@ -693,11 +716,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                   ),
                   easyClose = TRUE
                 ))
-                # Register one-time confirm observer
-                observeEvent(input[[paste0("confirm_reextract_", d_id)]], {
-                  removeModal()
-                  run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
-                }, ignoreInit = TRUE, once = TRUE)
+                # Register one-time confirm observer (guarded to prevent accumulation)
+                confirm_key <- paste0("confirm_reextract_", d_id)
+                if (is.null(extract_observers[[confirm_key]])) {
+                  extract_observers[[confirm_key]] <- observeEvent(input[[confirm_key]], {
+                    removeModal()
+                    extract_observers[[confirm_key]] <- NULL
+                    run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
+                  }, ignoreInit = TRUE, once = TRUE)
+                }
                 return()
               }
               run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
@@ -855,8 +882,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                   result$n_extracted, desc_msg, filename),
           type = "message"
         )
-        # Clear old figure action observers (figure IDs changed)
+        # Destroy and clear old figure action observers (figure IDs changed)
         for (old_id in names(fig_action_observers)) {
+          obs_list <- fig_action_observers[[old_id]]
+          if (is.list(obs_list)) {
+            for (obs in obs_list) if (!is.null(obs)) obs$destroy()
+          }
           fig_action_observers[[old_id]] <- NULL
         }
         selected_fig_doc(doc_id)
@@ -951,19 +982,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             f_caption <- fig$extracted_caption
 
             # Keep
-            observeEvent(input[[paste0("keep_", f_id)]], {
+            obs_keep <- observeEvent(input[[paste0("keep_", f_id)]], {
               db_update_figure(con(), f_id, is_excluded = FALSE)
-              fig_refresh(fig_refresh() + 1)
+              fig_refresh(isolate(fig_refresh()) + 1)
             }, ignoreInit = TRUE)
 
             # Ban
-            observeEvent(input[[paste0("ban_", f_id)]], {
+            obs_ban <- observeEvent(input[[paste0("ban_", f_id)]], {
               db_update_figure(con(), f_id, is_excluded = TRUE)
-              fig_refresh(fig_refresh() + 1)
+              fig_refresh(isolate(fig_refresh()) + 1)
             }, ignoreInit = TRUE)
 
             # Retry vision description
-            observeEvent(input[[paste0("retry_", f_id)]], {
+            obs_retry <- observeEvent(input[[paste0("retry_", f_id)]], {
               cfg <- config()
               api_key <- cfg$openrouter$api_key
               if (is.null(api_key) || nchar(api_key) == 0) {
@@ -998,7 +1029,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                 }
                 db_update_figure(con(), f_id,
                   llm_description = description_text,
-                  image_type = desc$type
+                  image_type = desc$type,
+                  presentation_hint = desc$presentation_hint
                 )
                 # Log cost
                 if (desc$prompt_tokens > 0 || desc$completion_tokens > 0) {
@@ -1013,10 +1045,10 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               } else {
                 showNotification("Failed to describe figure", type = "error", duration = 5)
               }
-              fig_refresh(fig_refresh() + 1)
+              fig_refresh(isolate(fig_refresh()) + 1)
             }, ignoreInit = TRUE)
+            fig_action_observers[[f_id]] <- list(obs_keep, obs_ban, obs_retry)
           })
-          fig_action_observers[[fig$id]] <- TRUE
         }
 
         # Build card based on view mode
@@ -1132,6 +1164,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               ensure_ragnar_store(nb_id, session, api_key, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
+                showNotification(
+                  paste("PDF saved but search index unavailable:", e$message,
+                        "— use Rebuild Search Index to retry."),
+                  type = "warning", duration = 8
+                )
                 NULL
               }
             )
@@ -1152,7 +1189,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               message("Ragnar store updated for document: ", file$name)
             }
           }, error = function(e) {
-            message("Ragnar indexing skipped: ", e$message)
+            message("Ragnar indexing failed: ", e$message)
+            showNotification(
+              paste("PDF saved but embedding failed:", e$message,
+                    "— use Rebuild Search Index to retry."),
+              type = "warning", duration = 8
+            )
           })
         }
 

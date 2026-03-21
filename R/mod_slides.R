@@ -675,6 +675,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         healed_text <- post_process_figure_layouts(healed_text, figs)
         healed_text <- inline_figure_data_uris(healed_text, figs)
         writeLines(healed_text, heal_result$qmd_path)
+        generation_state$qmd_content <- healed_text
       }
 
       showNotification("Rendering healed preview...", id = "slides_progress", duration = NULL, type = "message")
