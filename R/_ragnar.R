@@ -134,46 +134,51 @@ decode_origin_metadata <- function(origin) {
 
 # ---- Ragnar Store Management ----
 
-#' Build embed function for OpenRouter
+#' Build embed function for the provider layer
 #'
-#' Creates a self-contained embed function that calls the OpenRouter
-#' embeddings API directly via httr2. This function is set on ragnar
-#' stores at runtime via the S7 @embed property, bypassing ragnar's
-#' closure serialization which loses environment references.
+#' Creates a self-contained embed function that calls the provider
+#' embeddings API. This function is set on ragnar stores at runtime
+#' via the S7 @embed property, bypassing ragnar's closure
+#' serialization which loses environment references.
 #'
-#' @param api_key OpenRouter API key
+#' @param provider provider_config object
 #' @param embed_model Embedding model ID
 #' @return Function(texts) -> matrix of embeddings
-make_embed_function <- function(api_key, embed_model) {
-  force(api_key)
+make_embed_function <- function(provider, embed_model) {
+  force(provider)
   force(embed_model)
   function(texts) {
-    result <- get_embeddings(api_key, embed_model, texts)
+    result <- tryCatch(
+      provider_get_embeddings(provider, embed_model, texts),
+      error = function(e) {
+        stop("Embedding failed (", provider$name, "): ", e$message)
+      }
+    )
     do.call(rbind, result$embeddings)
   }
 }
 
 #' Get or create RagnarStore for chunk embeddings
 #'
-#' Uses OpenRouter for embeddings (same API key as chat), so no separate
-#' OpenAI key is required. Attaches the embed function at runtime via the
-#' S7 @embed property to bypass ragnar's closure serialization bug.
+#' Uses the provider layer for embeddings. Attaches the embed function
+#' at runtime via the S7 @embed property to bypass ragnar's closure
+#' serialization bug.
 #'
 #' @param path Path to the ragnar store database
-#' @param openrouter_api_key OpenRouter API key (required for embedding)
-#' @param embed_model Embedding model (OpenRouter format, e.g., "openai/text-embedding-3-small")
+#' @param provider provider_config object (required for embedding)
+#' @param embed_model Embedding model (e.g., "openai/text-embedding-3-small")
 #' @return RagnarStore object
 get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
-                              openrouter_api_key = NULL,
+                              provider = NULL,
                               embed_model = "openai/text-embedding-3-small") {
   dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
-  # Require API key (needed for embed function on both create and connect)
-  if (is.null(openrouter_api_key) || nchar(openrouter_api_key) == 0) {
-    stop("OpenRouter API key required to create/open ragnar store for embedding")
+  # Require provider (needed for embed function; local providers may have NULL api_key)
+  if (is.null(provider)) {
+    stop("Provider required to create/open ragnar store for embedding")
   }
 
-  embed_fn <- make_embed_function(openrouter_api_key, embed_model)
+  embed_fn <- make_embed_function(provider, embed_model)
 
   if (file.exists(path)) {
     store <- ragnar::ragnar_store_connect(path)
@@ -237,7 +242,88 @@ disconnect_ragnar_store <- function(store) {
 #' @param target_size Target chunk size in characters (default: 1600)
 #' @param target_overlap Overlap fraction between chunks (default: 0.5)
 #' @return Data frame with columns: content, page_number, chunk_index, context, origin
-chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5) {
+#' Current index schema version
+#'
+#' Bumped when chunk format changes (e.g., adding contextual headers).
+#' Used to detect stale ragnar stores that need re-indexing.
+RAGNAR_INDEX_SCHEMA_VERSION <- 2L
+
+#' Prepend a contextual header to chunk content
+#'
+#' @param content Chunk text content
+#' @param paper_title Paper title (or filename fallback)
+#' @param section_hint Optional section hint (e.g., "Methods")
+#' @return Content with prepended header
+prepend_contextual_header <- function(content, paper_title = NULL, section_hint = NULL) {
+  # Determine the label
+  label <- if (!is.null(paper_title) && !is.na(paper_title) && nchar(trimws(paper_title)) > 0) {
+    paper_title
+  } else {
+    return(content)  # No title available, return as-is
+  }
+
+  # Add section if available
+  if (!is.null(section_hint) && !is.na(section_hint) && nchar(trimws(section_hint)) > 0 &&
+      section_hint != "general") {
+    header <- sprintf("[%s | Section: %s]\n", label, section_hint)
+  } else {
+    header <- sprintf("[%s]\n", label)
+  }
+
+  paste0(header, content)
+}
+
+#' Check if a ragnar store is stale (needs re-indexing)
+#'
+#' Stale when: schema version is outdated, or the embedding model has changed
+#' since the index was built.
+#'
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param current_embed_model Current embedding model ID (optional)
+#' @return logical — TRUE if store needs re-indexing
+is_ragnar_store_stale <- function(con, notebook_id, current_embed_model = NULL) {
+  # Check schema version
+  stored_version <- tryCatch({
+    key <- paste0("index_schema_version_", notebook_id)
+    get_db_setting(con, key)
+  }, error = function(e) NULL)
+
+  if (is.null(stored_version)) return(TRUE)
+  if (as.integer(stored_version) < RAGNAR_INDEX_SCHEMA_VERSION) return(TRUE)
+
+  # Check embedding model mismatch
+  if (!is.null(current_embed_model)) {
+    indexed_model <- tryCatch({
+      key <- paste0("index_embed_model_", notebook_id)
+      get_db_setting(con, key)
+    }, error = function(e) NULL)
+
+    if (!is.null(indexed_model) && indexed_model != current_embed_model) {
+      return(TRUE)
+    }
+  }
+
+  FALSE
+}
+
+#' Mark a ragnar store's schema version as current
+#'
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param embed_model Optional embedding model ID to record
+mark_ragnar_store_current <- function(con, notebook_id, embed_model = NULL) {
+  key <- paste0("index_schema_version_", notebook_id)
+  save_db_setting(con, key, RAGNAR_INDEX_SCHEMA_VERSION)
+
+  if (!is.null(embed_model)) {
+    model_key <- paste0("index_embed_model_", notebook_id)
+    save_db_setting(con, model_key, embed_model)
+  }
+}
+
+chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5,
+                               paper_title = NULL) {
   all_chunks <- data.frame(
     content = character(),
     page_number = integer(),
@@ -295,6 +381,11 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
 
       if (is.null(chunk_text) || nchar(trimws(chunk_text)) == 0) next
 
+      # Prepend contextual header if paper_title provided
+      if (!is.null(paper_title)) {
+        chunk_text <- prepend_contextual_header(chunk_text, paper_title)
+      }
+
       all_chunks <- rbind(all_chunks, data.frame(
         content = chunk_text,
         page_number = page_num,
@@ -324,12 +415,12 @@ chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap 
 #'
 #' @param notebook_id Notebook ID (UUID)
 #' @param session Shiny session for notifications (optional)
-#' @param api_key OpenRouter API key (required for store creation)
-#' @param embed_model Embedding model ID (OpenRouter format)
+#' @param provider provider_config object (required for store creation)
+#' @param embed_model Embedding model ID
 #' @return RagnarStore connection or NULL on error
 #' @examples
-#' store <- ensure_ragnar_store("notebook-id", session, api_key, "openai/text-embedding-3-small")
-ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
+#' store <- ensure_ragnar_store("notebook-id", session, provider, "openai/text-embedding-3-small")
+ensure_ragnar_store <- function(notebook_id, session = NULL, provider = NULL,
                                  embed_model = "openai/text-embedding-3-small") {
   store_path <- get_notebook_ragnar_path(notebook_id)
 
@@ -337,8 +428,8 @@ ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
   if (file.exists(store_path)) {
     store <- ragnar::ragnar_store_connect(store_path)
     # Attach working embed function (bypasses broken serialized closure)
-    if (!is.null(api_key) && nchar(api_key) > 0) {
-      store@embed <- make_embed_function(api_key, embed_model)
+    if (!is.null(provider) && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {
+      store@embed <- make_embed_function(provider, embed_model)
     }
     return(store)
   }
@@ -356,7 +447,7 @@ ensure_ragnar_store <- function(notebook_id, session = NULL, api_key = NULL,
   store <- tryCatch({
     get_ragnar_store(
       path = store_path,
-      openrouter_api_key = api_key,
+      provider = provider,
       embed_model = embed_model
     )
   }, error = function(e) {
@@ -707,7 +798,7 @@ read_reindex_progress <- function(progress_file) {
 #'
 #' @param notebook_id Notebook ID (UUID)
 #' @param con DuckDB connection (to get documents and abstracts); ignored if db_path provided
-#' @param api_key OpenRouter API key (for embedding)
+#' @param provider provider_config object (for embedding)
 #' @param embed_model Embedding model ID (OpenRouter format)
 #' @param progress_callback Optional function(count, total, name) called after each item
 #' @param interrupt_flag Path to interrupt flag file (for cross-process cancellation via mirai)
@@ -715,8 +806,8 @@ read_reindex_progress <- function(progress_file) {
 #' @param db_path When provided, open own DBI connection (mirai workers cannot receive serialized con)
 #' @return List with success (logical), count (integer), partial (logical), error (character if failed)
 #' @examples
-#' result <- rebuild_notebook_store(notebook_id, con, api_key, "openai/text-embedding-3-small")
-rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model,
+#' result <- rebuild_notebook_store(notebook_id, con, provider, "openai/text-embedding-3-small")
+rebuild_notebook_store <- function(notebook_id, con = NULL, provider, embed_model,
                                     progress_callback = NULL,
                                     interrupt_flag = NULL,
                                     progress_file = NULL,
@@ -763,7 +854,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
     # Create new store
     store <- get_ragnar_store(
       path = store_path,
-      openrouter_api_key = api_key,
+      provider = provider,
       embed_model = embed_model
     )
 
@@ -780,9 +871,10 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         doc <- documents[i, ]
         item_name <- substr(doc$filename, 1, 60)
 
-        # Chunk the document
+        # Chunk the document (with contextual header using filename as title)
         pages <- strsplit(doc$full_text, "\f")[[1]]
-        chunks <- chunk_with_ragnar(pages, doc$filename)
+        doc_title <- sub("\\.[^.]+$", "", doc$filename)  # Strip file extension for cleaner header
+        chunks <- chunk_with_ragnar(pages, doc$filename, paper_title = doc_title)
 
         # Insert chunks to store
         insert_chunks_to_ragnar(store, chunks, doc$id, "document")
@@ -796,7 +888,7 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
       }
     }
 
-    # Re-embed all abstracts
+    # Re-embed all abstracts (skip those with NA/empty abstract text)
     if (nrow(abstracts) > 0) {
       for (i in seq_len(nrow(abstracts))) {
         # Check for cancellation before each item
@@ -807,6 +899,12 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
         }
 
         abstract <- abstracts[i, ]
+
+        # Skip abstracts without text (e.g., BibTeX imports without abstracts)
+        if (is.na(abstract$abstract) || nchar(trimws(abstract$abstract)) == 0) {
+          count <- count + 1
+          next
+        }
 
         # Derive human-readable item name for progress display
         item_name <- if (!is.null(abstract$title) && !is.na(abstract$title) && nchar(abstract$title) > 0) {
@@ -825,8 +923,19 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
           source_type = "abstract"
         )
 
+        # Prepend contextual header with paper title (fixes #159 for abstracts)
+        abstract_content <- abstract$abstract
+        abstract_label <- if (!is.null(abstract$title) && !is.na(abstract$title) && nchar(abstract$title) > 0) {
+          abstract$title
+        } else if (!is.null(abstract$doi) && !is.na(abstract$doi) && nchar(abstract$doi) > 0) {
+          abstract$doi
+        } else {
+          "Untitled"
+        }
+        abstract_content <- prepend_contextual_header(abstract_content, abstract_label)
+
         abstract_chunks <- data.frame(
-          content = abstract$abstract,
+          content = abstract_content,
           page_number = NA_integer_,
           chunk_index = 0,
           context = "",
@@ -847,6 +956,11 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, api_key, embed_model
 
     # Build the index
     build_ragnar_index(store)
+
+    # Mark store schema as current
+    if (!is.null(con)) {
+      mark_ragnar_store_current(con, notebook_id, embed_model)
+    }
 
     # Disconnect store
     DBI::dbDisconnect(store@con, shutdown = TRUE)
@@ -1010,52 +1124,111 @@ insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
   invisible(store)
 }
 
-#' Retrieve chunks using ragnar's hybrid search
+#' Enrich retrieval results with parsed metadata from origin field
 #'
-#' Uses VSS + BM25 for better retrieval quality.
+#' Shared metadata parser used by both retrieve_with_ragnar and
+#' retrieve_split_rrf. Also resolves abstract titles from the DB
+#' when a connection is provided (fixes #159).
 #'
-#' @param store RagnarStore object
-#' @param query Search query
-#' @param top_k Number of results to return
-#' @return Data frame of matching chunks with metadata
-retrieve_with_ragnar <- function(store, query, top_k = 5) {
-  results <- ragnar::ragnar_retrieve(store, query, top_k = top_k)
+#' @param results Data frame from ragnar retrieval
+#' @param con Optional DuckDB connection for abstract title lookup
+#' @return Data frame with added source_type, page_number, doc_name, abstract_title columns
+enrich_retrieval_results <- function(results, con = NULL) {
+  if (nrow(results) == 0 || !"origin" %in% names(results)) return(results)
 
-  # Results come back with: text, origin, score (potentially)
-  # Parse metadata from origin field based on format:
-  # - Documents: "filename#page=N"
-  # - Abstracts: "abstract:id"
-  if (nrow(results) > 0 && "origin" %in% names(results)) {
-    results$source_type <- vapply(results$origin, function(o) {
-      if (grepl("^abstract:", o)) "abstract" else "document"
-    }, character(1))
+  results$source_type <- vapply(results$origin, function(o) {
+    if (grepl("^abstract:", o)) "abstract" else "document"
+  }, character(1))
 
-    results$page_number <- vapply(results$origin, function(o) {
-      match <- regmatches(o, regexec("#page=(\\d+)", o))[[1]]
-      if (length(match) >= 2) as.integer(match[2]) else NA_integer_
-    }, integer(1))
+  results$page_number <- vapply(results$origin, function(o) {
+    match <- regmatches(o, regexec("#page=(\\d+)", o))[[1]]
+    if (length(match) >= 2) as.integer(match[2]) else NA_integer_
+  }, integer(1))
 
-    results$doc_name <- vapply(results$origin, function(o) {
-      if (grepl("^abstract:", o)) {
-        NA_character_  # Abstracts don't have doc_name
-      } else {
-        # Strip #page=N and any pipe-delimited metadata suffix
-        sub("#page=\\d+.*$", "", o)
-      }
-    }, character(1))
+  results$doc_name <- vapply(results$origin, function(o) {
+    if (grepl("^abstract:", o)) {
+      NA_character_
+    } else {
+      sub("#page=\\d+.*$", "", o)
+    }
+  }, character(1))
 
-    results$abstract_title <- vapply(results$origin, function(o) {
-      if (grepl("^abstract:", o)) {
-        # For abstracts, we'd need to look up the title from DB
-        # For now, just mark as abstract
-        "[Abstract]"
-      } else {
-        NA_character_
-      }
-    }, character(1))
-  }
+  # Resolve abstract titles from DB instead of using "[Abstract]" placeholder (#159)
+  results$abstract_title <- vapply(results$origin, function(o) {
+    if (!grepl("^abstract:", o)) return(NA_character_)
+
+    # Extract abstract ID (strip prefix and any pipe-delimited metadata)
+    abstract_id <- sub("\\|.*$", "", sub("^abstract:", "", o))
+
+    # Look up title from DB if connection provided
+    if (!is.null(con)) {
+      title <- tryCatch({
+        row <- DBI::dbGetQuery(con, "SELECT title FROM abstracts WHERE id = ? LIMIT 1",
+                               list(abstract_id))
+        if (nrow(row) > 0 && !is.na(row$title[1]) && nchar(row$title[1]) > 0) {
+          row$title[1]
+        } else {
+          "[Abstract]"
+        }
+      }, error = function(e) "[Abstract]")
+      return(title)
+    }
+
+    "[Abstract]"
+  }, character(1))
 
   results
+}
+
+#' Retrieve chunks using ragnar's hybrid search
+#'
+#' Uses split VSS + BM25 retrieval with Reciprocal Rank Fusion (RRF).
+#'
+#' @param store RagnarStore object
+#' @param query Search query (or character vector of queries for multi-query mode)
+#' @param top_k Number of results per retrieval method per query
+#' @param k RRF constant (default 60)
+#' @param con Optional DuckDB connection for abstract title lookup
+#' @return Data frame of matching chunks with metadata
+retrieve_with_ragnar <- function(store, query, top_k = 5, k = 60, con = NULL) {
+  # Support multiple queries (for RAG-Fusion)
+  queries <- if (is.character(query) && length(query) > 1) query else list(query)
+
+  ranked_lists <- list()
+
+  for (q in queries) {
+    # VSS retrieval
+    vss_results <- tryCatch({
+      ragnar::ragnar_retrieve_vss(store, q, top_k = top_k)
+    }, error = function(e) {
+      message("[ragnar] VSS retrieval failed: ", e$message)
+      data.frame(text = character(), origin = character(), hash = character(),
+                 stringsAsFactors = FALSE)
+    })
+
+    # BM25 retrieval (note: ragnar uses 'text' not 'query' for bm25)
+    bm25_results <- tryCatch({
+      ragnar::ragnar_retrieve_bm25(store, text = q, top_k = top_k)
+    }, error = function(e) {
+      message("[ragnar] BM25 retrieval failed: ", e$message)
+      data.frame(text = character(), origin = character(), hash = character(),
+                 stringsAsFactors = FALSE)
+    })
+
+    if (nrow(vss_results) > 0) ranked_lists <- c(ranked_lists, list(vss_results))
+    if (nrow(bm25_results) > 0) ranked_lists <- c(ranked_lists, list(bm25_results))
+  }
+
+  # RRF merge all lists
+  results <- rrf_merge(ranked_lists, k = k)
+
+  # Rename 'text' to 'content' for consistency with downstream code
+  if ("text" %in% names(results) && !"content" %in% names(results)) {
+    names(results)[names(results) == "text"] <- "content"
+  }
+
+  # Enrich with metadata
+  enrich_retrieval_results(results, con = con)
 }
 
 #' Build the ragnar store index after inserting chunks

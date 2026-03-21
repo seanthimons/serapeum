@@ -173,6 +173,44 @@ mod_about_ui <- function(id) {
 
       hr(class = "my-4"),
 
+      # What's New
+      h4(class = "text-center mb-3", icon_star(), " What's New"),
+      div(
+        class = "mx-auto", style = "max-width: 700px;",
+        h6(paste0("v", SERAPEUM_VERSION, " \u2014 UX Polish & Onboarding")),
+        tags$ul(
+          tags$li("Reworked welcome experience with guided workflow"),
+          tags$li("Progress feedback for synthesis operations"),
+          tags$li("Editable LLM prompts for power users"),
+          tags$li("Verbose OpenAlex API logging toggle"),
+          tags$li("Version tracking and What's New section")
+        ),
+        tags$details(
+          tags$summary(class = "text-muted small mb-2", "Previous versions"),
+          h6("v11.0 \u2014 Citation Network Refinements"),
+          tags$ul(
+            tags$li("Year filter slider/histogram alignment fix"),
+            tags$li("Community-aware edge weighting for cluster separation"),
+            tags$li("Timeline heatmap visualization")
+          ),
+          h6("v10.0 \u2014 Theming & Synthesis Presets"),
+          tags$ul(
+            tags$li("Global color theme for buttons and UI"),
+            tags$li("Methodology Extractor and Gap Analysis presets"),
+            tags$li("Citation audit bug fixes")
+          ),
+          h6("v9.0 \u2014 Network Graph Improvements"),
+          tags$ul(
+            tags$li("Tooltip overflow and dark mode fixes"),
+            tags$li("Year filter corrections"),
+            tags$li("Trim to influential papers feature"),
+            tags$li("Physics toggle and rotation fixes")
+          )
+        )
+      ),
+
+      hr(class = "my-4"),
+
       # Credits and Links
       layout_columns(
         col_widths = c(4, 4, 4),

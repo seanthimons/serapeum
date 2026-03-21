@@ -6,6 +6,10 @@ mod_query_builder_ui <- function(id) {
   card(
     card_header("Build a Research Query"),
     card_body(
+      div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+        icon_circle_info(class = "text-primary"),
+        "Describe your research interest and AI will help build an effective OpenAlex search query."
+      ),
       textAreaInput(
         ns("nl_query"),
         "Describe what you're looking for:",
@@ -71,10 +75,10 @@ OUTPUT (valid JSON only, no markdown, no code fences):
 
       # Get config values
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      model <- get_setting(cfg, "openrouter", "model") %||% "anthropic/claude-sonnet-4"
+      provider <- provider_from_config(cfg, con())
+      model <- resolve_model_for_operation(cfg, "query_build")
 
-      if (is.null(api_key) || nchar(api_key) == 0) {
+      if ((is.null(provider$api_key) || nchar(provider$api_key) == 0) && !is_local_provider(provider)) {
         showNotification(
           "OpenRouter API key not configured. Please go to Settings.",
           type = "warning",
@@ -86,8 +90,8 @@ OUTPUT (valid JSON only, no markdown, no code fences):
       withProgress(message = "Generating query...", {
         # Call LLM
         response <- tryCatch({
-          result <- chat_completion(
-            api_key,
+          result <- provider_chat_completion(
+            provider,
             model,
             format_chat_messages(system_prompt, input$nl_query)
           )
@@ -101,7 +105,8 @@ OUTPUT (valid JSON only, no markdown, no code fences):
                      result$usage$prompt_tokens %||% 0,
                      result$usage$completion_tokens %||% 0,
                      result$usage$total_tokens %||% 0,
-                     cost, session$token)
+                     cost, session$token,
+                     duration_ms = result$duration_ms)
           }
 
           result$content

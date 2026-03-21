@@ -49,6 +49,11 @@ mod_document_notebook_ui <- function(id) {
       });
     ")),
 
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Upload PDFs and use AI to chat with your documents, generate summaries, and extract insights."
+    ),
+
     layout_columns(
       col_widths = c(4, 8),
       # Left: Document list
@@ -202,6 +207,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
+    processing_doc_count <- reactiveVal(0L)
 
     # Reactive: slides trigger
     slides_trigger <- reactiveVal(0)
@@ -226,16 +232,18 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
     # Async re-index task (Phase 22) — follows mod_citation_network.R ExtendedTask pattern
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir) {
       mirai::mirai({
         source(file.path(app_dir, "R", "interrupt.R"))
+        source(file.path(app_dir, "R", "config.R"))
         source(file.path(app_dir, "R", "api_openalex.R"))
         source(file.path(app_dir, "R", "api_openrouter.R"))
+        source(file.path(app_dir, "R", "api_provider.R"))
         source(file.path(app_dir, "R", "_ragnar.R"))
 
         result <- rebuild_notebook_store(
           notebook_id = notebook_id,
-          api_key = api_key,
+          provider = provider,
           embed_model = embed_model,
           documents = documents,
           abstracts = abstracts,
@@ -245,7 +253,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
         result
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
-         api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
+         provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir)
     })
 
@@ -447,15 +455,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      provider <- provider_from_config(cfg, con())
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Rebuild with progress (per user decision: withProgress with document count)
       withProgress(message = "Rebuilding search index...", value = 0, {
         result <- rebuild_notebook_store(
           notebook_id = nb_id,
           con = con(),
-          api_key = api_key,
+          provider = provider,
           embed_model = embed_model,
           progress_callback = function(count, total) {
             incProgress(
@@ -498,8 +506,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      provider <- provider_from_config(cfg, con())
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -544,7 +552,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
     })
 
     # Cancel re-index handler (Phase 22)
@@ -1151,17 +1159,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
         incProgress(0.5, detail = "Generating embeddings")
 
-        api_key <- get_setting(cfg, "openrouter", "api_key")
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+        provider <- provider_from_config(cfg, con())
+        embed_model <- resolve_model_for_operation(cfg, "embedding")
 
         # Insert into per-notebook ragnar store (Phase 22: per-notebook store)
-        # Uses same OpenRouter API key for embeddings
-        if (nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
+        if (nrow(result$chunks) > 0 && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {
           incProgress(0.55, detail = "Building search index")
           tryCatch({
             # Phase 22: Use per-notebook ragnar store
             store <- tryCatch(
-              ensure_ragnar_store(nb_id, session, api_key, embed_model),
+              ensure_ragnar_store(nb_id, session, provider, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
                 showNotification(
@@ -1284,13 +1291,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Add loading spinner if processing
       if (is_processing()) {
+        doc_count <- processing_doc_count()
+        status_text <- if (doc_count > 0) {
+          sprintf("Analyzing %d document%s...", doc_count, if (doc_count == 1) "" else "s")
+        } else {
+          "Thinking..."
+        }
         msg_list <- c(msg_list, list(
           div(
             class = "d-flex justify-content-start mb-2",
             div(
               class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
               div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
-              span(class = "text-muted", "Thinking...")
+              span(class = "text-muted", status_text)
             )
           )
         ))
@@ -1339,6 +1352,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       if (nchar(user_msg) == 0) return()
 
       updateTextInput(session, "user_input", value = "")
+      processing_doc_count(tryCatch(nrow(list_documents(con(), notebook_id())), error = function(e) 0L))
       is_processing(TRUE)
 
       # Add user message
@@ -1367,11 +1381,49 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       # This won't work directly - need JS for Enter key
     }, ignoreInit = TRUE)
 
+    # Synthesis progress modal helpers
+    show_synthesis_modal <- function(label) {
+      showModal(modalDialog(
+        title = tagList(icon_spinner(class = "fa-spin"), paste(" Generating:", label)),
+        div(
+          class = "text-center py-3",
+          div(class = "spinner-border text-primary mb-3", role = "status",
+              style = "width: 3rem; height: 3rem;"),
+          div(id = ns("synthesis_status"), class = "text-muted", "Preparing context...")
+        ),
+        footer = NULL,
+        easyClose = FALSE,
+        size = "m"
+      ))
+    }
+
+    update_synthesis_status <- function(message) {
+      session$sendCustomMessage("updateSynthesisStatus", list(
+        msg_id = ns("synthesis_status"),
+        message = message
+      ))
+    }
+
     # Preset buttons
     handle_preset <- function(preset_type, label) {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard: skip modal and show inline warning if no content
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification(
+          "This notebook has no documents yet. Upload a PDF first, then try again.",
+          type = "warning", duration = 5
+        )
+        return()
+      }
+
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+
+      show_synthesis_modal(label)
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label), timestamp = Sys.time())))
@@ -1380,15 +1432,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
-        generate_preset(con(), cfg, nb_id, preset_type, session_id = session$token)
+        generate_preset(con(), cfg, nb_id, preset_type,
+                        session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     }
 
     # Reset Overview popover to defaults each time it opens
@@ -1401,7 +1457,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
-      is_processing(TRUE)
+
+      # Empty notebook guard
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        toggle_popover(id = ns("overview_popover"))
+        return()
+      }
 
       depth <- input$overview_depth %||% "concise"
       mode <- input$overview_mode %||% "quick"
@@ -1409,7 +1474,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       depth_label <- if (identical(depth, "detailed")) "Detailed" else "Concise"
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
+      processing_doc_count(doc_count)
+      is_processing(TRUE)
+
       toggle_popover(id = ns("overview_popover"))
+      show_synthesis_modal(paste0("Overview (", depth_label, ", ", mode_label, ")"))
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1423,6 +1492,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "document",
                                  depth = depth, mode = mode, session_id = session$token)
@@ -1430,6 +1500,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1438,6 +1509,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
@@ -1447,7 +1519,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_conclusions, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Conclusion Synthesis")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
@@ -1456,15 +1540,18 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "document", session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Literature Review Table preset handler
@@ -1478,9 +1565,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Warning toast for large notebooks (20+ papers)
+      # Empty notebook guard
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
           sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
@@ -1488,7 +1582,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Literature Review Table")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1501,12 +1597,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_lit_review_table(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1515,6 +1613,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Methodology Extractor preset handler
@@ -1528,9 +1627,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Warning toast for large notebooks (20+ papers)
+      # Empty notebook guard
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
           sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
@@ -1538,7 +1644,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Methodology Extractor")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1551,12 +1659,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_methodology_extractor(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1565,6 +1675,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Gap Analysis preset handler
@@ -1578,10 +1689,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Minimum 3 papers required for gap analysis
+      # Minimum 3 papers required for gap analysis (also serves as empty guard)
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
       if (doc_count < 3L) {
+        if (doc_count == 0L) {
+          showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                           type = "warning", duration = 5)
+          return()
+        }
         showNotification(
           "Gap analysis requires at least 3 papers. Add more papers to this notebook.",
           type = "error", duration = 8
@@ -1597,7 +1713,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Research Gaps")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1610,12 +1728,14 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_gap_analysis(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
         sprintf("Error: %s", e$message)
       })
 
+      update_synthesis_status("Processing response...")
       msgs <- c(msgs, list(list(
         role = "assistant",
         content = response,
@@ -1624,6 +1744,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       )))
       messages(msgs)
       is_processing(FALSE)
+      removeModal()
     })
 
     # Slides module

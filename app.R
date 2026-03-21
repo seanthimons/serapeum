@@ -43,13 +43,14 @@ if (file.exists(legacy_store)) {
 
 # UI
 ui <- page_sidebar(
-  window_title = "Serapeum",
+  window_title = paste("Serapeum", paste0("v", SERAPEUM_VERSION)),
   title = div(
     class = "d-flex align-items-center justify-content-between w-100",
     div(
       class = "d-flex align-items-center gap-2",
       icon_book_open(),
-      "Serapeum"
+      "Serapeum",
+      span(class = "badge bg-secondary small", paste0("v", SERAPEUM_VERSION))
     ),
     bslib::input_dark_mode(id = "dark_mode")
   ),
@@ -134,6 +135,11 @@ ui <- page_sidebar(
       max-width: 250px;
     }
     /* Dark theme support for frozen column — handled by catppuccin_dark_css() */
+
+    /* Welcome wizard modal — position near top of viewport */
+    .modal:has(#wizard-modal-marker) .modal-dialog {
+      margin-top: 5vh;
+    }
     ")),
     tags$script(HTML("
     // Startup wizard localStorage support
@@ -148,6 +154,12 @@ ui <- page_sidebar(
 
     Shiny.addCustomMessageHandler('set-theme-storage', function(message) {
       localStorage.setItem('theme', message.theme);
+    });
+
+    // Synthesis progress modal status updates (global so both notebook modules can use it)
+    Shiny.addCustomMessageHandler('updateSynthesisStatus', function(data) {
+      var msg = document.getElementById(data.msg_id);
+      if (msg) msg.textContent = data.message;
     });
 
     // Restore theme on page load
@@ -220,6 +232,14 @@ ui <- page_sidebar(
         "Check your collection for missing references and gaps",
         placement = "bottom",
         options = list(delay = list(show = 300, hide = 100))
+      ),
+      bslib::tooltip(
+        actionButton("research_refiner", "Research Refiner",
+                     class = "btn-outline-danger",
+                     icon = icon_funnel()),
+        "Score and rank papers against your research anchor",
+        placement = "bottom",
+        options = list(delay = list(show = 300, hide = 100))
       )
     ),
     # Divider between sidebar buttons and saved notebooks
@@ -233,6 +253,8 @@ ui <- page_sidebar(
     # Compact footer
     div(
       class = "d-flex flex-column gap-1 mt-2",
+      # Row 0: OA budget badge (only shown when API key configured)
+      uiOutput("oa_sidebar_badge"),
       # Row 1: Session cost + Costs link
       div(
         class = "d-flex justify-content-between align-items-center",
@@ -395,6 +417,54 @@ server <- function(input, output, session) {
     sprintf("$%.4f", total)
   })
 
+  # OA sidebar budget badge — reactive on config + usage
+  output$oa_sidebar_badge <- renderUI({
+    invalidateLater(30000)  # Update every 30 seconds
+    cfg <- config_r()
+    oa_key <- cfg$openalex$api_key
+    if (is.null(oa_key) || !nzchar(trimws(oa_key))) return(NULL)
+
+    usage <- get_oa_daily_usage(con)
+
+    # Check for day rollover: if last data is from a previous UTC day, show 0%
+    pct <- oa_budget_percentage(usage$remaining, usage$daily_limit)
+    color <- oa_budget_color(pct)
+
+    if (is.na(pct) || is.null(color)) return(NULL)
+
+    # Fire toast at >= 90%
+    if (oa_toast_should_fire(con, pct)) {
+      oa_toast_mark_fired(con)
+      showNotification(
+        sprintf("OpenAlex daily budget is %d%% consumed. Resets at midnight UTC.", pct),
+        type = "warning",
+        duration = 10
+      )
+    }
+
+    badge_class <- switch(color,
+      "success" = "bg-success",
+      "warning" = "bg-warning text-dark",
+      "danger" = "bg-danger"
+    )
+
+    last_time <- if (!is.na(usage$last_updated)) {
+      format(as.POSIXct(usage$last_updated), "%H:%M")
+    } else {
+      ""
+    }
+
+    div(
+      class = "d-flex justify-content-between align-items-center mb-1",
+      span(class = "text-muted small", icon_search(), " OA Budget:"),
+      div(
+        class = "d-flex align-items-center gap-1",
+        span(class = paste("badge", badge_class, "small"), paste0(pct, "%")),
+        if (nchar(last_time) > 0) span(class = "text-muted small", last_time)
+      )
+    )
+  })
+
   # Render notebook list
   output$notebook_list <- renderUI({
     notebook_refresh()
@@ -555,38 +625,94 @@ server <- function(input, output, session) {
     current_notebook(NULL)
   })
 
-  # Wizard modal helper function
+  # Welcome landing page button handlers
+  observeEvent(input$welcome_settings, {
+    current_view("settings")
+    current_notebook(NULL)
+  })
+  observeEvent(input$welcome_search, {
+    current_notebook(NULL)
+    current_view("discover")
+  })
+  observeEvent(input$welcome_discover, {
+    current_notebook(NULL)
+    current_view("discover")
+  })
+  observeEvent(input$welcome_topics, {
+    current_notebook(NULL)
+    current_view("topic_explorer")
+  })
+  observeEvent(input$welcome_query, {
+    current_notebook(NULL)
+    current_view("query_builder")
+  })
+  observeEvent(input$welcome_import, {
+    current_notebook(NULL)
+    current_view("welcome")
+    shiny::onFlushed(function() {
+      sidebar_import_nb_id(NULL)
+      sidebar_import_api$show_import_modal()
+    }, once = TRUE)
+  })
+  observeEvent(input$welcome_doc_nb, {
+    # Create a new document notebook
+    con <- con_r()
+    req(con)
+    nb_id <- create_notebook(con, "New Document Notebook", "document")
+    notebook_refresh(notebook_refresh() + 1)
+    current_notebook(nb_id)
+    current_view("notebook")
+  })
+  observeEvent(input$welcome_network, {
+    current_notebook(NULL)
+    current_view("network")
+  })
+  observeEvent(input$welcome_audit, {
+    current_notebook(NULL)
+    current_view("citation_audit")
+  })
+
+  # Wizard modal helper function — 5-step workflow
   wizard_modal <- function() {
-    modalDialog(
-      title = tagList(icon_compass(), "Welcome to Serapeum"),
+    wizard_step <- function(number, icon_fn, title, description, btn_id, btn_label, btn_class) {
       div(
-        class = "text-center mb-4",
-        p(class = "lead", "How would you like to start exploring research?")
+        class = "d-flex align-items-start gap-3 mb-3",
+        span(class = "badge bg-primary rounded-pill fs-6 mt-1",
+             style = "min-width: 28px; text-align: center;", number),
+        div(
+          class = "flex-grow-1",
+          div(class = "d-flex align-items-center gap-2 mb-1",
+              icon_fn(class = "text-primary"),
+              strong(title)),
+          p(class = "text-muted small mb-2", description),
+          actionButton(btn_id, btn_label,
+                       class = paste("btn-sm", btn_class))
+        )
+      )
+    }
+
+    modalDialog(
+      title = tagList(icon_book_open(), " Welcome to Serapeum"),
+      div(
+        id = "wizard-modal-marker",
+        class = "mb-3",
+        p(class = "lead text-center", "Your research workflow in 5 steps")
       ),
-      layout_columns(
-        col_widths = c(4, 4, 4),
-        actionButton("wizard_seed_paper",
-                     label = tagList(
-                       div(icon_seedling(class = "fa-2x mb-2")),
-                       div(strong("Start with a Paper")),
-                       div(class = "small text-muted", "Have a paper in mind? Find related work.")
-                     ),
-                     class = "btn-outline-success w-100 h-100 py-4"),
-        actionButton("wizard_query_builder",
-                     label = tagList(
-                       div(icon_wand(class = "fa-2x mb-2")),
-                       div(strong("Build a Query")),
-                       div(class = "small text-muted", "Describe your research interest.")
-                     ),
-                     class = "btn-outline-info w-100 h-100 py-4"),
-        actionButton("wizard_topic_explorer",
-                     label = tagList(
-                       div(icon_compass(class = "fa-2x mb-2")),
-                       div(strong("Browse Topics")),
-                       div(class = "small text-muted", "Explore research areas.")
-                     ),
-                     class = "btn-outline-warning w-100 h-100 py-4")
-      ),
+      wizard_step("1", icon_settings, "Set Up",
+                  "Configure your API keys, choose AI models, and download journal metadata.",
+                  "wizard_settings", "Go to Settings", "btn-outline-secondary"),
+      wizard_step("2", icon_search, "Find Papers",
+                  "Search OpenAlex, discover from a seed paper, explore topics, or build a query with AI.",
+                  "wizard_search", "New Search Notebook", "btn-outline-primary"),
+      wizard_step("3", icon_file_import, "Collect & Import",
+                  "Import papers by DOI or BibTeX, upload PDFs into document notebooks.",
+                  "wizard_import", "Import Papers", "btn-outline-peach"),
+      wizard_step("4", icon_brain, "Analyze",
+                  "Build structured queries to explore the literature and find related work.",
+                  "wizard_analyze", "Query Builder", "btn-outline-success"),
+      wizard_step("5", icon_audit, "Audit",
+                  "Run citation audits to find missing seminal papers and gaps in your collection.",
+                  "wizard_audit", "Citation Audit", "btn-outline-sky"),
       footer = tagList(
         actionLink("skip_wizard", "Don't show this again", class = "text-muted"),
         modalButton("Close")
@@ -596,12 +722,14 @@ server <- function(input, output, session) {
     )
   }
 
-  # Show wizard on first load — only if no notebooks exist yet
+  # Show wizard on first load — only if no notebooks exist and not previously dismissed
   observe({
     con <- con_r()
     req(con)
+    req(!is.null(input$has_seen_wizard))
     notebooks <- list_notebooks(con)
-    if (nrow(notebooks) == 0) {
+    has_seen <- isTRUE(input$has_seen_wizard)
+    if (nrow(notebooks) == 0 && !has_seen) {
       shiny::onFlushed(function() {
         showModal(wizard_modal())
       }, once = TRUE)
@@ -609,22 +737,39 @@ server <- function(input, output, session) {
   }) |> bindEvent(con_r(), once = TRUE)
 
   # Wizard routing handlers
-  observeEvent(input$wizard_seed_paper, {
+  observeEvent(input$wizard_settings, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("settings")
+  })
+
+  observeEvent(input$wizard_search, {
     removeModal()
     current_notebook(NULL)
     current_view("discover")
   })
 
-  observeEvent(input$wizard_query_builder, {
+  observeEvent(input$wizard_import, {
+    removeModal()
+    current_notebook(NULL)
+    current_view("welcome")
+    # Defer import modal to next flush so sidebar_import_api is guaranteed available
+    shiny::onFlushed(function() {
+      sidebar_import_nb_id(NULL)
+      sidebar_import_api$show_import_modal()
+    }, once = TRUE)
+  })
+
+  observeEvent(input$wizard_analyze, {
     removeModal()
     current_notebook(NULL)
     current_view("query_builder")
   })
 
-  observeEvent(input$wizard_topic_explorer, {
+  observeEvent(input$wizard_audit, {
     removeModal()
     current_notebook(NULL)
-    current_view("topic_explorer")
+    current_view("citation_audit")
   })
 
   # Skip wizard handler
@@ -655,6 +800,12 @@ server <- function(input, output, session) {
   observeEvent(input$citation_audit, {
     current_notebook(NULL)
     current_view("citation_audit")
+  })
+
+  # Research refiner button
+  observeEvent(input$research_refiner, {
+    current_notebook(NULL)
+    current_view("refiner")
   })
 
   # Import papers button (sidebar)
@@ -1007,44 +1158,125 @@ server <- function(input, output, session) {
       return(mod_citation_audit_ui("citation_audit"))
     }
 
+    if (view == "refiner") {
+      return(mod_research_refiner_ui("refiner"))
+    }
+
     if (view == "welcome" || is.null(nb_id)) {
-      return(
-        card(
-          class = "border-0 bg-transparent",
-          card_body(
-            class = "text-center py-5",
-            icon_book_open(class = "fa-4x text-primary mb-4"),
-            h2("Welcome to Serapeum"),
-            p(class = "lead text-muted",
-              "Your AI-powered research assistant"),
-            hr(class = "my-4"),
-            layout_columns(
-              col_widths = c(4, 4, 4),
-              div(
-                icon_file_pdf(class = "fa-2x text-danger mb-2"),
-                h5("Document Notebooks"),
-                p(class = "text-muted small",
-                  "Upload PDFs and chat with your documents. Get summaries, key points, and answers with citations.")
-              ),
-              div(
-                icon_search(class = "fa-2x text-primary mb-2"),
-                h5("Search Notebooks"),
-                p(class = "text-muted small",
-                  "Search OpenAlex for academic papers. Query abstracts and import interesting finds.")
-              ),
-              div(
-                icon_settings(class = "fa-2x text-secondary mb-2"),
-                h5("Configurable"),
-                p(class = "text-muted small",
-                  "Choose your preferred AI models via OpenRouter. Your data stays local.")
-              )
-            ),
-            hr(class = "my-4"),
-            p(class = "text-muted",
-              "Get started by creating a notebook from the sidebar.")
+      # Check setup status for live indicators
+      cfg <- effective_config()
+      has_or_key <- !is.null(get_setting(cfg, "openrouter", "api_key"))
+      has_chat_model <- !is.null(get_db_setting(con, "chat_model")) ||
+                        !is.null(get_setting(cfg, "defaults", "chat_model"))
+      has_quality_data <- !is.null(get_db_setting(con, "quality_data_version"))
+
+      status_badge <- function(ok, label_yes, label_no) {
+        if (ok) {
+          span(class = "badge bg-success me-1", icon_check(), label_yes)
+        } else {
+          span(class = "badge bg-warning text-dark me-1", icon_warning(), label_no)
+        }
+      }
+
+      landing_step <- function(number, icon_fn, title, description, action_ui,
+                               icon_class = "text-primary") {
+        div(
+          class = "d-flex align-items-start gap-3 p-3 border rounded mb-3",
+          div(
+            class = "text-center",
+            style = "min-width: 48px;",
+            span(class = "badge bg-primary rounded-pill fs-5", number),
+            div(class = "mt-3", icon_fn(class = paste("fa-lg", icon_class)))
+          ),
+          div(
+            class = "flex-grow-1",
+            h5(class = "mb-1", title),
+            p(class = "text-muted small mb-2", description),
+            action_ui
           )
         )
-      )
+      }
+
+      return(
+        div(
+          class = "py-4",
+          style = "max-width: 750px; margin: 0 auto;",
+            div(
+              class = "text-center mb-4",
+              icon_book_open(class = "fa-3x text-primary mb-3"),
+              h2("Welcome to Serapeum"),
+              p(class = "lead text-muted",
+                "Your AI-powered research assistant"),
+              p(class = "text-muted small",
+                "Follow these steps to get started with your research workflow.")
+            ),
+
+            # Step 1: Set Up
+            landing_step("1", icon_settings, "Set Up",
+              "Configure API keys, choose AI models, and download journal quality metadata.",
+              div(
+                div(
+                  class = "d-flex flex-wrap gap-1 mb-2",
+                  status_badge(has_or_key, "API key", "No API key"),
+                  status_badge(has_chat_model, "Model set", "No model"),
+                  status_badge(has_quality_data, "Metadata", "No metadata")
+                ),
+                actionButton("welcome_settings", "Go to Settings",
+                             class = "btn-sm btn-outline-secondary",
+                             icon = icon_settings())
+              ),
+              icon_class = "text-secondary"
+            ),
+
+            # Step 2: Find Papers
+            landing_step("2", icon_search, "Find Papers",
+              "Search OpenAlex, discover from a seed paper, explore research topics, or build a query with AI assistance.",
+              div(
+                class = "d-flex flex-wrap gap-2",
+                actionButton("welcome_search", "New Search Notebook",
+                             class = "btn-sm btn-outline-primary", icon = icon_search()),
+                actionButton("welcome_discover", "Discover from Paper",
+                             class = "btn-sm btn-outline-success", icon = icon_seedling()),
+                actionButton("welcome_topics", "Explore Topics",
+                             class = "btn-sm btn-outline-warning", icon = icon_compass()),
+                actionButton("welcome_query", "Build a Query",
+                             class = "btn-sm btn-outline-info", icon = icon_wand())
+              )
+            ),
+
+            # Step 3: Collect & Import
+            landing_step("3", icon_file_import, "Collect & Import",
+              "Import papers by pasting DOIs or uploading BibTeX files. Upload PDFs into document notebooks.",
+              div(
+                class = "d-flex flex-wrap gap-2",
+                actionButton("welcome_import", "Import Papers",
+                             class = "btn-sm btn-outline-peach", icon = icon_file_import()),
+                actionButton("welcome_doc_nb", "New Document Notebook",
+                             class = "btn-sm btn-outline-primary", icon = icon_file_pdf())
+              ),
+              icon_class = "text-success"
+            ),
+
+            # Step 4: Analyze
+            landing_step("4", icon_brain, "Analyze",
+              "Chat with your papers using AI, generate literature reviews and synthesis presets, and visualize citation networks.",
+              div(
+                class = "d-flex flex-wrap gap-2",
+                actionButton("welcome_network", "Citation Network",
+                             class = "btn-sm btn-outline-primary", icon = icon_diagram())
+              ),
+              icon_class = "text-info"
+            ),
+
+            # Step 5: Audit
+            landing_step("5", icon_audit, "Audit",
+              "Run citation audits to find missing seminal papers and identify gaps in your collection.",
+              actionButton("welcome_audit", "Citation Audit",
+                           class = "btn-sm btn-outline-sky", icon = icon_audit()),
+              icon_class = "text-warning"
+            )
+          )
+        )
     }
 
     # Get notebook info
@@ -1104,6 +1336,17 @@ server <- function(input, output, session) {
   # Citation audit module
   mod_citation_audit_server("citation_audit", con, config_r = effective_config,
     db_path = db_path,
+    navigate_to_notebook = function(notebook_id) {
+      current_notebook(notebook_id)
+      current_view("notebook")
+      notebook_refresh(notebook_refresh() + 1)
+    },
+    notebook_refresh = notebook_refresh
+  )
+
+  # Research refiner module
+  mod_research_refiner_server("refiner", con_r,
+    config_r = effective_config,
     navigate_to_notebook = function(notebook_id) {
       current_notebook(notebook_id)
       current_view("notebook")
