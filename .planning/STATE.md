@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Completed 63-01-PLAN.md
-last_updated: "2026-03-21T21:15:48.760Z"
+stopped_at: "Completed 63-02-PLAN.md (checkpoint:human-verify pending)"
+last_updated: "2026-03-21T21:19:35.218Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 ---
@@ -38,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-03-18)
 ## Current Position
 
 Phase: 63 (prompt-editing-ui) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -76,6 +76,9 @@ Recent decisions affecting v16.0 work:
 - [Phase 62-prompt-storage-schema]: Composite PK (preset_slug, version_date) enforces one version per preset per day in prompt_versions table
 - [Phase 63-prompt-editing-ui]: PROMPT_DEFAULTS stores editable portion only — role preamble lines and CITATION RULES blocks are excluded
 - [Phase 63-prompt-editing-ui]: overview default keeps %s placeholder for depth_instruction so generators can sprintf() the effective prompt
+- [Phase 63-prompt-editing-ui]: lapply+local({ s <- slug }) pattern used for per-preset observers to avoid R closure-over-loop-variable bug
+- [Phase 63-prompt-editing-ui]: session$ns() used inside server for modal input IDs — ns() is UI-only
+- [Phase 63-prompt-editing-ui]: reset_pending reactiveVal gates Save: TRUE confirms reset (delete all), FALSE upserts new version
 
 ### Pending Todos
 
@@ -88,9 +91,9 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-21T21:15:48.756Z
-Stopped at: Completed 63-01-PLAN.md
-Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
+Last session: 2026-03-21T21:18:27Z
+Stopped at: Completed 63-02-PLAN.md (checkpoint:human-verify pending)
+Next: Human verification of AI Prompts UI, then execute 63-03
 
 ---
 *Updated: 2026-03-18 after v16.0 roadmap creation*
