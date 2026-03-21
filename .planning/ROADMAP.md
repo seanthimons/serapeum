@@ -299,7 +299,7 @@ Plans:
 | 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
 | 61. AI Theme Generation | 2/2 | Complete    | 2026-03-20 |
 | 62. Prompt Storage Schema | 1/1 | Complete    | 2026-03-21 |
-| 63. Prompt Editing UI | 3/3 | Complete   | 2026-03-21 |
+| 63. Prompt Editing UI | 3/3 | Complete    | 2026-03-21 |
 
 ---
 *Roadmap created: 2026-02-10*
