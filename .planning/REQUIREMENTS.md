@@ -24,12 +24,12 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 
 ### Prompt Editing
 
-- [ ] **PRMT-01**: User can view the system/task prompt for each AI preset
-- [ ] **PRMT-02**: User can edit the system/task prompt for each AI preset
-- [ ] **PRMT-03**: RAG plumbing is hidden; only instruction text is exposed with a read-only description of what the machinery does
+- [x] **PRMT-01**: User can view the system/task prompt for each AI preset
+- [x] **PRMT-02**: User can edit the system/task prompt for each AI preset
+- [x] **PRMT-03**: RAG plumbing is hidden; only instruction text is exposed with a read-only description of what the machinery does
 - [x] **PRMT-04**: Edited prompts stored in DuckDB with date-versioned slugs
-- [ ] **PRMT-05**: User can recall previous prompt versions by date
-- [ ] **PRMT-06**: User can reset any preset prompt to the hardcoded default
+- [x] **PRMT-05**: User can recall previous prompt versions by date
+- [x] **PRMT-06**: User can reset any preset prompt to the hardcoded default
 
 ### Citation Traceability
 
@@ -69,12 +69,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | THME-10 | Phase 60 | Complete |
 | THME-11 | Phase 60 | Complete |
 | THME-12 | Phase 58 | Complete |
-| PRMT-01 | Phase 63 | Pending |
-| PRMT-02 | Phase 63 | Pending |
-| PRMT-03 | Phase 63 | Pending |
+| PRMT-01 | Phase 63 | Complete |
+| PRMT-02 | Phase 63 | Complete |
+| PRMT-03 | Phase 63 | Complete |
 | PRMT-04 | Phase 62 | Complete |
-| PRMT-05 | Phase 63 | Pending |
-| PRMT-06 | Phase 63 | Pending |
+| PRMT-05 | Phase 63 | Complete |
+| PRMT-06 | Phase 63 | Complete |
 | CITE-01 | Phase 57 | Complete |
 | CITE-02 | Phase 57 | Complete |
 

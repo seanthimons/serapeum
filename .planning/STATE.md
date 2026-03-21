@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: Phase 63 context gathered
-last_updated: "2026-03-21T20:55:02.994Z"
+stopped_at: Completed 63-01-PLAN.md
+last_updated: "2026-03-21T21:15:48.760Z"
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 12
+  completed_plans: 10
 ---
 
 ---
@@ -33,12 +33,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 62 — prompt-storage-schema
+**Current focus:** Phase 63 — prompt-editing-ui
 
 ## Current Position
 
-Phase: 62 (prompt-storage-schema) — EXECUTING
-Plan: 1 of 1
+Phase: 63 (prompt-editing-ui) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -74,6 +74,8 @@ Recent decisions affecting v16.0 work:
 - [Phase 61-ai-theme-generation]: Used Bootstrap 5 collapse block (not popover) for AI Generate form — avoids Shiny input registration issues with dynamically-inserted DOM
 - [Phase 61-ai-theme-generation]: ai_generated reactiveVal gates Regenerate button via uiOutput, resets on save_custom_theme
 - [Phase 62-prompt-storage-schema]: Composite PK (preset_slug, version_date) enforces one version per preset per day in prompt_versions table
+- [Phase 63-prompt-editing-ui]: PROMPT_DEFAULTS stores editable portion only — role preamble lines and CITATION RULES blocks are excluded
+- [Phase 63-prompt-editing-ui]: overview default keeps %s placeholder for depth_instruction so generators can sprintf() the effective prompt
 
 ### Pending Todos
 
@@ -86,8 +88,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-21T20:55:02.990Z
-Stopped at: Phase 63 context gathered
+Last session: 2026-03-21T21:15:48.756Z
+Stopped at: Completed 63-01-PLAN.md
 Next: Run discuss-phase or plan-phase for Phase 57 (Citation Traceability)
 
 ---
