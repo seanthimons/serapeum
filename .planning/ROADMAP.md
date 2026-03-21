@@ -283,9 +283,11 @@ Plans:
   3. User can edit instruction text and save; the new version is stored in DuckDB with today's date as the slug suffix
   4. A version history dropdown shows previous saved dates; selecting one restores that version's prompt text into the editor
   5. A "Reset to default" button replaces the stored prompt with the hardcoded original from R/rag.R, removing custom versions
-**Plans**: 1 plan
+**Plans**: 3 plans
 Plans:
-- [ ] TBD
+- [ ] 63-01-PLAN.md — TDD: prompt_helpers.R with CRUD functions and PROMPT_DEFAULTS registry
+- [ ] 63-02-PLAN.md — Settings UI section with modal editor for prompt viewing/editing/versioning/reset
+- [ ] 63-03-PLAN.md — Wire get_effective_prompt() into all generators in R/rag.R and R/slides.R
 
 ## Progress
 
@@ -297,8 +299,8 @@ Plans:
 | 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
 | 61. AI Theme Generation | 2/2 | Complete    | 2026-03-20 |
 | 62. Prompt Storage Schema | 1/1 | Complete    | 2026-03-21 |
-| 63. Prompt Editing UI | 0/TBD | Not started | - |
+| 63. Prompt Editing UI | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-20 — Phase 62 planned (1 plan)*
+*Last updated: 2026-03-21 — Phase 63 planned (3 plans)*
