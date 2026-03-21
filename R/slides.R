@@ -35,7 +35,7 @@ get_quarto_version <- function() {
 #' @param chunks Data frame with content, doc_name, page_number
 #' @param options List with length, audience, citation_style, include_notes, custom_instructions
 #' @return List with system and user prompt strings
-build_slides_prompt <- function(chunks, options) {
+build_slides_prompt <- function(chunks, options, con = NULL) {
   # Default options
   length_val <- options$length %||% "medium"
   audience <- options$audience %||% "general"
@@ -90,14 +90,16 @@ build_slides_prompt <- function(chunks, options) {
     "    ## Slide Title\n",
     "    - First item\n\n",
     "Content rules:\n",
-    "- Use ## for individual slide titles (each ## starts a new slide)\n",
-    "- Use # for section titles (creates section dividers)\n",
-    "- Keep slides concise - max 5-7 bullet points per slide\n",
-    "- Always leave a blank line between a heading and the first bullet point\n",
-    "- Each bullet point must be on its own line starting with - (not inline)\n",
-    if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
-    "- Output ONLY valid Quarto markdown slide content, no explanations or code fences\n",
-    "- Do NOT include any YAML frontmatter, --- delimiters, title:, format:, theme:, or css:"
+    {
+      content_rules <- if (!is.null(con)) {
+        get_effective_prompt(con, "slides")
+      } else {
+        PROMPT_DEFAULTS[["slides"]]
+      }
+      content_rules
+    },
+    "\n",
+    if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else ""
   )
 
   # Citation instructions
@@ -276,7 +278,7 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 generate_slides <- function(api_key, model, chunks, options, notebook_name = "Presentation",
                              con = NULL, session_id = NULL) {
   # Build prompt
-  prompt <- build_slides_prompt(chunks, options)
+  prompt <- build_slides_prompt(chunks, options, con = con)
 
   # Call LLM
   messages <- format_chat_messages(prompt$system, prompt$user)
