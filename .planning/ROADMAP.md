@@ -187,7 +187,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 59: Theme Swatches, Upload, and Management** - Visual swatch previews, .scss upload/persist/manage, base theme selector (completed 2026-03-19)
 - [x] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population (completed 2026-03-20)
 - [x] **Phase 61: AI Theme Generation** - Freeform description to structured JSON to validated .scss (completed 2026-03-20)
-- [ ] **Phase 62: Prompt Storage Schema** - DuckDB schema for date-versioned prompt history
+- [x] **Phase 62: Prompt Storage Schema** - DuckDB schema for date-versioned prompt history (completed 2026-03-21)
 - [ ] **Phase 63: Prompt Editing UI** - View/edit/version/reset system prompts for all AI presets
 
 ## Phase Details
@@ -296,7 +296,7 @@ Plans:
 | 59. Theme Swatches, Upload, and Management | 2/2 | Complete    | 2026-03-19 |
 | 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
 | 61. AI Theme Generation | 2/2 | Complete    | 2026-03-20 |
-| 62. Prompt Storage Schema | 0/1 | Not started | - |
+| 62. Prompt Storage Schema | 1/1 | Complete   | 2026-03-21 |
 | 63. Prompt Editing UI | 0/TBD | Not started | - |
 
 ---

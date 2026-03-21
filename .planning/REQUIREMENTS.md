@@ -27,7 +27,7 @@ Requirements for Content & Output Quality milestone. Each maps to roadmap phases
 - [ ] **PRMT-01**: User can view the system/task prompt for each AI preset
 - [ ] **PRMT-02**: User can edit the system/task prompt for each AI preset
 - [ ] **PRMT-03**: RAG plumbing is hidden; only instruction text is exposed with a read-only description of what the machinery does
-- [ ] **PRMT-04**: Edited prompts stored in DuckDB with date-versioned slugs
+- [x] **PRMT-04**: Edited prompts stored in DuckDB with date-versioned slugs
 - [ ] **PRMT-05**: User can recall previous prompt versions by date
 - [ ] **PRMT-06**: User can reset any preset prompt to the hardcoded default
 
@@ -72,7 +72,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | PRMT-01 | Phase 63 | Pending |
 | PRMT-02 | Phase 63 | Pending |
 | PRMT-03 | Phase 63 | Pending |
-| PRMT-04 | Phase 62 | Pending |
+| PRMT-04 | Phase 62 | Complete |
 | PRMT-05 | Phase 63 | Pending |
 | PRMT-06 | Phase 63 | Pending |
 | CITE-01 | Phase 57 | Complete |
