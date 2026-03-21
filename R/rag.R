@@ -161,7 +161,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
     outline = "Create a structured outline of the main topics covered in these documents. Use hierarchical headings (I, A, 1, a) to organize the content logically. Include brief descriptions under each heading."
   )
 
-  prompt <- presets[[preset_type]]
+  prompt <- get_effective_prompt(con, preset_type)
   if (is.null(prompt)) {
     return(sprintf("Unknown preset type: %s", preset_type))
   }
@@ -381,29 +381,25 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
   context <- build_context(chunks)
 
   # OWASP LLM01:2025 compliant prompt (instructions BEFORE data, clear delimiters)
-  system_prompt <- "You are a research synthesis assistant. Your task is to:
-1. Summarize the key conclusions across the provided research sources
-2. Identify common themes, agreements, and divergent positions
-
-IMPORTANT: Base your synthesis ONLY on the provided sources. Do not invent findings or cite sources not provided. If sources conflict, note the disagreement explicitly.
-
-CITATION RULES:
-- Cite every substantive claim using (Author, Year, p.X) format
-- When page metadata is available: (Author, Year, p.X)
-- When source is an abstract only: (Author, Year, abstract)
-- When page number is missing: (Author, Year, chunk N)
-- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)
-- Extract author name and year from the source labels provided
-
-Correct: \"Multiple studies confirm reduced efficacy (Smith, 2023, p.14; Jones, 2022, p.8).\"
-Wrong: \"Multiple studies confirm reduced efficacy [Source Name].\"
-
-OUTPUT FORMAT:
-## Research Conclusions
-[Synthesized conclusions with (Author, Year, p.X) citations]
-
-## Agreements & Disagreements
-[Where sources agree and diverge, with specific (Author, Year, p.X) citations]"
+  task_instruction <- get_effective_prompt(con, "conclusions")
+  system_prompt <- paste0(
+    "You are a research synthesis assistant. Your task is to:\n",
+    task_instruction,
+    "\n\nCITATION RULES:\n",
+    "- Cite every substantive claim using (Author, Year, p.X) format\n",
+    "- When page metadata is available: (Author, Year, p.X)\n",
+    "- When source is an abstract only: (Author, Year, abstract)\n",
+    "- When page number is missing: (Author, Year, chunk N)\n",
+    "- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)\n",
+    "- Extract author name and year from the source labels provided\n\n",
+    "Correct: \"Multiple studies confirm reduced efficacy (Smith, 2023, p.14; Jones, 2022, p.8).\"\n",
+    "Wrong: \"Multiple studies confirm reduced efficacy [Source Name].\"\n\n",
+    "OUTPUT FORMAT:\n",
+    "## Research Conclusions\n",
+    "[Synthesized conclusions with (Author, Year, p.X) citations]\n\n",
+    "## Agreements & Disagreements\n",
+    "[Where sources agree and diverge, with specific (Author, Year, p.X) citations]"
+  )
 
   user_prompt <- sprintf("===== BEGIN RESEARCH SOURCES =====
 %s
@@ -547,29 +543,10 @@ generate_overview_preset <- function(con, config, notebook_id,
 
   # Helper: single "Quick" LLM call returning full overview text
   call_overview_quick <- function(df) {
+    task_instruction <- get_effective_prompt(con, "overview")
     system_prompt <- sprintf(
-      "You are a research synthesis assistant. Generate an Overview of the provided research sources.
-The Overview must have exactly two sections:
-
-## Summary
-%s
-Cover main themes, key findings, and important conclusions.
-Base your summary ONLY on the provided sources.
-
-## Key Points
-Organize key points under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps.
-Each subheading should contain 3-5 bullet points.
-Do not use a flat bullet list - group all related points under their subheading.
-
-IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings.
-
-CITATION RULES:
-- Cite every substantive claim using (Author, Year, p.X) format
-- For abstracts: (Author, Year, abstract)
-- For missing page numbers: (Author, Year, chunk N)
-- When multiple sources support a claim, cite all
-- Extract author/year from the source labels in the provided data",
-      depth_instruction
+      "You are a research synthesis assistant. %s\n\nCITATION RULES:\n- Cite every substantive claim using (Author, Year, p.X) format\n- For abstracts: (Author, Year, abstract)\n- For missing page numbers: (Author, Year, chunk N)\n- When multiple sources support a claim, cite all\n- Extract author/year from the source labels in the provided data",
+      sprintf(task_instruction, depth_instruction)
     )
     user_prompt <- sprintf("%s\n\nGenerate an Overview with a Summary and thematically organized Key Points.",
                            wrap_sources(df))
@@ -808,29 +785,11 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
   context <- build_context(chunks)
 
   # System prompt: gap analyst role with PICO-invisible adaptive framing
-  system_prompt <- "You are a research gap analyst. Your task is to identify gaps in the existing research and generate focused research questions.
-
-INSTRUCTIONS:
-1. Analyze the provided research sources to identify gaps, contradictions, and unexplored areas
-2. Generate research questions that address the most significant gaps
-3. For each question, provide a 2-3 sentence rationale citing specific papers by author name and year
-4. Use an appropriate research framework internally (PICO for clinical/health topics, PEO for qualitative, SPIDER for mixed methods, or freeform for other domains) but do NOT label or mention the framework in your output
-5. Group questions by gap type (methodological, population/sample, temporal, theoretical, etc.)
-6. Prioritize the strongest/most significant gaps; vary gap types when possible
-
-OUTPUT FORMAT:
-- Numbered list of questions, each followed by an indented rationale
-- No introductory paragraph or scope note
-- Each rationale MUST name specific papers with page numbers: 'Smith et al. (2023, p.14) found that...'
-- Each rationale MUST include page numbers where available: Author et al. (Year, p.X)
-- When no page number is available (abstract-only source): Author et al. (Year, abstract)
-- When a gap spans multiple papers, name ALL relevant papers
-
-SCALING:
-- For collections of 2-3 papers: generate 3-4 questions
-- For collections of 5+ papers: generate 5-7 questions
-
-IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. Every claim in a rationale must trace to a specific source."
+  task_instruction <- get_effective_prompt(con, "research_questions")
+  system_prompt <- paste0(
+    "You are a research gap analyst. Your task is to identify gaps in the existing research and generate focused research questions.\n\n",
+    task_instruction
+  )
 
   # User prompt with paper metadata + retrieved content
   user_prompt <- sprintf(
@@ -1035,22 +994,10 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     }
 
     # System prompt
+    task_instruction <- get_effective_prompt(con, "lit_review")
     system_prompt <- paste0(
       "You are a systematic review assistant. Generate a literature review comparison table in GFM (GitHub Flavored Markdown) pipe table format.\n\n",
-      "COLUMNS (exactly these, in this order):\n",
-      "| Author/Year | Methodology | Sample | Key Findings | Limitations |\n\n",
-      "RULES:\n",
-      "- One row per paper, ordered by most recent first\n",
-      "- Author/Year: Use the exact label from the paper delimiter (e.g., 'Smith et al. (2023)')\n",
-      "- Each cell: brief phrases (2-5 words), NOT full sentences\n",
-      "- Key Findings: single consolidated statement per paper, no bullet points\n",
-      "- For N/A columns: use contextual notes (e.g., 'Theoretical framework', 'Systematic review') instead of literal 'N/A'\n",
-      "- Output ONLY the markdown table followed by a Sources section. No introduction before the table.\n",
-      "- Every line of the table must have exactly 6 pipe characters (| col1 | col2 | col3 | col4 | col5 |)\n\n",
-      "FOOTNOTES:\n",
-      "After the table, add a '### Sources' section with numbered footnotes linking key findings to specific page numbers.\n",
-      "Format: [1] Author (Year), p.X — brief finding description\n",
-      "Only include footnotes for Key Findings column entries."
+      task_instruction
     )
 
     # User prompt
@@ -1239,26 +1186,10 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     }
 
     # System prompt
+    task_instruction <- get_effective_prompt(con, "methodology")
     system_prompt <- paste0(
       "You are a methodology extraction assistant. Generate a table in GFM (GitHub Flavored Markdown) pipe table format.\n\n",
-      "COLUMNS (exactly these, in this order):\n",
-      "| Paper | Study Design | Data Sources | Sample Characteristics | Statistical Methods | Tools/Instruments |\n\n",
-      "RULES:\n",
-      "- One row per paper, ordered by most recent first\n",
-      "- Paper: Use the exact label from the paper delimiter (e.g., 'Smith et al. (2023)')\n",
-      "- Each cell: brief phrases (2-5 words), NOT full sentences\n",
-      "- Study Design: experimental, quasi-experimental, observational, case study, systematic review, meta-analysis, qualitative, mixed methods, etc.\n",
-      "- Data Sources: specify databases, surveys, instruments, or datasets used\n",
-      "- Sample Characteristics: population type, size (n=X), demographics\n",
-      "- Statistical Methods: specific tests or analytical approaches (e.g., regression, ANOVA, thematic analysis)\n",
-      "- Tools/Instruments: software, scales, measurement tools\n",
-      "- For papers with no clear methodology: use 'Not described' or contextual notes (e.g., 'Theoretical framework')\n",
-      "- Output ONLY the markdown table followed by a Sources section. No introduction before the table.\n",
-      "- Every line must have exactly 7 pipe characters\n\n",
-      "FOOTNOTES:\n",
-      "After the table, add a '### Sources' section with numbered footnotes linking methodology details to specific page numbers.\n",
-      "Format: [1] Author (Year), p.X — methodology detail\n",
-      "Include footnotes for Study Design and Statistical Methods columns."
+      task_instruction
     )
 
     # User prompt
@@ -1468,28 +1399,10 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     }
 
     # System prompt for gap analysis
+    task_instruction <- get_effective_prompt(con, "gap_analysis")
     system_prompt <- paste0(
       "You are a research gap analyst. Generate a narrative prose gap analysis report.\n\n",
-      "OUTPUT FORMAT:\n",
-      "Use these 5 section headings (always show all 5):\n",
-      "## Summary\n",
-      "## Methodological Gaps\n",
-      "## Geographic Gaps\n",
-      "## Population Gaps\n",
-      "## Measurement Gaps\n",
-      "## Theoretical Gaps\n\n",
-      "RULES:\n",
-      "- Write in narrative prose, not bullet points\n",
-      "- Weave inline citations with page numbers: 'Smith et al. (2020, p.14) found...', 'contradicting Johnson (2018, p.8)'\n",
-      "- When citing abstracts without page numbers, use: 'Smith et al. (2020, abstract)'\n",
-      "- When no gaps found in a category: 'No significant [type] gaps identified across the reviewed papers.'\n",
-      "- Actively search for contradictions between papers\n",
-      "- Format contradictions as visually separated blockquotes on their own line:\n",
-      "  > **Contradictory finding:** Jones (2021) reported X while Lee (2022) found Y\n",
-      "- Integrate contradictions within their relevant gap category (e.g., methodological contradictions go in Methodological Gaps)\n",
-      "- Base analysis ONLY on the provided sources\n",
-      "- Summary: 2-3 sentences capturing the corpus's main themes and overall gap landscape\n",
-      "- Each gap section: identify specific absent elements, underrepresented contexts, or unresolved questions"
+      task_instruction
     )
 
     # User prompt
