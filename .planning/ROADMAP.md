@@ -188,7 +188,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population (completed 2026-03-20)
 - [x] **Phase 61: AI Theme Generation** - Freeform description to structured JSON to validated .scss (completed 2026-03-20)
 - [x] **Phase 62: Prompt Storage Schema** - DuckDB schema for date-versioned prompt history (completed 2026-03-21)
-- [ ] **Phase 63: Prompt Editing UI** - View/edit/version/reset system prompts for all AI presets
+- [x] **Phase 63: Prompt Editing UI** - View/edit/version/reset system prompts for all AI presets (completed 2026-03-21)
 
 ## Phase Details
 
@@ -299,7 +299,7 @@ Plans:
 | 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
 | 61. AI Theme Generation | 2/2 | Complete    | 2026-03-20 |
 | 62. Prompt Storage Schema | 1/1 | Complete    | 2026-03-21 |
-| 63. Prompt Editing UI | 2/3 | In Progress|  |
+| 63. Prompt Editing UI | 3/3 | Complete   | 2026-03-21 |
 
 ---
 *Roadmap created: 2026-02-10*

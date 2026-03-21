@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v16.0
 milestone_name: Content & Output Quality
 status: ready_to_plan
-stopped_at: "Completed 63-02-PLAN.md (checkpoint:human-verify pending)"
-last_updated: "2026-03-21T21:19:35.218Z"
+stopped_at: Completed 63-03-PLAN.md
+last_updated: "2026-03-21T21:20:59.088Z"
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 ---
@@ -79,6 +79,9 @@ Recent decisions affecting v16.0 work:
 - [Phase 63-prompt-editing-ui]: lapply+local({ s <- slug }) pattern used for per-preset observers to avoid R closure-over-loop-variable bug
 - [Phase 63-prompt-editing-ui]: session$ns() used inside server for modal input IDs — ns() is UI-only
 - [Phase 63-prompt-editing-ui]: reset_pending reactiveVal gates Save: TRUE confirms reset (delete all), FALSE upserts new version
+- [Phase 63]: Role preamble and CITATION RULES stay hardcoded in all generators; only task instruction body is editable via prompt_versions
+- [Phase 63]: overview double-sprintf: task_instruction contains %s for depth_instruction; inner sprintf injects before outer appends CITATION RULES
+- [Phase 63]: build_slides_prompt() uses con = NULL default so callers without DB connection fall back to PROMPT_DEFAULTS[[slides]]
 
 ### Pending Todos
 
@@ -91,8 +94,8 @@ Recent decisions affecting v16.0 work:
 
 ## Session Continuity
 
-Last session: 2026-03-21T21:18:27Z
-Stopped at: Completed 63-02-PLAN.md (checkpoint:human-verify pending)
+Last session: 2026-03-21T21:20:59.084Z
+Stopped at: Completed 63-03-PLAN.md
 Next: Human verification of AI Prompts UI, then execute 63-03
 
 ---
