@@ -724,11 +724,15 @@ generate_overview_preset <- function(con, config, notebook_id,
     })
   }
 
+  # Citation and grounding instructions appended to all overview calls
+  citation_rules <- "Base all content ONLY on the provided sources. Do not invent findings. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N)."
+
   # Helper: "Thorough" Call 1 — Summary only
   call_overview_summary <- function(df) {
     system_prompt <- sprintf(
-      "You are a research summarizer. %s %s",
+      "You are a research summarizer. %s %s %s",
       get_effective_prompt(con, "summarize"),
+      citation_rules,
       depth_instruction
     )
     user_prompt <- sprintf("%s\n\n%s",
@@ -758,7 +762,11 @@ generate_overview_preset <- function(con, config, notebook_id,
 
   # Helper: "Thorough" Call 2 — Key Points only
   call_overview_keypoints <- function(df) {
-    system_prompt <- get_effective_prompt(con, "keypoints")
+    system_prompt <- sprintf(
+      "You are a research analyst. %s %s",
+      get_effective_prompt(con, "keypoints"),
+      citation_rules
+    )
     user_prompt <- sprintf(
       "%s\n\nExtract key points organized under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps. Each subheading: 3-5 bullet points.",
       wrap_sources(df)

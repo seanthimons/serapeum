@@ -1205,6 +1205,7 @@ mod_settings_server <- function(id, con, config_rv) {
 
     current_preset_slug <- reactiveVal(NULL)
     reset_pending <- reactiveVal(FALSE)
+    programmatic_update <- reactiveVal(FALSE)
 
     # One observer per preset slug — local() captures slug correctly
     lapply(unlist(PRESET_GROUPS, use.names = FALSE), function(slug) {
@@ -1305,14 +1306,20 @@ mod_settings_server <- function(id, con, config_rv) {
       slug <- current_preset_slug()
       req(slug)
       reset_pending(TRUE)
+      programmatic_update(TRUE)
       default_text <- PROMPT_DEFAULTS[[slug]]
       updateTextAreaInput(session, "prompt_text", value = default_text)
       showNotification("Default text loaded. Click Save to confirm reset.", type = "warning")
     })
 
-    # Clear reset_pending when user edits the prompt text
+    # Clear reset_pending when user manually edits the prompt text
+    # (skip programmatic updates from reset button / version selector)
     observeEvent(input$prompt_text, {
-      if (reset_pending()) reset_pending(FALSE)
+      if (programmatic_update()) {
+        programmatic_update(FALSE)
+      } else if (reset_pending()) {
+        reset_pending(FALSE)
+      }
     }, ignoreInit = TRUE)
 
     # Save settings
