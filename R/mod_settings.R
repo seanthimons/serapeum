@@ -1310,6 +1310,11 @@ mod_settings_server <- function(id, con, config_rv) {
       showNotification("Default text loaded. Click Save to confirm reset.", type = "warning")
     })
 
+    # Clear reset_pending when user edits the prompt text
+    observeEvent(input$prompt_text, {
+      if (reset_pending()) reset_pending(FALSE)
+    }, ignoreInit = TRUE)
+
     # Save settings
     observeEvent(input$save, {
       tryCatch({
