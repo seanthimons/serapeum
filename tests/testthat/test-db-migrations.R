@@ -226,8 +226,8 @@ test_that("prompt_versions table created by migration 011", {
     project_root <- getwd()
   }
 
-  mig_011_content <- readLines(file.path(project_root, "migrations", "015_create_prompt_versions.sql"))
-  writeLines(mig_011_content, file.path(migrations_dir, "015_create_prompt_versions.sql"))
+  mig_011_content <- readLines(file.path(project_root, "migrations", "018_create_prompt_versions.sql"))
+  writeLines(mig_011_content, file.path(migrations_dir, "018_create_prompt_versions.sql"))
 
   old_wd <- getwd()
   setwd(tmp_dir)

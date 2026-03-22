@@ -20,11 +20,11 @@ test_that("migration 011 creates oa_usage_log table", {
   get_applied_migrations(con)
 
   # Read and apply migration 011 directly
-  sql_path <- file.path(project_root, "migrations", "014_create_oa_usage_log.sql")
+  sql_path <- file.path(project_root, "migrations", "017_create_oa_usage_log.sql")
   skip_if_not(file.exists(sql_path), "Migration file not found")
 
   sql <- paste(readLines(sql_path, warn = FALSE), collapse = "\n")
-  apply_migration(con, 14, "create oa usage log", sql)
+  apply_migration(con, 17, "create oa usage log", sql)
 
   # Verify table exists
   tables <- DBI::dbGetQuery(con, "

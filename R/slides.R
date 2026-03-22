@@ -34,8 +34,10 @@ get_quarto_version <- function() {
 #' Build prompt for slide generation
 #' @param chunks Data frame with content, doc_name, page_number
 #' @param options List with length, audience, citation_style, include_notes, custom_instructions
+#' @param figures Optional data frame from db_get_slide_figures() with doc_name column added.
+#'   When non-NULL, figure manifest and layout instructions are included in the prompt.
 #' @return List with system and user prompt strings
-build_slides_prompt <- function(chunks, options, con = NULL) {
+build_slides_prompt <- function(chunks, options, con = NULL, figures = NULL) {
   # Default options
   length_val <- options$length %||% "medium"
   audience <- options$audience %||% "general"
@@ -99,7 +101,57 @@ build_slides_prompt <- function(chunks, options, con = NULL) {
       content_rules
     },
     "\n",
-    if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else ""
+    if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
+    # Figure integration instructions (only when figures provided)
+    if (!is.null(figures) && nrow(figures) > 0) paste0(
+      "\n\nFigure Integration:\n",
+      "- Figures are listed in the user prompt with IDs, shapes, and a >>> Recommended layout.\n",
+      "- Reference figures using: ![caption](uuid.png){attributes}\n",
+      "- Use the bare UUID with .png extension. Do NOT add prefixes.\n",
+      "- Do NOT reference figure IDs not in the Available Figures list.\n\n",
+      "CRITICAL: Each figure has a '>>> Recommended:' line. You MUST follow it.\n\n",
+      "LAYOUT PATTERNS:\n\n",
+      "Pattern 1 — Hero Image Slide (figure IS the slide, title + image only):\n",
+      "## Title\n\n",
+      "![Caption](uuid.png){width=\"90%\" fig-align=\"center\"}\n\n",
+      "::: {.notes}\n",
+      "Explanation goes here, not on the slide.\n",
+      ":::\n\n",
+      "Pattern 2 — Two-Column (figure beside bullets, 50/50 split):\n",
+      "## Title\n\n",
+      ":::: {.columns}\n",
+      "::: {.column width=\"50%\"}\n\n",
+      "- Bullet point one\n",
+      "- Bullet point two\n\n",
+      ":::\n",
+      "::: {.column width=\"50%\"}\n\n",
+      "![Caption](uuid.png){width=\"100%\"}\n\n",
+      ":::\n",
+      "::::\n\n",
+      "Pattern 3 — Height-Constrained Column (for tall/portrait figures):\n",
+      "## Title\n\n",
+      ":::: {.columns}\n",
+      "::: {.column width=\"55%\"}\n\n",
+      "- Bullet point one\n",
+      "- Bullet point two\n\n",
+      ":::\n",
+      "::: {.column width=\"45%\"}\n\n",
+      "![Caption](uuid.png){height=\"500px\"}\n\n",
+      ":::\n",
+      "::::\n\n",
+      "Pattern 4 — Full-Width Below Heading (figure + bullets on same slide):\n",
+      "## Title\n\n",
+      "![Caption](uuid.png){width=\"85%\" fig-align=\"center\"}\n\n",
+      "- Key takeaway one\n",
+      "- Key takeaway two\n\n",
+      "HARD RULES:\n",
+      "- ALWAYS follow the >>> Recommended layout for each figure.\n",
+      "- NEVER put wide or landscape figures inside a column layout.\n",
+      "- NEVER use {width=\"90%\"} on portrait or tall figures — use {height=\"500px\"} in a column.\n",
+      "- Vary your layouts across slides — do not repeat the same pattern for every figure.\n",
+      "- Not every slide needs a figure. Only include figures that reinforce key points.\n",
+      "- Use the figure's caption or description for the ![caption] alt text."
+    ) else ""
   )
 
   # Citation instructions
@@ -111,14 +163,23 @@ build_slides_prompt <- function(chunks, options, con = NULL) {
     "Use footnote-style citations."
   )
 
+  # Build figure manifest section (if figures provided)
+  figure_manifest <- build_figure_manifest(figures)
+  figure_section <- if (!is.null(figure_manifest)) {
+    paste0("\n\nAvailable figures:\n\n", figure_manifest)
+  } else {
+    ""
+  }
+
   # User prompt
   user_prompt <- sprintf(
-    "Create a presentation with %s for a %s audience.\n\n%s\n\n%sSource content:\n\n%s",
+    "Create a presentation with %s for a %s audience.\n\n%s\n\n%sSource content:\n\n%s%s",
     slide_count,
     audience,
     citation_instructions,
     if (nchar(custom_instructions) > 0) paste0("Additional instructions: ", custom_instructions, "\n\n") else "",
-    context
+    context,
+    figure_section
   )
 
   list(system = system_prompt, user = user_prompt)
@@ -167,7 +228,6 @@ build_qmd_frontmatter <- function(title, theme = "default", custom_scss = NULL) 
     "    embed-resources: true\n",
     theme_line,
     "    smaller: true\n",
-    "    scrollable: true\n",
     "    reference-location: document\n",
     css_block,
     "---\n"
@@ -211,10 +271,13 @@ render_qmd_to_html <- function(qmd_path, timeout = 120) {
 
   output_path <- sub("\\.qmd$", ".html", qmd_path)
 
+  # Run Quarto from the QMD's directory so embed-resources resolves
+  # relative image paths (e.g., figure PNGs staged alongside the QMD)
   result <- tryCatch({
     processx::run(
       "quarto",
       c("render", qmd_path, "--to", "html"),
+      wd = dirname(qmd_path),
       timeout = timeout,
       error_on_status = FALSE
     )
@@ -244,10 +307,12 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 
   output_path <- sub("\\.qmd$", ".pdf", qmd_path)
 
+  # Run Quarto from the QMD's directory for consistent resource resolution
   result <- tryCatch({
     processx::run(
       "quarto",
       c("render", qmd_path, "--to", "pdf"),
+      wd = dirname(qmd_path),
       timeout = timeout,
       error_on_status = FALSE
     )
@@ -274,11 +339,13 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 #' @param notebook_name Name of notebook (for title)
 #' @param con Optional database connection for cost logging (default NULL)
 #' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @param figures Optional data frame from db_get_slide_figures() with doc_name column.
+#'   When non-NULL, figure manifest is included in prompt and PNGs are staged for Quarto.
 #' @return List with qmd (content string), qmd_path (temp file), or error
 generate_slides <- function(provider, model, chunks, options, notebook_name = "Presentation",
-                             con = NULL, session_id = NULL) {
-  # Build prompt
-  prompt <- build_slides_prompt(chunks, options, con = con)
+                             con = NULL, session_id = NULL, figures = NULL) {
+  # Build prompt (with optional figure manifest and DB-stored prompt overrides)
+  prompt <- build_slides_prompt(chunks, options, con = con, figures = figures)
 
   # Call LLM
   messages <- format_chat_messages(prompt$system, prompt$user)
@@ -346,6 +413,15 @@ generate_slides <- function(provider, model, chunks, options, notebook_name = "P
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
 
   writeLines(qmd_content, qmd_path)
+
+  # Post-process figures: fix missing .png extensions, inject layout attrs,
+  # then inline as base64 data URIs for self-contained output.
+  if (!is.null(figures) && nrow(figures) > 0) {
+    qmd_content <- normalize_figure_refs(qmd_content, figures$id)
+    qmd_content <- post_process_figure_layouts(qmd_content, figures)
+    qmd_content <- inline_figure_data_uris(qmd_content, figures)
+    writeLines(qmd_content, qmd_path)
+  }
 
   list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation)
 }
@@ -554,4 +630,251 @@ get_healing_chips <- function(errors, is_success) {
   chips <- c(chips, "Simplify slides", "Fewer bullet points")
 
   chips
+}
+
+# ============================================================================
+# Figure Integration for Slides
+# ============================================================================
+
+#' Classify figure aspect ratio for slide layout guidance
+#' @param width Image width in pixels
+#' @param height Image height in pixels
+#' @return Character: "wide", "landscape", "square", "portrait", or "tall"
+classify_aspect_ratio <- function(width, height) {
+  if (is.na(width) || is.na(height) || height == 0) return("square")
+  ratio <- width / height
+  if (ratio > 1.8) "wide"
+  else if (ratio >= 1.2) "landscape"
+  else if (ratio >= 0.8) "square"
+  else if (ratio >= 0.6) "portrait"
+  else "tall"
+}
+
+#' Extract summary line from llm_description
+#' @param description Full LLM description (summary + details separated by double newline)
+#' @return First paragraph only, or empty string if NULL/NA
+extract_description_summary <- function(description) {
+  if (is.null(description) || is.na(description) || nchar(trimws(description)) == 0) {
+    return("")
+  }
+  parts <- strsplit(description, "\n\n", fixed = TRUE)[[1]]
+  trimws(parts[1])
+}
+
+#' Recommend a layout pattern based on aspect class and presentation hint
+#' @param aspect_class Character from classify_aspect_ratio()
+#' @param hint Character: "hero", "supporting", "reference", or NULL
+#' @return Character string like "Pattern 1 (hero slide)" with instruction
+recommend_layout <- function(aspect_class, hint = NULL) {
+  hint <- hint %||% "supporting"
+
+  # Reference figures should always be skipped
+
+  if (hint == "reference") return("SKIP — do not embed this figure")
+
+  # Hero hint overrides shape-based defaults
+  if (hint == "hero") {
+    return("Pattern 1 (hero slide — figure IS the slide, no bullets)")
+  }
+
+  # Shape-based recommendations for "supporting" hint
+  switch(aspect_class,
+    "wide"      = "Pattern 1 or 4 (full-width — do NOT put in a column)",
+    "landscape"  = "Pattern 4 (full-width below heading with bullets underneath)",
+    "square"     = "Pattern 2 (two-column — figure beside bullet points)",
+    "portrait"   = "Pattern 3 (height-constrained in column — use {height=\"500px\"})",
+    "tall"       = "Pattern 3 (height-constrained in column — use {height=\"400px\"})",
+    "Pattern 2 (two-column)"
+  )
+}
+
+#' Build a figure manifest string for the slide generation LLM
+#' @param figures Data frame from db_get_slide_figures() with added doc_name column
+#' @param max_figures Maximum figures to include in manifest (default 15)
+#' @return Formatted manifest string, or NULL if no figures
+build_figure_manifest <- function(figures, max_figures = 15L) {
+  if (is.null(figures) || nrow(figures) == 0) return(NULL)
+
+  # Truncate if too many figures
+  if (nrow(figures) > max_figures) {
+    figures <- figures[seq_len(max_figures), , drop = FALSE]
+  }
+
+  entries <- vapply(seq_len(nrow(figures)), function(i) {
+    fig <- figures[i, ]
+    aspect_class <- classify_aspect_ratio(fig$width, fig$height)
+    summary <- extract_description_summary(fig$llm_description)
+
+    # Build manifest entry
+    header <- sprintf('[ID: %s | "%s" from %s, p.%d | %s (%dx%d)]',
+                      fig$id,
+                      fig$figure_label %||% "Untitled",
+                      fig$doc_name %||% "unknown",
+                      fig$page_number,
+                      aspect_class,
+                      if (is.na(fig$width)) 0L else fig$width,
+                      if (is.na(fig$height)) 0L else fig$height)
+
+    parts <- header
+    # Add presentation hint (hero/supporting/reference) if available
+    hint <- if ("presentation_hint" %in% names(fig) &&
+                !is.null(fig$presentation_hint) &&
+                !is.na(fig$presentation_hint) &&
+                nchar(fig$presentation_hint) > 0) fig$presentation_hint else NULL
+    if (!is.null(hint)) {
+      parts <- paste0(parts, "\nHint: ", hint)
+    }
+    # Add recommended layout based on shape + hint
+    layout_rec <- recommend_layout(aspect_class, hint)
+    parts <- paste0(parts, "\n>>> Recommended: ", layout_rec)
+    if (!is.null(fig$image_type) && !is.na(fig$image_type) && nchar(fig$image_type) > 0) {
+      parts <- paste0(parts, "\nType: ", fig$image_type)
+    }
+    if (!is.null(fig$extracted_caption) && !is.na(fig$extracted_caption) && nchar(fig$extracted_caption) > 0) {
+      parts <- paste0(parts, "\nCaption: \"", fig$extracted_caption, "\"")
+    }
+    if (nchar(summary) > 0) {
+      parts <- paste0(parts, "\nDescription: ", summary)
+    }
+    parts
+  }, character(1))
+
+  paste(entries, collapse = "\n\n---\n\n")
+}
+
+#' Normalize bare UUID figure references by adding .png extension
+#'
+#' LLMs sometimes emit ![caption](uuid) without the .png extension.
+#' This function finds bare UUID references and adds the extension so that
+#' inline_figure_data_uris() can match them.
+#'
+#' @param qmd_content QMD string
+#' @param figure_ids Character vector of figure UUIDs to look for
+#' @return Modified QMD content with .png extensions added where missing
+normalize_figure_refs <- function(qmd_content, figure_ids) {
+  if (length(figure_ids) == 0) return(qmd_content)
+
+  for (fid in figure_ids) {
+    # Match ](uuid) or ](uuid){ but NOT ](uuid.png)
+    # Use a negative lookahead for .png
+    pattern <- paste0("(\\]\\()", gsub("([\\-])", "\\\\\\1", fid), "(?!\\.png)(\\)|\\{)")
+    replacement <- paste0("\\1", fid, ".png\\2")
+    qmd_content <- gsub(pattern, replacement, qmd_content, perl = TRUE)
+  }
+  qmd_content
+}
+
+#' Post-process QMD to inject layout attributes for figures missing them
+#'
+#' When the LLM emits bare ![caption](uuid.png) without layout attributes,
+#' this function adds appropriate {width/height} based on the figure's
+#' aspect ratio class.
+#'
+#' @param qmd_content QMD string
+#' @param figures Data frame with id, width, height columns
+#' @return Modified QMD content with layout attributes injected
+post_process_figure_layouts <- function(qmd_content, figures) {
+  if (is.null(figures) || nrow(figures) == 0) return(qmd_content)
+
+  for (i in seq_len(nrow(figures))) {
+    fig_id <- figures$id[i]
+    ref <- paste0(fig_id, ".png")
+
+    # Skip if not referenced
+    if (!grepl(ref, qmd_content, fixed = TRUE)) next
+
+    aspect <- classify_aspect_ratio(figures$width[i], figures$height[i])
+
+    # Check if this reference already has {attributes}
+    ref_escaped <- gsub("([\\-\\.])", "\\\\\\1", ref)
+    attr_pattern <- paste0(ref_escaped, "\\)\\{")
+    has_attrs <- grepl(attr_pattern, qmd_content, perl = TRUE)
+
+    if (has_attrs) {
+      # For portrait/tall figures: fix width-based attrs → height-based
+      # LLMs often use {width="100%"} which causes overflow on tall images
+      if (aspect %in% c("portrait", "tall")) {
+        height_val <- if (aspect == "portrait") '500px' else '400px'
+        # Replace {width="..."} with {height="..."} for this figure
+        fix_pattern <- paste0("(", ref_escaped, "\\))\\{width=\"[^\"]*\"[^}]*\\}")
+        if (grepl(fix_pattern, qmd_content, perl = TRUE)) {
+          replacement <- paste0('\\1{height="', height_val, '"}')
+          qmd_content <- gsub(fix_pattern, replacement, qmd_content, perl = TRUE)
+        }
+      }
+      next
+    }
+
+    # No attributes — inject based on aspect class
+    attrs <- switch(aspect,
+      "wide"      = '{width="90%" fig-align="center"}',
+      "landscape"  = '{width="85%" fig-align="center"}',
+      "square"     = '{width="100%"}',
+      "portrait"   = '{height="500px"}',
+      "tall"       = '{height="400px"}',
+      '{width="85%"}'
+    )
+
+    # Replace ](uuid.png) with ](uuid.png){attrs}
+    qmd_content <- gsub(
+      paste0("(", ref_escaped, "\\))"),
+      paste0("\\1", attrs),
+      qmd_content,
+      perl = TRUE
+    )
+  }
+  qmd_content
+}
+
+#' Replace figure filename references with base64 data URIs in QMD content
+#' @param qmd_content QMD string with image references like (uuid.png)
+#' @param figures Data frame with id and file_path columns
+#' @return Modified QMD content with data URIs inlined
+inline_figure_data_uris <- function(qmd_content, figures) {
+  if (is.null(figures) || nrow(figures) == 0) return(qmd_content)
+
+  for (i in seq_len(nrow(figures))) {
+    fig_id <- figures$id[i]
+    src_path <- figures$file_path[i]
+    ref_pattern <- paste0(fig_id, ".png")
+
+    # Skip if this figure isn't referenced in the QMD
+    if (!grepl(ref_pattern, qmd_content, fixed = TRUE)) next
+
+    if (!file.exists(src_path)) {
+      warning(sprintf("Figure file missing, cannot inline: %s", src_path))
+      next
+    }
+
+    raw_data <- readBin(src_path, "raw", file.info(src_path)$size)
+    b64 <- base64enc::base64encode(raw_data)
+    data_uri <- paste0("data:image/png;base64,", b64)
+    qmd_content <- gsub(ref_pattern, data_uri, qmd_content, fixed = TRUE)
+  }
+  qmd_content
+}
+
+#' Stage figure PNG files to a directory for Quarto rendering
+#' @param figures Data frame with id and file_path columns
+#' @param qmd_dir Target directory (where the .qmd file lives)
+#' @return Named character vector: figure_id -> staged filename. Missing files are skipped with a warning.
+stage_figures_for_quarto <- function(figures, qmd_dir) {
+  if (is.null(figures) || nrow(figures) == 0) return(character(0))
+
+  staged <- character(0)
+  for (i in seq_len(nrow(figures))) {
+    fig_id <- figures$id[i]
+    src_path <- figures$file_path[i]
+    dest_name <- paste0(fig_id, ".png")
+    dest_path <- file.path(qmd_dir, dest_name)
+
+    if (!file.exists(src_path)) {
+      warning(sprintf("Figure file missing, skipping: %s", src_path))
+      next
+    }
+
+    file.copy(src_path, dest_path, overwrite = TRUE)
+    staged[fig_id] <- dest_name
+  }
+  staged
 }

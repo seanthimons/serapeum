@@ -36,6 +36,19 @@ mod_document_notebook_ui <- function(id) {
       });
     ")),
 
+    # JavaScript handler for figure extraction progress updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('updateExtractProgress', function(data) {
+        var bar = document.getElementById('extract-bar');
+        var msg = document.getElementById('extract-status');
+        if (bar) {
+          bar.style.width = data.pct + '%';
+          bar.setAttribute('aria-valuenow', data.pct);
+        }
+        if (msg) msg.textContent = data.message;
+      });
+    ")),
+
     div(class = "text-muted mb-3 d-flex align-items-center gap-2",
       icon_circle_info(class = "text-primary"),
       "Upload PDFs and use AI to chat with your documents, generate summaries, and extract insights."
@@ -57,7 +70,9 @@ mod_document_notebook_ui <- function(id) {
             id = ns("doc_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
             uiOutput(ns("document_list"))
-          )
+          ),
+          # Figure gallery (shown when a document with figures is selected)
+          uiOutput(ns("figure_gallery"))
         )
       ),
       # Right: Chat
@@ -182,6 +197,13 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     doc_refresh <- reactiveVal(0)
     # Track which document IDs already have delete observers to prevent duplicates
     delete_doc_observers <- reactiveValues()
+
+    # Figure gallery state
+    selected_fig_doc <- reactiveVal(NULL)  # Document ID whose figures are shown
+    fig_refresh <- reactiveVal(0)          # Trigger gallery re-render
+    gallery_view <- reactiveVal("list")    # "list" or "grid"
+    extract_observers <- reactiveValues()  # Track extract button observers
+    fig_action_observers <- reactiveValues()  # Track per-figure action observers
 
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
@@ -405,6 +427,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           ),
           easyClose = FALSE
         ))
+      } else if (has_content) {
+        # Store is healthy — sync brain icon markers and check for unembedded docs
+        sync <- tryCatch(
+          sync_document_ragnar_statuses(con(), nb_id),
+          error = function(e) NULL
+        )
+        if (!is.null(sync) && sync$documents > sync$marked) {
+          missing <- sync$documents - sync$marked
+          # Surface rebuild button by marking index as incomplete
+          rag_ready(FALSE)
+          showNotification(
+            paste0(missing, " of ", sync$documents,
+                   " document(s) not in the search index. Use Rebuild Search Index to embed them."),
+            type = "warning", duration = 8
+          )
+        }
+        doc_refresh(doc_refresh() + 1)
       }
     })
 
@@ -438,6 +477,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       if (result$success) {
         store_healthy(TRUE)
         rag_ready(TRUE)
+        # Mark all documents as ragnar-indexed so brain icons show
+        tryCatch({
+          mark_as_ragnar_indexed(con(),
+            DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(nb_id))$id,
+            source_type = "document")
+        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
         doc_refresh(doc_refresh() + 1)
         showNotification(
           paste("Search index rebuilt successfully.", result$count, "items re-embedded."),
@@ -615,10 +660,26 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       embedded <- embedded_doc_ids()
 
+      # Register resource path for figure images
+      figures_dir <- file.path("data", "figures", nb_id)
+      if (dir.exists(figures_dir)) {
+        fig_resource <- paste0("figures_", gsub("-", "", nb_id))
+        addResourcePath(fig_resource, normalizePath(figures_dir))
+      }
+
       lapply(seq_len(nrow(docs)), function(i) {
         doc <- docs[i, ]
         is_embedded <- doc$id %in% embedded
+        is_pdf <- grepl("\\.pdf$", doc$filename, ignore.case = TRUE)
         delete_id <- paste0("delete_doc_", doc$id)
+        extract_id <- paste0("extract_figs_", doc$id)
+        view_figs_id <- paste0("view_figs_", doc$id)
+
+        # Check for existing figures
+        fig_count <- tryCatch(
+          nrow(db_get_figures_for_document(con(), doc$id)),
+          error = function(e) 0L
+        )
 
         # Build download URL
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
@@ -628,14 +689,70 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         if (is.null(delete_doc_observers[[doc$id]])) {
           delete_doc_observers[[doc$id]] <- observeEvent(input[[delete_id]], {
             delete_document(con(), doc$id)
-            # Clean ragnar store chunks for this document
             delete_document_chunks_from_ragnar(nb_id, doc$filename)
-            # Also remove the PDF file
             pdf_path <- file.path(".temp", "pdfs", nb_id, doc$filename)
             if (file.exists(pdf_path)) file.remove(pdf_path)
+            # Clear figure gallery if showing this doc
+            if (identical(selected_fig_doc(), doc$id)) selected_fig_doc(NULL)
             doc_refresh(doc_refresh() + 1)
             showNotification(paste("Removed", doc$filename), type = "message")
           }, ignoreInit = TRUE, once = TRUE)
+        }
+
+        # Register extract figures observer (once per document ID)
+        if (is_pdf && is.null(extract_observers[[doc$id]])) {
+          local({
+            d_id <- doc$id
+            d_filename <- doc$filename
+            d_filepath <- doc$filepath
+
+            extract_observers[[d_id]] <- observeEvent(input[[extract_id]], {
+              # Check for existing figures -> confirmation
+              existing <- tryCatch(
+                nrow(db_get_figures_for_document(con(), d_id)),
+                error = function(e) 0L
+              )
+              if (existing > 0) {
+                showModal(modalDialog(
+                  title = "Replace existing figures?",
+                  tags$p(sprintf("This will replace %d existing figures for %s.",
+                                 existing, d_filename)),
+                  footer = tagList(
+                    actionButton(ns(paste0("confirm_reextract_", d_id)),
+                                 "Replace", class = "btn-warning"),
+                    modalButton("Cancel")
+                  ),
+                  easyClose = TRUE
+                ))
+                # Register one-time confirm observer (guarded to prevent accumulation)
+                confirm_key <- paste0("confirm_reextract_", d_id)
+                if (is.null(extract_observers[[confirm_key]])) {
+                  extract_observers[[confirm_key]] <- observeEvent(input[[confirm_key]], {
+                    removeModal()
+                    extract_observers[[confirm_key]] <- NULL
+                    run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
+                  }, ignoreInit = TRUE, once = TRUE)
+                }
+                return()
+              }
+              run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
+            }, ignoreInit = TRUE)
+          })
+        }
+
+        # Register view-figures observer
+        if (fig_count > 0 && is.null(extract_observers[[paste0("view_", doc$id)]])) {
+          local({
+            d_id <- doc$id
+            extract_observers[[paste0("view_", d_id)]] <- observeEvent(input[[view_figs_id]], {
+              if (identical(selected_fig_doc(), d_id)) {
+                selected_fig_doc(NULL)  # Toggle off
+              } else {
+                selected_fig_doc(d_id)  # Toggle on
+                fig_refresh(fig_refresh() + 1)
+              }
+            }, ignoreInit = TRUE)
+          })
         }
 
         div(
@@ -657,6 +774,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           div(
             class = "d-flex align-items-center gap-2",
             span(paste(doc$page_count, "pg"), class = "text-muted small"),
+            # Figures: single button — badge toggles gallery, icon extracts
+            if (is_pdf && fig_count > 0) {
+              actionLink(
+                ns(view_figs_id),
+                span(paste0(fig_count, " fig", if (fig_count != 1) "s"),
+                     class = "badge bg-success"),
+                title = "View/hide figures"
+              )
+            } else if (is_pdf) {
+              actionLink(
+                ns(extract_id),
+                icon_image(),
+                class = "text-muted",
+                style = "cursor: pointer; opacity: 0.7;",
+                title = "Extract figures"
+              )
+            },
             tags$a(
               href = download_url,
               download = doc$filename,
@@ -674,6 +808,299 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           )
         )
       })
+    })
+
+    # =========================================================================
+    # Figure extraction + gallery
+    # =========================================================================
+
+    # Helper: run figure extraction with blocking progress modal
+    run_figure_extraction <- function(doc_id, nb_id, pdf_path, filename) {
+      # Verify PDF exists
+      if (!file.exists(pdf_path)) {
+        showNotification(
+          paste0("PDF file not found: ", filename,
+                 ". Re-upload the document to extract figures."),
+          type = "error", duration = NULL
+        )
+        return()
+      }
+
+      showModal(modalDialog(
+        title = "Extracting Figures",
+        tags$div(
+          tags$p(id = "extract-status", "Starting extraction..."),
+          tags$div(class = "progress",
+            tags$div(id = "extract-bar", class = "progress-bar progress-bar-striped progress-bar-animated",
+                     role = "progressbar", style = "width: 0%",
+                     `aria-valuenow` = "0", `aria-valuemin` = "0", `aria-valuemax` = "100")
+          )
+        ),
+        footer = NULL, easyClose = FALSE
+      ))
+
+      cfg <- config()
+      api_key <- cfg$openrouter$api_key
+
+      result <- tryCatch(
+        extract_and_describe_figures(
+          con = con(), api_key = api_key,
+          document_id = doc_id, notebook_id = nb_id,
+          pdf_path = pdf_path, session_id = session$token,
+          progress = function(value, detail) {
+            session$sendCustomMessage("updateExtractProgress", list(
+              pct = round(value * 100),
+              message = detail
+            ))
+          }
+        ),
+        error = function(e) {
+          message(sprintf("[figure-ui] Extraction error: %s", conditionMessage(e)))
+          list(n_extracted = 0L, n_described = 0L, n_failed = 0L,
+               error = conditionMessage(e))
+        }
+      )
+
+      removeModal()
+
+      if (!is.null(result$error)) {
+        showNotification(
+          paste0("Extraction failed: ", result$error),
+          type = "error", duration = NULL
+        )
+        return()
+      }
+
+      if (result$n_extracted == 0) {
+        showNotification(
+          paste0("No figures found in ", filename,
+                 ". This may be a text-only document."),
+          type = "warning", duration = 6
+        )
+      } else {
+        desc_msg <- if (result$n_described > 0) {
+          sprintf(" (%d described)", result$n_described)
+        } else if (is.null(api_key) || nchar(api_key) == 0) {
+          " (no API key — descriptions skipped)"
+        } else {
+          ""
+        }
+        showNotification(
+          sprintf("Extracted %d figures%s from %s",
+                  result$n_extracted, desc_msg, filename),
+          type = "message"
+        )
+        # Destroy and clear old figure action observers (figure IDs changed)
+        for (old_id in names(fig_action_observers)) {
+          obs_list <- fig_action_observers[[old_id]]
+          if (is.list(obs_list)) {
+            for (obs in obs_list) if (!is.null(obs)) obs$destroy()
+          }
+          fig_action_observers[[old_id]] <- NULL
+        }
+        selected_fig_doc(doc_id)
+        fig_refresh(fig_refresh() + 1)
+      }
+      doc_refresh(doc_refresh() + 1)  # Refresh doc list to show figure count badge
+    }
+
+    # Gallery view toggle
+    observeEvent(input$gallery_view_list, {
+      gallery_view("list")
+      fig_refresh(fig_refresh() + 1)
+    })
+    observeEvent(input$gallery_view_grid, {
+      gallery_view("grid")
+      fig_refresh(fig_refresh() + 1)
+    })
+
+    # Re-extract from gallery header
+    observeEvent(input$gallery_reextract, {
+      doc_id <- selected_fig_doc()
+      req(doc_id)
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      doc <- get_document(con(), doc_id)
+      req(doc)
+
+      existing <- tryCatch(
+        nrow(db_get_figures_for_document(con(), doc_id)),
+        error = function(e) 0L
+      )
+
+      showModal(modalDialog(
+        title = "Re-extract figures?",
+        tags$p(sprintf("This will replace %d existing figures for %s.",
+                       existing, doc$filename)),
+        footer = tagList(
+          actionButton(ns("confirm_gallery_reextract"), "Replace", class = "btn-warning"),
+          modalButton("Cancel")
+        ),
+        easyClose = TRUE
+      ))
+    })
+
+    observeEvent(input$confirm_gallery_reextract, {
+      removeModal()
+      doc_id <- selected_fig_doc()
+      nb_id <- notebook_id()
+      doc <- get_document(con(), doc_id)
+      run_figure_extraction(doc_id, nb_id, doc$filepath, doc$filename)
+    }, ignoreInit = TRUE)
+
+    # Figure gallery renderUI
+    output$figure_gallery <- renderUI({
+      fig_refresh()
+      doc_id <- selected_fig_doc()
+      if (is.null(doc_id)) return(NULL)
+
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      figures <- tryCatch(
+        db_get_figures_for_document(con(), doc_id),
+        error = function(e) data.frame()
+      )
+      if (nrow(figures) == 0) return(NULL)
+
+      fig_resource <- paste0("figures_", gsub("-", "", nb_id))
+      view <- gallery_view()
+
+      # Build figure cards
+      fig_cards <- lapply(seq_len(nrow(figures)), function(i) {
+        fig <- figures[i, ]
+        is_excluded <- isTRUE(fig$is_excluded)
+        has_desc <- !is.na(fig$llm_description) && nchar(fig$llm_description) > 0
+        img_src <- file.path(fig_resource, doc_id, basename(fig$file_path))
+
+        # Figure label
+        label_text <- if (!is.na(fig$figure_label) && nchar(fig$figure_label) > 0) {
+          fig$figure_label
+        } else {
+          paste("Page", fig$page_number)
+        }
+
+        # Register per-figure action observers
+        if (is.null(fig_action_observers[[fig$id]])) {
+          local({
+            f_id <- fig$id
+            f_path <- fig$file_path
+            f_label <- fig$figure_label
+            f_caption <- fig$extracted_caption
+
+            # Keep
+            obs_keep <- observeEvent(input[[paste0("keep_", f_id)]], {
+              db_update_figure(con(), f_id, is_excluded = FALSE)
+              fig_refresh(isolate(fig_refresh()) + 1)
+            }, ignoreInit = TRUE)
+
+            # Ban
+            obs_ban <- observeEvent(input[[paste0("ban_", f_id)]], {
+              db_update_figure(con(), f_id, is_excluded = TRUE)
+              fig_refresh(isolate(fig_refresh()) + 1)
+            }, ignoreInit = TRUE)
+
+            # Retry vision description
+            obs_retry <- observeEvent(input[[paste0("retry_", f_id)]], {
+              cfg <- config()
+              api_key <- cfg$openrouter$api_key
+              if (is.null(api_key) || nchar(api_key) == 0) {
+                showNotification(
+                  "Configure an API key in Settings to describe figures.",
+                  type = "warning"
+                )
+                return()
+              }
+
+              showNotification("Describing figure...", id = "retry_progress",
+                               duration = NULL, type = "message")
+
+              desc <- tryCatch(
+                describe_figure(
+                  api_key = api_key,
+                  image_data = f_path,
+                  figure_label = f_label,
+                  extracted_caption = f_caption
+                ),
+                error = function(e) {
+                  list(success = FALSE, error = conditionMessage(e))
+                }
+              )
+
+              removeNotification("retry_progress")
+
+              if (desc$success) {
+                description_text <- desc$summary
+                if (!is.na(desc$details) && nchar(desc$details) > 0) {
+                  description_text <- paste0(description_text, "\n\n", desc$details)
+                }
+                db_update_figure(con(), f_id,
+                  llm_description = description_text,
+                  image_type = desc$type,
+                  presentation_hint = desc$presentation_hint
+                )
+                # Log cost
+                if (desc$prompt_tokens > 0 || desc$completion_tokens > 0) {
+                  cost <- estimate_cost(desc$model_used,
+                                        desc$prompt_tokens, desc$completion_tokens)
+                  log_cost(con(), "figure_description", desc$model_used,
+                           desc$prompt_tokens, desc$completion_tokens,
+                           desc$prompt_tokens + desc$completion_tokens,
+                           cost, session$token)
+                }
+                showNotification("Description updated", type = "message", duration = 3)
+              } else {
+                showNotification("Failed to describe figure", type = "error", duration = 5)
+              }
+              fig_refresh(isolate(fig_refresh()) + 1)
+            }, ignoreInit = TRUE)
+            fig_action_observers[[f_id]] <- list(obs_keep, obs_ban, obs_retry)
+          })
+        }
+
+        # Build card based on view mode
+        if (view == "list") {
+          figure_card_list(fig, ns, img_src, label_text, is_excluded, has_desc)
+        } else {
+          figure_card_grid(fig, ns, img_src, label_text, is_excluded)
+        }
+      })
+
+      # Gallery header with view toggle and re-extract
+      header <- div(
+        class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom",
+        tags$strong(
+          sprintf("Figures (%d)", nrow(figures))
+        ),
+        div(
+          class = "d-flex gap-2",
+          div(
+            class = "btn-group btn-group-sm",
+            actionButton(ns("gallery_view_list"), icon_list(),
+              class = if (view == "list") "btn-primary" else "btn-outline-secondary",
+              title = "List view"
+            ),
+            actionButton(ns("gallery_view_grid"), icon_grid(),
+              class = if (view == "grid") "btn-primary" else "btn-outline-secondary",
+              title = "Grid view"
+            )
+          ),
+          actionButton(ns("gallery_reextract"), icon_refresh(),
+            class = "btn-outline-warning btn-sm",
+            title = "Re-extract figures"
+          )
+        )
+      )
+
+      tagList(
+        hr(),
+        header,
+        div(
+          style = "max-height: 500px; overflow-y: auto; padding: 4px;",
+          fig_cards
+        )
+      )
     })
 
     # Handle PDF upload
@@ -744,6 +1171,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               ensure_ragnar_store(nb_id, session, provider, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
+                showNotification(
+                  paste("PDF saved but search index unavailable:", e$message,
+                        "— use Rebuild Search Index to retry."),
+                  type = "warning", duration = 8
+                )
                 NULL
               }
             )
@@ -764,7 +1196,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               message("Ragnar store updated for document: ", file$name)
             }
           }, error = function(e) {
-            message("Ragnar indexing skipped: ", e$message)
+            message("Ragnar indexing failed: ", e$message)
+            showNotification(
+              paste("PDF saved but embedding failed:", e$message,
+                    "— use Rebuild Search Index to retry."),
+              type = "warning", duration = 8
+            )
           })
         }
 
@@ -1318,4 +1755,115 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       slides_trigger(slides_trigger() + 1)
     })
   })
+}
+
+
+# =============================================================================
+# Figure card helpers (used by gallery renderUI)
+# =============================================================================
+
+#' Render a figure card in list view (large image + full metadata)
+#' @keywords internal
+figure_card_list <- function(fig, ns, img_src, label_text, is_excluded, has_desc) {
+  card(
+    class = if (is_excluded) "mb-2 opacity-50 border-danger" else "mb-2",
+    card_body(
+      class = "p-2",
+      layout_columns(
+        col_widths = c(5, 7),
+        tags$img(
+          src = img_src,
+          class = "img-fluid rounded",
+          style = "max-height: 200px; object-fit: contain; width: 100%;",
+          alt = label_text
+        ),
+        tags$div(
+          tags$div(
+            class = "d-flex justify-content-between align-items-start mb-1",
+            tags$strong(label_text),
+            if (is_excluded) {
+              span(class = "badge bg-danger", "Excluded")
+            }
+          ),
+          if (!is.na(fig$extracted_caption) && nchar(fig$extracted_caption) > 0) {
+            tags$p(class = "text-muted small mb-1",
+                   style = "line-height: 1.3;",
+                   substr(fig$extracted_caption, 1, 200),
+                   if (nchar(fig$extracted_caption) > 200) "...")
+          },
+          if (has_desc) {
+            tags$p(class = "small mb-1",
+                   style = "line-height: 1.3;",
+                   icon_brain(class = "text-primary me-1"),
+                   substr(fig$llm_description, 1, 150),
+                   if (nchar(fig$llm_description) > 150) "...")
+          } else {
+            tags$p(class = "text-warning small mb-1",
+                   icon_warning(), " No description")
+          },
+          tags$div(
+            class = "btn-group btn-group-sm mt-1",
+            actionButton(
+              ns(paste0("keep_", fig$id)),
+              label = tagList(icon_check(), "Keep"),
+              class = if (!is_excluded) "btn-success" else "btn-outline-success"
+            ),
+            actionButton(
+              ns(paste0("retry_", fig$id)),
+              label = tagList(icon_refresh(), "Retry"),
+              class = "btn-outline-primary"
+            ),
+            actionButton(
+              ns(paste0("ban_", fig$id)),
+              label = tagList(icon_ban(), "Ban"),
+              class = if (is_excluded) "btn-danger" else "btn-outline-danger"
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+#' Render a figure card in grid/thumbnail view
+#' @keywords internal
+figure_card_grid <- function(fig, ns, img_src, label_text, is_excluded) {
+  tags$div(
+    class = "d-inline-block p-1 align-top",
+    style = "width: 180px;",
+    card(
+      class = if (is_excluded) "opacity-50 border-danger" else "",
+      card_body(
+        class = "p-1 text-center",
+        tags$img(
+          src = img_src,
+          class = "img-fluid rounded",
+          style = "max-height: 120px; object-fit: contain;",
+          alt = label_text
+        ),
+        tags$small(class = "d-block text-muted mt-1", label_text),
+        tags$div(
+          class = "btn-group btn-group-sm mt-1",
+          actionButton(
+            ns(paste0("keep_", fig$id)),
+            icon_check(),
+            class = if (!is_excluded) "btn-success" else "btn-outline-success",
+            title = "Keep"
+          ),
+          actionButton(
+            ns(paste0("retry_", fig$id)),
+            icon_refresh(),
+            class = "btn-outline-primary",
+            title = "Retry description"
+          ),
+          actionButton(
+            ns(paste0("ban_", fig$id)),
+            icon_ban(),
+            class = if (is_excluded) "btn-danger" else "btn-outline-danger",
+            title = "Exclude"
+          )
+        )
+      )
+    )
+  )
 }

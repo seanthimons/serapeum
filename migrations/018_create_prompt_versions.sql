@@ -1,4 +1,4 @@
--- Migration 015: Create Prompt Versions Table
+-- Migration 018: Create Prompt Versions Table
 --
 -- Stores user-edited prompts for AI presets with date versioning.
 -- Composite PK (preset_slug, version_date) enforces one version per preset per day.
