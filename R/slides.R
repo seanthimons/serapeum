@@ -55,10 +55,13 @@ build_slides_prompt <- function(chunks, options, con = NULL, figures = NULL) {
 
   # Build context from chunks
   context_parts <- vapply(seq_len(nrow(chunks)), function(i) {
-    sprintf("[%s, p.%d]:\n%s",
-            chunks$doc_name[i],
-            chunks$page_number[i],
-            chunks$content[i])
+    doc_label <- if (!isTRUE(is.na(chunks$doc_name[i]))) chunks$doc_name[i] else "unknown"
+    page_ref <- if (!isTRUE(is.na(chunks$page_number[i]))) {
+      sprintf(", p.%d", chunks$page_number[i])
+    } else {
+      ""
+    }
+    sprintf("[%s%s]:\n%s", doc_label, page_ref, chunks$content[i])
   }, character(1))
   context <- paste(context_parts, collapse = "\n\n---\n\n")
 

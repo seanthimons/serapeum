@@ -250,3 +250,22 @@ test_that("migrate_model_slots does nothing when no chat_model exists", {
   quality <- get_db_setting(con, "quality_model")
   expect_null(quality)
 })
+
+# --- #234: log_cost returns NULL on INSERT failure ---
+
+test_that("log_cost returns NULL and warns on INSERT failure", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  # Close the connection to force INSERT failure
+  close_db_connection(con)
+
+  expect_warning(
+    result <- log_cost(con, "chat", "openai/gpt-4o-mini", 100, 50,
+                       estimated_cost = 0.001, session_id = "s1"),
+    "Failed to log cost"
+  )
+
+  expect_null(result)
+})

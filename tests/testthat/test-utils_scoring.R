@@ -124,6 +124,14 @@ test_that("get_preset_weights returns discovery for unknown mode", {
   expect_equal(get_preset_weights("unknown"), get_preset_weights("discovery"))
 })
 
+test_that("preset weights sum to 1.0 for all modes", {
+  for (mode in c("discovery", "comprehensive", "emerging")) {
+    w <- get_preset_weights(mode)
+    expect_equal(sum(unlist(w)), 1.0, tolerance = 0.01,
+                 label = paste(mode, "weights sum"))
+  }
+})
+
 # ============================================================================
 # utility score with re-normalization
 # ============================================================================

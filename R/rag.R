@@ -51,6 +51,19 @@ rrf_merge <- function(ranked_lists, k = 60) {
   }
 
   # Build result data frame
+  # Align columns across all rows before rbind — VSS and BM25 results from ragnar
+
+  # can have different schemas (e.g., VSS includes `embedding` column, BM25 does not).
+  # NOTE: The `embedding` column from VSS contains the raw embedding vector for each
+  # chunk. This is not currently used in the RAG chat path, but IS relevant for the
+  # Research Refiner's embedding_similarity scoring (utils_scoring.R / mod_research_refiner.R).
+  # If you drop it here, RR semantic scoring will lose its signal.
+  all_cols <- unique(unlist(lapply(first_seen, names)))
+  first_seen <- lapply(first_seen, function(row) {
+    missing <- setdiff(all_cols, names(row))
+    for (col in missing) row[[col]] <- NA
+    row[, all_cols, drop = FALSE]
+  })
   result <- do.call(rbind, first_seen)
   result$rrf_score <- vapply(result$hash, function(h) scores[[h]], numeric(1))
 
@@ -1004,10 +1017,12 @@ build_context_by_paper <- function(papers_with_chunks) {
 
     chunk_texts <- vapply(seq_len(nrow(paper$chunks)), function(i) {
       hint <- if (!is.na(paper$chunks$section_hint[i])) paper$chunks$section_hint[i] else "general"
-      sprintf("[p.%d, %s] %s",
-              paper$chunks$page_number[i],
-              hint,
-              paper$chunks$content[i])
+      page_ref <- if (!isTRUE(is.na(paper$chunks$page_number[i]))) {
+        sprintf("p.%d, ", paper$chunks$page_number[i])
+      } else {
+        ""
+      }
+      sprintf("[%s%s] %s", page_ref, hint, paper$chunks$content[i])
     }, character(1))
 
     sprintf("=== PAPER: %s ===\n%s", paper$label, paste(chunk_texts, collapse = "\n\n"))

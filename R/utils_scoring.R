@@ -70,31 +70,31 @@ compute_seed_connectivity <- function(paper_id, anchor_refs, anchor_ids,
 get_preset_weights <- function(mode = "discovery") {
   switch(mode,
     discovery = list(
-      w1 = 0.25,  # seed_connectivity
-      w2 = 0.30,  # bridge_score
-      w3 = 0.20,  # citation_velocity
-      w4 = 0.15,  # fwci
-      w5 = 0.30,  # ubiquity_penalty
-      w6 = 0.30   # embedding_similarity
+      w1 = 0.167,  # seed_connectivity
+      w2 = 0.200,  # bridge_score
+      w3 = 0.133,  # citation_velocity
+      w4 = 0.100,  # fwci
+      w5 = 0.200,  # ubiquity_penalty
+      w6 = 0.200   # embedding_similarity
     ),
     comprehensive = list(
-      w1 = 0.30,
-      w2 = 0.10,
-      w3 = 0.20,
-      w4 = 0.30,
-      w5 = 0.05,
-      w6 = 0.25
+      w1 = 0.250,
+      w2 = 0.083,
+      w3 = 0.167,
+      w4 = 0.250,
+      w5 = 0.042,
+      w6 = 0.208
     ),
     emerging = list(
-      w1 = 0.10,
-      w2 = 0.15,
-      w3 = 0.40,
-      w4 = 0.25,
-      w5 = 0.20,
-      w6 = 0.20
+      w1 = 0.077,
+      w2 = 0.115,
+      w3 = 0.308,
+      w4 = 0.192,
+      w5 = 0.154,
+      w6 = 0.154
     ),
     # Default to discovery
-    list(w1 = 0.25, w2 = 0.30, w3 = 0.20, w4 = 0.15, w5 = 0.30, w6 = 0.30)
+    list(w1 = 0.167, w2 = 0.200, w3 = 0.133, w4 = 0.100, w5 = 0.200, w6 = 0.200)
   )
 }
 

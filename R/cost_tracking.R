@@ -205,7 +205,7 @@ log_cost <- function(con, operation, model, prompt_tokens, completion_tokens = 0
     "duration_ms" %in% cols
   }, error = function(e) FALSE)
 
-  tryCatch({
+  result <- tryCatch({
     if (has_duration && !is.null(duration_ms)) {
       dbExecute(con, "
         INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, duration_ms)
@@ -226,12 +226,13 @@ log_cost <- function(con, operation, model, prompt_tokens, completion_tokens = 0
         as.integer(total_tokens), as.numeric(estimated_cost)
       ))
     }
+    id
   }, error = function(e) {
-    warning("Failed to log cost: ", e$message)
-    return(invisible(NULL))
+    warning("Failed to log cost: ", e$message, call. = FALSE)
+    NULL
   })
 
-  id
+  result
 }
 
 #' Get all cost records for a session
