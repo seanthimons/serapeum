@@ -154,7 +154,7 @@ build_qmd_frontmatter <- function(title, theme = "default", custom_scss = NULL) 
   theme_val <- if (is.null(theme) || theme == "default") "default" else theme
 
   theme_line <- if (!is.null(custom_scss)) {
-    paste0("    theme: [", theme_val, ", ", custom_scss, "]\n")
+    paste0("    theme: [", theme_val, ", ", basename(custom_scss), "]\n")
   } else {
     paste0("    theme: ", theme_val, "\n")
   }
@@ -327,8 +327,10 @@ generate_slides <- function(api_key, model, chunks, options, notebook_name = "Pr
     scss_dest <- file.path(tempdir(), basename(custom_scss))
     if (!file.copy(custom_scss, scss_dest, overwrite = TRUE)) {
       warning("Failed to copy custom .scss file: ", custom_scss)
+      custom_scss <- NULL
+    } else {
+      custom_scss <- normalizePath(scss_dest, winslash = "/", mustWork = FALSE)
     }
-    custom_scss <- normalizePath(scss_dest, winslash = "/", mustWork = FALSE)
   }
 
   frontmatter <- build_qmd_frontmatter(title, theme, custom_scss)

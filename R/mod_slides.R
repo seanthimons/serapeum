@@ -28,7 +28,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
       ),
       # JS: swatch -> hex (live, on every color picker change)
       tags$script(HTML(sprintf(
-        "document.addEventListener('DOMContentLoaded', function() {
+        "setTimeout(function() {
            var sw = document.getElementById('%s');
            var hx = document.getElementById('%s');
            if (sw && hx) {
@@ -37,12 +37,12 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
                hx.dispatchEvent(new Event('change'));
              });
            }
-         });",
+         }, 0);",
         swatch_id, hex_id
       ))),
       # JS: hex -> swatch (updates swatch when valid hex typed)
       tags$script(HTML(sprintf(
-        "document.addEventListener('DOMContentLoaded', function() {
+        "setTimeout(function() {
            var hx = document.getElementById('%s');
            var sw = document.getElementById('%s');
            if (hx && sw) {
@@ -142,7 +142,56 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
           selected = "footnotes"
         ),
 
-        # Theme (swatch dropdown — populated server-side via updateSelectizeInput)
+        # Speaker notes
+        div(
+          style = "padding-top: 32px;",
+          checkboxInput(ns("include_notes"), "Include speaker notes", value = TRUE)
+        )
+      ),
+
+      # Custom message handlers (must be in the modal body for Shiny to register)
+      tags$script(HTML(
+        "Shiny.addCustomMessageHandler('update_color_swatch', function(msg) {
+           for (var i = 0; i < msg.ids.length; i++) {
+             var el = document.getElementById(msg.ids[i]);
+             if (el) el.value = msg.values[i];
+           }
+         });
+         Shiny.addCustomMessageHandler('focus_element', function(id) {
+           var el = document.getElementById(id);
+           if (el) el.focus();
+         });
+         Shiny.addCustomMessageHandler('collapse_panel', function(id) {
+           var el = document.getElementById(id);
+           if (el && el.classList.contains('show')) {
+             var bsCollapse = bootstrap.Collapse.getInstance(el);
+             if (bsCollapse) { bsCollapse.hide(); } else { new bootstrap.Collapse(el).hide(); }
+           }
+         });
+         Shiny.addCustomMessageHandler('expand_panel', function(id) {
+           var el = document.getElementById(id);
+           if (el && !el.classList.contains('show')) {
+             bootstrap.Collapse.getOrCreateInstance(el).show();
+           }
+         });
+         Shiny.addCustomMessageHandler('set_button_loading', function(msg) {
+           var btn = document.getElementById(msg.id);
+           if (!btn) return;
+           if (msg.loading) {
+             btn.disabled = true;
+             btn.dataset.originalHtml = btn.innerHTML;
+             btn.innerHTML = '<span class=\"spinner-border spinner-border-sm\" role=\"status\"><span class=\"visually-hidden\">Loading</span></span> ' + (msg.text || 'Generating...');
+           } else {
+             btn.disabled = false;
+             btn.innerHTML = btn.dataset.originalHtml || msg.label || 'Generate';
+           }
+         });"
+      )),
+
+      # Theme section — dropdown row with AI generate
+      layout_columns(
+        col_widths = c(5, 7),
+        # Theme dropdown with upload link
         div(
           selectizeInput(
             ns("theme"),
@@ -181,62 +230,48 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
               valueField = "value"
             )
           ),
-          # Upload + AI Generate links row
-          div(
-            class = "d-flex gap-3 align-items-center",
-            # Existing Upload link (browser-native label-for trigger)
-            tags$label(
-              `for` = ns("theme_file"),
-              class = "small text-muted d-inline-flex align-items-center gap-1",
-              style = "cursor:pointer; margin-bottom:0;",
-              icon("upload"),
-              " Upload custom theme (.scss)"
-            ),
-            # AI Generate trigger — Bootstrap 5 collapse toggle
-            tags$a(
-              class = "small text-muted d-inline-flex align-items-center gap-1",
-              style = "cursor:pointer; margin-bottom:0;",
-              `data-bs-toggle` = "collapse",
-              href = paste0("#", ns("ai_generate_form")),
-              role = "button",
-              `aria-expanded` = "false",
-              `aria-controls` = ns("ai_generate_form"),
-              `aria-label` = "Generate theme with AI",
-              icon("wand-magic-sparkles"),
-              " AI Generate"
-            )
+          tags$label(
+            `for` = ns("theme_file"),
+            class = "small text-muted d-inline-flex align-items-center gap-1",
+            style = "cursor:pointer; margin-top:-8px;",
+            icon("upload"),
+            " Upload .scss"
           ),
-          # AI Generate collapse form
-          div(
-            id = ns("ai_generate_form"),
-            class = "collapse mt-2 p-3 border rounded bg-body-secondary",
-            textAreaInput(
-              ns("ai_theme_description"),
-              NULL,
-              placeholder = "e.g., ocean blues, dark background, modern sans-serif font",
-              rows = 2,
-              width = "100%"
-            ),
-            tags$button(
-              id = ns("ai_generate_btn"),
-              type = "button",
-              class = "btn btn-primary btn-sm mt-2 w-100",
-              onclick = sprintf(
-                "Shiny.setInputValue('%s', Date.now(), {priority: 'event'});",
-                ns("ai_generate_btn")
-              ),
-              "Generate theme"
-            )
-          ),
-          # fileInput hidden off-screen (not display:none — that blocks label click
-          # on some browsers). position:absolute + clip makes it invisible but
-          # label-clickable.
           div(
             style = "position:absolute; width:0; height:0; overflow:hidden;",
             fileInput(ns("theme_file"), NULL, accept = ".scss")
           ),
-          # Inline validation error output
           uiOutput(ns("upload_error"))
+        ),
+        # AI Generate — label aligns with "Theme" label, input aligns with dropdown
+        div(
+          tags$label(
+            class = "form-label",
+            icon("wand-magic-sparkles", class = "text-muted"),
+            " AI Generate"
+          ),
+          div(
+            class = "d-flex gap-2 align-items-end",
+            div(
+              style = "flex:1; margin-bottom:0;",
+              textInput(ns("ai_theme_description"), NULL,
+                placeholder = "e.g., ocean blues, dark background",
+                width = "100%"
+              )
+            ),
+            tags$button(
+              id = ns("ai_generate_btn"),
+              type = "button",
+              class = "btn btn-outline-primary",
+              style = "white-space:nowrap;",
+              onclick = sprintf(
+                "Shiny.setInputValue('%s', Date.now(), {priority: 'event'});",
+                ns("ai_generate_btn")
+              ),
+              "Generate"
+            )
+          ),
+          uiOutput(ns("regenerate_btn_area"))
         )
       ),
 
@@ -253,7 +288,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
         ))),
         # Toggle link
         tags$a(
-          class = "small text-muted d-flex align-items-center gap-1 mt-2 customize-toggle",
+          class = "small text-muted d-flex align-items-center gap-1 mt-1 customize-toggle",
           style = "cursor:pointer; text-decoration:none;",
           `data-bs-toggle` = "collapse",
           href = paste0("#", ns("customize_panel")),
@@ -267,44 +302,6 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
         div(
           id = ns("customize_panel"),
           class = "collapse mt-2 p-3 border rounded bg-body-secondary",
-          # Custom message handlers for server-driven updates
-          tags$script(HTML(
-            "Shiny.addCustomMessageHandler('update_color_swatch', function(msg) {
-               for (var i = 0; i < msg.ids.length; i++) {
-                 var el = document.getElementById(msg.ids[i]);
-                 if (el) el.value = msg.values[i];
-               }
-             });
-             Shiny.addCustomMessageHandler('focus_element', function(id) {
-               var el = document.getElementById(id);
-               if (el) el.focus();
-             });
-             Shiny.addCustomMessageHandler('collapse_panel', function(id) {
-               var el = document.getElementById(id);
-               if (el && el.classList.contains('show')) {
-                 var bsCollapse = bootstrap.Collapse.getInstance(el);
-                 if (bsCollapse) { bsCollapse.hide(); } else { new bootstrap.Collapse(el).hide(); }
-               }
-             });
-             Shiny.addCustomMessageHandler('expand_panel', function(id) {
-               var el = document.getElementById(id);
-               if (el && !el.classList.contains('show')) {
-                 bootstrap.Collapse.getOrCreateInstance(el).show();
-               }
-             });
-             Shiny.addCustomMessageHandler('set_button_loading', function(msg) {
-               var btn = document.getElementById(msg.id);
-               if (!btn) return;
-               if (msg.loading) {
-                 btn.disabled = true;
-                 btn.dataset.originalHtml = btn.innerHTML;
-                 btn.innerHTML = '<span class=\"spinner-border spinner-border-sm\" role=\"status\"><span class=\"visually-hidden\">Loading</span></span> ' + (msg.text || 'Generating...');
-               } else {
-                 btn.disabled = false;
-                 btn.innerHTML = btn.dataset.originalHtml || msg.label || 'Generate';
-               }
-             });"
-          )),
           # 2x2 color picker grid
           layout_columns(
             col_widths = c(6, 6),
@@ -313,22 +310,19 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model) {
             color_picker_pair(ns, "accent", "Accent"),
             color_picker_pair(ns, "link",   "Link")
           ),
-          # Font selector
-          selectInput(ns("font"), "Font", choices = CURATED_FONTS, selected = "Source Sans Pro"),
-          # Regenerate button (rendered conditionally by server after AI generation)
-          uiOutput(ns("regenerate_btn_area")),
-          # Save row
-          div(
-            class = "d-flex align-items-center gap-2 mt-3",
-            textInput(ns("custom_theme_name"), NULL, placeholder = "Theme name...", width = "200px"),
-            actionButton(ns("save_custom_theme"), "Save as custom theme",
-                         class = "btn-primary btn-sm", icon = icon_save())
+          # Font + Save row
+          layout_columns(
+            col_widths = c(5, 4, 3),
+            selectInput(ns("font"), "Font", choices = CURATED_FONTS, selected = "Source Sans Pro"),
+            textInput(ns("custom_theme_name"), "Theme name", placeholder = "My theme..."),
+            div(
+              style = "padding-top: 32px;",
+              actionButton(ns("save_custom_theme"), "Save",
+                           class = "btn-primary btn-sm w-100", icon = icon_save())
+            )
           )
         )
       ),
-
-      # Speaker notes checkbox
-      checkboxInput(ns("include_notes"), "Include speaker notes", value = TRUE),
 
       # Custom instructions
       textAreaInput(
@@ -649,7 +643,10 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       # Save to data/themes/
       dir.create("data/themes", recursive = TRUE, showWarnings = FALSE)
       dest <- file.path("data/themes", input$theme_file$name)
-      file.copy(input$theme_file$datapath, dest, overwrite = TRUE)
+      if (!file.copy(input$theme_file$datapath, dest, overwrite = TRUE)) {
+        showNotification("Failed to save theme file. Check permissions.", type = "error")
+        return()
+      }
 
       showNotification(
         paste0("Theme '", input$theme_file$name, "' uploaded."),
@@ -797,10 +794,14 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         list(id = ns("ai_generate_btn"), loading = TRUE, text = "Generating..."))
 
       # Attempt generation with 1 retry on JSON failure
+      last_api_error <- NULL
       attempt_generate <- function(desc, attempt_num = 1) {
         result <- tryCatch(
           generate_theme_from_description(api_key, model, desc),
-          error = function(e) list(content = NULL, usage = NULL)
+          error = function(e) {
+            last_api_error <<- conditionMessage(e)
+            list(content = NULL, usage = NULL)
+          }
         )
 
         # Log cost regardless of parse success
@@ -819,13 +820,18 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
         if (is.null(result$content)) {
           if (attempt_num < 2) return(attempt_generate(desc, 2))
-          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+          err_msg <- if (!is.null(last_api_error)) {
+            paste0("Theme generation failed: ", last_api_error)
+          } else {
+            "Couldn't generate theme. Try a more specific description."
+          }
+          return(list(theme = NULL, error = err_msg))
         }
 
         json <- extract_theme_json(result$content)
         if (is.null(json)) {
           if (attempt_num < 2) return(attempt_generate(desc, 2))
-          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+          return(list(theme = NULL, error = "Couldn't parse theme from AI response. Try a more specific description."))
         }
 
         list(theme = json, usage = result$usage, error = NULL)
@@ -878,25 +884,36 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         values = list(tolower(bg), tolower(fg), tolower(acc), tolower(lnk))
       ))
 
+      # Auto-save as custom theme so it's immediately usable for slide generation
+      ai_theme_name <- paste0("AI-", format(Sys.time(), "%H%M%S"))
+      path <- generate_custom_scss(
+        name         = ai_theme_name,
+        bg_color     = bg,
+        text_color   = fg,
+        accent_color = acc,
+        link_color   = lnk,
+        font_name    = fnt
+      )
+      if (!is.null(path)) {
+        refresh_theme_dropdown(selected = basename(path))
+        updateTextInput(session, "custom_theme_name", value = ai_theme_name)
+      }
+
       # Expand customize panel
       session$sendCustomMessage("expand_panel", ns("customize_panel"))
 
       # Mark AI generation as complete (shows Regenerate button)
       ai_generated(TRUE)
-
-      # Collapse the AI generate form
-      session$sendCustomMessage("collapse_panel", ns("ai_generate_form"))
     })
 
     # Regenerate button — only visible after AI generation
     output$regenerate_btn_area <- renderUI({
       if (!ai_generated()) return(NULL)
       div(
-        class = "mt-2",
+        class = "mt-1",
         actionButton(ns("regenerate_theme"), "Regenerate",
                      class = "btn btn-outline-secondary btn-sm",
-                     icon = icon("rotate"),
-                     `aria-label` = "Regenerate theme with AI")
+                     icon = icon("rotate"))
       )
     })
 
@@ -912,10 +929,14 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       session$sendCustomMessage("set_button_loading",
         list(id = ns("regenerate_theme"), loading = TRUE, text = "Regenerating..."))
 
+      last_api_error <- NULL
       attempt_generate <- function(desc, attempt_num = 1) {
         result <- tryCatch(
           generate_theme_from_description(api_key, model, desc),
-          error = function(e) list(content = NULL, usage = NULL)
+          error = function(e) {
+            last_api_error <<- conditionMessage(e)
+            list(content = NULL, usage = NULL)
+          }
         )
         if (!is.null(result$usage)) {
           cost <- estimate_cost(model,
@@ -931,12 +952,17 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         }
         if (is.null(result$content)) {
           if (attempt_num < 2) return(attempt_generate(desc, 2))
-          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+          err_msg <- if (!is.null(last_api_error)) {
+            paste0("Theme generation failed: ", last_api_error)
+          } else {
+            "Couldn't generate theme. Try a more specific description."
+          }
+          return(list(theme = NULL, error = err_msg))
         }
         json <- extract_theme_json(result$content)
         if (is.null(json)) {
           if (attempt_num < 2) return(attempt_generate(desc, 2))
-          return(list(theme = NULL, error = "Couldn't generate theme. Try a more specific description."))
+          return(list(theme = NULL, error = "Couldn't parse theme from AI response. Try a more specific description."))
         }
         list(theme = json, usage = result$usage, error = NULL)
       }
@@ -982,6 +1008,21 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         ids    = list(ns("bg_swatch"), ns("text_swatch"), ns("accent_swatch"), ns("link_swatch")),
         values = list(tolower(bg), tolower(fg), tolower(acc), tolower(lnk))
       ))
+
+      # Auto-save regenerated theme so it's immediately usable for slide generation
+      ai_theme_name <- paste0("AI-", format(Sys.time(), "%H%M%S"))
+      path <- generate_custom_scss(
+        name         = ai_theme_name,
+        bg_color     = bg,
+        text_color   = fg,
+        accent_color = acc,
+        link_color   = lnk,
+        font_name    = fnt
+      )
+      if (!is.null(path)) {
+        refresh_theme_dropdown(selected = basename(path))
+        updateTextInput(session, "custom_theme_name", value = ai_theme_name)
+      }
     })
 
     # Handle generation
@@ -1031,7 +1072,15 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       # Get chunks for selected documents
       showNotification("Preparing content...", id = "slides_progress", duration = NULL, type = "message")
-      chunks <- get_chunks_for_documents(con(), doc_ids)
+      chunks <- tryCatch({
+        get_chunks_for_documents(con(), doc_ids)
+      }, error = function(e) {
+        removeNotification("slides_progress")
+        generation_state$error <- paste("Failed to load documents:", e$message)
+        show_results(error = generation_state$error)
+        return(NULL)
+      })
+      if (is.null(chunks)) return()
 
       if (nrow(chunks) == 0) {
         removeNotification("slides_progress")
@@ -1100,6 +1149,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       # Create resource path for preview
       preview_name <- basename(html_result$path)
+      tryCatch(removeResourcePath("slides_preview"), error = function(e) NULL)
       addResourcePath("slides_preview", dirname(html_result$path))
       preview_url <- paste0("slides_preview/", preview_name)
 
@@ -1180,7 +1230,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
         generation_state$html_path <- html_result$path
         preview_name <- basename(html_result$path)
-        addResourcePath("slides_preview", dirname(html_result$path))
+        tryCatch(removeResourcePath("slides_preview"), error = function(e) NULL)
+      addResourcePath("slides_preview", dirname(html_result$path))
         preview_url <- paste0("slides_preview/", preview_name)
 
         show_results(preview_url = preview_url)
@@ -1271,6 +1322,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
 
       generation_state$html_path <- html_result$path
       preview_name <- basename(html_result$path)
+      tryCatch(removeResourcePath("slides_preview"), error = function(e) NULL)
       addResourcePath("slides_preview", dirname(html_result$path))
       preview_url <- paste0("slides_preview/", preview_name)
 
@@ -1302,21 +1354,52 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
                        "google/gemini-3.1-flash-lite-preview"
 
       showModal(mod_slides_modal_ui(ns, docs, models, current_model))
-      # Restore previously selected theme in dropdown (built-in or custom)
-      last_theme <- generation_state$last_options$theme %||% "default"
+      # Restore previously selected theme in dropdown (built-in or custom .scss filename)
+      last_custom_scss <- generation_state$last_options$custom_scss
+      last_theme <- if (!is.null(last_custom_scss)) {
+        basename(last_custom_scss)
+      } else {
+        generation_state$last_options$theme %||% "default"
+      }
       refresh_theme_dropdown(selected = last_theme)
     })
 
     # Download handlers
     output$download_qmd <- downloadHandler(
       filename = function() {
-        nb_id <- notebook_id()
-        nb <- get_notebook(con(), nb_id)
-        paste0(gsub("[^a-zA-Z0-9]", "-", nb$name %||% "slides"), ".qmd")
+        nb <- get_notebook(con(), notebook_id())
+        base <- gsub("[^a-zA-Z0-9]", "-", nb$name %||% "slides")
+        if (!is.null(generation_state$last_options$custom_scss)) {
+          paste0(base, ".zip")
+        } else {
+          paste0(base, ".qmd")
+        }
       },
       content = function(file) {
         req(generation_state$qmd_content)
-        writeLines(generation_state$qmd_content, file)
+        custom_scss <- generation_state$last_options$custom_scss
+        if (!is.null(custom_scss) && file.exists(custom_scss)) {
+          scss_basename <- basename(custom_scss)
+          # Rebuild frontmatter with relative SCSS path instead of absolute temp path
+          nb <- get_notebook(con(), notebook_id())
+          title <- nb$name %||% "Slides"
+          theme <- generation_state$last_options$theme %||% "default"
+          portable_frontmatter <- build_qmd_frontmatter(title, theme, scss_basename)
+          # Extract slide body (everything after closing --- of frontmatter)
+          body <- sub("^---\\n.*?\\n---\\n?", "", generation_state$qmd_content)
+          portable_qmd <- paste0(portable_frontmatter, "\n", body)
+          # Bundle QMD + SCSS into zip
+          tmp_dir <- file.path(tempdir(), "qmd_export")
+          dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+          on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+          writeLines(portable_qmd, file.path(tmp_dir, "slides.qmd"))
+          file.copy(custom_scss, file.path(tmp_dir, scss_basename), overwrite = TRUE)
+          old_wd <- setwd(tmp_dir)
+          on.exit(setwd(old_wd), add = TRUE)
+          utils::zip(file, files = c("slides.qmd", scss_basename))
+        } else {
+          writeLines(generation_state$qmd_content, file)
+        }
       }
     )
 

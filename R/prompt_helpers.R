@@ -192,12 +192,16 @@ get_active_prompt <- function(con, preset_slug) {
 #' @param prompt_text Character. The custom prompt text to save.
 #' @return invisible(TRUE)
 save_prompt_version <- function(con, preset_slug, prompt_text) {
-  DBI::dbExecute(
-    con,
-    "INSERT OR REPLACE INTO prompt_versions (preset_slug, version_date, prompt_text) VALUES (?, ?, ?)",
-    params = list(preset_slug, as.character(Sys.Date()), prompt_text)
-  )
-  invisible(TRUE)
+  tryCatch({
+    DBI::dbExecute(
+      con,
+      "INSERT OR REPLACE INTO prompt_versions (preset_slug, version_date, prompt_text) VALUES (?, ?, ?)",
+      params = list(preset_slug, as.character(Sys.Date()), prompt_text)
+    )
+    invisible(TRUE)
+  }, error = function(e) {
+    stop(sprintf("Failed to save prompt version: %s", e$message), call. = FALSE)
+  })
 }
 
 #' Delete all custom versions for a preset slug (reset to hardcoded default)
@@ -206,12 +210,16 @@ save_prompt_version <- function(con, preset_slug, prompt_text) {
 #' @param preset_slug Character. Preset slug.
 #' @return invisible(TRUE)
 reset_prompt_to_default <- function(con, preset_slug) {
-  DBI::dbExecute(
-    con,
-    "DELETE FROM prompt_versions WHERE preset_slug = ?",
-    params = list(preset_slug)
-  )
-  invisible(TRUE)
+  tryCatch({
+    DBI::dbExecute(
+      con,
+      "DELETE FROM prompt_versions WHERE preset_slug = ?",
+      params = list(preset_slug)
+    )
+    invisible(TRUE)
+  }, error = function(e) {
+    stop(sprintf("Failed to reset prompt: %s", e$message), call. = FALSE)
+  })
 }
 
 #' Get the effective prompt for a preset slug
@@ -225,5 +233,8 @@ reset_prompt_to_default <- function(con, preset_slug) {
 get_effective_prompt <- function(con, preset_slug) {
   active <- get_active_prompt(con, preset_slug)
   if (!is.null(active)) return(active)
-  PROMPT_DEFAULTS[[preset_slug]]
+  default <- PROMPT_DEFAULTS[[preset_slug]]
+  if (!is.null(default)) return(default)
+  warning(sprintf("Unknown preset slug: '%s'", preset_slug))
+  ""
 }
