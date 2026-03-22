@@ -420,7 +420,7 @@ server <- function(input, output, session) {
   # OA sidebar budget badge — reactive on config + usage
   output$oa_sidebar_badge <- renderUI({
     invalidateLater(30000)  # Update every 30 seconds
-    cfg <- config_r()
+    cfg <- effective_config()
     oa_key <- cfg$openalex$api_key
     if (is.null(oa_key) || !nzchar(trimws(oa_key))) return(NULL)
 
