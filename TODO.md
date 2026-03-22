@@ -6,12 +6,7 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 ## Pending PRs (Resolve Immediately)
 
-- [ ] PR #168: feat: v14.0 citation audit filters + network node sizing [open] — v14-citation-network-evolution
-- [ ] PR #163: feat: v17.0 PDF image pipeline [open] — v17-pdf-image-pipeline
-- [ ] PR #162: feat: v15 AI Infrastructure [open] — v15-ai-infrastructure
-- [ ] PR #161: feat: v13 Search & Discovery — Research Refiner + keyword filtering [open] — v13-search-discovery
-- [ ] PR #156: feat: v12 UX Polish & Onboarding [open] — v12-ux-polish-onboarding
-- [ ] PR #155: fix: restore paper count status line [open] — fix/paper-count-status
+- [ ] PR #233: fix: v16 uncommitted changes — cost logging, prompt wiring, indexes [open] — fix/v16-uncommitted-integration -> integration
 
 ---
 
@@ -95,14 +90,13 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 | [#52](https://github.com/seanthimons/serapeum/issues/52) | Quarto citation support exploration | Low | Medium |
 | [#22](https://github.com/seanthimons/serapeum/issues/22) | Audio overview (NotebookLM style) | High | Medium |
 
----
+*PR review follow-ups (from PR #233 review):*
 
-## Pending PRs (Resolve Immediately)
-
-| PR | Title | State | Branch |
-|----|-------|-------|--------|
-| [#163](https://github.com/seanthimons/serapeum/pull/163) | feat: v17.0 PDF image pipeline | open | v17-pdf-image-pipeline -> integration |
-| [#221](https://github.com/seanthimons/serapeum/pull/221) | feat: v16.0 Content & Output Quality milestone | open | gsd/phase-63-prompt-editing-ui -> main |
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#234](https://github.com/seanthimons/serapeum/issues/234) | log_cost returns stale ID when INSERT fails | Low | Medium |
+| [#235](https://github.com/seanthimons/serapeum/issues/235) | Missing trailing semicolon in migration 018 CREATE INDEX | Low | Medium |
+| [#236](https://github.com/seanthimons/serapeum/issues/236) | Redundant role prefix in overview summary system prompt | Low | Low |
 
 ---
 

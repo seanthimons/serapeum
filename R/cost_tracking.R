@@ -205,26 +205,31 @@ log_cost <- function(con, operation, model, prompt_tokens, completion_tokens = 0
     "duration_ms" %in% cols
   }, error = function(e) FALSE)
 
-  if (has_duration && !is.null(duration_ms)) {
-    dbExecute(con, "
-      INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ", list(
-      id, session_id, operation, model,
-      as.integer(prompt_tokens), as.integer(completion_tokens),
-      as.integer(total_tokens), as.numeric(estimated_cost),
-      as.integer(duration_ms)
-    ))
-  } else {
-    dbExecute(con, "
-      INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ", list(
-      id, session_id, operation, model,
-      as.integer(prompt_tokens), as.integer(completion_tokens),
-      as.integer(total_tokens), as.numeric(estimated_cost)
-    ))
-  }
+  tryCatch({
+    if (has_duration && !is.null(duration_ms)) {
+      dbExecute(con, "
+        INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, duration_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ", list(
+        id, session_id, operation, model,
+        as.integer(prompt_tokens), as.integer(completion_tokens),
+        as.integer(total_tokens), as.numeric(estimated_cost),
+        as.integer(duration_ms)
+      ))
+    } else {
+      dbExecute(con, "
+        INSERT INTO cost_log (id, session_id, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ", list(
+        id, session_id, operation, model,
+        as.integer(prompt_tokens), as.integer(completion_tokens),
+        as.integer(total_tokens), as.numeric(estimated_cost)
+      ))
+    }
+  }, error = function(e) {
+    warning("Failed to log cost: ", e$message)
+    return(invisible(NULL))
+  })
 
   id
 }

@@ -167,7 +167,11 @@ build_context <- function(chunks) {
     # Determine source label using safe scalar checks
     source <- "[Source]"
     if (!isTRUE(is.na(doc_name)) && isTRUE(nchar(doc_name) > 0)) {
-      source <- sprintf("[%s, p.%d]", doc_name, page_number)
+      if (!isTRUE(is.na(page_number))) {
+        source <- sprintf("[%s, p.%d]", doc_name, page_number)
+      } else {
+        source <- sprintf("[%s]", doc_name)
+      }
     } else if (!isTRUE(is.na(abstract_title)) && isTRUE(nchar(abstract_title) > 0)) {
       source <- sprintf("[%s]", abstract_title)
     }
@@ -720,10 +724,15 @@ generate_overview_preset <- function(con, config, notebook_id,
     })
   }
 
+  # Citation and grounding instructions appended to all overview calls
+  citation_rules <- "Base all content ONLY on the provided sources. Do not invent findings. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N)."
+
   # Helper: "Thorough" Call 1 — Summary only
   call_overview_summary <- function(df) {
     system_prompt <- sprintf(
-      "You are a research summarizer. %s Cover main themes, key findings, and conclusions. Base the summary ONLY on the provided sources. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N).",
+      "You are a research summarizer. %s %s %s",
+      get_effective_prompt(con, "summarize"),
+      citation_rules,
       depth_instruction
     )
     user_prompt <- sprintf("%s\n\n%s",
@@ -753,7 +762,11 @@ generate_overview_preset <- function(con, config, notebook_id,
 
   # Helper: "Thorough" Call 2 — Key Points only
   call_overview_keypoints <- function(df) {
-    system_prompt <- "You are a research analyst. Extract key points organized by theme from the provided research. Base all content ONLY on the provided sources. Do not invent findings. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N)."
+    system_prompt <- sprintf(
+      "You are a research analyst. %s %s",
+      get_effective_prompt(con, "keypoints"),
+      citation_rules
+    )
     user_prompt <- sprintf(
       "%s\n\nExtract key points organized under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps. Each subheading: 3-5 bullet points.",
       wrap_sources(df)

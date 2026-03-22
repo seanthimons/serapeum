@@ -10,4 +10,7 @@ CREATE TABLE prompt_versions (
   prompt_text  TEXT      NOT NULL,
   created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (preset_slug, version_date)
-)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_slug ON prompt_versions(preset_slug);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_slug_date ON prompt_versions(preset_slug, version_date DESC)

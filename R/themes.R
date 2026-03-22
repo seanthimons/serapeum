@@ -332,6 +332,7 @@ generate_custom_scss <- function(name, bg_color, text_color, accent_color, link_
   )
 
   tryCatch({
+    dir.create(themes_dir, recursive = TRUE, showWarnings = FALSE)
     writeLines(scss_content, file_path)
     file_path
   }, error = function(e) NULL)
