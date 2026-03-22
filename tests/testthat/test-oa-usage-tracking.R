@@ -53,7 +53,7 @@ test_that("parse_oa_usage_headers returns NAs for missing headers (polite pool)"
 setup_oa_db <- function() {
   con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   init_schema(con)
-  sql_path <- file.path(project_root, "migrations", "011_create_oa_usage_log.sql")
+  sql_path <- file.path(project_root, "migrations", "014_create_oa_usage_log.sql")
   if (file.exists(sql_path)) {
     sql <- paste(readLines(sql_path, warn = FALSE), collapse = "\n")
     # Strip comments and execute

@@ -197,7 +197,24 @@ mod_settings_ui <- function(id) {
                        icon = icon_trash_can()),
           textOutput(ns("cleanup_status"))
         )
-      )
+      ),
+      hr(),
+      h5(icon_edit(), " AI Prompts"),
+      p(class = "text-muted small",
+        "Customize the task instructions for each AI preset. Changes affect all future generations."),
+      lapply(names(PRESET_GROUPS), function(group_name) {
+        slugs <- PRESET_GROUPS[[group_name]]
+        tagList(
+          h6(group_name),
+          div(class = "d-flex flex-wrap gap-2 mb-3",
+            lapply(slugs, function(slug) {
+              actionLink(ns(paste0("edit_", slug)),
+                         label = PRESET_DISPLAY_NAMES[[slug]],
+                         class = "btn btn-outline-secondary btn-sm")
+            })
+          )
+        )
+      })
     )
   )
 }
@@ -1182,6 +1199,115 @@ mod_settings_server <- function(id, con, config_rv) {
         paste("Removed", sum(removed), "orphaned search indexes."),
         type = "message"
       )
+    })
+
+    # --- Prompt Editor Modal ---
+
+    current_preset_slug <- reactiveVal(NULL)
+    reset_pending <- reactiveVal(FALSE)
+
+    # One observer per preset slug — local() captures slug correctly
+    lapply(unlist(PRESET_GROUPS, use.names = FALSE), function(slug) {
+      local({
+        s <- slug
+        observeEvent(input[[paste0("edit_", s)]], {
+          current_preset_slug(s)
+          reset_pending(FALSE)
+
+          versions <- list_prompt_versions(con(), s)
+          initial_text <- get_effective_prompt(con(), s)
+
+          version_choices <- if (length(versions) > 0) {
+            c("Current" = "current", setNames(versions, paste("Saved:", versions)))
+          } else {
+            c("Current (default)" = "current")
+          }
+
+          showModal(modalDialog(
+            title = tagList(icon_edit(), paste("Edit Prompt:", PRESET_DISPLAY_NAMES[[s]])),
+            size = "l",
+            easyClose = TRUE,
+            selectInput(session$ns("version_select"), "Version History",
+                        choices = version_choices, selected = "current"),
+            p(class = "text-muted small",
+              icon_info(),
+              "This prompt is combined with citation rules and source context when generating output.",
+              "You're editing the task instructions only."),
+            textAreaInput(session$ns("prompt_text"), NULL,
+                          value = initial_text, rows = 15, width = "100%"),
+            footer = tagList(
+              actionButton(session$ns("save_prompt"), "Save",
+                           class = "btn-primary", icon = icon_save()),
+              actionButton(session$ns("reset_prompt"), "Reset to Default",
+                           class = "btn-outline-secondary", icon = icon_refresh()),
+              modalButton("Cancel")
+            )
+          ))
+        })
+      })
+    })
+
+    # Version dropdown observer — load text for selected version
+    observeEvent(input$version_select, {
+      slug <- current_preset_slug()
+      req(slug)
+      selected <- input$version_select
+
+      if (selected == "current") {
+        text <- get_effective_prompt(con(), slug)
+      } else {
+        text <- get_prompt_version(con(), slug, selected)
+        if (is.null(text)) text <- get_effective_prompt(con(), slug)
+      }
+      updateTextAreaInput(session, "prompt_text", value = text)
+    }, ignoreInit = TRUE)
+
+    # Save button observer
+    observeEvent(input$save_prompt, {
+      slug <- current_preset_slug()
+      req(slug)
+
+      if (reset_pending()) {
+        reset_prompt_to_default(con(), slug)
+        reset_pending(FALSE)
+        removeModal()
+        showNotification(
+          paste("Reset to default:", PRESET_DISPLAY_NAMES[[slug]]),
+          type = "message"
+        )
+      } else {
+        text <- trimws(input$prompt_text)
+        if (nchar(text) == 0) {
+          showNotification("Prompt cannot be empty.", type = "error")
+          return()
+        }
+        save_prompt_version(con(), slug, text)
+
+        # Refresh version dropdown
+        versions <- list_prompt_versions(con(), slug)
+        version_choices <- if (length(versions) > 0) {
+          c("Current" = "current", setNames(versions, paste("Saved:", versions)))
+        } else {
+          c("Current (default)" = "current")
+        }
+        updateSelectInput(session, "version_select",
+                          choices = version_choices, selected = "current")
+
+        showNotification(
+          paste("Prompt saved:", PRESET_DISPLAY_NAMES[[slug]]),
+          type = "message"
+        )
+      }
+    })
+
+    # Reset button observer
+    observeEvent(input$reset_prompt, {
+      slug <- current_preset_slug()
+      req(slug)
+      reset_pending(TRUE)
+      default_text <- PROMPT_DEFAULTS[[slug]]
+      updateTextAreaInput(session, "prompt_text", value = default_text)
+      showNotification("Default text loaded. Click Save to confirm reset.", type = "warning")
     })
 
     # Save settings

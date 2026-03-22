@@ -30,6 +30,13 @@ Thumbs.db
 # Output/ Render files
 output/
 
+# User-uploaded themes (runtime data, not source)
+data/themes/
+
+# Quarto render artifacts
+*.qmd
+*_files/
+
 # Playwright browser scripts
 playwright/
 node_modules/

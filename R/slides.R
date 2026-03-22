@@ -35,7 +35,7 @@ get_quarto_version <- function() {
 #' @param chunks Data frame with content, doc_name, page_number
 #' @param options List with length, audience, citation_style, include_notes, custom_instructions
 #' @return List with system and user prompt strings
-build_slides_prompt <- function(chunks, options) {
+build_slides_prompt <- function(chunks, options, con = NULL) {
   # Default options
   length_val <- options$length %||% "medium"
   audience <- options$audience %||% "general"
@@ -70,6 +70,9 @@ build_slides_prompt <- function(chunks, options) {
     "  Correct: 'Machine learning improves accuracy.^[WHO AMR Report, 2024, p.12]'\n",
     "  WRONG - do NOT use these: '[^1]', '^1', '[1]'\n",
     "  The ^[text] syntax renders a numbered footnote at the bottom of the slide automatically.\n\n",
+    "IMPORTANT: Always include the page number in footnotes when the source data includes page numbers.\n",
+    "If no page number is available, use the chunk identifier from the source label.\n",
+    "Every substantive claim on a slide MUST have a footnote citation.\n\n",
     "Speaker notes:\n",
     "  ::: {.notes}\n",
     "  Presenter notes go here.\n",
@@ -87,20 +90,22 @@ build_slides_prompt <- function(chunks, options) {
     "    ## Slide Title\n",
     "    - First item\n\n",
     "Content rules:\n",
-    "- Use ## for individual slide titles (each ## starts a new slide)\n",
-    "- Use # for section titles (creates section dividers)\n",
-    "- Keep slides concise - max 5-7 bullet points per slide\n",
-    "- Always leave a blank line between a heading and the first bullet point\n",
-    "- Each bullet point must be on its own line starting with - (not inline)\n",
-    if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else "",
-    "- Output ONLY valid Quarto markdown slide content, no explanations or code fences\n",
-    "- Do NOT include any YAML frontmatter, --- delimiters, title:, format:, theme:, or css:"
+    {
+      content_rules <- if (!is.null(con)) {
+        get_effective_prompt(con, "slides")
+      } else {
+        PROMPT_DEFAULTS[["slides"]]
+      }
+      content_rules
+    },
+    "\n",
+    if (include_notes) "- Include speaker notes using ::: {.notes} blocks\n" else ""
   )
 
   # Citation instructions
   citation_instructions <- switch(citation_style,
-    "footnotes" = "Use Quarto inline footnotes: add ^[source info] after key points (e.g., 'key finding.^[Author et al., 2023, p.5]'). Do NOT use [^1] reference-style or bare ^1. Quarto renders these as numbered footnotes automatically.",
-    "inline" = "Use inline parenthetical citations like (Author, p.X) after relevant content.",
+    "footnotes" = "Use Quarto inline footnotes: add ^[source info] after ALL substantive claims (e.g., 'key finding.^[Author et al., 2023, p.5]'). Always include the page number from the source data. Do NOT use [^1] reference-style or bare ^1. Quarto renders these as numbered footnotes automatically.",
+    "inline" = "Use inline parenthetical citations like (Author, Year, p.X) after ALL substantive claims. Always include the page number from the source data.",
     "notes_only" = "Put all citations in speaker notes only, keeping slides clean.",
     "none" = "Do not include citations.",
     "Use footnote-style citations."
@@ -123,7 +128,7 @@ build_slides_prompt <- function(chunks, options) {
 #' @param title Presentation title
 #' @param theme RevealJS theme name (default "default")
 #' @return YAML frontmatter string including --- delimiters
-build_qmd_frontmatter <- function(title, theme = "default") {
+build_qmd_frontmatter <- function(title, theme = "default", custom_scss = NULL) {
   # CSS for footnote sizing — smaller, positioned at bottom
   css_block <- paste0(
     "    css:\n",
@@ -148,13 +153,19 @@ build_qmd_frontmatter <- function(title, theme = "default") {
 
   theme_val <- if (is.null(theme) || theme == "default") "default" else theme
 
+  theme_line <- if (!is.null(custom_scss)) {
+    paste0("    theme: [", theme_val, ", ", basename(custom_scss), "]\n")
+  } else {
+    paste0("    theme: ", theme_val, "\n")
+  }
+
   paste0(
     "---\n",
     "title: \"", gsub('"', '\\\\"', title), "\"\n",
     "format:\n",
     "  revealjs:\n",
-		"    embed-resources: true\n",
-    "    theme: ", theme_val, "\n",
+    "    embed-resources: true\n",
+    theme_line,
     "    smaller: true\n",
     "    scrollable: true\n",
     "    reference-location: document\n",
@@ -267,7 +278,7 @@ render_qmd_to_pdf <- function(qmd_path, timeout = 180) {
 generate_slides <- function(provider, model, chunks, options, notebook_name = "Presentation",
                              con = NULL, session_id = NULL) {
   # Build prompt
-  prompt <- build_slides_prompt(chunks, options)
+  prompt <- build_slides_prompt(chunks, options, con = con)
 
   # Call LLM
   messages <- format_chat_messages(prompt$system, prompt$user)
@@ -310,7 +321,20 @@ generate_slides <- function(provider, model, chunks, options, notebook_name = "P
   # Build YAML frontmatter programmatically (no regex injection)
   title <- llm_title %||% notebook_name
   theme <- options$theme %||% "default"
-  frontmatter <- build_qmd_frontmatter(title, theme)
+  custom_scss <- options$custom_scss
+
+  # Copy custom .scss to tempdir and resolve to absolute path for Quarto
+  if (!is.null(custom_scss)) {
+    scss_dest <- file.path(tempdir(), basename(custom_scss))
+    if (!file.copy(custom_scss, scss_dest, overwrite = TRUE)) {
+      warning("Failed to copy custom .scss file: ", custom_scss)
+      custom_scss <- NULL
+    } else {
+      custom_scss <- normalizePath(scss_dest, winslash = "/", mustWork = FALSE)
+    }
+  }
+
+  frontmatter <- build_qmd_frontmatter(title, theme, custom_scss)
 
   # Combine: clean YAML + LLM slide content
   qmd_content <- paste0(frontmatter, "\n", slide_content)
@@ -320,6 +344,7 @@ generate_slides <- function(provider, model, chunks, options, notebook_name = "P
 
   # Save to temp file
   qmd_path <- file.path(tempdir(), paste0(gsub("[^a-zA-Z0-9]", "-", notebook_name), "-slides.qmd"))
+
   writeLines(qmd_content, qmd_path)
 
   list(qmd = qmd_content, qmd_path = qmd_path, error = NULL, validation = validation)
@@ -381,7 +406,8 @@ build_healing_prompt <- function(previous_qmd, errors, instructions) {
     "Footnotes (use inline syntax):\n",
     "  Correct: 'Key finding.^[Author et al., 2023, p.5]'\n",
     "  WRONG - do NOT use these: '[^1]', '^1', '[1]'\n",
-    "  The ^[text] syntax renders a numbered footnote at the bottom of the slide automatically.\n\n",
+    "  The ^[text] syntax renders a numbered footnote at the bottom of the slide automatically.\n",
+    "When fixing citations, ensure page numbers from the source data are preserved in footnotes.\n\n",
     "Speaker notes:\n",
     "  ::: {.notes}\n",
     "  Presenter notes go here.\n",

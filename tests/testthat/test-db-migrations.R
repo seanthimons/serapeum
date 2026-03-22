@@ -214,3 +214,61 @@ test_that("topics table created by migration 002", {
                 info = paste("Column", col, "should exist in topics table"))
   }
 })
+
+test_that("prompt_versions table created by migration 011", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  migrations_dir <- file.path(tmp_dir, "migrations")
+  dir.create(migrations_dir)
+
+  project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
+  if (!file.exists(file.path(project_root, "migrations"))) {
+    project_root <- getwd()
+  }
+
+  mig_011_content <- readLines(file.path(project_root, "migrations", "015_create_prompt_versions.sql"))
+  writeLines(mig_011_content, file.path(migrations_dir, "015_create_prompt_versions.sql"))
+
+  old_wd <- getwd()
+  setwd(tmp_dir)
+  on.exit({
+    setwd(old_wd)
+    unlink(tmp_dir, recursive = TRUE)
+  }, add = TRUE)
+
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+
+  run_pending_migrations(con)
+
+  tables <- DBI::dbListTables(con)
+  expect_true("prompt_versions" %in% tables)
+
+  columns <- DBI::dbGetQuery(con, "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'prompt_versions'
+  ")
+
+  expected_columns <- c("preset_slug", "version_date", "prompt_text", "created_at")
+  for (col in expected_columns) {
+    expect_true(col %in% columns$column_name,
+                info = paste("Column", col, "should exist in prompt_versions table"))
+  }
+
+  # Verify composite PK via UPSERT: second insert replaces first
+  DBI::dbExecute(con, "
+    INSERT OR REPLACE INTO prompt_versions (preset_slug, version_date, prompt_text)
+    VALUES ('summarize', '2026-03-20', 'Original prompt')
+  ")
+  DBI::dbExecute(con, "
+    INSERT OR REPLACE INTO prompt_versions (preset_slug, version_date, prompt_text)
+    VALUES ('summarize', '2026-03-20', 'Updated prompt')
+  ")
+  result <- DBI::dbGetQuery(con, "
+    SELECT prompt_text FROM prompt_versions
+    WHERE preset_slug = 'summarize' AND version_date = '2026-03-20'
+  ")
+  expect_equal(nrow(result), 1)
+  expect_equal(result$prompt_text[1], "Updated prompt")
+})
