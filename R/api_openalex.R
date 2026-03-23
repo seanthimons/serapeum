@@ -305,9 +305,34 @@ parse_openalex_work <- function(work) {
     venue <- work$primary_location$source$display_name
   }
 
-  # Get PDF URL
+
+  # Get PDF URL — prefer repository-hosted PDFs (more likely to allow direct download)
+  # Priority: repository pdf_url > best_oa_location.pdf_url > any location pdf_url > oa_url
   pdf_url <- NA_character_
-  if (!is.null(work$open_access) && !is.null(work$open_access$oa_url)) {
+  if (!is.null(work$locations) && length(work$locations) > 0) {
+    # First pass: repository-hosted PDFs (arXiv, PMC, OSTI, institutional repos)
+    for (loc in work$locations) {
+      if (!is.null(loc$pdf_url) && nchar(loc$pdf_url) > 0 &&
+          !is.null(loc$source) && !is.null(loc$source$type) &&
+          loc$source$type == "repository") {
+        pdf_url <- loc$pdf_url
+        break
+      }
+    }
+    # Second pass: any location with a pdf_url (includes publisher-hosted)
+    if (is.na(pdf_url)) {
+      for (loc in work$locations) {
+        if (!is.null(loc$pdf_url) && nchar(loc$pdf_url) > 0) {
+          pdf_url <- loc$pdf_url
+          break
+        }
+      }
+    }
+  }
+  if (is.na(pdf_url) && !is.null(work$best_oa_location) && !is.null(work$best_oa_location$pdf_url)) {
+    pdf_url <- work$best_oa_location$pdf_url
+  }
+  if (is.na(pdf_url) && !is.null(work$open_access) && !is.null(work$open_access$oa_url)) {
     pdf_url <- work$open_access$oa_url
   }
 

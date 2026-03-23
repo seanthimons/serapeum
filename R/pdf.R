@@ -36,11 +36,16 @@ is_safe_url <- function(url) {
 download_pdf_from_url <- function(url, dest_path, timeout_seconds = 30) {
   tryCatch({
     resp <- httr2::request(url) |>
+      httr2::req_headers(
+        `User-Agent` = "Serapeum/1.0 (Research Assistant; mailto:serapeum@localhost)",
+        `Accept` = "application/pdf"
+      ) |>
       httr2::req_timeout(timeout_seconds) |>
+      httr2::req_error(is_error = ~ FALSE) |>
       httr2::req_perform()
 
-    if (httr2::resp_status(resp) != 200) {
-      return(list(success = FALSE, reason = paste("HTTP", httr2::resp_status(resp))))
+    if (httr2::resp_status(resp) >= 400) {
+      return(list(success = FALSE, reason = paste("HTTP", httr2::resp_status(resp), httr2::resp_status_desc(resp))))
     }
 
     writeBin(httr2::resp_body_raw(resp), dest_path)
@@ -57,6 +62,58 @@ download_pdf_from_url <- function(url, dest_path, timeout_seconds = 30) {
   }, error = function(e) {
     if (file.exists(dest_path)) unlink(dest_path)
     list(success = FALSE, reason = e$message)
+  })
+}
+
+#' Download a PDF via the OpenAlex Content API
+#'
+#' Uses content.openalex.org to proxy PDF downloads, bypassing publisher restrictions.
+#' Requires an OpenAlex API key (free tier: ~100 downloads/day).
+#'
+#' @param work_id OpenAlex work ID (e.g., "W3038568908")
+#' @param api_key OpenAlex API key
+#' @param dest_path Destination file path
+#' @param timeout_seconds Download timeout (default 60, content proxy can be slower)
+#' @return List with success (logical), path or reason
+download_pdf_from_openalex <- function(work_id, api_key, dest_path, timeout_seconds = 60) {
+  url <- paste0("https://content.openalex.org/works/", work_id, ".pdf")
+
+  tryCatch({
+    resp <- httr2::request(url) |>
+      httr2::req_url_query(api_key = api_key) |>
+      httr2::req_timeout(timeout_seconds) |>
+      httr2::req_error(is_error = ~ FALSE) |>
+      httr2::req_perform()
+
+    # Parse rate-limit headers for cost tracking
+    usage <- list(
+      daily_limit = as.numeric(httr2::resp_header(resp, "X-RateLimit-Limit-Day") %||% NA),
+      remaining = as.numeric(httr2::resp_header(resp, "X-RateLimit-Remaining-Day") %||% NA),
+      credits_used = as.numeric(httr2::resp_header(resp, "X-Cost") %||% 0.01),
+      reset_seconds = as.numeric(httr2::resp_header(resp, "X-RateLimit-Reset") %||% NA)
+    )
+
+    if (httr2::resp_status(resp) >= 400) {
+      return(list(success = FALSE,
+                  reason = paste("OpenAlex content API:", httr2::resp_status(resp), httr2::resp_status_desc(resp)),
+                  usage = usage))
+    }
+
+    writeBin(httr2::resp_body_raw(resp), dest_path)
+
+    # Verify PDF magic bytes
+    raw_bytes <- readBin(dest_path, "raw", n = 5)
+    magic <- rawToChar(raw_bytes)
+    if (magic != "%PDF-") {
+      unlink(dest_path)
+      return(list(success = FALSE, reason = "OpenAlex content API returned non-PDF response",
+                  usage = usage))
+    }
+
+    list(success = TRUE, path = dest_path, usage = usage)
+  }, error = function(e) {
+    if (file.exists(dest_path)) unlink(dest_path)
+    list(success = FALSE, reason = e$message, usage = NULL)
   })
 }
 

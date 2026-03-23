@@ -44,6 +44,7 @@ COST_OPERATION_META <- list(
   "gap_analysis" = list(label = "Gap Analysis", slot = "quality", icon_fun = "icon_search", accent_class = "text-info"),
   "figure_description" = list(label = "Figure Description", slot = "quality", icon_fun = "icon_image", accent_class = "text-success"),
   "refiner_eval" = list(label = "Research Refiner", slot = "quality", icon_fun = "icon_funnel", accent_class = "text-warning"),
+  "content_download" = list(label = "OA PDF Download", slot = NA, icon_fun = "icon_file_pdf", accent_class = "text-danger"),
   "openalex_search" = list(label = "OA Search", slot = NA, icon_fun = "icon_search", accent_class = "text-success"),
   "openalex_fetch" = list(label = "OA Fetch", slot = NA, icon_fun = "icon_download", accent_class = "text-success"),
   "openalex_topics" = list(label = "OA Topics", slot = "fast", icon_fun = "icon_layer_group", accent_class = "text-success"),

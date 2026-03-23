@@ -575,7 +575,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 38: ExtendedTask for batch abstract import (50+ papers)
     batch_import_task <- ExtendedTask$new(function(abstract_ids, target_notebook_id,
                                                     db_path, interrupt_flag, progress_file,
-                                                    app_dir, download_pdfs = FALSE) {
+                                                    app_dir, download_pdfs = FALSE,
+                                                    openalex_api_key = NULL) {
       mirai::mirai({
         setwd(app_dir)
         source("R/db_migrations.R")
@@ -584,6 +585,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         source("R/bulk_import.R")  # For write_import_progress / read_import_progress
         source("R/_ragnar.R")      # For chunk_with_ragnar()
         source("R/pdf.R")          # For download_pdf_from_url(), process_pdf(), sanitize_filename()
+        source("R/api_openalex.R") # For log_oa_usage() (content API cost tracking)
         source("R/import_paper.R") # For import_single_paper()
 
         # Open own DB connection (mirai workers can't share)
@@ -635,6 +637,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             result <- import_single_paper(
               con, target_notebook_id, abs,
               download_pdfs = download_pdfs,
+              openalex_api_key = openalex_api_key,
               chunk_size = 2500, chunk_overlap = 0.1
             )
 
@@ -682,7 +685,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }, abstract_ids = abstract_ids, target_notebook_id = target_notebook_id,
          db_path = db_path, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir,
-         download_pdfs = download_pdfs)
+         download_pdfs = download_pdfs,
+         openalex_api_key = openalex_api_key)
     })
 
     # Phase 22: Check for per-notebook store migration on notebook open
@@ -3042,10 +3046,22 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           textInput(ns("new_nb_name"), "New Notebook Name")
         ),
         if (pdf_count > 0) {
+          # Check if OpenAlex API key is configured for content proxy
+          has_oa_key <- tryCatch({
+            cfg <- config()
+            key <- get_setting(cfg, "openalex", "api_key")
+            !is.null(key) && nchar(key) > 0 && !grepl("^your-", key)
+          }, error = function(e) FALSE)
+
+          hint_text <- if (has_oa_key) {
+            "Full-text PDFs downloaded via OpenAlex (~100 free/day). Papers without content will fall back to abstract-only."
+          } else {
+            "PDFs sourced from open repositories. Add an OpenAlex API key in Settings for broader PDF access."
+          }
+
           tagList(
             checkboxInput(ns("download_pdfs"), pdf_label, value = TRUE),
-            p(class = "text-muted small",
-              "PDFs downloaded from publisher open-access links. Import will be slower when enabled.")
+            p(class = "text-muted small", hint_text)
           )
         } else {
           p(class = "text-muted small",
@@ -3136,6 +3152,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       download_pdfs <- isTRUE(input$download_pdfs)
 
+      # Get OpenAlex API key for content proxy downloads
+      oa_api_key <- tryCatch({
+        cfg <- config()
+        get_setting(cfg, "openalex", "api_key")
+      }, error = function(e) NULL)
+
       if (length(selected) < 50) {
         # Synchronous import for small batches
         abstracts <- dbGetQuery(con(), sprintf("
@@ -3169,6 +3191,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             result <- import_single_paper(
               con(), target, abs,
               download_pdfs = download_pdfs,
+              openalex_api_key = oa_api_key,
               chunk_size = 2500, chunk_overlap = 0.1
             )
 
@@ -3240,7 +3263,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           interrupt_flag = flag_file,
           progress_file = prog_file,
           app_dir = getwd(),
-          download_pdfs = download_pdfs
+          download_pdfs = download_pdfs,
+          openalex_api_key = oa_api_key
         )
 
         # Start progress polling
