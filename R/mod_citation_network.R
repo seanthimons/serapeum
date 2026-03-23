@@ -356,9 +356,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
          interrupt_flag = interrupt_flag, progress_file = progress_file, app_dir = app_dir)
     })
 
-    # Initialize palette from DB setting
+    # Initialize palette from DB setting, then config, then default
     observe({
-      palette <- get_db_setting(con_r(), "network_palette") %||% "viridis"
+      palette <- get_db_setting(con_r(), "network_palette") %||%
+                 get_setting(config_r(), "app", "network_palette") %||%
+                 "viridis"
       updateSelectInput(session, "palette", selected = palette)
     }) |> bindEvent(con_r(), once = TRUE)
 

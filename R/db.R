@@ -1047,7 +1047,10 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           get_db_setting(con, "rag_query_reformulation"),
           error = function(e) NULL
         )
-        # Default to enabled (TRUE) when setting doesn't exist
+        if (is.null(reformulation_enabled)) {
+          reformulation_enabled <- get_setting(config, "app", "query_reformulation")
+        }
+        # Default to enabled (TRUE) when neither DB nor config specifies a value
         if (!isFALSE(reformulation_enabled)) {
           chat_model <- resolve_model_for_operation(config, "query_reformulation")
           search_queries <- tryCatch({

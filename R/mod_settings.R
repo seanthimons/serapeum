@@ -454,6 +454,9 @@ mod_settings_server <- function(id, con, config_rv) {
 
       # Advanced
       reformulation <- get_db_setting(con(), "rag_query_reformulation")
+      if (is.null(reformulation)) {
+        reformulation <- get_setting(cfg, "app", "query_reformulation")
+      }
       if (!is.null(reformulation)) {
         updateCheckboxInput(session, "query_reformulation", value = isTRUE(reformulation))
       }
@@ -466,7 +469,10 @@ mod_settings_server <- function(id, con, config_rv) {
                        get_setting(cfg, "app", "chunk_overlap") %||% 50
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
 
-      verbose_mode <- get_db_setting(con(), "verbose_mode") %||% FALSE
+      verbose_mode <- get_db_setting(con(), "verbose_mode")
+      if (is.null(verbose_mode)) {
+        verbose_mode <- get_setting(cfg, "app", "verbose_mode") %||% FALSE
+      }
       bslib::update_switch("verbose_mode", value = isTRUE(verbose_mode), session = session)
       options(serapeum.verbose_api = isTRUE(verbose_mode))
 
@@ -476,7 +482,9 @@ mod_settings_server <- function(id, con, config_rv) {
       updateNumericInput(session, "abstracts_per_search", value = abstracts_per_search)
 
       # Network settings
-      network_palette <- get_db_setting(con(), "network_palette") %||% "viridis"
+      network_palette <- get_db_setting(con(), "network_palette") %||%
+                         get_setting(cfg, "app", "network_palette") %||%
+                         "viridis"
       updateSelectInput(session, "network_palette", selected = network_palette)
 
       # Validate initial API key values using helper functions
@@ -1403,12 +1411,21 @@ mod_settings_server <- function(id, con, config_rv) {
                             "openai/text-embedding-3-small"
         ),
         app = list(
+          query_reformulation = get_db_setting(con(), "rag_query_reformulation") %||%
+                                get_setting(cfg, "app", "query_reformulation") %||%
+                                TRUE,
           chunk_size = get_db_setting(con(), "chunk_size") %||%
                        get_setting(cfg, "app", "chunk_size") %||% 500,
           chunk_overlap = get_db_setting(con(), "chunk_overlap") %||%
                           get_setting(cfg, "app", "chunk_overlap") %||% 50,
+          verbose_mode = get_db_setting(con(), "verbose_mode") %||%
+                         get_setting(cfg, "app", "verbose_mode") %||%
+                         FALSE,
           abstracts_per_search = get_db_setting(con(), "abstracts_per_search") %||%
-                                 get_setting(cfg, "app", "abstracts_per_search") %||% 25
+                                 get_setting(cfg, "app", "abstracts_per_search") %||% 25,
+          network_palette = get_db_setting(con(), "network_palette") %||%
+                            get_setting(cfg, "app", "network_palette") %||%
+                            "viridis"
         )
       )
     })

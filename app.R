@@ -382,6 +382,8 @@ server <- function(input, output, session) {
   # BUGF-03: Fetch live model pricing at startup so non-default models show accurate costs
   observeEvent(effective_config(), {
     cfg <- effective_config()
+    options(serapeum.verbose_api = isTRUE(get_setting(cfg, "app", "verbose_mode")))
+
     api_key <- get_setting(cfg, "openrouter", "api_key")
     if (is.null(api_key) || nchar(api_key) < 10) return()
 
