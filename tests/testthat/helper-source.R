@@ -1,12 +1,22 @@
 # Auto-loaded by testthat before any test file runs.
 # Provides source_app() and app_root() to replace the getwd() anti-pattern.
 
-.app_root <- normalizePath(
-  file.path(testthat::test_path(), "..", ".."),
-  mustWork = TRUE
+.app_root <- tryCatch(
+  normalizePath(
+    file.path(testthat::test_path(), "..", ".."),
+    mustWork = TRUE
+  ),
+  error = function(e) {
+    stop(
+      "helper-source.R: failed to resolve app root. ",
+      "test_path() = ", testthat::test_path(), ". ",
+      "Error: ", e$message
+    )
+  }
 )
 
-# Set as a global option so production code (run_pending_migrations) can find it
+# Set as a global option so run_pending_migrations() can find the migrations
+# directory when testthat changes cwd to tests/testthat/.
 options(.serapeum_app_root = .app_root)
 
 #' Source R files from the app's R/ directory

@@ -49,7 +49,7 @@ test_that("%||% operator fallback works as expected", {
 
 test_that("error classification returns expected structure", {
   # Source api_openalex.R to get classify_api_error function
-  source("C:/Users/sxthi/Documents/serapeum/R/api_openalex.R")
+  source_app("api_openalex.R")
 
   # Simulate an error and classify it
   test_error <- tryCatch(
