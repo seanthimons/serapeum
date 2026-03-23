@@ -182,7 +182,7 @@ mod_citation_network_ui <- function(id) {
 #' @param config_r Effective config (reactive)
 #' @param network_id_r Network ID to load (reactive)
 #' @param network_trigger Reactive trigger for network list refresh
-mod_citation_network_server <- function(id, con_r, config_r, network_id_r, network_trigger) {
+mod_citation_network_server <- function(id, con_r, config_r, network_id_r, network_trigger, notebook_refresh = NULL) {
   moduleServer(id, function(input, output, session) {
 
     # Helper function: Compute influential paper IDs with bridge detection
@@ -326,6 +326,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
     progress_poller <- reactiveVal(NULL)
+    missing_refresh <- reactiveVal(0)
 
     # Create ExtendedTask for async network building
     network_task <- ExtendedTask$new(function(seed_ids, email, direction, depth, node_limit_per_seed, interrupt_flag, progress_file, app_dir) {
@@ -1277,6 +1278,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
     # Compute missing papers reactively
     missing_papers_data <- reactive({
+      missing_refresh()
       net_data <- current_network_data()
       req(net_data)
       notebook_id <- source_notebook_id()
@@ -1414,8 +1416,11 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
           type = "message"
         )
 
-        # Refresh missing papers list by invalidating reactive
-        # The missing_papers_data reactive will re-query and the imported paper will be excluded
+        # Invalidate missing papers list so badge and content re-render
+        missing_refresh(missing_refresh() + 1)
+        if (!is.null(notebook_refresh)) {
+          notebook_refresh(notebook_refresh() + 1)
+        }
       }, error = function(e) {
         showNotification(paste("Import failed:", e$message), type = "error")
       })

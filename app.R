@@ -1331,7 +1331,7 @@ server <- function(input, output, session) {
   topic_request <- mod_topic_explorer_server("topic_explorer", reactive(con), config_file_r)
 
   # Citation network module
-  network_api <- mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
+  network_api <- mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh, notebook_refresh)
 
   # Citation audit module
   mod_citation_audit_server("citation_audit", con, config_r = effective_config,
