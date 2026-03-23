@@ -6,7 +6,8 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 ## Pending PRs (Resolve Immediately)
 
-- [ ] PR #233: fix: v16 uncommitted changes — cost logging, prompt wiring, indexes [open] — fix/v16-uncommitted-integration -> integration
+- [x] PR #233: fix: v16 uncommitted changes — cost logging, prompt wiring, indexes [merged]
+- [ ] PR #237: HOTFIX: Fix download button for abstract-imported documents [open] — hotfix/doc-notebook-download-broken -> integration
 
 ---
 
@@ -97,6 +98,14 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 | [#234](https://github.com/seanthimons/serapeum/issues/234) | log_cost returns stale ID when INSERT fails | Low | Medium |
 | [#235](https://github.com/seanthimons/serapeum/issues/235) | Missing trailing semicolon in migration 018 CREATE INDEX | Low | Medium |
 | [#236](https://github.com/seanthimons/serapeum/issues/236) | Redundant role prefix in overview summary system prompt | Low | Low |
+
+*PR #237 review follow-ups:*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#238](https://github.com/seanthimons/serapeum/issues/238) | Defensive NA check for docs$filepath in text file generation | Low | Low |
+| [#239](https://github.com/seanthimons/serapeum/issues/239) | Cached .txt download files not refreshed if abstract is edited | Low | Medium |
+| [#240](https://github.com/seanthimons/serapeum/issues/240) | Sanitize paper titles before using as filenames at abstract import time | Low | Medium |
 
 ---
 
