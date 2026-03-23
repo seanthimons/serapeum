@@ -11,9 +11,8 @@ AA_API_BASE <- "https://artificialanalysis.ai/api/v2/data/llms"
 #' @return Data frame of AA model data, or empty data frame if file missing
 load_bundled_aa_data <- function(base_path = NULL) {
   candidates <- c(
-    if (!is.null(base_path)) file.path(base_path, "data/support/aa_models.json"),
-    "data/support/aa_models.json",
-    file.path(system.file(package = "base"), "..", "..", "data/support/aa_models.json")
+    if (!is.null(base_path)) file.path(base_path, "data/support/aa_models.rds"),
+    "data/support/aa_models.rds"
   )
   path <- Find(file.exists, candidates)
   if (is.null(path)) {
@@ -21,8 +20,7 @@ load_bundled_aa_data <- function(base_path = NULL) {
   }
 
   tryCatch({
-    raw <- jsonlite::fromJSON(path, simplifyDataFrame = FALSE)
-    parse_aa_models(raw$models)
+    readRDS(path)
   }, error = function(e) {
     message("[AA] Failed to load bundled data: ", e$message)
     empty_aa_frame()

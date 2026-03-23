@@ -1,11 +1,9 @@
-# Claude Code Instructions for Serapeum
+# Git Workflow
 
-## Git Workflow
-
-**IMPORTANT: Always create a feature branch before making code changes.**
+**IMPORTANT: Always create a feature branch or worktree (depending on impact) before making code changes.**
 
 Before implementing any feature or fix:
-1. Create a new branch: `git checkout -b feature/<feature-name>` or `git checkout -b fix/<issue-name>`
+1. Create the branch, name should be descriptive
 2. Make changes on the feature branch
 3. Create a PR to merge back to main
 

@@ -57,7 +57,19 @@ mod_settings_ui <- function(id) {
             tags$a(href = "https://openalex.org/settings/api",
                    target = "_blank", "openalex.org/settings/api")),
           hr(),
-          h5(icon_sliders(), " Advanced"),
+          h5(icon_edit(), " AI Prompts"),
+          p(class = "text-muted small",
+            "Customize the task instructions for each AI preset. Changes affect all future generations."),
+          div(
+            style = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;",
+            lapply(unlist(PRESET_GROUPS, use.names = FALSE), function(slug) {
+              actionLink(ns(paste0("edit_", slug)),
+                         label = PRESET_DISPLAY_NAMES[[slug]],
+                         class = "btn btn-outline-secondary btn-sm")
+            })
+          ),
+          hr(),
+          h5(icon_sliders(), " RAG Options"),
           checkboxInput(ns("query_reformulation"), "Query Reformulation (RAG-Fusion)",
                         value = TRUE),
           p(class = "text-muted small",
@@ -197,24 +209,7 @@ mod_settings_ui <- function(id) {
                        icon = icon_trash_can()),
           textOutput(ns("cleanup_status"))
         )
-      ),
-      hr(),
-      h5(icon_edit(), " AI Prompts"),
-      p(class = "text-muted small",
-        "Customize the task instructions for each AI preset. Changes affect all future generations."),
-      lapply(names(PRESET_GROUPS), function(group_name) {
-        slugs <- PRESET_GROUPS[[group_name]]
-        tagList(
-          h6(group_name),
-          div(class = "d-flex flex-wrap gap-2 mb-3",
-            lapply(slugs, function(slug) {
-              actionLink(ns(paste0("edit_", slug)),
-                         label = PRESET_DISPLAY_NAMES[[slug]],
-                         class = "btn btn-outline-secondary btn-sm")
-            })
-          )
-        )
-      })
+      )
     )
   )
 }

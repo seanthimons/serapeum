@@ -577,7 +577,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # Task result handler (Phase 22)
     # NOTE: isolate() all reactive reads except reindex_task$result() to prevent
     # reactive loops — doc_refresh(doc_refresh() + 1) inside observe() creates
-    # a self-triggering cycle without isolate (#159 UAT finding)
+    # a self-triggering cycle without isolate (UAT finding)
     observe({
       result <- reindex_task$result()
 

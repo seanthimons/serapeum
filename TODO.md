@@ -7,7 +7,7 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 ## Pending PRs (Resolve Immediately)
 
 - [x] PR #233: fix: v16 uncommitted changes — cost logging, prompt wiring, indexes [merged]
-- [ ] PR #237: HOTFIX: Fix download button for abstract-imported documents [open] — hotfix/doc-notebook-download-broken -> integration
+- [x] PR #237: HOTFIX: Fix download button for abstract-imported documents [merged]
 - [ ] PR #241: fix: v18 Bug Bash — all 13 milestone issues [open] — v18-bug-bash -> integration
 
 ---
@@ -132,6 +132,21 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 | [#238](https://github.com/seanthimons/serapeum/issues/238) | Defensive NA check for docs$filepath in text file generation | Low | Low |
 | [#239](https://github.com/seanthimons/serapeum/issues/239) | Cached .txt download files not refreshed if abstract is edited | Low | Medium |
 | [#240](https://github.com/seanthimons/serapeum/issues/240) | Sanitize paper titles before using as filenames at abstract import time | Low | Medium |
+
+*PR #241 review follow-ups:*
+
+| Issue | Title | Complexity | Impact |
+|-------|-------|------------|--------|
+| [#242](https://github.com/seanthimons/serapeum/issues/242) | N+1 DB queries in enrich_retrieval_results() | Low | Medium |
+| [#244](https://github.com/seanthimons/serapeum/issues/244) | JSON validate() guard too permissive for bare strings in create_abstract() | Low | Medium |
+| [#245](https://github.com/seanthimons/serapeum/issues/245) | Refiner API error-path tests are placeholders with dead mock code | Low | Medium |
+| [#250](https://github.com/seanthimons/serapeum/issues/250) | Duplicate error notification code in mod_research_refiner.R | Low | Low |
+| [#243](https://github.com/seanthimons/serapeum/issues/243) | Error accumulation uses fragile index assignment in research_refiner.R | Low | Low |
+| [#246](https://github.com/seanthimons/serapeum/issues/246) | Malformed JSON test assertion too permissive in test-rag-citations.R | Low | Low |
+| [#247](https://github.com/seanthimons/serapeum/issues/247) | No test for migration 019 (retroactive index) | Low | Low |
+| [#248](https://github.com/seanthimons/serapeum/issues/248) | Test comment/name mismatch in test-db-migrations.R | Low | Low |
+| [#249](https://github.com/seanthimons/serapeum/issues/249) | setwd() in migration test risks corrupting test suite cwd | Low | Low |
+| [#251](https://github.com/seanthimons/serapeum/issues/251) | Document metadata lookup by filename not unique across notebooks | Low | Medium |
 
 ---
 
