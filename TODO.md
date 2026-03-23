@@ -147,6 +147,7 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 | [#248](https://github.com/seanthimons/serapeum/issues/248) | Test comment/name mismatch in test-db-migrations.R | Low | Low |
 | [#249](https://github.com/seanthimons/serapeum/issues/249) | setwd() in migration test risks corrupting test suite cwd | Low | Low |
 | [#251](https://github.com/seanthimons/serapeum/issues/251) | Document metadata lookup by filename not unique across notebooks | Low | Medium |
+| [#252](https://github.com/seanthimons/serapeum/issues/252) | Slides healing/theme generation bypasses resolve_model_for_operation() | Low | Medium |
 
 ---
 

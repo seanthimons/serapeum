@@ -1168,7 +1168,9 @@ server <- function(input, output, session) {
       # Check setup status for live indicators
       cfg <- effective_config()
       has_or_key <- !is.null(get_setting(cfg, "openrouter", "api_key"))
-      has_chat_model <- !is.null(get_db_setting(con, "chat_model")) ||
+      has_chat_model <- !is.null(get_db_setting(con, "quality_model")) ||
+                        !is.null(get_db_setting(con, "chat_model")) ||
+                        !is.null(get_setting(cfg, "defaults", "quality_model")) ||
                         !is.null(get_setting(cfg, "defaults", "chat_model"))
       has_quality_data <- !is.null(get_db_setting(con, "quality_data_version"))
 
