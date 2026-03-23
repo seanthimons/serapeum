@@ -8,6 +8,32 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 - [x] PR #233: fix: v16 uncommitted changes — cost logging, prompt wiring, indexes [merged]
 - [ ] PR #237: HOTFIX: Fix download button for abstract-imported documents [open] — hotfix/doc-notebook-download-broken -> integration
+- [ ] PR #241: fix: v18 Bug Bash — all 13 milestone issues [open] — v18-bug-bash -> integration
+
+---
+
+## v18: Bug Bash (Complete)
+
+*Critical bugs, security, data integrity, broken tests. All 13 issues resolved across 5 sessions.*
+
+| Issue | Title | Resolution |
+|-------|-------|------------|
+| ~~[#235](https://github.com/seanthimons/serapeum/issues/235)~~ | ~~Missing semicolon in migration 018~~ | Fixed + retroactive migration 019 |
+| ~~[#165](https://github.com/seanthimons/serapeum/issues/165)~~ | ~~Email not redacted in OA logs~~ | Fixed — `gsub()` for mailto |
+| ~~[#229](https://github.com/seanthimons/serapeum/issues/229)~~ | ~~p.NA in build_context/slides~~ | Fixed — `is.na()` guards |
+| ~~[#234](https://github.com/seanthimons/serapeum/issues/234)~~ | ~~log_cost stale ID on INSERT fail~~ | Fixed — restructured tryCatch |
+| ~~[#193](https://github.com/seanthimons/serapeum/issues/193)~~ | ~~Weight preset sums exceed 1.0~~ | Fixed — normalize preserving ratios |
+| ~~[#179](https://github.com/seanthimons/serapeum/issues/179)~~ | ~~%\|\|% not defined in utils_scoring~~ | Non-issue — base R since 4.4.0 |
+| ~~[#181](https://github.com/seanthimons/serapeum/issues/181)~~ | ~~XSS injection in keyword onclick~~ | Non-issue — jsonlite+htmltools already escape |
+| ~~[#213](https://github.com/seanthimons/serapeum/issues/213)~~ | ~~test-config.R path resolution~~ | Fixed — `source_app()` helper across 29 files |
+| ~~[#214](https://github.com/seanthimons/serapeum/issues/214)~~ | ~~test-db.R schema drift~~ | Fixed — `run_pending_migrations()` + source pdf_images |
+| ~~[#177](https://github.com/seanthimons/serapeum/issues/177)~~ | ~~Double JSON encoding of authors~~ | Fixed — detect pre-serialized values |
+| ~~[#185](https://github.com/seanthimons/serapeum/issues/185)~~ | ~~Silent API failure in Refiner~~ | Fixed — error accumulation + notification |
+| ~~[#186](https://github.com/seanthimons/serapeum/issues/186)~~ | ~~Missing ON DELETE CASCADE~~ | Fixed — app-level `delete_refiner_run()` |
+| ~~[#154](https://github.com/seanthimons/serapeum/issues/154)~~ | ~~Import badge doesn't update~~ | Fixed — `notebook_refresh` increment |
+| ~~[#159](https://github.com/seanthimons/serapeum/issues/159)~~ | ~~Abstract chat wrong citations~~ | Fixed — author/year enrichment + prompt update |
+
+*Bonus:* Fixed infinite notification loop in document re-index handler (reactive `observe()` without `isolate()`).
 
 ---
 
@@ -95,8 +121,8 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#234](https://github.com/seanthimons/serapeum/issues/234) | log_cost returns stale ID when INSERT fails | Low | Medium |
-| [#235](https://github.com/seanthimons/serapeum/issues/235) | Missing trailing semicolon in migration 018 CREATE INDEX | Low | Medium |
+| ~~[#234](https://github.com/seanthimons/serapeum/issues/234)~~ | ~~log_cost returns stale ID when INSERT fails~~ | ~~Low~~ | ~~Medium~~ |
+| ~~[#235](https://github.com/seanthimons/serapeum/issues/235)~~ | ~~Missing trailing semicolon in migration 018 CREATE INDEX~~ | ~~Low~~ | ~~Medium~~ |
 | [#236](https://github.com/seanthimons/serapeum/issues/236) | Redundant role prefix in overview summary system prompt | Low | Low |
 
 *PR #237 review follow-ups:*
