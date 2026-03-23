@@ -27,6 +27,24 @@ Serapeum is a local-first research assistant built with R/Shiny. It uses:
 - `R/db.R` - Database operations
 - `tests/testthat/` - Unit tests
 
+## Shiny Reactive Safety
+
+**`observe()` + read/write same reactiveVal = infinite loop.** Any `observe()` block that reads a `reactiveVal` AND writes to it (e.g., `counter(counter() + 1)`) will self-trigger infinitely. The read creates a dependency, the write invalidates it, the observer re-fires.
+
+**Fix:** Wrap everything except the primary trigger in `isolate({...})`:
+```r
+observe({
+  result <- task$result()  # only reactive trigger
+  isolate({
+    # All other reactive reads/writes here
+    refresh(refresh() + 1)
+    showNotification(...)
+  })
+})
+```
+
+This applies to ExtendedTask result handlers, pollers, and any `observe()` that mutates reactive state. `observeEvent()` is scoped to one trigger and doesn't have this problem.
+
 ## Testing
 
 Run tests with:
