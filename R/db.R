@@ -1158,7 +1158,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
         if (nrow(results) > 0 && "abstract_title" %in% names(results)) {
           abstract_origins <- results$origin[grepl("^abstract:", results$origin)]
           if (length(abstract_origins) > 0) {
-            abstract_ids <- sub("^abstract:", "", abstract_origins)
+            abstract_ids <- sub("\\|.*$", "", sub("^abstract:", "", abstract_origins))
             # Fetch titles from database
             if (length(abstract_ids) > 0) {
               placeholders <- paste(rep("?", length(abstract_ids)), collapse = ", ")
@@ -1169,7 +1169,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
               # Update abstract_title for matching rows
               for (i in seq_len(nrow(results))) {
                 if (grepl("^abstract:", results$origin[i])) {
-                  abs_id <- sub("^abstract:", "", results$origin[i])
+                  abs_id <- sub("\\|.*$", "", sub("^abstract:", "", results$origin[i]))
                   # Explicit type coercion to ensure string comparison works
                   title_match <- titles_df$title[as.character(titles_df$id) == as.character(abs_id)]
                   if (length(title_match) > 0) {

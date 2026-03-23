@@ -1153,29 +1153,61 @@ enrich_retrieval_results <- function(results, con = NULL) {
     }
   }, character(1))
 
-  # Resolve abstract titles from DB instead of using "[Abstract]" placeholder (#159)
-  results$abstract_title <- vapply(results$origin, function(o) {
-    if (!grepl("^abstract:", o)) return(NA_character_)
+  # Resolve abstract metadata from DB (#159)
+  # Initialize all metadata columns
+  results$abstract_title <- NA_character_
+  results$abstract_authors <- NA_character_
+  results$abstract_year <- NA_integer_
+  results$doc_authors <- NA_character_
+  results$doc_year <- NA_integer_
 
-    # Extract abstract ID (strip prefix and any pipe-delimited metadata)
-    abstract_id <- sub("\\|.*$", "", sub("^abstract:", "", o))
+  if (!is.null(con)) {
+    for (i in seq_len(nrow(results))) {
+      o <- results$origin[i]
 
-    # Look up title from DB if connection provided
-    if (!is.null(con)) {
-      title <- tryCatch({
-        row <- DBI::dbGetQuery(con, "SELECT title FROM abstracts WHERE id = ? LIMIT 1",
-                               list(abstract_id))
-        if (nrow(row) > 0 && !is.na(row$title[1]) && nchar(row$title[1]) > 0) {
-          row$title[1]
-        } else {
-          "[Abstract]"
+      if (grepl("^abstract:", o)) {
+        # Extract abstract ID (strip prefix and any pipe-delimited metadata)
+        abstract_id <- sub("\\|.*$", "", sub("^abstract:", "", o))
+
+        tryCatch({
+          row <- DBI::dbGetQuery(con,
+            "SELECT title, authors, year FROM abstracts WHERE id = ? LIMIT 1",
+            list(abstract_id))
+          if (nrow(row) > 0) {
+            results$abstract_title[i] <- if (!is.na(row$title[1]) && nchar(row$title[1]) > 0) {
+              row$title[1]
+            } else {
+              "[Abstract]"
+            }
+            results$abstract_authors[i] <- if (!is.na(row$authors[1])) row$authors[1] else NA_character_
+            results$abstract_year[i] <- if (!is.na(row$year[1])) as.integer(row$year[1]) else NA_integer_
+          } else {
+            results$abstract_title[i] <- "[Abstract]"
+          }
+        }, error = function(e) {
+          results$abstract_title[i] <<- "[Abstract]"
+        })
+
+      } else {
+        # Document chunk — look up metadata from documents table
+        doc_filename <- results$doc_name[i]
+        if (!is.na(doc_filename) && nchar(doc_filename) > 0) {
+          tryCatch({
+            row <- DBI::dbGetQuery(con,
+              "SELECT authors, year FROM documents WHERE filename = ? LIMIT 1",
+              list(doc_filename))
+            if (nrow(row) > 0) {
+              results$doc_authors[i] <- if (!is.na(row$authors[1])) row$authors[1] else NA_character_
+              results$doc_year[i] <- if (!is.na(row$year[1])) as.integer(row$year[1]) else NA_integer_
+            }
+          }, error = function(e) NULL)
         }
-      }, error = function(e) "[Abstract]")
-      return(title)
+      }
     }
-
-    "[Abstract]"
-  }, character(1))
+  } else {
+    # No DB connection — set abstract titles to placeholder
+    results$abstract_title[results$source_type == "abstract"] <- "[Abstract]"
+  }
 
   results
 }
