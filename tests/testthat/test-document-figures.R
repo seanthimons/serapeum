@@ -1,14 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "pdf_images.R"))
+source_app("config.R", "db_migrations.R", "db.R", "pdf_images.R")
 
 # Helper: create a test DB with a notebook + document already inserted
 # Uses direct SQL to avoid dependency on migration-added columns

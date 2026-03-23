@@ -142,7 +142,7 @@ bootstrap_existing_database <- function(con) {
 #' handle the transition from ad-hoc migrations to versioned migrations.
 #'
 #' @param con DuckDB connection
-run_pending_migrations <- function(con) {
+run_pending_migrations <- function(con, migrations_dir = "migrations") {
   # Get list of applied migrations
   applied <- get_applied_migrations(con)
 
@@ -152,12 +152,16 @@ run_pending_migrations <- function(con) {
     applied <- get_applied_migrations(con)
   }
 
-  # Find migrations directory
-  # Shiny apps run from project root, so use relative path
-  migrations_dir <- "migrations"
+  # If relative path doesn't exist, try the test helper's app root (set via option)
+  if (!dir.exists(migrations_dir)) {
+    root <- getOption(".serapeum_app_root")
+    if (!is.null(root)) {
+      migrations_dir <- file.path(root, "migrations")
+    }
+  }
 
   if (!dir.exists(migrations_dir)) {
-    message("[migration] No migrations directory found")
+    message("[migration] No migrations directory found at: ", migrations_dir)
     return(invisible(NULL))
   }
 

@@ -1,12 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "api_openalex.R"))) {
-  # Fallback: we may already be in project root (e.g., when run via Rscript from project root)
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "api_openalex.R"))
+source_app("api_openalex.R")
 
 test_that("parse_openalex_work extracts keywords", {
   # Mock OpenAlex work object with keywords

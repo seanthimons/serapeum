@@ -1,12 +1,7 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "utils_scoring.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "utils_scoring.R"))
+source_app("utils_scoring.R")
 
 # ============================================================================
 # citation velocity

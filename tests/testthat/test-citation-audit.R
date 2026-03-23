@@ -2,18 +2,13 @@ library(testthat)
 library(DBI)
 library(duckdb)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "db.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "utils_doi.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "api_openalex.R"))
-source(file.path(project_root, "R", "interrupt.R"))
-source(file.path(project_root, "R", "citation_audit.R"))
+source_app("config.R")
+source_app("utils_doi.R")
+source_app("db.R")
+source_app("api_openalex.R")
+source_app("interrupt.R")
+source_app("citation_audit.R")
 
 # ============================================================================
 # Progress I/O tests

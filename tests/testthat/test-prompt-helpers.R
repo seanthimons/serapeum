@@ -24,7 +24,7 @@ make_test_con <- function() {
 # Source the helper file
 # ---------------------------------------------------------------------------
 
-source(here::here("R/prompt_helpers.R"))
+source_app("prompt_helpers.R")
 
 # ---------------------------------------------------------------------------
 # PROMPT_DEFAULTS registry tests

@@ -1,13 +1,8 @@
 library(testthat)
 
-# Resolve project root regardless of whether we are called via test_file or test_dir
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "themes.R"))) {
-  project_root <- getwd()
-}
 
 # Source the themes module
-source(file.path(project_root, "R", "themes.R"))
+source_app("themes.R")
 
 # ── BUILTIN_THEME_SWATCHES ────────────────────────────────────────────────────
 
@@ -40,7 +35,7 @@ test_that("parse_scss_swatches returns fallback for empty string", {
 })
 
 test_that("parse_scss_swatches resolves variable references for epa-owm.scss content", {
-  scss_text <- paste(readLines(file.path(project_root, "www", "themes", "epa-owm.scss")), collapse = "\n")
+  scss_text <- paste(readLines(file.path(app_root(), "www", "themes", "epa-owm.scss")), collapse = "\n")
   result <- parse_scss_swatches(scss_text)
   expect_equal(result$bg, "#FFFFFF")
   expect_equal(result$fg, "#212529")

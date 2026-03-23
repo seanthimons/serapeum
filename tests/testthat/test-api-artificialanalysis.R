@@ -1,33 +1,28 @@
 library(testthat)
 
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "api_openalex.R"))
-source(file.path(project_root, "R", "api_openrouter.R"))
-source(file.path(project_root, "R", "api_provider.R"))
-source(file.path(project_root, "R", "cost_tracking.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "api_artificialanalysis.R"))
+source_app("config.R")
+source_app("api_openalex.R")
+source_app("api_openrouter.R")
+source_app("api_provider.R")
+source_app("cost_tracking.R")
+source_app("db_migrations.R")
+source_app("db.R")
+source_app("api_artificialanalysis.R")
 
 # ---- Bundled Data Loading ----
 
 test_that("load_bundled_aa_data loads the snapshot", {
-  data <- load_bundled_aa_data(project_root)
+  data <- load_bundled_aa_data(app_root())
   expect_true(nrow(data) > 0)
   expect_true(all(c("aa_model_id", "aa_model_name", "intelligence_index",
                      "tokens_per_second", "price_blended_1m") %in% names(data)))
 })
 
 test_that("load_bundled_aa_data has expected models", {
-  data <- load_bundled_aa_data(project_root)
-  expect_true("claude-sonnet-4" %in% data$aa_model_id)
-  expect_true("gpt-4o" %in% data$aa_model_id)
-  expect_true("gemini-2-5-flash" %in% data$aa_model_id)
+  data <- load_bundled_aa_data(app_root())
+  expect_true("gpt-4o" %in% data$aa_model_slug)
+  expect_true("gemini-2-5-flash" %in% data$aa_model_slug)
 })
 
 test_that("empty_aa_frame has correct column types", {
@@ -48,12 +43,12 @@ test_that("normalize_model_id strips provider prefix and normalizes", {
 })
 
 test_that("match_aa_model finds models via manual mapping", {
-  data <- load_bundled_aa_data(project_root)
-  mapping <- load_aa_model_mapping(project_root)
+  data <- load_bundled_aa_data(app_root())
+  mapping <- load_aa_model_mapping(app_root())
 
   row <- match_aa_model("anthropic/claude-sonnet-4", data, mapping)
   expect_false(is.null(row))
-  expect_equal(row$aa_model_name, "Claude Sonnet 4")
+  expect_equal(row$aa_model_slug, "claude-sonnet-4-6")
 
   row <- match_aa_model("google/gemini-3.1-flash-lite-preview", data, mapping)
   expect_false(is.null(row))
@@ -61,25 +56,25 @@ test_that("match_aa_model finds models via manual mapping", {
 })
 
 test_that("match_aa_model returns NULL for unknown models", {
-  data <- load_bundled_aa_data(project_root)
+  data <- load_bundled_aa_data(app_root())
   row <- match_aa_model("totally/unknown-model", data)
   expect_null(row)
 })
 
 test_that("match_aa_model works via fuzzy match", {
-  data <- load_bundled_aa_data(project_root)
+  data <- load_bundled_aa_data(app_root())
 
   # This should match via normalization even without manual mapping
   row <- match_aa_model("openai/gpt-4o", data, character())
   expect_false(is.null(row))
-  expect_equal(row$aa_model_id, "gpt-4o")
+  expect_equal(row$aa_model_slug, "gpt-4o")
 })
 
 # ---- Model Enrichment ----
 
 test_that("enrich_models_with_aa adds AA columns", {
   models <- get_default_chat_models()
-  aa <- load_bundled_aa_data(project_root)
+  aa <- load_bundled_aa_data(app_root())
 
   enriched <- enrich_models_with_aa(models, aa)
   expect_true("intelligence_index" %in% names(enriched))
@@ -96,7 +91,7 @@ test_that("enrich_models_with_aa handles empty AA data", {
 
 test_that("enrich_models_with_aa matches known models", {
   models <- get_default_chat_models()
-  aa <- load_bundled_aa_data(project_root)
+  aa <- load_bundled_aa_data(app_root())
   enriched <- enrich_models_with_aa(models, aa)
 
   # Gemini 3.1 Flash Lite should match
@@ -152,7 +147,7 @@ test_that("get_aa_models returns cached data from DB", {
   on.exit(close_db_connection(con))
 
   # Seed cache
-  original <- load_bundled_aa_data(project_root)
+  original <- load_bundled_aa_data(app_root())
   save_aa_cache(con, original)
 
   data <- get_aa_models(con)
@@ -164,7 +159,7 @@ test_that("save_aa_cache and get_aa_models round-trip", {
   con <- get_db_connection(":memory:")
   on.exit(close_db_connection(con))
 
-  original <- load_bundled_aa_data(project_root)
+  original <- load_bundled_aa_data(app_root())
   save_aa_cache(con, original)
 
   retrieved <- get_aa_models(con)

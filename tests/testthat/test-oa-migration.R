@@ -1,14 +1,10 @@
 library(testthat)
 
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "api_openalex.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "api_openalex.R"))
+source_app("config.R")
+source_app("db_migrations.R")
+source_app("db.R")
+source_app("api_openalex.R")
 
 # --- Phase 1: Migration & Settings ---
 
@@ -20,7 +16,7 @@ test_that("migration 011 creates oa_usage_log table", {
   get_applied_migrations(con)
 
   # Read and apply migration 011 directly
-  sql_path <- file.path(project_root, "migrations", "017_create_oa_usage_log.sql")
+  sql_path <- file.path(app_root(), "migrations", "017_create_oa_usage_log.sql")
   skip_if_not(file.exists(sql_path), "Migration file not found")
 
   sql <- paste(readLines(sql_path, warn = FALSE), collapse = "\n")

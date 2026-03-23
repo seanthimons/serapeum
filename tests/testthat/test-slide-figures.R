@@ -1,11 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "slides.R"))) {
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "slides.R"))
+source_app("slides.R")
 
 # =============================================================================
 # classify_aspect_ratio()

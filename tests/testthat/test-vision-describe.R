@@ -1,11 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "pdf_images.R"))) {
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "pdf_images.R"))
+source_app("pdf_images.R")
 
 # =============================================================================
 # figure_vision_config()

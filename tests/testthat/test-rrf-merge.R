@@ -1,12 +1,8 @@
 library(testthat)
 
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "rag.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "rag.R"))
+source_app("config.R")
+source_app("rag.R")
 
 # --- Phase 3: RRF Merge Algorithm ---
 
