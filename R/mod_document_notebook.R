@@ -651,8 +651,37 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
-      # Register resource path for PDF downloads
+      # Write text files for abstract-imported documents (no PDF on disk)
       pdf_dir <- file.path(".temp", "pdfs", nb_id)
+      sanitize_filename <- function(name) gsub('[/:*?"<>|\\\\]', "_", name)
+      text_docs <- which(
+        (is.na(docs$filepath) | nchar(docs$filepath) == 0) &
+        !is.na(docs$full_text) & nchar(docs$full_text) > 0
+      )
+      if (length(text_docs) > 0) {
+        dir.create(pdf_dir, recursive = TRUE, showWarnings = FALSE)
+        for (j in text_docs) {
+          safe_name <- sanitize_filename(docs$filename[j])
+          txt_path <- file.path(pdf_dir, safe_name)
+          if (!file.exists(txt_path)) {
+            header <- docs$filename[j]
+            if (!is.na(docs$title[j])) header <- docs$title[j]
+            meta <- character(0)
+            if (!is.na(docs$authors[j])) meta <- c(meta, paste("Authors:", docs$authors[j]))
+            if (!is.na(docs$year[j])) meta <- c(meta, paste("Year:", docs$year[j]))
+            if (!is.na(docs$doi[j])) meta <- c(meta, paste("DOI:", docs$doi[j]))
+            content <- paste0(
+              header, "\n",
+              paste(rep("=", nchar(header)), collapse = ""), "\n",
+              if (length(meta) > 0) paste0(paste(meta, collapse = "\n"), "\n\n") else "\n",
+              docs$full_text[j]
+            )
+            writeLines(content, txt_path)
+          }
+        }
+      }
+
+      # Register resource path for PDF/text downloads
       if (dir.exists(pdf_dir)) {
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
         addResourcePath(resource_name, normalizePath(pdf_dir))
@@ -681,16 +710,22 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           error = function(e) 0L
         )
 
-        # Build download URL
+        # Build download URL (sanitize filename for non-PDF docs)
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
-        download_url <- file.path(resource_name, doc$filename)
+        disk_filename <- if (is_pdf) doc$filename else sanitize_filename(doc$filename)
+        download_url <- file.path(resource_name, disk_filename)
 
         # Register delete observer (once per document ID)
         if (is.null(delete_doc_observers[[doc$id]])) {
           delete_doc_observers[[doc$id]] <- observeEvent(input[[delete_id]], {
             delete_document(con(), doc$id)
             delete_document_chunks_from_ragnar(nb_id, doc$filename)
-            pdf_path <- file.path(".temp", "pdfs", nb_id, doc$filename)
+            disk_name <- if (grepl("\\.pdf$", doc$filename, ignore.case = TRUE)) {
+              doc$filename
+            } else {
+              sanitize_filename(doc$filename)
+            }
+            pdf_path <- file.path(".temp", "pdfs", nb_id, disk_name)
             if (file.exists(pdf_path)) file.remove(pdf_path)
             # Clear figure gallery if showing this doc
             if (identical(selected_fig_doc(), doc$id)) selected_fig_doc(NULL)
@@ -795,7 +830,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               href = download_url,
               download = doc$filename,
               class = "btn btn-sm btn-outline-secondary py-0 px-1",
-              title = "Download PDF",
+              title = if (is_pdf) "Download PDF" else "Download text",
               icon_download()
             ),
             actionLink(
