@@ -433,6 +433,16 @@ delete_notebook <- function(con, id) {
   # Delete citation audit runs
   dbExecute(con, "DELETE FROM citation_audit_runs WHERE notebook_id = ?", list(id))
 
+  # Delete refiner results for runs sourced from this notebook
+  dbExecute(con, "
+    DELETE FROM refiner_results WHERE run_id IN (
+      SELECT id FROM refiner_runs WHERE source_notebook_id = ?
+    )
+  ", list(id))
+
+  # Delete refiner runs sourced from this notebook
+  dbExecute(con, "DELETE FROM refiner_runs WHERE source_notebook_id = ?", list(id))
+
   # Delete chunks for documents in this notebook
   dbExecute(con, "
     DELETE FROM chunks WHERE source_id IN (
@@ -594,9 +604,13 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
                             fwci = NULL, doi = NULL) {
   id <- uuid::UUIDgenerate()
 
- # Handle edge cases
+ # Handle edge cases — guard against pre-encoded JSON strings to prevent
+  # double-encoding (e.g., when authors arrive already serialized from DB)
   authors_json <- if (is.null(authors) || length(authors) == 0) {
     "[]"
+  } else if (is.character(authors) && length(authors) == 1 &&
+             jsonlite::validate(authors)) {
+    authors
   } else {
     jsonlite::toJSON(authors, auto_unbox = TRUE)
   }
@@ -1033,7 +1047,10 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           get_db_setting(con, "rag_query_reformulation"),
           error = function(e) NULL
         )
-        # Default to enabled (TRUE) when setting doesn't exist
+        if (is.null(reformulation_enabled)) {
+          reformulation_enabled <- get_setting(config, "app", "query_reformulation")
+        }
+        # Default to enabled (TRUE) when neither DB nor config specifies a value
         if (!isFALSE(reformulation_enabled)) {
           chat_model <- resolve_model_for_operation(config, "query_reformulation")
           search_queries <- tryCatch({
@@ -1144,7 +1161,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
         if (nrow(results) > 0 && "abstract_title" %in% names(results)) {
           abstract_origins <- results$origin[grepl("^abstract:", results$origin)]
           if (length(abstract_origins) > 0) {
-            abstract_ids <- sub("^abstract:", "", abstract_origins)
+            abstract_ids <- sub("\\|.*$", "", sub("^abstract:", "", abstract_origins))
             # Fetch titles from database
             if (length(abstract_ids) > 0) {
               placeholders <- paste(rep("?", length(abstract_ids)), collapse = ", ")
@@ -1155,7 +1172,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
               # Update abstract_title for matching rows
               for (i in seq_len(nrow(results))) {
                 if (grepl("^abstract:", results$origin[i])) {
-                  abs_id <- sub("^abstract:", "", results$origin[i])
+                  abs_id <- sub("\\|.*$", "", sub("^abstract:", "", results$origin[i]))
                   # Explicit type coercion to ensure string comparison works
                   title_match <- titles_df$title[as.character(titles_df$id) == as.character(abs_id)]
                   if (length(title_match) > 0) {
@@ -2324,6 +2341,14 @@ db_delete_figures_for_document <- function(con, document_id) {
 }
 
 # ---- Research Refiner DB Helpers ----
+
+#' Delete a refiner run and its results
+#' @param con DuckDB connection
+#' @param run_id Refiner run ID
+delete_refiner_run <- function(con, run_id) {
+  DBI::dbExecute(con, "DELETE FROM refiner_results WHERE run_id = ?", list(run_id))
+  DBI::dbExecute(con, "DELETE FROM refiner_runs WHERE id = ?", list(run_id))
+}
 
 #' Create a new refiner run
 #' @param con DuckDB connection

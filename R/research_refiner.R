@@ -15,9 +15,11 @@
 #'   - anchor_refs: list of character vectors (referenced_works per seed)
 #'   - anchor_ids: character vector of seed paper IDs
 #'   - anchor_papers: list of parsed work objects
+#'   - errors: character vector of error messages (empty if no failures)
 fetch_anchor_refs <- function(seed_ids, email, api_key = NULL) {
   anchor_refs <- list()
   anchor_papers <- list()
+  errors <- character(0)
 
   for (sid in seed_ids) {
     # Fetch the seed paper to get its referenced_works
@@ -25,7 +27,7 @@ fetch_anchor_refs <- function(seed_ids, email, api_key = NULL) {
       req_url_query(filter = paste0("openalex_id:", sid))
 
     resp <- tryCatch(req_perform(req), error = function(e) {
-      warning("Failed to fetch anchor refs for ", sid, ": ", e$message)
+      errors[length(errors) + 1] <<- paste0("Anchor ", sid, ": ", e$message)
       NULL
     })
     if (is.null(resp)) next
@@ -41,7 +43,8 @@ fetch_anchor_refs <- function(seed_ids, email, api_key = NULL) {
   list(
     anchor_refs = anchor_refs,
     anchor_ids = seed_ids,
-    anchor_papers = anchor_papers
+    anchor_papers = anchor_papers,
+    errors = errors
   )
 }
 
@@ -55,6 +58,10 @@ fetch_anchor_refs <- function(seed_ids, email, api_key = NULL) {
 #' @param exclude_ids Optional character vector of paper IDs to exclude (e.g., seed papers)
 #' @return Data frame with columns needed by score_candidate_pool
 prepare_candidates_from_notebook <- function(con, notebook_id, exclude_ids = character(0)) {
+  # Note: authors column from abstracts table is already JSON-encoded.
+  # It flows as a string through refiner_results.authors, then is decoded
+  # by fromJSON() during import (mod_research_refiner.R), and create_abstract()
+  # detects pre-encoded JSON to avoid double-encoding.
   papers <- dbGetQuery(con, "
     SELECT paper_id, title, authors, abstract, year, venue, doi,
            cited_by_count, fwci, referenced_works_count
@@ -122,12 +129,15 @@ compute_pool_connectivity <- function(candidates, anchor_data,
 #' @param api_key Optional API key
 #' @param per_page Results per page per query (default 50)
 #' @param progress_callback Optional function(message) for progress updates
-#' @return Data frame of unique candidate papers
+#' @return List with:
+#'   - candidates: data frame of unique candidate papers
+#'   - errors: character vector of error messages (empty if no failures)
 fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
                                          per_page = 50,
                                          progress_callback = NULL) {
   all_papers <- list()
   seen_ids <- new.env(hash = TRUE, parent = emptyenv())
+  errors <- character(0)
 
   for (i in seq_along(seed_ids)) {
     sid <- seed_ids[i]
@@ -139,21 +149,21 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
     citing <- tryCatch(
       get_citing_papers(sid, email, api_key, per_page = per_page),
       error = function(e) {
-        warning("Failed to fetch citing papers for ", sid, ": ", e$message)
+        errors[length(errors) + 1] <<- paste0("Seed ", sid, " citing: ", e$message)
         list()
       }
     )
     cited <- tryCatch(
       get_cited_papers(sid, email, api_key, per_page = per_page),
       error = function(e) {
-        warning("Failed to fetch cited papers for ", sid, ": ", e$message)
+        errors[length(errors) + 1] <<- paste0("Seed ", sid, " cited: ", e$message)
         list()
       }
     )
     related <- tryCatch(
       get_related_papers(sid, email, api_key, per_page = per_page),
       error = function(e) {
-        warning("Failed to fetch related papers for ", sid, ": ", e$message)
+        errors[length(errors) + 1] <<- paste0("Seed ", sid, " related: ", e$message)
         list()
       }
     )
@@ -167,18 +177,21 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
   }
 
   if (length(all_papers) == 0) {
-    return(data.frame(
-      paper_id = character(0), title = character(0), authors = character(0),
-      abstract = character(0), year = integer(0), venue = character(0),
-      doi = character(0), cited_by_count = integer(0), fwci = double(0),
-      referenced_works_count = integer(0), seed_connectivity = double(0),
-      bridge_score = double(0),
-      stringsAsFactors = FALSE
+    return(list(
+      candidates = data.frame(
+        paper_id = character(0), title = character(0), authors = character(0),
+        abstract = character(0), year = integer(0), venue = character(0),
+        doi = character(0), cited_by_count = integer(0), fwci = double(0),
+        referenced_works_count = integer(0), seed_connectivity = double(0),
+        bridge_score = double(0),
+        stringsAsFactors = FALSE
+      ),
+      errors = errors
     ))
   }
 
   # Convert list of papers to data frame
-  data.frame(
+  candidates_df <- data.frame(
     paper_id = vapply(all_papers, function(p) p$paper_id, character(1)),
     title = vapply(all_papers, function(p) p$title %||% "Untitled", character(1)),
     authors = vapply(all_papers, function(p) {
@@ -201,6 +214,8 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
     bridge_score = NA_real_,
     stringsAsFactors = FALSE
   )
+
+  list(candidates = candidates_df, errors = errors)
 }
 
 # ---- Semantic Scoring (Tier 2) ----

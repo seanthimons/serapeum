@@ -1,15 +1,11 @@
 library(testthat)
 
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "_ragnar.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "api_openrouter.R"))
-source(file.path(project_root, "R", "_ragnar.R"))
+source_app("config.R")
+source_app("db_migrations.R")
+source_app("db.R")
+source_app("api_openrouter.R")
+source_app("_ragnar.R")
 
 # --- Phase 5: Contextual Chunk Headers ---
 

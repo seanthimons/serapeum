@@ -382,6 +382,8 @@ server <- function(input, output, session) {
   # BUGF-03: Fetch live model pricing at startup so non-default models show accurate costs
   observeEvent(effective_config(), {
     cfg <- effective_config()
+    options(serapeum.verbose_api = isTRUE(get_setting(cfg, "app", "verbose_mode")))
+
     api_key <- get_setting(cfg, "openrouter", "api_key")
     if (is.null(api_key) || nchar(api_key) < 10) return()
 
@@ -1166,7 +1168,9 @@ server <- function(input, output, session) {
       # Check setup status for live indicators
       cfg <- effective_config()
       has_or_key <- !is.null(get_setting(cfg, "openrouter", "api_key"))
-      has_chat_model <- !is.null(get_db_setting(con, "chat_model")) ||
+      has_chat_model <- !is.null(get_db_setting(con, "quality_model")) ||
+                        !is.null(get_db_setting(con, "chat_model")) ||
+                        !is.null(get_setting(cfg, "defaults", "quality_model")) ||
                         !is.null(get_setting(cfg, "defaults", "chat_model"))
       has_quality_data <- !is.null(get_db_setting(con, "quality_data_version"))
 
@@ -1331,7 +1335,7 @@ server <- function(input, output, session) {
   topic_request <- mod_topic_explorer_server("topic_explorer", reactive(con), config_file_r)
 
   # Citation network module
-  network_api <- mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh)
+  network_api <- mod_citation_network_server("citation_network", con_r, effective_config, current_network, network_refresh, notebook_refresh)
 
   # Citation audit module
   mod_citation_audit_server("citation_audit", con, config_r = effective_config,

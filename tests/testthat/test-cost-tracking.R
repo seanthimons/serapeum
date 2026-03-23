@@ -1,20 +1,16 @@
 library(testthat)
 
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "cost_tracking.R"))
-source(file.path(project_root, "R", "api_openalex.R"))
-source(file.path(project_root, "R", "api_openrouter.R"))
-source(file.path(project_root, "R", "api_provider.R"))
-source(file.path(project_root, "R", "theme_catppuccin.R"))
-source(file.path(project_root, "R", "mod_cost_tracker.R"))
-source(file.path(project_root, "R", "mod_settings.R"))
+source_app("config.R")
+source_app("db_migrations.R")
+source_app("db.R")
+source_app("cost_tracking.R")
+source_app("api_openalex.R")
+source_app("api_openrouter.R")
+source_app("api_provider.R")
+source_app("theme_catppuccin.R")
+source_app("mod_cost_tracker.R")
+source_app("mod_settings.R")
 
 test_that("cost operation and model formatters normalize current labels", {
   expect_equal(format_cost_operation_name("overview_keypoints"), "Overview Key Points")
@@ -115,7 +111,7 @@ test_that("latency queries work after migration with data", {
   init_schema(con)
 
   # Apply migration 012
-  DBI::dbExecute(con, "ALTER TABLE cost_log ADD COLUMN duration_ms INTEGER")
+  DBI::dbExecute(con, "ALTER TABLE cost_log ADD COLUMN IF NOT EXISTS duration_ms INTEGER")
 
   # Insert rows with duration
   log_cost(con, "chat", "openai/gpt-4o-mini", 100, 50,
@@ -155,7 +151,7 @@ test_that("latency queries exclude NULL duration rows", {
   on.exit(close_db_connection(con))
   init_schema(con)
 
-  DBI::dbExecute(con, "ALTER TABLE cost_log ADD COLUMN duration_ms INTEGER")
+  DBI::dbExecute(con, "ALTER TABLE cost_log ADD COLUMN IF NOT EXISTS duration_ms INTEGER")
 
   # One with duration, one without
 
@@ -174,7 +170,7 @@ test_that("latency queries respect day window", {
   on.exit(close_db_connection(con))
   init_schema(con)
 
-  DBI::dbExecute(con, "ALTER TABLE cost_log ADD COLUMN duration_ms INTEGER")
+  DBI::dbExecute(con, "ALTER TABLE cost_log ADD COLUMN IF NOT EXISTS duration_ms INTEGER")
 
   # Insert a row with today's date
   log_cost(con, "chat", "openai/gpt-4o-mini", 100, 50,
@@ -249,4 +245,23 @@ test_that("migrate_model_slots does nothing when no chat_model exists", {
 
   quality <- get_db_setting(con, "quality_model")
   expect_null(quality)
+})
+
+# --- #234: log_cost returns NULL on INSERT failure ---
+
+test_that("log_cost returns NULL and warns on INSERT failure", {
+  con <- get_db_connection(":memory:")
+  on.exit(close_db_connection(con))
+  init_schema(con)
+
+  # Close the connection to force INSERT failure
+  close_db_connection(con)
+
+  expect_warning(
+    result <- log_cost(con, "chat", "openai/gpt-4o-mini", 100, 50,
+                       estimated_cost = 0.001, session_id = "s1"),
+    "Failed to log cost"
+  )
+
+  expect_null(result)
 })

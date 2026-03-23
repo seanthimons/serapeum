@@ -1,12 +1,7 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "utils_scoring.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "utils_scoring.R"))
+source_app("utils_scoring.R")
 
 # ============================================================================
 # citation velocity
@@ -122,6 +117,14 @@ test_that("get_preset_weights returns valid weights for all modes", {
 
 test_that("get_preset_weights returns discovery for unknown mode", {
   expect_equal(get_preset_weights("unknown"), get_preset_weights("discovery"))
+})
+
+test_that("preset weights sum to 1.0 for all modes", {
+  for (mode in c("discovery", "comprehensive", "emerging")) {
+    w <- get_preset_weights(mode)
+    expect_equal(sum(unlist(w)), 1.0, tolerance = 0.01,
+                 label = paste(mode, "weights sum"))
+  }
 })
 
 # ============================================================================

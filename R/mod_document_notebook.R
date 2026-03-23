@@ -575,17 +575,20 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     # Task result handler (Phase 22)
+    # NOTE: isolate() all reactive reads except reindex_task$result() to prevent
+    # reactive loops — doc_refresh(doc_refresh() + 1) inside observe() creates
+    # a self-triggering cycle without isolate (UAT finding)
     observe({
       result <- reindex_task$result()
 
       # Clean up poller
-      poller <- reindex_poller()
+      poller <- isolate(reindex_poller())
       if (!is.null(poller)) poller$destroy()
       reindex_poller(NULL)
 
       # Clean up flag/progress files
-      clear_interrupt_flag(current_interrupt_flag())
-      clear_progress_file(current_progress_file())
+      clear_interrupt_flag(isolate(current_interrupt_flag()))
+      clear_progress_file(isolate(current_progress_file()))
       current_interrupt_flag(NULL)
       current_progress_file(NULL)
 
@@ -593,7 +596,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       if (isTRUE(result$partial)) {
         # Cancelled mid-way — delete partial store, set rag_ready FALSE
-        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+        tryCatch(delete_notebook_store(isolate(notebook_id())), error = function(e) NULL)
         rag_ready(FALSE)
         store_healthy(FALSE)
         showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
@@ -602,11 +605,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         store_healthy(TRUE)
         # Mark chunks as ragnar-indexed
         tryCatch({
-          mark_as_ragnar_indexed(con(),
-            DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(notebook_id()))$id,
+          mark_as_ragnar_indexed(isolate(con()),
+            DBI::dbGetQuery(isolate(con()), "SELECT id FROM documents WHERE notebook_id = ?", list(isolate(notebook_id())))$id,
             source_type = "document")
         }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
-        doc_refresh(doc_refresh() + 1)
+        doc_refresh(isolate(doc_refresh()) + 1)
         showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
       } else {
         rag_ready(FALSE)

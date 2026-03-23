@@ -1,8 +1,6 @@
 # Test format_result_count helper (Phase 51)
 
-# Source the module to access the helper function
-# testthat runs from package root, so path is relative to project root
-source("../../R/mod_search_notebook.R", local = TRUE)
+source_app("mod_search_notebook.R")
 
 test_that("format_result_count returns empty string when no results", {
   expect_equal(format_result_count(0, 0), "")

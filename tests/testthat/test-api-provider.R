@@ -1,15 +1,11 @@
 library(testthat)
 
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  project_root <- getwd()
-}
 
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "api_openalex.R"))
-source(file.path(project_root, "R", "api_openrouter.R"))
-source(file.path(project_root, "R", "api_provider.R"))
-source(file.path(project_root, "R", "cost_tracking.R"))
+source_app("config.R")
+source_app("api_openalex.R")
+source_app("api_openrouter.R")
+source_app("api_provider.R")
+source_app("cost_tracking.R")
 
 # ---- Provider Config Creation ----
 
@@ -153,8 +149,8 @@ test_that("estimate_cost uses known pricing when available", {
 # ---- log_cost with duration_ms ----
 
 test_that("log_cost works with and without duration_ms", {
-  source(file.path(project_root, "R", "db_migrations.R"))
-  source(file.path(project_root, "R", "db.R"))
+  source_app("db_migrations.R")
+  source_app("db.R")
 
   con <- get_db_connection(":memory:")
   on.exit(close_db_connection(con))
@@ -267,8 +263,8 @@ test_that("COST_OPERATION_META has slot field on every entry", {
 
 # ---- Provider CRUD ----
 
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
+source_app("db_migrations.R")
+source_app("db.R")
 
 # Helper: create in-memory DB with providers table
 setup_db_with_providers <- function() {
@@ -401,7 +397,7 @@ test_that("get_all_available_models returns empty frame for empty input", {
 # ---- Stale Index Detection ----
 
 test_that("is_ragnar_store_stale detects embedding model mismatch", {
-  source(file.path(project_root, "R", "_ragnar.R"))
+  source_app("_ragnar.R")
 
   con <- get_db_connection(":memory:")
   on.exit(close_db_connection(con))
@@ -418,7 +414,7 @@ test_that("is_ragnar_store_stale detects embedding model mismatch", {
 })
 
 test_that("is_ragnar_store_stale works without embed model check", {
-  source(file.path(project_root, "R", "_ragnar.R"))
+  source_app("_ragnar.R")
 
   con <- get_db_connection(":memory:")
   on.exit(close_db_connection(con))

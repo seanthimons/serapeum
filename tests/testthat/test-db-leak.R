@@ -4,16 +4,7 @@
 
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "_ragnar.R"))) {
-  # Fallback: we may already be in project root
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "_ragnar.R"))
+source_app("config.R", "db_migrations.R", "db.R", "_ragnar.R")
 
 # Ragnar availability check using safe pattern
 ragnar_loadable <- tryCatch({ library(ragnar); TRUE }, error = function(e) FALSE)
@@ -158,7 +149,7 @@ test_that("search_chunks_hybrid does NOT close caller-provided stores", {
 
 test_that("dead code (with_ragnar_store, register_ragnar_cleanup) is absent from codebase", {
   # Get all R source files in R/ directory
-  r_dir <- file.path(project_root, "R")
+  r_dir <- file.path(app_root(), "R")
   r_files <- list.files(r_dir, pattern = "\\.R$", full.names = TRUE)
 
   # Search for dead function names in all R files

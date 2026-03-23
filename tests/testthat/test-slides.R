@@ -356,3 +356,38 @@ test_that("build_qmd_frontmatter default behavior unchanged without custom_scss"
   expect_true(grepl("theme: default", fm))
   expect_false(grepl("\\[", fm))
 })
+
+# --- #229: NA page_number handling in build_slides_prompt ---
+
+test_that("build_slides_prompt handles NA page_number without p.NA", {
+  chunks <- data.frame(
+    content = c("Intro text.", "Methods text."),
+    doc_name = c("paper.pdf", "paper.pdf"),
+    page_number = c(1, NA_integer_),
+    stringsAsFactors = FALSE
+  )
+
+  prompt <- build_slides_prompt(chunks, list(length = "short"))
+
+  # Should contain page ref for first chunk
+  expect_true(grepl("p\\.1", prompt$user))
+  # Should NOT contain p.NA for second chunk
+  expect_false(grepl("p\\.NA", prompt$user))
+  # Content should still be present
+  expect_true(grepl("Methods text", prompt$user))
+})
+
+test_that("build_slides_prompt handles NA doc_name", {
+  chunks <- data.frame(
+    content = "Some text.",
+    doc_name = NA_character_,
+    page_number = 3L,
+    stringsAsFactors = FALSE
+  )
+
+  prompt <- build_slides_prompt(chunks, list(length = "short"))
+
+  # Should use "unknown" instead of NA
+  expect_true(grepl("unknown", prompt$user))
+  expect_false(grepl("\\bNA\\b", prompt$user))
+})

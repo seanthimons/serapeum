@@ -429,8 +429,22 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         }
         seed_ids <- nb_papers$paper_id
         per_seed <- input$per_seed_count %||% 25
-        candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
-                                                   per_page = per_seed)
+        fetch_result <- fetch_candidates_from_seeds(seed_ids, email, api_key,
+                                                     per_page = per_seed)
+        candidates <- fetch_result$candidates
+        if (length(fetch_result$errors) > 0) {
+          err_msg <- if (length(fetch_result$errors) > 3) {
+            paste(c(fetch_result$errors[1:3],
+                    paste0("+ ", length(fetch_result$errors) - 3, " more")),
+                  collapse = "; ")
+          } else {
+            paste(fetch_result$errors, collapse = "; ")
+          }
+          showNotification(
+            paste0(length(fetch_result$errors), " API error(s): ", err_msg),
+            type = "warning", duration = 10
+          )
+        }
       } else if (input$source_type == "notebook") {
         nb_id <- input$source_notebook_id
         if (is.null(nb_id) || nchar(nb_id) == 0) {
@@ -439,8 +453,22 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         }
         candidates <- prepare_candidates_from_notebook(con, nb_id, exclude_ids = seed_ids)
       } else {
-        candidates <- fetch_candidates_from_seeds(seed_ids, email, api_key,
-                                                   per_page = 50)
+        fetch_result <- fetch_candidates_from_seeds(seed_ids, email, api_key,
+                                                     per_page = 50)
+        candidates <- fetch_result$candidates
+        if (length(fetch_result$errors) > 0) {
+          err_msg <- if (length(fetch_result$errors) > 3) {
+            paste(c(fetch_result$errors[1:3],
+                    paste0("+ ", length(fetch_result$errors) - 3, " more")),
+                  collapse = "; ")
+          } else {
+            paste(fetch_result$errors, collapse = "; ")
+          }
+          showNotification(
+            paste0(length(fetch_result$errors), " API error(s): ", err_msg),
+            type = "warning", duration = 10
+          )
+        }
       }
 
       if (nrow(candidates) == 0) {
@@ -455,9 +483,17 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           anchor_data <- tryCatch(
             fetch_anchor_refs(seed_ids, email, api_key),
             error = function(e) {
-              list(anchor_refs = list(), anchor_ids = seed_ids, anchor_papers = list())
+              list(anchor_refs = list(), anchor_ids = seed_ids,
+                   anchor_papers = list(), errors = character(0))
             }
           )
+          if (length(anchor_data$errors) > 0) {
+            showNotification(
+              paste0("Anchor ref errors: ",
+                     paste(head(anchor_data$errors, 3), collapse = "; ")),
+              type = "warning", duration = 8
+            )
+          }
           candidates$seed_connectivity <- compute_pool_connectivity(candidates, anchor_data)
         }
 
@@ -499,7 +535,10 @@ mod_research_refiner_server <- function(id, con_r, config_r,
             store <- tryCatch(
               get_ragnar_store(ragnar_path, or_key, embed_model),
               error = function(e) {
-                message("[refiner] Failed to open ragnar store: ", e$message)
+                showNotification(
+                  paste("Failed to open ragnar store:", e$message),
+                  type = "warning", duration = 8
+                )
                 NULL
               }
             )
@@ -514,7 +553,10 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                 score_from_ragnar_store(store, semantic_query, candidates$paper_id,
                                          uuid_to_paper_id = uuid_to_pid),
                 error = function(e) {
-                  message("[refiner] Ragnar scoring failed: ", e$message)
+                  showNotification(
+                    paste("Ragnar scoring failed:", e$message),
+                    type = "warning", duration = 8
+                  )
                   NULL
                 },
                 finally = tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)

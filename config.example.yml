@@ -3,17 +3,33 @@ openrouter:
   api_key: "your-openrouter-api-key"
 
 openalex:
-  api_key: "your-openalex-api-key"
   email: "your-email@example.com"
+  api_key: "your-openalex-api-key"
 
 # Default Models
 defaults:
-  chat_model: "google/gemini-3.1-flash-lite-preview"
+  quality_model: "google/gemini-3.1-flash-lite-preview"
+  # Optional. Leave blank or omit to fall back to quality_model.
+  fast_model: "google/gemini-3.1-flash-lite-preview"
   embedding_model: "openai/text-embedding-3-small"
 
 # App Settings
 app:
   port: 8080
   storage_path: "storage/"
+
+  # RAG options
+  # Boolean: true or false
+  query_reformulation: true
   chunk_size: 500
   chunk_overlap: 50
+  # Boolean: true or false
+  verbose_mode: false
+
+  # Search
+  # Integer: 5-100
+  abstracts_per_search: 25
+
+  # Citation networks
+  # One of: viridis, magma, plasma, inferno, cividis
+  network_palette: "viridis"

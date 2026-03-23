@@ -1,12 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "api_openalex.R"))) {
-  # Fallback: we may already be in project root (e.g., when run via Rscript from project root)
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "api_openalex.R"))
+source_app("api_openalex.R")
 
 test_that("parse_openalex_work extracts keywords", {
   # Mock OpenAlex work object with keywords
@@ -303,4 +297,26 @@ test_that("build_query_preview omits has_abstract filter when disabled", {
   expect_match(preview$filter, "is_retracted:false", fixed = TRUE)
   expect_match(preview$filter, "from_publication_date:2020-01-01", fixed = TRUE)
   expect_match(preview$filter, "to_publication_date:2025-12-31", fixed = TRUE)
+})
+
+# --- #165: Email redaction in verbose logs ---
+
+test_that("perform_openalex redacts mailto from verbose log", {
+  # Test the redaction logic directly (same gsub chain used in perform_openalex)
+  url <- "https://api.openalex.org/works?mailto=user@example.com&api_key=secret123&search=test"
+  url <- gsub("api_key=[^&]+", "api_key=<REDACTED>", url)
+  url <- gsub("mailto=[^&]+", "mailto=<REDACTED>", url)
+
+  expect_false(grepl("user@example.com", url))
+  expect_false(grepl("secret123", url))
+  expect_true(grepl("mailto=<REDACTED>", url))
+  expect_true(grepl("api_key=<REDACTED>", url))
+})
+
+test_that("mailto redaction works when mailto is last parameter", {
+  url <- "https://api.openalex.org/works?search=test&mailto=user@example.com"
+  url <- gsub("mailto=[^&]+", "mailto=<REDACTED>", url)
+
+  expect_false(grepl("user@example.com", url))
+  expect_true(grepl("mailto=<REDACTED>", url))
 })

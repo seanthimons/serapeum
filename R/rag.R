@@ -51,6 +51,19 @@ rrf_merge <- function(ranked_lists, k = 60) {
   }
 
   # Build result data frame
+  # Align columns across all rows before rbind — VSS and BM25 results from ragnar
+
+  # can have different schemas (e.g., VSS includes `embedding` column, BM25 does not).
+  # NOTE: The `embedding` column from VSS contains the raw embedding vector for each
+  # chunk. This is not currently used in the RAG chat path, but IS relevant for the
+  # Research Refiner's embedding_similarity scoring (utils_scoring.R / mod_research_refiner.R).
+  # If you drop it here, RR semantic scoring will lose its signal.
+  all_cols <- unique(unlist(lapply(first_seen, names)))
+  first_seen <- lapply(first_seen, function(row) {
+    missing <- setdiff(all_cols, names(row))
+    for (col in missing) row[[col]] <- NA
+    row[, all_cols, drop = FALSE]
+  })
   result <- do.call(rbind, first_seen)
   result$rrf_score <- vapply(result$hash, function(h) scores[[h]], numeric(1))
 
@@ -130,6 +143,73 @@ generate_query_variants <- function(query, provider, model, con = NULL,
   unique(c(query, variants))
 }
 
+#' Format a citation label from author JSON and year
+#'
+#' Parses author JSON (array of strings or objects with display_name) and year
+#' into academic citation format like "Smith et al. (2023)".
+#'
+#' @param authors_json JSON string of authors, or NULL/NA
+#' @param year Integer year, or NULL/NA
+#' @param fallback_label Character fallback when author/year unavailable
+#' @return Formatted label string
+format_citation_label <- function(authors_json, year, fallback_label = "[Source]") {
+  # Parse authors to "LastName et al." format
+
+  author_str <- tryCatch({
+    if (is.null(authors_json) || length(authors_json) == 0 ||
+        isTRUE(is.na(authors_json)) || !nzchar(trimws(authors_json))) {
+      NULL
+    } else {
+      parsed <- jsonlite::fromJSON(authors_json)
+
+      # Handle double-encoding (#177): if fromJSON returns a string that looks
+      # like JSON, try parsing again
+      if (is.character(parsed) && length(parsed) == 1 && grepl("^\\[", parsed)) {
+        parsed <- tryCatch(jsonlite::fromJSON(parsed), error = function(e) parsed)
+      }
+
+      if (is.null(parsed) || length(parsed) == 0) {
+        NULL
+      } else if (is.data.frame(parsed) && "display_name" %in% names(parsed)) {
+        last_names <- vapply(parsed$display_name, function(a) {
+          parts <- strsplit(trimws(a), "\\s+")[[1]]
+          parts[length(parts)]
+        }, character(1))
+        if (length(last_names) == 0) NULL
+        else if (length(last_names) > 2) paste0(last_names[1], " et al.")
+        else if (length(last_names) == 2) paste0(last_names[1], " & ", last_names[2])
+        else last_names[1]
+      } else if (is.character(parsed)) {
+        last_names <- vapply(parsed, function(a) {
+          parts <- strsplit(trimws(a), "\\s+")[[1]]
+          parts[length(parts)]
+        }, character(1))
+        if (length(last_names) == 0) NULL
+        else if (length(last_names) > 2) paste0(last_names[1], " et al.")
+        else if (length(last_names) == 2) paste0(last_names[1], " & ", last_names[2])
+        else last_names[1]
+      } else {
+        NULL
+      }
+    }
+  }, error = function(e) NULL)
+
+  # Normalize year
+  yr <- tryCatch(as.integer(year), error = function(e) NA_integer_)
+  if (length(yr) == 0 || isTRUE(is.na(yr))) yr <- NA_integer_
+
+  # Build label with fallback chain
+  if (!is.null(author_str) && !is.na(yr)) {
+    sprintf("%s (%d)", author_str, yr)
+  } else if (!is.null(author_str)) {
+    sprintf("%s (n.d.)", author_str)
+  } else if (!is.na(yr)) {
+    sprintf("Unknown (%d)", yr)
+  } else {
+    fallback_label
+  }
+}
+
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string
@@ -140,40 +220,46 @@ build_context <- function(chunks) {
     chunk <- chunks[i, , drop = FALSE]
 
     # Safely extract scalar values (handle potential vector/NULL cases)
-    doc_name <- NA_character_
-    if ("doc_name" %in% names(chunk)) {
-      val <- chunk$doc_name
-      if (length(val) > 0) doc_name <- as.character(val)[1]
-    }
-
-    abstract_title <- NA_character_
-    if ("abstract_title" %in% names(chunk)) {
-      val <- chunk$abstract_title
-      if (length(val) > 0) abstract_title <- as.character(val)[1]
-    }
-
-    page_number <- NA_integer_
-    if ("page_number" %in% names(chunk)) {
-      val <- chunk$page_number
-      if (length(val) > 0) page_number <- as.integer(val)[1]
-    }
-
-    content <- ""
-    if ("content" %in% names(chunk)) {
-      val <- chunk$content
-      if (length(val) > 0) content <- as.character(val)[1]
-    }
-
-    # Determine source label using safe scalar checks
-    source <- "[Source]"
-    if (!isTRUE(is.na(doc_name)) && isTRUE(nchar(doc_name) > 0)) {
-      if (!isTRUE(is.na(page_number))) {
-        source <- sprintf("[%s, p.%d]", doc_name, page_number)
-      } else {
-        source <- sprintf("[%s]", doc_name)
+    safe_chr <- function(field) {
+      if (field %in% names(chunk)) {
+        val <- chunk[[field]]
+        if (length(val) > 0 && !isTRUE(is.na(val[1]))) return(as.character(val)[1])
       }
-    } else if (!isTRUE(is.na(abstract_title)) && isTRUE(nchar(abstract_title) > 0)) {
-      source <- sprintf("[%s]", abstract_title)
+      NA_character_
+    }
+    safe_int <- function(field) {
+      if (field %in% names(chunk)) {
+        val <- chunk[[field]]
+        if (length(val) > 0 && !isTRUE(is.na(val[1]))) return(as.integer(val)[1])
+      }
+      NA_integer_
+    }
+
+    doc_name <- safe_chr("doc_name")
+    abstract_title <- safe_chr("abstract_title")
+    abstract_authors <- safe_chr("abstract_authors")
+    doc_authors <- safe_chr("doc_authors")
+    page_number <- safe_int("page_number")
+    abstract_year <- safe_int("abstract_year")
+    doc_year <- safe_int("doc_year")
+    content <- safe_chr("content")
+    if (is.na(content)) content <- ""
+
+    # Build source label using format_citation_label() when metadata available
+    source <- "[Source]"
+    if (!is.na(doc_name) && nchar(doc_name) > 0) {
+      # Document chunk: try author/year, fall back to filename
+      label <- format_citation_label(doc_authors, doc_year, fallback_label = doc_name)
+      if (!is.na(page_number)) {
+        source <- sprintf("[%s, p.%d]", label, page_number)
+      } else {
+        source <- sprintf("[%s]", label)
+      }
+    } else if (!is.na(abstract_title) && nchar(abstract_title) > 0) {
+      # Abstract chunk: try author/year, fall back to title
+      source <- sprintf("[%s]",
+        format_citation_label(abstract_authors, abstract_year,
+                               fallback_label = abstract_title))
     }
 
     sprintf("Source %s:\n%s", source, content)
@@ -244,15 +330,16 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   system_prompt <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. If the sources don't contain enough information to fully answer the question, say so clearly.
 
 CITATION RULES:
-- Cite every substantive claim using (Author, Year, p.X) format
-- When page metadata is available: (Author, Year, p.X)
-- When source is an abstract only: (Author, Year, abstract)
-- When page number is missing: (Author, Year, chunk N)
-- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)
-- Extract author name and year from the source labels provided (e.g., [DocName, p.X] or [Paper Title])
+- Each source is labeled with its citation in brackets, e.g., [Smith et al. (2023), p.5] or [Jones & Lee (2021)]
+- Cite every substantive claim using the author and year from the source label: (Smith et al., 2023, p.5)
+- When the label includes a page number: (Author, Year, p.X)
+- When the source is an abstract with no page: (Author, Year)
+- When multiple sources support a claim, cite all: (Smith et al., 2023, p.5; Jones & Lee, 2021)
+- Use the citation exactly as it appears in the source label — do not invent author names or years
 
-Correct: \"Studies show increased resistance rates (WHO, 2024, p.12; Smith, 2023, p.45).\"
-Wrong: \"Studies show increased resistance rates [WHO Report, p.12].\""
+Correct: \"Studies show increased resistance rates (Smith et al., 2023, p.12; WHO, 2024, p.45).\"
+Wrong: \"Studies show increased resistance rates [Abstract].\"
+Wrong: \"Studies show increased resistance rates.\" (missing citation)"
 
   user_prompt <- sprintf("Sources:\n%s\n\nQuestion: %s", context, question)
 
@@ -341,7 +428,9 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   if (notebook$type == "document") {
     chunks <- dbGetQuery(con, "
       SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
-             d.filename as doc_name, NULL as abstract_title
+             d.filename as doc_name, NULL as abstract_title,
+             d.authors as doc_authors, d.year as doc_year,
+             NULL as abstract_authors, NULL as abstract_year
       FROM chunks c
       JOIN documents d ON c.source_id = d.id
       WHERE d.notebook_id = ?
@@ -351,7 +440,9 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   } else {
     chunks <- dbGetQuery(con, "
       SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
-             NULL as doc_name, a.title as abstract_title
+             NULL as doc_name, a.title as abstract_title,
+             NULL as doc_authors, NULL as doc_year,
+             a.authors as abstract_authors, a.year as abstract_year
       FROM chunks c
       JOIN abstracts a ON c.source_id = a.id
       WHERE a.notebook_id = ?
@@ -370,15 +461,15 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   system_prompt <- "You are a helpful research assistant. Generate the requested content based on the provided sources. Be thorough and well-organized.
 
 CITATION RULES:
-- Cite every substantive claim using (Author, Year, p.X) format
-- When page metadata is available: (Author, Year, p.X)
-- When source is an abstract only: (Author, Year, abstract)
-- When page number is missing: (Author, Year, chunk N)
-- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)
-- Extract author name and year from the source labels provided (e.g., [DocName, p.X] or [Paper Title])
+- Each source is labeled with its citation in brackets, e.g., [Smith et al. (2023), p.5] or [Jones & Lee (2021)]
+- Cite every substantive claim using the author and year from the source label: (Smith et al., 2023, p.5)
+- When the label includes a page number: (Author, Year, p.X)
+- When the source is an abstract with no page: (Author, Year)
+- When multiple sources support a claim, cite all: (Smith et al., 2023, p.5; Jones & Lee, 2021)
+- Use the citation exactly as it appears in the source label — do not invent author names or years
 
-Correct: \"Machine learning improves diagnostic accuracy (Chen, 2023, p.15; WHO, 2024, p.8).\"
-Wrong: \"Machine learning improves diagnostic accuracy.\""
+Correct: \"Machine learning improves diagnostic accuracy (Chen et al., 2023, p.15; WHO, 2024, p.8).\"
+Wrong: \"Machine learning improves diagnostic accuracy.\" (missing citation)"
   user_prompt <- sprintf("Sources:\n%s\n\nTask: %s", context, prompt)
 
   messages <- format_chat_messages(system_prompt, user_prompt)
@@ -1004,10 +1095,12 @@ build_context_by_paper <- function(papers_with_chunks) {
 
     chunk_texts <- vapply(seq_len(nrow(paper$chunks)), function(i) {
       hint <- if (!is.na(paper$chunks$section_hint[i])) paper$chunks$section_hint[i] else "general"
-      sprintf("[p.%d, %s] %s",
-              paper$chunks$page_number[i],
-              hint,
-              paper$chunks$content[i])
+      page_ref <- if (!isTRUE(is.na(paper$chunks$page_number[i]))) {
+        sprintf("p.%d, ", paper$chunks$page_number[i])
+      } else {
+        ""
+      }
+      sprintf("[%s%s] %s", page_ref, hint, paper$chunks$content[i])
     }, character(1))
 
     sprintf("=== PAPER: %s ===\n%s", paper$label, paste(chunk_texts, collapse = "\n\n"))

@@ -1,7 +1,6 @@
 library(testthat)
 
-# Source the config file
-source(file.path(getwd(), "R", "config.R"))
+source_app("config.R")
 
 test_that("load_config reads yaml file", {
   tmp <- tempfile(fileext = ".yml")

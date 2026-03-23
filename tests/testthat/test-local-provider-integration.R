@@ -3,17 +3,13 @@
 # Tests the full flow: providers DB → provider_from_config → LLM calls → cost estimation
 # Requires LM Studio running on localhost:1234 with a chat + embedding model loaded.
 
-project_root <- normalizePath(file.path(dirname(getwd()), ".."), winslash = "/")
-if (basename(getwd()) == "testthat") {
-  project_root <- normalizePath(file.path(getwd(), "..", ".."), winslash = "/")
-}
 
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "api_openalex.R"))
-source(file.path(project_root, "R", "api_provider.R"))
-source(file.path(project_root, "R", "cost_tracking.R"))
+source_app("db_migrations.R")
+source_app("db.R")
+source_app("config.R")
+source_app("api_openalex.R")
+source_app("api_provider.R")
+source_app("cost_tracking.R")
 
 LM_STUDIO_URL <- "http://localhost:1234/v1"
 CHAT_MODEL <- "gemma-3-270m-it"

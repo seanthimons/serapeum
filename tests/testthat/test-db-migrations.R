@@ -1,14 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  # Fallback: we may already be in project root
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
+source_app("config.R", "db.R", "db_migrations.R")
 
 test_that("get_applied_migrations creates tracking table and returns empty", {
   # Create a fresh in-memory database
@@ -164,14 +156,9 @@ test_that("topics table created by migration 002", {
   migrations_dir <- file.path(tmp_dir, "migrations")
   dir.create(migrations_dir)
 
-  # Copy actual migration files
-  project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-  if (!file.exists(file.path(project_root, "migrations"))) {
-    project_root <- getwd()
-  }
 
   # Read and write migration 002
-  mig_002_content <- readLines(file.path(project_root, "migrations", "002_create_topics_table.sql"))
+  mig_002_content <- readLines(file.path(app_root(), "migrations", "002_create_topics_table.sql"))
   writeLines(mig_002_content, file.path(migrations_dir, "002_create_topics_table.sql"))
 
   # Change to temp directory
@@ -221,12 +208,8 @@ test_that("prompt_versions table created by migration 011", {
   migrations_dir <- file.path(tmp_dir, "migrations")
   dir.create(migrations_dir)
 
-  project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-  if (!file.exists(file.path(project_root, "migrations"))) {
-    project_root <- getwd()
-  }
 
-  mig_011_content <- readLines(file.path(project_root, "migrations", "018_create_prompt_versions.sql"))
+  mig_011_content <- readLines(file.path(app_root(), "migrations", "018_create_prompt_versions.sql"))
   writeLines(mig_011_content, file.path(migrations_dir, "018_create_prompt_versions.sql"))
 
   old_wd <- getwd()

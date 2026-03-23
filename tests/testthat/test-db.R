@@ -1,15 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-# Navigate up from tests/testthat to project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  # Fallback: we may already be in project root (e.g., when run via Rscript from project root)
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
+source_app("config.R", "db_migrations.R", "db.R", "pdf_images.R", "_ragnar.R")
 
 test_that("get_db_connection creates database file", {
   tmp_dir <- tempdir()

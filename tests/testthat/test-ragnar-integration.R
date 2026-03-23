@@ -4,16 +4,7 @@
 
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "_ragnar.R"))) {
-  # Fallback: we may already be in project root
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "_ragnar.R"))
-source(file.path(project_root, "R", "config.R"))
+source_app("db_migrations.R", "db.R", "_ragnar.R", "config.R")
 
 # Ragnar availability check using safe pattern
 # requireNamespace() is unreliable on this machine due to broken renv DESCRIPTION files
