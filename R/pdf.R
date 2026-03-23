@@ -1,5 +1,65 @@
 library(pdftools)
 
+#' Sanitize a filename by removing characters unsafe for filesystems
+#'
+#' Replaces characters not allowed in Windows/Unix filenames with underscores.
+#' Truncates to max_length to avoid path-length issues.
+#'
+#' @param name The filename to sanitize
+#' @param max_length Maximum length before truncation (default 100)
+#' @return Sanitized filename string
+sanitize_filename <- function(name, max_length = 100) {
+  safe <- gsub('[/:*?"<>|\\\\]', "_", name)
+  if (nchar(safe) > max_length) {
+    safe <- substr(safe, 1, max_length)
+  }
+  safe
+}
+
+#' Validate URL is safe for use (HTTP/HTTPS only)
+#' @param url URL to validate
+#' @return TRUE if URL is safe, FALSE otherwise
+is_safe_url <- function(url) {
+  if (is.na(url) || is.null(url) || nchar(url) == 0) return(FALSE)
+  grepl("^https?://", url, ignore.case = TRUE)
+}
+
+#' Download a PDF from a URL
+#'
+#' Downloads a PDF and validates it has the correct magic bytes.
+#' Catches HTML landing pages, CAPTCHAs, etc.
+#'
+#' @param url URL to download from
+#' @param dest_path Destination file path
+#' @param timeout_seconds Download timeout (default 30)
+#' @return List with success (logical), path or reason
+download_pdf_from_url <- function(url, dest_path, timeout_seconds = 30) {
+  tryCatch({
+    resp <- httr2::request(url) |>
+      httr2::req_timeout(timeout_seconds) |>
+      httr2::req_perform()
+
+    if (httr2::resp_status(resp) != 200) {
+      return(list(success = FALSE, reason = paste("HTTP", httr2::resp_status(resp))))
+    }
+
+    writeBin(httr2::resp_body_raw(resp), dest_path)
+
+    # Verify PDF magic bytes
+    raw_bytes <- readBin(dest_path, "raw", n = 5)
+    magic <- rawToChar(raw_bytes)
+    if (magic != "%PDF-") {
+      unlink(dest_path)
+      return(list(success = FALSE, reason = "Not a valid PDF (wrong magic bytes)"))
+    }
+
+    list(success = TRUE, path = dest_path)
+  }, error = function(e) {
+    if (file.exists(dest_path)) unlink(dest_path)
+    list(success = FALSE, reason = e$message)
+  })
+}
+
 #' Extract text from PDF file
 #' @param path Path to PDF file
 #' @return List with text (character vector per page) and page_count

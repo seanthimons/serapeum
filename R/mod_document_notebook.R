@@ -653,7 +653,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Write text files for abstract-imported documents (no PDF on disk)
       pdf_dir <- file.path(".temp", "pdfs", nb_id)
-      sanitize_filename <- function(name) gsub('[/:*?"<>|\\\\]', "_", name)
+      # sanitize_filename() is defined in R/pdf.R (shared utility)
       text_docs <- which(
         (is.na(docs$filepath) | nchar(docs$filepath) == 0) &
         !is.na(docs$full_text) & nchar(docs$full_text) > 0

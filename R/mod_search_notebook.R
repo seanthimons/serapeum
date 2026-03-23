@@ -574,13 +574,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 38: ExtendedTask for batch abstract import (50+ papers)
     batch_import_task <- ExtendedTask$new(function(abstract_ids, target_notebook_id,
-                                                    db_path, interrupt_flag, progress_file, app_dir) {
+                                                    db_path, interrupt_flag, progress_file,
+                                                    app_dir, download_pdfs = FALSE) {
       mirai::mirai({
         setwd(app_dir)
         source("R/db_migrations.R")
         source("R/db.R")
         source("R/interrupt.R")
         source("R/bulk_import.R")  # For write_import_progress / read_import_progress
+        source("R/_ragnar.R")      # For chunk_with_ragnar()
+        source("R/pdf.R")          # For download_pdf_from_url(), process_pdf(), sanitize_filename()
+        source("R/import_paper.R") # For import_single_paper()
 
         # Open own DB connection (mirai workers can't share)
         con <- get_connection(db_path)
@@ -597,6 +601,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         duplicates <- intersect(abstract_ids, existing_abstract_ids)
 
         imported <- 0L
+        pdf_imported <- 0L
+        abstract_imported <- 0L
         failed <- 0L
         failed_details <- list()
         total <- length(to_import)
@@ -618,38 +624,45 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             }
             abs <- abs[1, ]
 
-            if (is.na(abs$abstract) || nchar(abs$abstract) == 0) {
-              failed <- failed + 1L
-              failed_details[[length(failed_details) + 1]] <- list(id = aid, reason = "No abstract text")
-              next
+            has_pdf <- download_pdfs && is_safe_url(abs$pdf_url)
+            pct_msg <- if (has_pdf) {
+              sprintf("Downloading PDF %d of %d...", i, total)
+            } else {
+              sprintf("Importing abstract %d of %d...", i, total)
             }
+            write_import_progress(progress_file, i, total, imported, failed, pct_msg)
 
-            doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
-            doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
-            doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
-
-            doc_id <- create_document(
-              con, target_notebook_id,
-              paste0(abs$title, ".txt"),
-              "",
-              abs$abstract,
-              1,
-              title = abs$title,
-              authors = doc_authors,
-              year = doc_year,
-              doi = doc_doi,
-              abstract_id = abs$id
+            result <- import_single_paper(
+              con, target_notebook_id, abs,
+              download_pdfs = download_pdfs,
+              chunk_size = 2500, chunk_overlap = 0.1
             )
 
-            create_chunk(con, doc_id, "document", 0, abs$abstract, page_number = 1)
-            imported <- imported + 1L
+            if (isTRUE(result$success)) {
+              imported <- imported + 1L
+              if (identical(result$method, "pdf")) {
+                pdf_imported <- pdf_imported + 1L
+              } else {
+                abstract_imported <- abstract_imported + 1L
+              }
+            } else {
+              failed <- failed + 1L
+              failed_details[[length(failed_details) + 1]] <- list(
+                id = aid, reason = if (!is.null(result$reason)) result$reason else "Unknown"
+              )
+            }
           }, error = function(e) {
             failed <<- failed + 1L
             failed_details[[length(failed_details) + 1]] <<- list(id = aid, reason = conditionMessage(e))
           })
 
+          # Rate-limit PDF downloads
+          if (download_pdfs && i < total) {
+            Sys.sleep(0.5)
+          }
+
           # Write progress
-          pct_msg <- sprintf("Importing paper %d of %d...", i, total)
+          pct_msg <- sprintf("Imported %d of %d papers...", i, total)
           write_import_progress(progress_file, i, total, imported, failed, pct_msg)
         }
 
@@ -657,6 +670,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         list(
           imported = imported,
+          pdf_imported = pdf_imported,
+          abstract_imported = abstract_imported,
           failed = failed,
           duplicates = length(duplicates),
           duplicate_ids = duplicates,
@@ -666,7 +681,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         )
       }, abstract_ids = abstract_ids, target_notebook_id = target_notebook_id,
          db_path = db_path, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         progress_file = progress_file, app_dir = app_dir,
+         download_pdfs = download_pdfs)
     })
 
     # Phase 22: Check for per-notebook store migration on notebook open
@@ -3001,6 +3017,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 38: Helper to show the notebook selector modal
     show_import_notebook_modal <- function() {
       selected <- selected_papers()
+
+      # Count how many selected papers have PDF URLs
+      pdf_count <- tryCatch({
+        pdf_rows <- dbGetQuery(con(), sprintf(
+          "SELECT COUNT(*) AS n FROM abstracts WHERE id IN (%s) AND pdf_url IS NOT NULL AND pdf_url != ''",
+          paste(sprintf("'%s'", selected), collapse = ",")
+        ))
+        pdf_rows$n
+      }, error = function(e) 0)
+
+      pdf_label <- sprintf(
+        "Download full PDFs when available (%d of %d papers)",
+        pdf_count, length(selected)
+      )
+
       showModal(modalDialog(
         title = "Import Papers",
         p(paste("Import", length(selected), "paper(s) to a document notebook.")),
@@ -3010,8 +3041,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           condition = sprintf("input['%s'] == '__new__'", ns("target_notebook")),
           textInput(ns("new_nb_name"), "New Notebook Name")
         ),
-        p(class = "text-muted small",
-          "Note: Only papers with open access PDFs can be fully imported."),
+        if (pdf_count > 0) {
+          tagList(
+            checkboxInput(ns("download_pdfs"), pdf_label, value = TRUE),
+            p(class = "text-muted small",
+              "PDFs downloaded from publisher open-access links. Import will be slower when enabled.")
+          )
+        } else {
+          p(class = "text-muted small",
+            "No open-access PDFs available. Papers will be imported with abstracts only.")
+        },
         footer = tagList(
           modalButton("Cancel"),
           actionButton(ns("do_import"), "Import", class = "btn-primary")
@@ -3030,11 +3069,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     }
 
     # Phase 38: Results modal helper
-    show_import_results <- function(imported, duplicates, failed, cancelled = FALSE) {
+    show_import_results <- function(imported, duplicates, failed,
+                                     pdf_count = 0, abstract_count = 0,
+                                     cancelled = FALSE) {
       title <- if (cancelled) {
         tagList(icon_circle_pause(class = "text-warning"), "Import Cancelled")
       } else {
         tagList(icon_check_circle(class = "text-success"), "Import Complete")
+      }
+
+      # Build breakdown text
+      breakdown <- if (pdf_count > 0 || abstract_count > 0) {
+        parts <- character(0)
+        if (pdf_count > 0) parts <- c(parts, sprintf("%d with full PDF", pdf_count))
+        if (abstract_count > 0) parts <- c(parts, sprintf("%d abstract-only", abstract_count))
+        p(class = "text-muted small", paste("Breakdown:", paste(parts, collapse = ", ")))
       }
 
       showModal(modalDialog(
@@ -3057,6 +3106,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             tags$small(class = "text-muted", "failed")
           )
         ),
+        breakdown,
         if (cancelled) {
           p(class = "text-muted small", "Import was cancelled. Papers already imported have been kept.")
         },
@@ -3084,6 +3134,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       removeModal()
 
+      download_pdfs <- isTRUE(input$download_pdfs)
+
       if (length(selected) < 50) {
         # Synchronous import for small batches
         abstracts <- dbGetQuery(con(), sprintf("
@@ -3102,27 +3154,47 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         abstracts <- abstracts[!abstracts$id %in% dup_ids, ]
 
         imported <- 0
-        for (i in seq_len(nrow(abstracts))) {
-          abs <- abstracts[i, ]
-          if (!is.na(abs$abstract) && nchar(abs$abstract) > 0) {
-            doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
-            doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
-            doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
+        pdf_imported <- 0
+        abstract_imported <- 0
+        failed_count <- 0
 
-            doc_id <- create_document(
-              con(), target, paste0(abs$title, ".txt"), "",
-              abs$abstract, 1,
-              title = abs$title, authors = doc_authors,
-              year = doc_year, doi = doc_doi, abstract_id = abs$id
+        withProgress(message = "Importing papers...", value = 0, {
+          for (i in seq_len(nrow(abstracts))) {
+            abs <- abstracts[i, ]
+            setProgress(
+              value = i / nrow(abstracts),
+              detail = sprintf("Paper %d of %d", i, nrow(abstracts))
             )
-            create_chunk(con(), doc_id, "document", 0, abs$abstract, page_number = 1)
-            imported <- imported + 1
+
+            result <- import_single_paper(
+              con(), target, abs,
+              download_pdfs = download_pdfs,
+              chunk_size = 2500, chunk_overlap = 0.1
+            )
+
+            if (isTRUE(result$success)) {
+              imported <- imported + 1
+              if (identical(result$method, "pdf")) {
+                pdf_imported <- pdf_imported + 1
+              } else {
+                abstract_imported <- abstract_imported + 1
+              }
+            } else {
+              failed_count <- failed_count + 1
+            }
+
+            # Rate-limit PDF downloads
+            if (download_pdfs && i < nrow(abstracts)) {
+              Sys.sleep(0.5)
+            }
           }
-        }
+        })
 
         dups <- length(dup_ids)
-        failed <- length(selected) - imported - dups
-        show_import_results(imported, dups, failed, cancelled = FALSE)
+        show_import_results(imported, dups, failed_count,
+                            pdf_count = pdf_imported,
+                            abstract_count = abstract_imported,
+                            cancelled = FALSE)
         paper_refresh(paper_refresh() + 1)
       } else {
         # Async import for large batches (50+ papers)
@@ -3167,7 +3239,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           db_path = db_path_val,
           interrupt_flag = flag_file,
           progress_file = prog_file,
-          app_dir = getwd()
+          app_dir = getwd(),
+          download_pdfs = download_pdfs
         )
 
         # Start progress polling
@@ -3226,8 +3299,12 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       batch_import_progress(NULL)
 
       # Show results
-      show_import_results(result$imported, result$duplicates, result$failed,
-                          cancelled = isTRUE(result$cancelled))
+      show_import_results(
+        result$imported, result$duplicates, result$failed,
+        pdf_count = if (!is.null(result$pdf_imported)) result$pdf_imported else 0,
+        abstract_count = if (!is.null(result$abstract_imported)) result$abstract_imported else 0,
+        cancelled = isTRUE(result$cancelled)
+      )
 
       # Refresh paper list
       paper_refresh(paper_refresh() + 1)
