@@ -651,8 +651,35 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
-      # Register resource path for PDF downloads
+      # Write text files for abstract-imported documents (no PDF on disk)
       pdf_dir <- file.path(".temp", "pdfs", nb_id)
+      text_docs <- which(
+        nchar(docs$filepath) == 0 &
+        !is.na(docs$full_text) & nchar(docs$full_text) > 0
+      )
+      if (length(text_docs) > 0) {
+        dir.create(pdf_dir, recursive = TRUE, showWarnings = FALSE)
+        for (j in text_docs) {
+          txt_path <- file.path(pdf_dir, docs$filename[j])
+          if (!file.exists(txt_path)) {
+            header <- docs$filename[j]
+            if (!is.na(docs$title[j])) header <- docs$title[j]
+            meta <- character(0)
+            if (!is.na(docs$authors[j])) meta <- c(meta, paste("Authors:", docs$authors[j]))
+            if (!is.na(docs$year[j])) meta <- c(meta, paste("Year:", docs$year[j]))
+            if (!is.na(docs$doi[j])) meta <- c(meta, paste("DOI:", docs$doi[j]))
+            content <- paste0(
+              header, "\n",
+              paste(rep("=", nchar(header)), collapse = ""), "\n",
+              if (length(meta) > 0) paste0(paste(meta, collapse = "\n"), "\n\n") else "\n",
+              docs$full_text[j]
+            )
+            writeLines(content, txt_path)
+          }
+        }
+      }
+
+      # Register resource path for PDF/text downloads
       if (dir.exists(pdf_dir)) {
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
         addResourcePath(resource_name, normalizePath(pdf_dir))
@@ -795,7 +822,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               href = download_url,
               download = doc$filename,
               class = "btn btn-sm btn-outline-secondary py-0 px-1",
-              title = "Download PDF",
+              title = if (is_pdf) "Download PDF" else "Download text",
               icon_download()
             ),
             actionLink(
