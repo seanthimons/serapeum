@@ -1,6 +1,6 @@
 # TODO
 
-Future enhancements for the Research Notebook tool, organized by milestone.
+Open issues for the Research Notebook tool, organized by milestone.
 
 ---
 
@@ -8,7 +8,7 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 - [x] PR #233: fix: v16 uncommitted changes — cost logging, prompt wiring, indexes [merged]
 - [x] PR #237: HOTFIX: Fix download button for abstract-imported documents [merged]
-- [ ] PR #241: fix: v18 Bug Bash — all 13 milestone issues [open] — v18-bug-bash -> integration
+- [x] PR #241: fix: v18 Bug Bash — all 13 milestone issues [merged]
 
 ---
 
@@ -46,83 +46,83 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 ---
 
-## v12.0: UX Polish & Onboarding
+## v19: Refiner Hardening
 
-*Quick wins — mostly low complexity, immediate user-facing value. All issues are parallel.*
+*Research Refiner stability and performance. All parallel.*
 
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| ~~[#149](https://github.com/seanthimons/serapeum/issues/149)~~ | ~~Major buttons should have tooltips~~ | ~~Low~~ | ~~High~~ |
-| [#150](https://github.com/seanthimons/serapeum/issues/150) | Notebook paths should have short descriptions for new users | Low | Medium |
-| [#87](https://github.com/seanthimons/serapeum/issues/87) | Chat UX: modal messaging (remaining — spinners done Phase 29) | Medium | Medium |
-| [#60](https://github.com/seanthimons/serapeum/issues/60) | Toggle/UI to expose API queries | Medium | Medium |
-| [#9](https://github.com/seanthimons/serapeum/issues/9) | Versioning for releases | Low | Low |
-
----
-
-## v13.0: Search & Discovery
-
-*Improve how users find and filter papers. All issues are parallel except #122 which is a research spike that may inform #11.*
-
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| [#176](https://github.com/seanthimons/serapeum/issues/176) | Research Refiner: add index on refiner_results(run_id) | Low | Medium |
-| [#174](https://github.com/seanthimons/serapeum/issues/174) | Research Refiner: batch accept/reject uses per-row DB writes | Low | Medium |
-| [#173](https://github.com/seanthimons/serapeum/issues/173) | Research Refiner: results UI silently caps at 100 papers | Low | Medium |
-| ~~[#151](https://github.com/seanthimons/serapeum/issues/151)~~ | ~~Duplicate keyword ban/keep behavior to per-abstract keywords~~ | ~~Medium~~ | ~~Medium~~ |
-| ~~[#125](https://github.com/seanthimons/serapeum/issues/125)~~ | ~~Update file/document filter types reported by OpenAlex~~ | ~~Medium~~ | ~~Medium~~ |
-| ~~[#11](https://github.com/seanthimons/serapeum/issues/11)~~ | ~~Recursive abstract searching~~ | ~~High~~ | ~~High~~ |
-| ~~[#160](https://github.com/seanthimons/serapeum/issues/160)~~ | ~~Research Refiner: start from notebook option~~ | ~~Medium~~ | ~~High~~ |
-| [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
+| Issue | Title | Priority | Complexity | Impact |
+|-------|-------|----------|------------|--------|
+| [#188](https://github.com/seanthimons/serapeum/issues/188) | perf: O(n^2) deduplication in candidate fetching | High | Low | Medium |
+| [#194](https://github.com/seanthimons/serapeum/issues/194) | Refiner: observer fragility in seed removal (index-based IDs) | Medium | Medium | Medium |
+| [#192](https://github.com/seanthimons/serapeum/issues/192) | Refiner: missing req() guards on inputs | Medium | Medium | Medium |
+| [#183](https://github.com/seanthimons/serapeum/issues/183) | perf: batch abstract embedding in research refiner (200 API calls → ~1) | Medium | Medium | Medium |
+| [#184](https://github.com/seanthimons/serapeum/issues/184) | perf: full UI re-render on every accept/reject in research refiner | Medium | Medium | Medium |
+| [#187](https://github.com/seanthimons/serapeum/issues/187) | refactor: deduplicate origin parsing in research_refiner.R | Low | Low | Low |
+| [#182](https://github.com/seanthimons/serapeum/issues/182) | bug: seed remove-button observers accumulate without teardown | Low | Low | Low |
 
 ---
 
-## v14.0: Citation Network Evolution
+## v20: Shiny Reactivity Cleanup
 
-*Network graph features and new visualization modes. All issues are parallel. #135 and #145 both touch citation audit UI — coordinate if worked simultaneously.*
+*Observer leaks, isolate() guards, error handling patterns, lifecycle management.*
 
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| ~~[#145](https://github.com/seanthimons/serapeum/issues/145)~~ | ~~Citation audit filters and controls (sorting, filtering by year/citation/FWCI)~~ | ~~Medium~~ | ~~Medium~~ |
-| ~~[#135](https://github.com/seanthimons/serapeum/issues/135)~~ | ~~Changing citation size by new calculation metric~~ | ~~High~~ | ~~Medium~~ |
-| [#84](https://github.com/seanthimons/serapeum/issues/84) | Export from network graph to abstract search + vice versa | High | Medium |
-| [#126](https://github.com/seanthimons/serapeum/issues/126) | Partial BFS graph as intentional visualization mode | Medium | Medium |
-| ~~[#6](https://github.com/seanthimons/serapeum/issues/6)~~ | ~~Timeline heatmap~~ | ~~Medium~~ | ~~Low~~ |
-
----
-
-## v15.0: AI Infrastructure
-
-*Core AI pipeline — model routing, retrieval, local models. #12 (evaluate reranker) should be done before or alongside #142 (retrieval pipeline). #48 feeds into #142. #144 and #8 are parallel to each other and to the retrieval work.*
-
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| ~~[#157](https://github.com/seanthimons/serapeum/issues/157)~~ | ~~OA request usage tracking~~ | ~~Medium~~ | ~~High~~ |
-| ~~[#144](https://github.com/seanthimons/serapeum/issues/144)~~ | ~~AA Integration + Split Models + Latency Tracking~~ | ~~High~~ | ~~High~~ |
-| ~~[#142](https://github.com/seanthimons/serapeum/issues/142)~~ | ~~Epic: Advanced Retrieval Pipeline (reranking, RRF, structural signals)~~ | ~~High~~ | ~~High~~ |
-| ~~[#48](https://github.com/seanthimons/serapeum/issues/48)~~ | ~~Tighter RAG document retrieval controls~~ | ~~Low~~ | ~~Medium~~ |
-| [#12](https://github.com/seanthimons/serapeum/issues/12) | ~~Evaluate reranker need~~ — deferred, using RRF + query reformulation instead | Low | TBD |
-| ~~[#8](https://github.com/seanthimons/serapeum/issues/8)~~ | ~~Local model support~~ | ~~High~~ | ~~High~~ |
+| Issue | Title | Priority | Complexity | Impact |
+|-------|-------|----------|------------|--------|
+| [#205](https://github.com/seanthimons/serapeum/issues/205) | Fix observer accumulation in slide chip handlers | High | Low | Medium |
+| [#210](https://github.com/seanthimons/serapeum/issues/210) | Missing isolate() on fig_refresh counter reads in observers | High | Low | Medium |
+| [#204](https://github.com/seanthimons/serapeum/issues/204) | Add req() guard for NULL provider/model in query builder | High | Low | Medium |
+| [#200](https://github.com/seanthimons/serapeum/issues/200) | Search notebook: error toast appears behind synthesis modal | High | Low | Medium |
+| [#212](https://github.com/seanthimons/serapeum/issues/212) | Figure action observers not destroyed on re-extraction | Medium | Medium | Medium |
+| [#219](https://github.com/seanthimons/serapeum/issues/219) | Clean up observer lifecycle and resource paths in slides/notebook modules | Medium | Medium | Medium |
+| [#202](https://github.com/seanthimons/serapeum/issues/202) | Inconsistent error handling between document and search notebook presets | Medium | Medium | Medium |
+| [#207](https://github.com/seanthimons/serapeum/issues/207) | Add input validation to match_aa_model() and section_filter fallback | Medium | Medium | Medium |
+| [#167](https://github.com/seanthimons/serapeum/issues/167) | perf: renderUI repeatedly queries list_documents() during processing | Medium | Medium | Medium |
+| [#158](https://github.com/seanthimons/serapeum/issues/158) | dev: investigate the SQL migration strategies on fresh installs | Medium | Medium | Medium |
 
 ---
 
-## v16.0: Content & Output Quality
+## v21: Slides & Figures
 
-*Improve generated slides, prompts, and exports. All issues are parallel. #22 (audio overview) is the heaviest lift and can be deferred within this milestone.*
+*Slide generation, figure pipeline, content quality, and prompt infrastructure.*
+
+| Issue | Title | Priority | Complexity | Impact |
+|-------|-------|----------|------------|--------|
+| [#217](https://github.com/seanthimons/serapeum/issues/217) | Persist generation_state$title for slide healing | High | Low | Medium |
+| [#225](https://github.com/seanthimons/serapeum/issues/225) | Add indexes to prompt_versions table | High | Low | Medium |
+| [#226](https://github.com/seanthimons/serapeum/issues/226) | Add error handling to save_prompt_version() | High | Low | Medium |
+| [#228](https://github.com/seanthimons/serapeum/issues/228) | Add error handling around get_chunks_for_documents() in slide generation | High | Low | Medium |
+| [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | Medium | High | High |
+| [#171](https://github.com/seanthimons/serapeum/issues/171) | Slide preview does not reflect selected theme | Medium | Medium | Medium |
+| [#222](https://github.com/seanthimons/serapeum/issues/222) | Heal flow sends base64-inlined QMD to LLM on second attempt | Medium | Medium | Medium |
+| [#223](https://github.com/seanthimons/serapeum/issues/223) | Re-extraction: all-saves-fail after delete leaves no figures | Medium | Medium | Medium |
+| [#147](https://github.com/seanthimons/serapeum/issues/147) | Figure quality filtering & deduplication (Stage 4) | Medium | Medium | Medium |
+| [#215](https://github.com/seanthimons/serapeum/issues/215) | Add error handling for file I/O in pdf_images.R | Medium | Medium | Medium |
+
+---
+
+## v22: Citation Network & Audit
+
+*Network graph and citation audit fixes — sizing, filtering, data persistence.*
+
+| Issue | Title | Priority | Complexity | Impact |
+|-------|-------|----------|------------|--------|
+| [#197](https://github.com/seanthimons/serapeum/issues/197) | Citation audit: stale sort_by when FWCI data disappears between runs | High | Low | Medium |
+| [#196](https://github.com/seanthimons/serapeum/issues/196) | Citation audit: min_frequency input blocks frequency=1 selection | High | Low | Medium |
+| [#169](https://github.com/seanthimons/serapeum/issues/169) | Node sizing selector resets to "citations" on re-render | High | Low | Medium |
+| [#195](https://github.com/seanthimons/serapeum/issues/195) | Citation audit: unfiltered_network_data mutated by sizing observer | Medium | Medium | Medium |
+| [#170](https://github.com/seanthimons/serapeum/issues/170) | Persist FWCI data with saved citation networks | Medium | Medium | Medium |
+| [#198](https://github.com/seanthimons/serapeum/issues/198) | Citation network: missing size_by in initial network metadata | Low | Low | Low |
+| [#84](https://github.com/seanthimons/serapeum/issues/84) | Export from network graph to abstract search + vice versa | Low | High | Medium |
+| [#126](https://github.com/seanthimons/serapeum/issues/126) | Partial BFS graph as intentional visualization mode | Low | Medium | Medium |
+
+---
+
+## v23: UX, Onboarding & Prompts
+
+*User-facing improvements, onboarding flows, and prompt editing UI.*
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#132](https://github.com/seanthimons/serapeum/issues/132) | Themes for slides need better descriptions | High | High |
-| [#120](https://github.com/seanthimons/serapeum/issues/120) | UI for viewing/editing prompts for research outputs | Medium | Medium |
-| [#52](https://github.com/seanthimons/serapeum/issues/52) | Quarto citation support exploration | Low | Medium |
-| [#22](https://github.com/seanthimons/serapeum/issues/22) | Audio overview (NotebookLM style) | High | Medium |
-
-*PR review follow-ups (from PR #233 review):*
-
-| Issue | Title | Complexity | Impact |
-|-------|-------|------------|--------|
-| ~~[#234](https://github.com/seanthimons/serapeum/issues/234)~~ | ~~log_cost returns stale ID when INSERT fails~~ | ~~Low~~ | ~~Medium~~ |
-| ~~[#235](https://github.com/seanthimons/serapeum/issues/235)~~ | ~~Missing trailing semicolon in migration 018 CREATE INDEX~~ | ~~Low~~ | ~~Medium~~ |
 | [#236](https://github.com/seanthimons/serapeum/issues/236) | Redundant role prefix in overview summary system prompt | Low | Low |
 
 *PR #237 review follow-ups:*
@@ -140,14 +140,14 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 | [#242](https://github.com/seanthimons/serapeum/issues/242) | N+1 DB queries in enrich_retrieval_results() | Low | Medium |
 | [#244](https://github.com/seanthimons/serapeum/issues/244) | JSON validate() guard too permissive for bare strings in create_abstract() | Low | Medium |
 | [#245](https://github.com/seanthimons/serapeum/issues/245) | Refiner API error-path tests are placeholders with dead mock code | Low | Medium |
+| [#251](https://github.com/seanthimons/serapeum/issues/251) | Document metadata lookup by filename not unique across notebooks | Low | Medium |
+| [#252](https://github.com/seanthimons/serapeum/issues/252) | Slides healing/theme generation bypasses resolve_model_for_operation() | Low | Medium |
 | [#250](https://github.com/seanthimons/serapeum/issues/250) | Duplicate error notification code in mod_research_refiner.R | Low | Low |
 | [#243](https://github.com/seanthimons/serapeum/issues/243) | Error accumulation uses fragile index assignment in research_refiner.R | Low | Low |
 | [#246](https://github.com/seanthimons/serapeum/issues/246) | Malformed JSON test assertion too permissive in test-rag-citations.R | Low | Low |
 | [#247](https://github.com/seanthimons/serapeum/issues/247) | No test for migration 019 (retroactive index) | Low | Low |
 | [#248](https://github.com/seanthimons/serapeum/issues/248) | Test comment/name mismatch in test-db-migrations.R | Low | Low |
 | [#249](https://github.com/seanthimons/serapeum/issues/249) | setwd() in migration test risks corrupting test suite cwd | Low | Low |
-| [#251](https://github.com/seanthimons/serapeum/issues/251) | Document metadata lookup by filename not unique across notebooks | Low | Medium |
-| [#252](https://github.com/seanthimons/serapeum/issues/252) | Slides healing/theme generation bypasses resolve_model_for_operation() | Low | Medium |
 
 ---
 
@@ -181,24 +181,27 @@ Future enhancements for the Research Notebook tool, organized by milestone.
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
+| [#122](https://github.com/seanthimons/serapeum/issues/122) | Follow up research | Low | Low |
 | [#30](https://github.com/seanthimons/serapeum/issues/30) | Demo mode | Medium | Low |
+| [#22](https://github.com/seanthimons/serapeum/issues/22) | Audio overview (NotebookLM style) | High | Medium |
 | [#21](https://github.com/seanthimons/serapeum/issues/21) | Semantic Scholar integration | High | Low |
 
 ---
 
-## Moonshot Goals
-
-High-effort, high-payoff features for the future.
+## Moonshots
 
 | Issue | Title | Complexity | Impact |
 |-------|-------|------------|--------|
-| [#109](https://github.com/seanthimons/serapeum/issues/109) | moonshot: Flag to disable AI features, pure abstract searching app | High | High |
-| [#41](https://github.com/seanthimons/serapeum/issues/41) | moonshot: Full OpenAlex Corpus Ingestion | Very High | Very High |
-| [#42](https://github.com/seanthimons/serapeum/issues/42) | moonshot: DuckDB Native Vector Search | High | High |
+| [#109](https://github.com/seanthimons/serapeum/issues/109) | Flag to disable AI features, pure abstract searching app | High | High |
+| [#41](https://github.com/seanthimons/serapeum/issues/41) | Full OpenAlex Corpus Ingestion | Very High | Very High |
+| [#42](https://github.com/seanthimons/serapeum/issues/42) | DuckDB Native Vector Search | High | High |
 
 ---
 
 ## Completed
+
+<details>
+<summary>Click to expand completed items</summary>
 
 - [x] Basic document notebooks with PDF upload
 - [x] Search notebooks via OpenAlex
@@ -323,6 +326,11 @@ High-effort, high-payoff features for the future.
 - [x] [#48](https://github.com/seanthimons/serapeum/issues/48): Tighter RAG document retrieval controls (v15.0)
 - [x] [#144](https://github.com/seanthimons/serapeum/issues/144): AA Integration + Split Models + Latency Tracking — provider abstraction, 3-slot routing, latency analytics, AA benchmarks (v15.0)
 - [x] [#8](https://github.com/seanthimons/serapeum/issues/8): Local model support — multi-provider management, Ollama/LM Studio/vLLM endpoints (v15.0)
+- [x] [#176](https://github.com/seanthimons/serapeum/issues/176): Research Refiner: add index on refiner_results(run_id)
+- [x] [#174](https://github.com/seanthimons/serapeum/issues/174): Research Refiner: batch accept/reject uses per-row DB writes
+- [x] [#173](https://github.com/seanthimons/serapeum/issues/173): Research Refiner: results UI silently caps at 100 papers
+
+</details>
 
 ---
 

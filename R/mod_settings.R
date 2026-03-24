@@ -239,6 +239,7 @@ migrate_model_slots <- function(con) {
 #' @param config_rv Reactive value holding current config
 mod_settings_server <- function(id, con, config_rv) {
   moduleServer(id, function(input, output, session) {
+    ns <- session$ns
 
     # One-time migration: chat_model → quality_model
     observe({
