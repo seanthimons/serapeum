@@ -150,6 +150,79 @@ test_that("enrich_ranked_with_metadata includes fwci column", {
   expect_true(is.na(result$fwci[2]))
 })
 
+
+# ============================================================================
+# save_network / load_network round-trip (regression: community column)
+# ============================================================================
+
+source_app("db.R", "db_migrations.R")
+
+test_that("save_network succeeds with community column after migrations", {
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+
+  # Set up citation network tables with community column (migration 006 + 010 + 020)
+  DBI::dbExecute(con, "CREATE TABLE citation_networks (
+    id VARCHAR PRIMARY KEY, name VARCHAR NOT NULL, seed_paper_id VARCHAR NOT NULL,
+    seed_paper_title VARCHAR NOT NULL, direction VARCHAR NOT NULL, depth INTEGER NOT NULL,
+    node_limit INTEGER NOT NULL, palette VARCHAR DEFAULT 'viridis',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    seed_paper_ids VARCHAR, source_notebook_id VARCHAR
+  )")
+  DBI::dbExecute(con, "CREATE TABLE network_nodes (
+    network_id VARCHAR NOT NULL, paper_id VARCHAR NOT NULL,
+    is_seed BOOLEAN DEFAULT FALSE, title VARCHAR NOT NULL, authors VARCHAR,
+    year INTEGER, venue VARCHAR, doi VARCHAR, cited_by_count INTEGER DEFAULT 0,
+    x_position DOUBLE, y_position DOUBLE,
+    is_overlap BOOLEAN DEFAULT FALSE, community VARCHAR,
+    PRIMARY KEY (network_id, paper_id),
+    FOREIGN KEY (network_id) REFERENCES citation_networks(id)
+  )")
+  DBI::dbExecute(con, "CREATE TABLE network_edges (
+    network_id VARCHAR NOT NULL, from_paper_id VARCHAR NOT NULL,
+    to_paper_id VARCHAR NOT NULL,
+    PRIMARY KEY (network_id, from_paper_id, to_paper_id),
+    FOREIGN KEY (network_id) REFERENCES citation_networks(id)
+  )")
+
+  nodes <- data.frame(
+    paper_id = c("W1", "W2"),
+    is_seed = c(TRUE, FALSE),
+    paper_title = c("Seed Paper", "Cited Paper"),
+    authors = c("Auth A", "Auth B"),
+    year = c(2020L, 2021L),
+    venue = c("Journal A", "Journal B"),
+    doi = c("10.1/a", "10.1/b"),
+    cited_by_count = c(100L, 50L),
+    x = c(0.0, 1.0),
+    y = c(0.0, 1.0),
+    is_overlap = c(FALSE, FALSE),
+    community = c("1", "2"),
+    stringsAsFactors = FALSE
+  )
+
+  edges <- data.frame(
+    from_paper_id = "W1",
+    to_paper_id = "W2",
+    stringsAsFactors = FALSE
+  )
+
+  id <- save_network(
+    con, name = "Test Network", seed_paper_id = "W1",
+    seed_paper_title = "Seed Paper", direction = "forward",
+    depth = 1, node_limit = 50, palette = "default",
+    nodes_df = nodes, edges_df = edges,
+    seed_paper_ids = c("W1"), source_notebook_id = "nb-1"
+  )
+
+  expect_type(id, "character")
+
+  saved_nodes <- DBI::dbGetQuery(con, "SELECT * FROM network_nodes WHERE network_id = ?", list(id))
+  expect_equal(nrow(saved_nodes), 2)
+  expect_true("community" %in% names(saved_nodes))
+  expect_equal(saved_nodes$community, c("1", "2"))
+})
+
 test_that("enrich_ranked_with_metadata adds fwci for empty metadata", {
   ranked <- data.frame(
     work_id = "W1",
