@@ -1741,7 +1741,8 @@ save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
     INSERT INTO citation_networks (id, name, seed_paper_id, seed_paper_title, direction, depth, node_limit, palette, seed_paper_ids, source_notebook_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ", list(id, name, seed_paper_id, seed_paper_title, direction,
-          as.integer(depth), as.integer(node_limit), palette, seed_ids_json, source_notebook_id))
+          as.integer(depth), as.integer(node_limit), palette, seed_ids_json,
+          source_notebook_id %||% NA_character_))
 
   # Prepare nodes for bulk insert
   if (nrow(nodes_df) > 0) {
@@ -1757,8 +1758,8 @@ save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
       cited_by_count = as.integer(nodes_df$cited_by_count),
       x_position = as.numeric(nodes_df$x),
       y_position = as.numeric(nodes_df$y),
-      is_overlap = as.logical(nodes_df$is_overlap %||% FALSE),
-      community = as.character(nodes_df$community %||% NA_character_),
+      is_overlap = as.logical(if (!is.null(nodes_df$is_overlap)) nodes_df$is_overlap else rep(FALSE, nrow(nodes_df))),
+      community = as.character(if (!is.null(nodes_df$community)) nodes_df$community else rep(NA_character_, nrow(nodes_df))),
       stringsAsFactors = FALSE
     )
 
