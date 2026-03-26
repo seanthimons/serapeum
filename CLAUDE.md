@@ -54,11 +54,14 @@ testthat::test_dir("tests/testthat")
 
 New features should have a design document in `docs/plans/` before implementation.
 
+## Task Tracking
+
+GitHub Issues + beads (`bd`) is the sole source of truth for task tracking. Use `bd ready` to find work. Do not maintain a separate TODO.md.
+
 ## Evergreen Tasks
 
 **After completing a feature or at the end of a session, check:**
 
 - [ ] **README.md** - Does it reflect current features and setup instructions?
-- [ ] **TODO.md** - Is completed work marked done? Are new issues added?
 
 Prompt the user: "Should I update the README to document the new features?"
