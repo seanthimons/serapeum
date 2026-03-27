@@ -928,11 +928,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                   result$n_extracted, desc_msg, filename),
           type = "message"
         )
-        # Destroy and clear old figure action observers (figure IDs changed)
+        # LIFE-02: Destroy all figure action observers before re-extraction.
+        # fig_refresh() increment (below) triggers gallery renderUI to re-register fresh observers.
+        # Sequential invalidation guarantees destroy completes before re-registration.
         for (old_id in names(fig_action_observers)) {
           obs_list <- fig_action_observers[[old_id]]
           if (is.list(obs_list)) {
-            for (obs in obs_list) if (!is.null(obs)) obs$destroy()
+            for (obs in obs_list) {
+              if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+            }
           }
           fig_action_observers[[old_id]] <- NULL
         }

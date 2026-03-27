@@ -1214,7 +1214,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       showModal(mod_slides_heal_modal_ui(ns, errors, is_success))
     }, ignoreInit = TRUE)
 
-    # Chip click handlers (up to 10 chips)
+    # LIFE-01: Pre-allocated chip handlers — registered once at module init.
+    # current_chips() reactiveVal gates which indices are active.
     lapply(seq_len(10), function(i) {
       observeEvent(input[[paste0("chip_", i)]], {
         chips <- current_chips()
