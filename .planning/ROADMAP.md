@@ -196,7 +196,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 **Milestone Goal:** Eliminate observer leaks, add missing isolate()/req() guards, fix error handling patterns, and clean up lifecycle management across all modules.
 
-- [ ] **Phase 64: Additive Guards** - req() and isolate() guards with zero regression risk
+- [x] **Phase 64: Additive Guards** - req() and isolate() guards with zero regression risk (completed 2026-03-27)
 - [ ] **Phase 65: Observer Lifecycle** - destroy-before-create pattern applied across all affected modules
 - [ ] **Phase 66: Error Handling** - standardized error patterns and toast z-index fix
 - [ ] **Phase 67: Infrastructure** - migration idempotency audit for fresh installs
@@ -309,7 +309,7 @@ Plans:
   4. section_filter called with an invalid or missing value falls back gracefully rather than propagating NA or NULL into downstream retrieval
 **Plans**: 1 plan
 Plans:
-- [ ] 64-01-PLAN.md — req() guards, isolate() audit, and input validation for match_aa_model and section_filter
+- [x] 64-01-PLAN.md — req() guards, isolate() audit, and input validation for match_aa_model and section_filter
 
 ### Phase 65: Observer Lifecycle
 **Goal**: Observer accumulation is eliminated — each modal open, re-extraction, and task cycle registers exactly one set of observers
@@ -353,7 +353,7 @@ Plans:
 | 61. AI Theme Generation | 2/2 | Complete | 2026-03-20 |
 | 62. Prompt Storage Schema | 1/1 | Complete | 2026-03-21 |
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
-| 64. Additive Guards | 0/1 | Not started | - |
+| 64. Additive Guards | 1/1 | Complete   | 2026-03-27 |
 | 65. Observer Lifecycle | 0/? | Not started | - |
 | 66. Error Handling | 0/? | Not started | - |
 | 67. Infrastructure | 0/? | Not started | - |

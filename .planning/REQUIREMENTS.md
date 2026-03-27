@@ -9,9 +9,9 @@ Requirements for Shiny Reactivity Cleanup. Each maps to roadmap phases.
 
 ### Reactive Guards
 
-- [ ] **GARD-01**: App does not crash when provider or model is NULL in query builder (req() guard)
-- [ ] **GARD-02**: fig_refresh counter reads inside observe() blocks use isolate() to prevent infinite loops
-- [ ] **GARD-03**: match_aa_model() and section_filter have input validation with safe fallback values
+- [x] **GARD-01**: App does not crash when provider or model is NULL in query builder (req() guard)
+- [x] **GARD-02**: fig_refresh counter reads inside observe() blocks use isolate() to prevent infinite loops
+- [x] **GARD-03**: match_aa_model() and section_filter have input validation with safe fallback values
 
 ### Observer Lifecycle
 
@@ -68,9 +68,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GARD-01 | Phase 64 | Pending |
-| GARD-02 | Phase 64 | Pending |
-| GARD-03 | Phase 64 | Pending |
+| GARD-01 | Phase 64 | Complete |
+| GARD-02 | Phase 64 | Complete |
+| GARD-03 | Phase 64 | Complete |
 | LIFE-01 | Phase 65 | Pending |
 | LIFE-02 | Phase 65 | Pending |
 | LIFE-03 | Phase 65 | Pending |

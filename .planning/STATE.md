@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v20.0
 milestone_name: Shiny Reactivity Cleanup
-status: roadmap_ready
-last_updated: "2026-03-27"
-last_activity: 2026-03-27 — Roadmap created, phases 64-67 defined
+status: verifying
+last_updated: "2026-03-27T15:36:07.328Z"
+last_activity: 2026-03-27
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 11
+  completed_phases: 8
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** v20.0 Shiny Reactivity Cleanup — ready to begin Phase 64
+**Current focus:** Phase 64 — additive-guards
 
 ## Current Position
 
-Phase: 64 (not started)
-Plan: —
-Status: Roadmap ready, awaiting phase planning
-Last activity: 2026-03-27 — Roadmap created, phases 64-67 defined
+Phase: 64 (additive-guards) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-03-27
 
 ```
 [Phase 64] [ Phase 65 ] [ Phase 66 ] [ Phase 67 ]
@@ -48,6 +48,9 @@ Progress: 0/4 phases complete
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
+
+- [Phase 64-additive-guards]: Added explicit is.na() check in match_aa_model guard — nzchar(NA_character_) returns TRUE in R, not NA, so plan's shorthand was incorrect
+- [Phase 64-additive-guards]: GARD-02 audit confirmed no code changes needed — all fig_refresh reads are safe in observeEvent/isolate contexts
 
 ### Pending Todos
 
