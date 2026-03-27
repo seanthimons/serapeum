@@ -360,7 +360,7 @@ Plans:
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
 | 65. Observer Lifecycle | 2/2 | Complete    | 2026-03-27 |
-| 66. Error Handling | 1/1 | Complete   | 2026-03-27 |
+| 66. Error Handling | 1/1 | Complete    | 2026-03-27 |
 | 67. Infrastructure | 0/? | Not started | - |
 
 ---
