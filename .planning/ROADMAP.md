@@ -320,7 +320,10 @@ Plans:
   2. Triggering figure re-extraction destroys the previous figure action observers before registering new ones — no duplicate actions fire on a single button click
   3. The document notebook renderUI block calls list_documents() once per invalidation cycle during async processing, not once per renderUI re-execution
   4. After closing slides and notebook modules, no orphaned observer or resource path references remain active — verified by absence of console errors on subsequent operations
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 65-01-PLAN.md — Audit chip/figure observer lifecycle and cache list_documents() in reactive()
+- [ ] 65-02-PLAN.md — Add session cleanup hooks and verify all LIFE requirements
 
 ### Phase 66: Error Handling
 **Goal**: Users see error messages reliably and consistently across all preset handlers, and error toasts are never hidden behind modals
@@ -354,10 +357,10 @@ Plans:
 | 62. Prompt Storage Schema | 1/1 | Complete | 2026-03-21 |
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
-| 65. Observer Lifecycle | 0/? | Not started | - |
+| 65. Observer Lifecycle | 0/2 | Not started | - |
 | 66. Error Handling | 0/? | Not started | - |
 | 67. Infrastructure | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-27 — v20.0 phases 64-67 added*
+*Last updated: 2026-03-27 — Phase 65 plans created*
