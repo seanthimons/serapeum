@@ -1499,5 +1499,13 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         })
       }
     )
+
+    # LIFE-04: Clean up on session end.
+    # Chip observers are pre-allocated at init (LIFE-01) and managed by Shiny's
+    # module scoping. This hook is a safety net for any resource paths.
+    session$onSessionEnded(function() {
+      # No observer stores to clean — chip handlers are fixed-count at init.
+      # Resource paths (slides_preview) are session-scoped by Shiny.
+    })
   })
 }
