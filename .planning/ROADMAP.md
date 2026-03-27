@@ -16,7 +16,8 @@
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
 - ✅ **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (shipped 2026-03-06)
 - ✅ **v11.0 Search Notebook UX** - Phases 50-56 (shipped 2026-03-12)
-- 🚧 **v16.0 Content & Output Quality** - Phases 57-63 (in progress)
+- ✅ **v16.0 Content & Output Quality** - Phases 57-63 (shipped 2026-03-21)
+- 🚧 **v20.0 Shiny Reactivity Cleanup** - Phases 64-67 (in progress)
 
 ## Phases
 
@@ -178,17 +179,27 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 </details>
 
-### v16.0 Content & Output Quality (In Progress)
+<details>
+<summary>✅ v16.0 Content & Output Quality (Phases 57-63) - SHIPPED 2026-03-21</summary>
 
-**Milestone Goal:** Give users more control over generated content — rich slide themes with AI generation, editable AI preset prompts, and page-level citation traceability across all outputs.
+- [x] **Phase 57: Citation Traceability** - completed 2026-03-18
+- [x] **Phase 58: Theme Infrastructure** - completed 2026-03-19
+- [x] **Phase 59: Theme Swatches, Upload, and Management** - completed 2026-03-19
+- [x] **Phase 60: Color Picker and Font Selector** - completed 2026-03-20
+- [x] **Phase 61: AI Theme Generation** - completed 2026-03-20
+- [x] **Phase 62: Prompt Storage Schema** - completed 2026-03-21
+- [x] **Phase 63: Prompt Editing UI** - completed 2026-03-21
 
-- [x] **Phase 57: Citation Traceability** - Prompt-level page citations in all AI presets and slide outputs (completed 2026-03-18)
-- [x] **Phase 58: Theme Infrastructure** - Custom .scss frontmatter plumbing enabling all subsequent theme layers (completed 2026-03-19)
-- [x] **Phase 59: Theme Swatches, Upload, and Management** - Visual swatch previews, .scss upload/persist/manage, base theme selector (completed 2026-03-19)
-- [x] **Phase 60: Color Picker and Font Selector** - Manual color/font customization with AI value population (completed 2026-03-20)
-- [x] **Phase 61: AI Theme Generation** - Freeform description to structured JSON to validated .scss (completed 2026-03-20)
-- [x] **Phase 62: Prompt Storage Schema** - DuckDB schema for date-versioned prompt history (completed 2026-03-21)
-- [x] **Phase 63: Prompt Editing UI** - View/edit/version/reset system prompts for all AI presets (completed 2026-03-21)
+</details>
+
+### v20.0 Shiny Reactivity Cleanup (In Progress)
+
+**Milestone Goal:** Eliminate observer leaks, add missing isolate()/req() guards, fix error handling patterns, and clean up lifecycle management across all modules.
+
+- [ ] **Phase 64: Additive Guards** - req() and isolate() guards with zero regression risk
+- [ ] **Phase 65: Observer Lifecycle** - destroy-before-create pattern applied across all affected modules
+- [ ] **Phase 66: Error Handling** - standardized error patterns and toast z-index fix
+- [ ] **Phase 67: Infrastructure** - migration idempotency audit for fresh installs
 
 ## Phase Details
 
@@ -214,7 +225,7 @@ Plans:
   3. Default behavior (no custom theme) is unchanged — existing slide decks continue to render correctly
 **Plans**: 1 plan
 Plans:
-- [ ] 58-01-PLAN.md — Custom .scss theme plumbing in build_qmd_frontmatter and pipeline threading
+- [x] 58-01-PLAN.md — Custom .scss theme plumbing in build_qmd_frontmatter and pipeline threading
 
 ### Phase 59: Theme Swatches, Upload, and Management
 **Goal**: Users can see visual previews of built-in themes and upload, persist, and manage their own .scss theme files
@@ -227,8 +238,8 @@ Plans:
   4. User can delete an uploaded theme via a management UI (list with delete buttons); deleted themes are removed from disk and selector
   5. Selecting a base theme (built-in or uploaded) sets it as the starting point for any custom modifications
 **Plans**: 2 plans
-- [ ] 59-01-PLAN.md — TDD: theme helper module (swatch table, SCSS parsing, file ops)
-- [ ] 59-02-PLAN.md — Wire theme UI into slide generation modal (selectize dropdown, upload, delete)
+- [x] 59-01-PLAN.md — TDD: theme helper module (swatch table, SCSS parsing, file ops)
+- [x] 59-02-PLAN.md — Wire theme UI into slide generation modal (selectize dropdown, upload, delete)
 
 ### Phase 60: Color Picker and Font Selector
 **Goal**: Users can manually customize slide theme colors and font via pickers that are also populated by AI-generated values
@@ -241,8 +252,8 @@ Plans:
   4. Saving the customized theme produces a .scss file that Quarto renders with the chosen values
 **Plans**: 2 plans
 Plans:
-- [ ] 60-01-PLAN.md — TDD: theme helper functions (generate_custom_scss, parse_scss_colors_full, CURATED_FONTS)
-- [ ] 60-02-PLAN.md — Wire color picker/font selector UI into slide generation modal
+- [x] 60-01-PLAN.md — TDD: theme helper functions (generate_custom_scss, parse_scss_colors_full, CURATED_FONTS)
+- [x] 60-02-PLAN.md — Wire color picker/font selector UI into slide generation modal
 
 ### Phase 61: AI Theme Generation
 **Goal**: Users can describe a slide theme in plain language and receive a validated, editable .scss theme file
@@ -256,10 +267,8 @@ Plans:
   5. After AI generation, the color picker and font selector fields are populated with the AI values for manual tweaking before saving
 **Plans**: 2 plans
 Plans:
-- [ ] 61-01-PLAN.md — TDD: AI theme generation helpers (JSON extraction, hex/font validation, LLM call)
-- [ ] 61-02-PLAN.md — Wire AI Generate UI into slide generation modal
-
-
+- [x] 61-01-PLAN.md — TDD: AI theme generation helpers (JSON extraction, hex/font validation, LLM call)
+- [x] 61-02-PLAN.md — Wire AI Generate UI into slide generation modal
 
 ### Phase 62: Prompt Storage Schema
 **Goal**: DuckDB schema exists to store date-versioned prompt history for all AI presets, enabling the prompt editing UI
@@ -271,7 +280,7 @@ Plans:
   3. The schema supports storing multiple versions per preset slug and retrieving the most recent active version
 **Plans**: 1 plan
 Plans:
-- [ ] 62-01-PLAN.md — Migration 011: prompt_versions table with composite PK and test
+- [x] 62-01-PLAN.md — Migration 011: prompt_versions table with composite PK and test
 
 ### Phase 63: Prompt Editing UI
 **Goal**: Users can view, edit, version, and reset the system prompts for all AI presets without seeing RAG plumbing
@@ -285,22 +294,68 @@ Plans:
   5. A "Reset to default" button replaces the stored prompt with the hardcoded original from R/rag.R, removing custom versions
 **Plans**: 3 plans
 Plans:
-- [ ] 63-01-PLAN.md — TDD: prompt_helpers.R with CRUD functions and PROMPT_DEFAULTS registry
-- [ ] 63-02-PLAN.md — Settings UI section with modal editor for prompt viewing/editing/versioning/reset
-- [ ] 63-03-PLAN.md — Wire get_effective_prompt() into all generators in R/rag.R and R/slides.R
+- [x] 63-01-PLAN.md — TDD: prompt_helpers.R with CRUD functions and PROMPT_DEFAULTS registry
+- [x] 63-02-PLAN.md — Settings UI section with modal editor for prompt viewing/editing/versioning/reset
+- [x] 63-03-PLAN.md — Wire get_effective_prompt() into all generators in R/rag.R and R/slides.R
+
+### Phase 64: Additive Guards
+**Goal**: The app does not crash from NULL inputs and does not risk infinite reactive loops from unguarded counter reads
+**Depends on**: Nothing (additive-only changes, no control flow modifications)
+**Requirements**: GARD-01, GARD-02, GARD-03
+**Success Criteria** (what must be TRUE):
+  1. Opening the query builder with no provider or model selected does not crash the app — the generate button silently does nothing until a valid model is chosen
+  2. The fig_refresh counter inside observe() blocks never triggers a self-referencing loop — CPU does not spike and no repeated toast notifications appear when documents are processed
+  3. match_aa_model() called with a NULL or empty openrouter_id returns a safe fallback value rather than throwing an error
+  4. section_filter called with an invalid or missing value falls back gracefully rather than propagating NA or NULL into downstream retrieval
+**Plans**: TBD
+
+### Phase 65: Observer Lifecycle
+**Goal**: Observer accumulation is eliminated — each modal open, re-extraction, and task cycle registers exactly one set of observers
+**Depends on**: Phase 64 (guards catch NULL crashes that would surface during lifecycle testing)
+**Requirements**: LIFE-01, LIFE-02, LIFE-03, LIFE-04
+**Success Criteria** (what must be TRUE):
+  1. Opening the slide heal modal N times and clicking a chip registers exactly one handler — not N stacked handlers each firing on the same click
+  2. Triggering figure re-extraction destroys the previous figure action observers before registering new ones — no duplicate actions fire on a single button click
+  3. The document notebook renderUI block calls list_documents() once per invalidation cycle during async processing, not once per renderUI re-execution
+  4. After closing slides and notebook modules, no orphaned observer or resource path references remain active — verified by absence of console errors on subsequent operations
+**Plans**: TBD
+
+### Phase 66: Error Handling
+**Goal**: Users see error messages reliably and consistently across all preset handlers, and error toasts are never hidden behind modals
+**Depends on**: Phase 65 (structural fixes stable before cross-cutting error handling changes)
+**Requirements**: ERRH-01, ERRH-02
+**Success Criteria** (what must be TRUE):
+  1. An error that occurs during synthesis while a modal is open dismisses the modal first, then shows the toast — the toast is never visually obscured by the modal backdrop
+  2. All document notebook preset handlers and all search notebook preset handlers use the same error handling function — no preset silently swallows errors or formats them differently
+  3. A failing preset in one notebook type produces the same user-visible error format as the equivalent failure in the other notebook type
+**Plans**: TBD
+
+### Phase 67: Infrastructure
+**Goal**: The app initializes cleanly on a fresh install with no migration errors from non-idempotent SQL
+**Depends on**: Nothing (fully independent of all reactive work)
+**Requirements**: INFR-01
+**Success Criteria** (what must be TRUE):
+  1. Running the app for the first time on a machine with no existing database completes all 9+ migrations without SQL errors
+  2. Every migration SQL statement uses CREATE TABLE IF NOT EXISTS or equivalent idempotent syntax — re-running migrations on an existing database produces no errors
+  3. The migration audit finding is documented with any corrected SQL committed alongside the fix
+**Plans**: TBD
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 57. Citation Traceability | 1/1 | Complete    | 2026-03-18 |
-| 58. Theme Infrastructure | 1/1 | Complete    | 2026-03-19 |
-| 59. Theme Swatches, Upload, and Management | 2/2 | Complete    | 2026-03-19 |
-| 60. Color Picker and Font Selector | 2/2 | Complete    | 2026-03-20 |
-| 61. AI Theme Generation | 2/2 | Complete    | 2026-03-20 |
-| 62. Prompt Storage Schema | 1/1 | Complete    | 2026-03-21 |
-| 63. Prompt Editing UI | 3/3 | Complete    | 2026-03-21 |
+| 57. Citation Traceability | 1/1 | Complete | 2026-03-18 |
+| 58. Theme Infrastructure | 1/1 | Complete | 2026-03-19 |
+| 59. Theme Swatches, Upload, and Management | 2/2 | Complete | 2026-03-19 |
+| 60. Color Picker and Font Selector | 2/2 | Complete | 2026-03-20 |
+| 61. AI Theme Generation | 2/2 | Complete | 2026-03-20 |
+| 62. Prompt Storage Schema | 1/1 | Complete | 2026-03-21 |
+| 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
+| 64. Additive Guards | 0/? | Not started | - |
+| 65. Observer Lifecycle | 0/? | Not started | - |
+| 66. Error Handling | 0/? | Not started | - |
+| 67. Infrastructure | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-21 — Phase 63 planned (3 plans)*
+*Last updated: 2026-03-27 — v20.0 phases 64-67 added*

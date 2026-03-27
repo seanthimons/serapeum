@@ -68,22 +68,22 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GARD-01 | — | Pending |
-| GARD-02 | — | Pending |
-| GARD-03 | — | Pending |
-| LIFE-01 | — | Pending |
-| LIFE-02 | — | Pending |
-| LIFE-03 | — | Pending |
-| LIFE-04 | — | Pending |
-| ERRH-01 | — | Pending |
-| ERRH-02 | — | Pending |
-| INFR-01 | — | Pending |
+| GARD-01 | Phase 64 | Pending |
+| GARD-02 | Phase 64 | Pending |
+| GARD-03 | Phase 64 | Pending |
+| LIFE-01 | Phase 65 | Pending |
+| LIFE-02 | Phase 65 | Pending |
+| LIFE-03 | Phase 65 | Pending |
+| LIFE-04 | Phase 65 | Pending |
+| ERRH-01 | Phase 66 | Pending |
+| ERRH-02 | Phase 66 | Pending |
+| INFR-01 | Phase 67 | Pending |
 
 **Coverage:**
 - v20.0 requirements: 10 total
-- Mapped to phases: 0
-- Unmapped: 10
+- Mapped to phases: 10
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after initial definition*
+*Last updated: 2026-03-27 — traceability populated after roadmap creation*
