@@ -22,8 +22,8 @@ Requirements for Shiny Reactivity Cleanup. Each maps to roadmap phases.
 
 ### Error Handling
 
-- [ ] **ERRH-01**: Error toast notifications appear above synthesis modal (not behind it)
-- [ ] **ERRH-02**: Error handling patterns are consistent between document and search notebook presets
+- [x] **ERRH-01**: Error toast notifications appear above synthesis modal (not behind it)
+- [x] **ERRH-02**: Error handling patterns are consistent between document and search notebook presets
 
 ### Infrastructure
 
@@ -75,8 +75,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIFE-02 | Phase 65 | Complete |
 | LIFE-03 | Phase 65 | Complete |
 | LIFE-04 | Phase 65 | Complete |
-| ERRH-01 | Phase 66 | Pending |
-| ERRH-02 | Phase 66 | Pending |
+| ERRH-01 | Phase 66 | Complete |
+| ERRH-02 | Phase 66 | Complete |
 | INFR-01 | Phase 67 | Pending |
 
 **Coverage:**

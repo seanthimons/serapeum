@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v20.0
 milestone_name: Shiny Reactivity Cleanup
 status: verifying
-last_updated: "2026-03-27T16:28:33.314Z"
+last_updated: "2026-03-27T17:22:14.897Z"
 last_activity: 2026-03-27
 progress:
   total_phases: 11
-  completed_phases: 9
-  total_plans: 15
-  completed_plans: 15
+  completed_phases: 10
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 65 — observer-lifecycle
+**Current focus:** Phase 66 — error-handling
 
 ## Current Position
 
-Phase: 66
-Plan: Not started
+Phase: 66 (error-handling) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-03-27
 
@@ -55,6 +55,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 65-01]: docs_reactive() caches list_documents() — renderUI blocks consume reactive instead of calling DB directly
 - [Phase 65]: delete_doc_observers added to cleanup loop — equally needs teardown alongside fig_action_observers and extract_observers
 - [Phase 65]: mod_slides.R onSessionEnded hook body is empty by design — chip handlers are pre-allocated at init per LIFE-01, no observer store to destroy
+- [Phase 66-error-handling]: show_error_toast() extracted to utils_notifications.R — sourced automatically by app.R glob loop
+- [Phase 66-error-handling]: modal-then-notify pattern: removeModal() -> show_error_toast() -> is_processing(FALSE) -> NULL applied to all 9 preset error handlers
 
 ### Pending Todos
 

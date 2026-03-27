@@ -198,7 +198,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 - [x] **Phase 64: Additive Guards** - req() and isolate() guards with zero regression risk (completed 2026-03-27)
 - [x] **Phase 65: Observer Lifecycle** - destroy-before-create pattern applied across all affected modules (completed 2026-03-27)
-- [ ] **Phase 66: Error Handling** - standardized error patterns and toast z-index fix
+- [x] **Phase 66: Error Handling** - standardized error patterns and toast z-index fix (completed 2026-03-27)
 - [ ] **Phase 67: Infrastructure** - migration idempotency audit for fresh installs
 
 ## Phase Details
@@ -335,7 +335,7 @@ Plans:
   3. A failing preset in one notebook type produces the same user-visible error format as the equivalent failure in the other notebook type
 **Plans**: 1 plan
 Plans:
-- [ ] 66-01-PLAN.md — Extract shared error utility, apply modal-then-notify pattern to all preset handlers
+- [x] 66-01-PLAN.md — Extract shared error utility, apply modal-then-notify pattern to all preset handlers
 
 ### Phase 67: Infrastructure
 **Goal**: The app initializes cleanly on a fresh install with no migration errors from non-idempotent SQL
@@ -360,7 +360,7 @@ Plans:
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
 | 65. Observer Lifecycle | 2/2 | Complete    | 2026-03-27 |
-| 66. Error Handling | 0/1 | Not started | - |
+| 66. Error Handling | 1/1 | Complete   | 2026-03-27 |
 | 67. Infrastructure | 0/? | Not started | - |
 
 ---
