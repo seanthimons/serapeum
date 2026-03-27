@@ -116,16 +116,22 @@ Researchers can efficiently discover relevant academic papers through seed paper
 
 ### Active
 
-- ✓ Color picker with 4 native swatch+hex pairs, font selector, save-as-custom-theme (THME-08, THME-10, THME-11) — v16.0 Phase 60
+(Defined in REQUIREMENTS.md for current milestone)
 
-## Current Milestone: v16.0 Content & Output Quality
+## Current Milestone: v20.0 Shiny Reactivity Cleanup
 
-**Goal:** Give users more control over generated content — rich slide themes with AI generation, editable AI preset prompts, and page-level citation traceability across all outputs.
+**Goal:** Eliminate observer leaks, add missing isolate()/req() guards, fix error handling patterns, and clean up lifecycle management across all modules.
 
 **Target features:**
-- Slide theme system: built-in swatches, color picker, custom .scss upload, AI-generated themes (#132)
-- Prompt editing UI: view/edit system prompts for all AI presets with date-versioned history (#120)
-- Citation traceability: page-level citations in all preset and slide outputs (#52)
+- Fix observer accumulation in slide chip handlers and figure action observers
+- Add missing isolate() guards on reactive counter reads in observers
+- Add req() guards for NULL provider/model in query builder and other inputs
+- Fix error toast z-index behind synthesis modal
+- Reduce unnecessary renderUI re-queries during processing
+- Clean up observer lifecycle and resource paths in slides/notebook modules
+- Standardize error handling patterns across document and search notebook presets
+- Add input validation to match_aa_model() and section_filter fallback
+- Investigate SQL migration strategies on fresh installs
 
 ### Out of Scope
 
@@ -239,17 +245,35 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 
 ## Current State
 
-**Latest shipped:** v11.0 Search Notebook UX (2026-03-11)
-**Total milestones:** 14 shipped (v1.0–v11.0)
+**Latest shipped:** v16.0 Content & Output Quality (2026-03-21)
+**Total milestones:** 15 shipped (v1.0–v16.0)
 **Total phases:** 63 complete across 105 plans
-**Current:** v16.0 Content & Output Quality
+**Current:** v20.0 Shiny Reactivity Cleanup
 
-**Phase 63 complete:** Prompt Editing UI — Settings page gains "AI Prompts" section with 11 presets (Quick/Deep groups). Modal editor for viewing/editing task instruction text with version history dropdown, save, and reset-to-default. RAG plumbing (citation rules, OWASP separators) hidden from users. R/prompt_helpers.R provides CRUD layer with PROMPT_DEFAULTS registry. All generators in R/rag.R and R/slides.R wired to use custom prompts via get_effective_prompt(). v16.0 milestone complete — all 7 phases shipped.
+**v16.0 complete:** Slide themes (swatches, color picker, SCSS upload, AI generation), prompt editing UI with version history, citation traceability in all presets.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
 - 13 pre-existing test fixture failures (missing schema columns)
 - Settings page two-column layout rebalancing
+- Observer accumulation across multiple modules (this milestone)
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-03-21 after phase 63 completion*
+*Last updated: 2026-03-26 after v20.0 milestone started*
