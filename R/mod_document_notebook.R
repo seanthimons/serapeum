@@ -205,6 +205,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     extract_observers <- reactiveValues()  # Track extract button observers
     fig_action_observers <- reactiveValues()  # Track per-figure action observers
 
+    # LIFE-03: Cache list_documents() result — runs once per invalidation cycle
+    # regardless of how many renderUI blocks depend on it.
+    docs_reactive <- reactive({
+      doc_refresh()        # Invalidate on refresh counter
+      nb_id <- notebook_id()
+      req(nb_id)
+      list_documents(con(), nb_id)
+    })
+
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
     processing_doc_count <- reactiveVal(0L)
@@ -279,10 +288,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     output$index_action_ui <- renderUI({
+      docs <- docs_reactive()
       nb_id <- notebook_id()
-      req(nb_id)
 
-      docs <- list_documents(con(), nb_id)
       if (nrow(docs) == 0) {
         return(NULL)
       }
@@ -637,11 +645,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     output$document_list <- renderUI({
-      doc_refresh()
+      docs <- docs_reactive()
       nb_id <- notebook_id()
-      req(nb_id)
-
-      docs <- list_documents(con(), nb_id)
 
       if (nrow(docs) == 0) {
         return(
