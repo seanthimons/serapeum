@@ -307,7 +307,9 @@ Plans:
   2. The fig_refresh counter inside observe() blocks never triggers a self-referencing loop — CPU does not spike and no repeated toast notifications appear when documents are processed
   3. match_aa_model() called with a NULL or empty openrouter_id returns a safe fallback value rather than throwing an error
   4. section_filter called with an invalid or missing value falls back gracefully rather than propagating NA or NULL into downstream retrieval
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 64-01-PLAN.md — req() guards, isolate() audit, and input validation for match_aa_model and section_filter
 
 ### Phase 65: Observer Lifecycle
 **Goal**: Observer accumulation is eliminated — each modal open, re-extraction, and task cycle registers exactly one set of observers
@@ -351,7 +353,7 @@ Plans:
 | 61. AI Theme Generation | 2/2 | Complete | 2026-03-20 |
 | 62. Prompt Storage Schema | 1/1 | Complete | 2026-03-21 |
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
-| 64. Additive Guards | 0/? | Not started | - |
+| 64. Additive Guards | 0/1 | Not started | - |
 | 65. Observer Lifecycle | 0/? | Not started | - |
 | 66. Error Handling | 0/? | Not started | - |
 | 67. Infrastructure | 0/? | Not started | - |
