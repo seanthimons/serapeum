@@ -146,7 +146,10 @@ run_pending_migrations <- function(con, migrations_dir = "migrations") {
   # Get list of applied migrations
   applied <- get_applied_migrations(con)
 
-  # Bootstrap existing databases at version 0
+  # Bootstrap version 001 after init_schema() has established the base schema.
+  # On a brand-new app install, get_db_connection() still reaches this branch
+  # because init_schema() runs before the migration tracker exists; safety
+  # depends on later migration SQL being explicitly idempotent.
   if (length(applied) == 0) {
     bootstrap_existing_database(con)
     applied <- get_applied_migrations(con)
