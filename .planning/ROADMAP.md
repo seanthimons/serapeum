@@ -333,7 +333,9 @@ Plans:
   1. An error that occurs during synthesis while a modal is open dismisses the modal first, then shows the toast — the toast is never visually obscured by the modal backdrop
   2. All document notebook preset handlers and all search notebook preset handlers use the same error handling function — no preset silently swallows errors or formats them differently
   3. A failing preset in one notebook type produces the same user-visible error format as the equivalent failure in the other notebook type
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 66-01-PLAN.md — Extract shared error utility, apply modal-then-notify pattern to all preset handlers
 
 ### Phase 67: Infrastructure
 **Goal**: The app initializes cleanly on a fresh install with no migration errors from non-idempotent SQL
@@ -358,9 +360,9 @@ Plans:
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
 | 65. Observer Lifecycle | 2/2 | Complete    | 2026-03-27 |
-| 66. Error Handling | 0/? | Not started | - |
+| 66. Error Handling | 0/1 | Not started | - |
 | 67. Infrastructure | 0/? | Not started | - |
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-27 — Phase 65 plans created*
+*Last updated: 2026-03-27 — Phase 66 plans created*
