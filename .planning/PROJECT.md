@@ -252,11 +252,14 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 
 **Phase 64 complete:** Additive Guards — req(provider, model) guard in query builder, fig_refresh isolate() audit confirmed clean, match_aa_model NULL/NA/empty validation, section_filter NA normalization. TDD: 39 assertions pass.
 
+**Phase 65 complete:** Observer Lifecycle — slide chip handlers, figure action observers, document list renderUI caching, session$onSessionEnded cleanup hooks.
+
+**Phase 66 complete:** Error Handling — show_error_toast() extracted to shared R/utils_notifications.R, modal-then-notify pattern applied to all 9 preset handlers across both notebook modules, error toasts always visible above modals.
+
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
 - 13 pre-existing test fixture failures (missing schema columns)
 - Settings page two-column layout rebalancing
-- Observer accumulation across multiple modules (Phases 65-67)
 
 ## Evolution
 
@@ -276,4 +279,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after Phase 65 completion*
+*Last updated: 2026-03-27 after Phase 66 completion*
