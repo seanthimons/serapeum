@@ -27,7 +27,7 @@ Requirements for Shiny Reactivity Cleanup. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFR-01**: SQL migrations are idempotent on fresh installs (CREATE TABLE IF NOT EXISTS audit)
+- [x] **INFR-01**: SQL migrations are idempotent on fresh installs (CREATE TABLE IF NOT EXISTS audit)
 
 ## Future Requirements
 
@@ -77,7 +77,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIFE-04 | Phase 65 | Complete |
 | ERRH-01 | Phase 66 | Complete |
 | ERRH-02 | Phase 66 | Complete |
-| INFR-01 | Phase 67 | Pending |
+| INFR-01 | Phase 67 | Complete |
 
 **Coverage:**
 - v20.0 requirements: 10 total

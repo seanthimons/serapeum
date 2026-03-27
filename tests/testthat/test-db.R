@@ -2,6 +2,19 @@ library(testthat)
 
 source_app("config.R", "db_migrations.R", "db.R", "pdf_images.R", "_ragnar.R")
 
+expect_columns_present <- function(con, table_name, expected_columns) {
+  columns <- DBI::dbGetQuery(con, sprintf("
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = '%s'
+  ", table_name))
+
+  for (col in expected_columns) {
+    expect_true(col %in% columns$column_name,
+                info = paste("Column", col, "should exist in", table_name))
+  }
+}
+
 test_that("get_db_connection creates database file", {
   tmp_dir <- tempdir()
   db_path <- file.path(tmp_dir, "test.duckdb")
@@ -14,6 +27,49 @@ test_that("get_db_connection creates database file", {
 
   close_db_connection(con)
   unlink(db_path)
+})
+
+test_that("get_db_connection applies migrations on fresh install and rerun", {
+  tmp_dir <- tempfile("db-startup-")
+  dir.create(tmp_dir)
+  db_path <- file.path(tmp_dir, "startup.duckdb")
+
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  con <- get_db_connection(db_path)
+
+  expect_true(file.exists(db_path))
+
+  tables <- DBI::dbListTables(con)
+  expect_true("schema_migrations" %in% tables)
+  expect_true("citation_networks" %in% tables)
+  expect_true("network_nodes" %in% tables)
+  expect_true("network_edges" %in% tables)
+  expect_true("prompt_versions" %in% tables)
+
+  applied <- get_applied_migrations(con)
+  expect_true(max(applied) >= 20)
+  expect_equal(length(unique(applied)), length(applied))
+
+  expect_columns_present(con, "abstracts", c("doi"))
+  expect_columns_present(con, "documents", c("title", "authors", "year", "doi", "abstract_id"))
+  expect_columns_present(con, "cost_log", c("duration_ms"))
+
+  close_db_connection(con)
+
+  con_rerun <- get_db_connection(db_path)
+
+  rerun_applied <- get_applied_migrations(con_rerun)
+  expect_equal(rerun_applied, applied)
+
+  rerun_tables <- DBI::dbListTables(con_rerun)
+  expect_true("citation_networks" %in% rerun_tables)
+  expect_true("prompt_versions" %in% rerun_tables)
+
+  expect_columns_present(con_rerun, "documents", c("title", "authors", "year", "doi", "abstract_id"))
+  expect_columns_present(con_rerun, "cost_log", c("duration_ms"))
+
+  close_db_connection(con_rerun)
 })
 
 test_that("init_schema creates required tables", {

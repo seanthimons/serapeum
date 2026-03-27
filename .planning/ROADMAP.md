@@ -199,7 +199,7 @@ See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 - [x] **Phase 64: Additive Guards** - req() and isolate() guards with zero regression risk (completed 2026-03-27)
 - [x] **Phase 65: Observer Lifecycle** - destroy-before-create pattern applied across all affected modules (completed 2026-03-27)
 - [x] **Phase 66: Error Handling** - standardized error patterns and toast z-index fix (completed 2026-03-27)
-- [ ] **Phase 67: Infrastructure** - migration idempotency audit for fresh installs
+- [x] **Phase 67: Infrastructure** - migration idempotency audit for fresh installs (completed 2026-03-27)
 
 ## Phase Details
 
@@ -361,7 +361,7 @@ Plans:
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
 | 65. Observer Lifecycle | 2/2 | Complete    | 2026-03-27 |
 | 66. Error Handling | 1/1 | Complete    | 2026-03-27 |
-| 67. Infrastructure | 1/2 | In Progress|  |
+| 67. Infrastructure | 2/2 | Complete   | 2026-03-27 |
 
 ---
 *Roadmap created: 2026-02-10*

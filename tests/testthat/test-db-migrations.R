@@ -149,6 +149,33 @@ test_that("bootstrap marks existing database as version 001", {
   expect_match(migration$description[1], "Bootstrap")
 })
 
+test_that("fresh install startup path does not duplicate migration records on rerun", {
+  tmp_dir <- tempfile("migration-rerun-")
+  dir.create(tmp_dir)
+  db_path <- file.path(tmp_dir, "rerun.duckdb")
+
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  con <- get_db_connection(db_path)
+  applied_first <- get_applied_migrations(con)
+  expect_true(length(applied_first) > 0)
+  close_db_connection(con)
+
+  con_rerun <- get_db_connection(db_path)
+  on.exit(DBI::dbDisconnect(con_rerun, shutdown = TRUE), add = TRUE)
+
+  applied_second <- get_applied_migrations(con_rerun)
+  expect_equal(applied_second, applied_first)
+
+  migration_counts <- DBI::dbGetQuery(con_rerun, "
+    SELECT version, COUNT(*) AS n
+    FROM schema_migrations
+    GROUP BY version
+    HAVING COUNT(*) > 1
+  ")
+  expect_equal(nrow(migration_counts), 0)
+})
+
 test_that("topics table created by migration 002", {
   # Create a temp directory with actual migrations
   tmp_dir <- tempfile()
