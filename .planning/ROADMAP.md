@@ -322,7 +322,7 @@ Plans:
   4. After closing slides and notebook modules, no orphaned observer or resource path references remain active — verified by absence of console errors on subsequent operations
 **Plans**: 2 plans
 Plans:
-- [ ] 65-01-PLAN.md — Audit chip/figure observer lifecycle and cache list_documents() in reactive()
+- [x] 65-01-PLAN.md — Audit chip/figure observer lifecycle and cache list_documents() in reactive()
 - [ ] 65-02-PLAN.md — Add session cleanup hooks and verify all LIFE requirements
 
 ### Phase 66: Error Handling
@@ -357,7 +357,7 @@ Plans:
 | 62. Prompt Storage Schema | 1/1 | Complete | 2026-03-21 |
 | 63. Prompt Editing UI | 3/3 | Complete | 2026-03-21 |
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
-| 65. Observer Lifecycle | 0/2 | Not started | - |
+| 65. Observer Lifecycle | 1/2 | In Progress|  |
 | 66. Error Handling | 0/? | Not started | - |
 | 67. Infrastructure | 0/? | Not started | - |
 

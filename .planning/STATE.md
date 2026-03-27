@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v20.0
 milestone_name: Shiny Reactivity Cleanup
-status: verifying
-last_updated: "2026-03-27T15:40:27.246Z"
+status: executing
+last_updated: "2026-03-27T16:15:58.074Z"
 last_activity: 2026-03-27
 progress:
   total_phases: 11
   completed_phases: 8
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 15
+  completed_plans: 14
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** Researchers can efficiently discover relevant academic papers through seed papers, assisted query building, and topic exploration — then export and share their findings
-**Current focus:** Phase 64 — additive-guards
+**Current focus:** Phase 65 — observer-lifecycle
 
 ## Current Position
 
-Phase: 65
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 65 (observer-lifecycle) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-03-27
 
 ```
@@ -51,6 +51,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 - [Phase 64-additive-guards]: Added explicit is.na() check in match_aa_model guard — nzchar(NA_character_) returns TRUE in R, not NA, so plan's shorthand was incorrect
 - [Phase 64-additive-guards]: GARD-02 audit confirmed no code changes needed — all fig_refresh reads are safe in observeEvent/isolate contexts
+- [Phase 65-01]: LIFE-01 chip handlers confirmed at module init level — no restructuring needed
+- [Phase 65-01]: docs_reactive() caches list_documents() — renderUI blocks consume reactive instead of calling DB directly
 
 ### Pending Todos
 
