@@ -18,7 +18,7 @@ Requirements for Shiny Reactivity Cleanup. Each maps to roadmap phases.
 - [x] **LIFE-01**: Slide chip handler observers are destroyed before re-creation on each modal open
 - [x] **LIFE-02**: Figure action observers are destroyed and re-registered on re-extraction
 - [x] **LIFE-03**: renderUI in document notebook does not repeatedly query list_documents() during processing
-- [ ] **LIFE-04**: Observer lifecycle and resource paths are cleaned up in slides and notebook modules
+- [x] **LIFE-04**: Observer lifecycle and resource paths are cleaned up in slides and notebook modules
 
 ### Error Handling
 
@@ -74,7 +74,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIFE-01 | Phase 65 | Complete |
 | LIFE-02 | Phase 65 | Complete |
 | LIFE-03 | Phase 65 | Complete |
-| LIFE-04 | Phase 65 | Pending |
+| LIFE-04 | Phase 65 | Complete |
 | ERRH-01 | Phase 66 | Pending |
 | ERRH-02 | Phase 66 | Pending |
 | INFR-01 | Phase 67 | Pending |

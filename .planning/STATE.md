@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v20.0
 milestone_name: Shiny Reactivity Cleanup
-status: executing
-last_updated: "2026-03-27T16:15:58.074Z"
+status: verifying
+last_updated: "2026-03-27T16:21:41.772Z"
 last_activity: 2026-03-27
 progress:
   total_phases: 11
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 
 Phase: 65 (observer-lifecycle) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-27
 
 ```
@@ -53,6 +53,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 64-additive-guards]: GARD-02 audit confirmed no code changes needed — all fig_refresh reads are safe in observeEvent/isolate contexts
 - [Phase 65-01]: LIFE-01 chip handlers confirmed at module init level — no restructuring needed
 - [Phase 65-01]: docs_reactive() caches list_documents() — renderUI blocks consume reactive instead of calling DB directly
+- [Phase 65]: delete_doc_observers added to cleanup loop — equally needs teardown alongside fig_action_observers and extract_observers
+- [Phase 65]: mod_slides.R onSessionEnded hook body is empty by design — chip handlers are pre-allocated at init per LIFE-01, no observer store to destroy
 
 ### Pending Todos
 
