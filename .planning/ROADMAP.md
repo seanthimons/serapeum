@@ -361,7 +361,7 @@ Plans:
 | 64. Additive Guards | 1/1 | Complete    | 2026-03-27 |
 | 65. Observer Lifecycle | 2/2 | Complete    | 2026-03-27 |
 | 66. Error Handling | 1/1 | Complete    | 2026-03-27 |
-| 67. Infrastructure | 2/2 | Complete   | 2026-03-27 |
+| 67. Infrastructure | 2/2 | Complete    | 2026-03-27 |
 
 ---
 *Roadmap created: 2026-02-10*

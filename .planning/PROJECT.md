@@ -248,13 +248,15 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 **Latest shipped:** v16.0 Content & Output Quality (2026-03-21)
 **Total milestones:** 15 shipped (v1.0–v16.0)
 **Total phases:** 64 complete across 106 plans
-**Current:** v20.0 Shiny Reactivity Cleanup
+**Current:** v20.0 Shiny Reactivity Cleanup complete
 
 **Phase 64 complete:** Additive Guards — req(provider, model) guard in query builder, fig_refresh isolate() audit confirmed clean, match_aa_model NULL/NA/empty validation, section_filter NA normalization. TDD: 39 assertions pass.
 
 **Phase 65 complete:** Observer Lifecycle — slide chip handlers, figure action observers, document list renderUI caching, session$onSessionEnded cleanup hooks.
 
 **Phase 66 complete:** Error Handling — show_error_toast() extracted to shared R/utils_notifications.R, modal-then-notify pattern applied to all 9 preset handlers across both notebook modules, error toasts always visible above modals.
+
+**Phase 67 complete:** Infrastructure — risky migration DDL normalized to explicit `IF NOT EXISTS` forms, startup-path regression coverage added for fresh install plus rerun, and `INFR-01` validated through automated DB tests.
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -279,4 +281,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after Phase 66 completion*
+*Last updated: 2026-03-27 after Phase 67 completion*
