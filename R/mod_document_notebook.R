@@ -1414,13 +1414,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        session$sendCustomMessage("docChatReady", ns(""))
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      session$sendCustomMessage("docChatReady", ns(""))
+      if (!is.null(response)) {
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        session$sendCustomMessage("docChatReady", ns(""))
+      }
     })
 
     # Also send on Enter key
@@ -1484,14 +1494,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         generate_preset(con(), cfg, nb_id, preset_type,
                         session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     }
 
     # Reset Overview popover to defaults each time it opens
@@ -1544,19 +1564,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "document",
                                  depth = depth, mode = mode, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "overview"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "overview"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
@@ -1591,14 +1621,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "document", session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Literature Review Table preset handler
@@ -1648,19 +1688,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_lit_review_table(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "lit_review"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "lit_review"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Methodology Extractor preset handler
@@ -1710,19 +1760,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_methodology_extractor(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "methodology_extractor"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "methodology_extractor"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Gap Analysis preset handler
@@ -1779,19 +1839,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_gap_analysis(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "gap_analysis"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "gap_analysis"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Slides module
