@@ -1886,16 +1886,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
             }
           }
+          fig_action_observers[[id]] <- NULL
         }
         # Destroy extract button observers
         for (id in names(extract_observers)) {
           obs <- extract_observers[[id]]
           if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+          extract_observers[[id]] <- NULL
         }
         # Destroy delete document observers
         for (id in names(delete_doc_observers)) {
           obs <- delete_doc_observers[[id]]
           if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+          delete_doc_observers[[id]] <- NULL
         }
       })
     })

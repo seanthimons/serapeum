@@ -122,8 +122,8 @@ bootstrap_existing_database <- function(con) {
 
     dbExecute(con, "
       INSERT INTO schema_migrations (version, description)
-      VALUES (1, 'Bootstrap existing schema (created by init_schema)')
-    ")
+      VALUES (?, ?)
+    ", list(1L, "Bootstrap existing schema (created by init_schema)"))
 
     return(TRUE)
   }

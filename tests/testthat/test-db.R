@@ -3,11 +3,11 @@ library(testthat)
 source_app("config.R", "db_migrations.R", "db.R", "pdf_images.R", "_ragnar.R")
 
 expect_columns_present <- function(con, table_name, expected_columns) {
-  columns <- DBI::dbGetQuery(con, sprintf("
+  columns <- DBI::dbGetQuery(con, "
     SELECT column_name
     FROM information_schema.columns
-    WHERE table_name = '%s'
-  ", table_name))
+    WHERE table_name = ?
+  ", list(table_name))
 
   for (col in expected_columns) {
     expect_true(col %in% columns$column_name,
