@@ -160,6 +160,8 @@ test_that("fresh install startup path does not duplicate migration records on re
   applied_first <- get_applied_migrations(con)
   expect_true(length(applied_first) > 0)
   close_db_connection(con)
+  gc()  # ensure DuckDB releases file lock on Windows
+  Sys.sleep(0.5)
 
   con_rerun <- get_db_connection(db_path)
   on.exit(DBI::dbDisconnect(con_rerun, shutdown = TRUE), add = TRUE)

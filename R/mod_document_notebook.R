@@ -1875,28 +1875,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # LIFE-04: Clean up observer handles on session end to prevent orphaned references.
     # Follows mod_citation_network.R cleanup pattern.
     session$onSessionEnded(function() {
-      # Destroy figure action observers
-      for (id in names(fig_action_observers)) {
-        obs_list <- fig_action_observers[[id]]
-        if (is.list(obs_list)) {
-          for (obs in obs_list) {
-            if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+      # isolate() required: onSessionEnded runs outside reactive context,
+      # but names() on reactiveValues needs one.
+      isolate({
+        # Destroy figure action observers
+        for (id in names(fig_action_observers)) {
+          obs_list <- fig_action_observers[[id]]
+          if (is.list(obs_list)) {
+            for (obs in obs_list) {
+              if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+            }
           }
         }
-        fig_action_observers[[id]] <- NULL
-      }
-      # Destroy extract button observers
-      for (id in names(extract_observers)) {
-        obs <- extract_observers[[id]]
-        if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
-        extract_observers[[id]] <- NULL
-      }
-      # Destroy delete document observers
-      for (id in names(delete_doc_observers)) {
-        obs <- delete_doc_observers[[id]]
-        if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
-        delete_doc_observers[[id]] <- NULL
-      }
+        # Destroy extract button observers
+        for (id in names(extract_observers)) {
+          obs <- extract_observers[[id]]
+          if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+        }
+        # Destroy delete document observers
+        for (id in names(delete_doc_observers)) {
+          obs <- delete_doc_observers[[id]]
+          if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+        }
+      })
     })
   })
 }

@@ -56,6 +56,8 @@ test_that("get_db_connection applies migrations on fresh install and rerun", {
   expect_columns_present(con, "cost_log", c("duration_ms"))
 
   close_db_connection(con)
+  gc()  # ensure DuckDB releases file lock on Windows
+  Sys.sleep(0.5)
 
   con_rerun <- get_db_connection(db_path)
 
