@@ -1,765 +1,467 @@
-# Architecture Research: Search Notebook UX Improvements
+# Architecture Research
 
-**Domain:** Shiny module UI restructuring with pagination and filtering
-**Researched:** 2026-03-06
-**Confidence:** HIGH
+**Domain:** Shiny Reactivity Cleanup — observer leaks, isolate() guards, req() guards, error handling, lifecycle management
+**Researched:** 2026-03-26
+**Confidence:** HIGH (direct code inspection of all affected modules)
 
-## System Overview
+## Standard Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    UI Layer (mod_search_notebook_ui)             │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Button Bar   │  │ Year Slider  │  │ Type Filters │          │
-│  │ (Toolbar)    │  │ + Histogram  │  │ (Checkboxes) │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                  │                  │                  │
-├─────────┴──────────────────┴──────────────────┴──────────────────┤
-│              Server Layer (mod_search_notebook_server)           │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                   Reactive Data Flow                      │   │
-│  │   papers_data() ─→ keyword_filter ─→ journal_filter      │   │
-│  │                           ↓                               │   │
-│  │                   filtered_papers()                       │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
-│  │ do_search_  │  │ Pagination  │  │ Filter      │            │
-│  │ refresh()   │  │ State       │  │ Modules     │            │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘            │
-│         │                 │                 │                   │
-├─────────┴─────────────────┴─────────────────┴───────────────────┤
-│                    API Layer (api_openalex.R)                    │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │   search_papers() with cursor pagination support         │   │
-│  └──────────────────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────────────────┤
-│                    Data Layer (DuckDB)                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
-│  │abstracts │  │notebooks │  │ chunks   │                       │
-│  └──────────┘  └──────────┘  └──────────┘                       │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Current Architecture (v10.0)
-
-### Existing Components
-
-| Component | Location | Responsibility | Current Implementation |
-|-----------|----------|----------------|------------------------|
-| Button bar | mod_search_notebook_ui (lines 68-102) | Action buttons in card header | Inline actionButton() calls with icon wrappers, no tooltips |
-| Year slider | mod_search_notebook_ui (lines 129-153) | Year range filtering | sliderInput + plotOutput histogram side-by-side |
-| Document type filters | Edit modal (lines 1892-1912) | Work type filtering | 6 checkboxInput widgets (article, review, preprint, book, dissertation, other) |
-| Refresh button | do_search_refresh() (lines 2189-2323) | Replace all papers with new search | Calls search_papers(), inserts new papers, shows count |
-| papers_data reactive | mod_search_notebook_server (lines 931-956) | Paper list with sorting | list_abstracts(con(), nb_id, sort_by) |
-| Composable filter chain | keyword_filter + journal_filter modules | Filter papers by keyword/journal | Producer-consumer pattern |
-
-### Current Data Flow: Refresh (Replace)
+### System Overview
 
 ```
-User clicks "Refresh"
-    ↓
-observeEvent(input$refresh_search)
-    ↓
-do_search_refresh() function
-    ↓
-get_notebook(con(), nb_id) → extract search_query + search_filters
-    ↓
-search_papers(query, filters, per_page = abstracts_count) [NO CURSOR]
-    ↓
-OpenAlex API → returns up to 200 papers (per_page limit)
-    ↓
-For each paper:
-    - Check if exists: SELECT id FROM abstracts WHERE notebook_id = ? AND paper_id = ?
-    - If new: create_abstract() + create_chunk()
-    - Increment newly_added counter
-    ↓
-paper_refresh(paper_refresh() + 1) → triggers papers_data() re-run
-    ↓
-showNotification("Added X new papers (Y total in notebook)")
+┌─────────────────────────────────────────────────────────────┐
+│                     app.R (Entry Point)                      │
+│  page_sidebar() + bs_theme() + thematic_shiny()             │
+│  Global con() reactiveVal — single DuckDB connection        │
+│  Global config() reactive — YAML config re-read             │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  mod_slides  │  │ mod_document │  │ mod_search       │  │
+│  │              │  │ _notebook    │  │ _notebook        │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
+│         │                 │                   │             │
+│  ┌──────┴──────────────────┴───────────────────┴──────────┐ │
+│  │            Producer-Consumer Discovery Layer            │ │
+│  │  mod_query_builder | mod_seed_discovery | mod_topic    │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │              mod_citation_network                       │ │
+│  │  ExtendedTask + mirai + file-based interrupt flags      │ │
+│  └─────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                   Data Layer                                 │
+│  ┌───────────────┐  ┌──────────────────────────────────┐    │
+│  │  DuckDB main  │  │  ragnar per-notebook DuckDB VSS  │    │
+│  │  serapeum.db  │  │  data/ragnar/{nb_id}.duckdb      │    │
+│  └───────────────┘  └──────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Key constraint:** `search_papers()` does NOT support cursor pagination. It's a single-page fetch.
+### Component Responsibilities
 
-### Current Reactive Chain
+| Component | Responsibility | Reactivity Surface |
+|-----------|---------------|-------------------|
+| `mod_slides.R` | Quarto slide deck generation, theme swatches, healing modal | `generation_state` reactiveValues, `current_chips` reactiveVal, chip click handlers via `lapply(seq_len(10), ...)` |
+| `mod_document_notebook.R` | PDF upload, RAG chat, figure gallery, preset synthesis | `fig_action_observers` reactiveValues, `fig_refresh` reactiveVal, `delete_doc_observers`, `extract_observers` |
+| `mod_search_notebook.R` | OpenAlex search, keyword filters, paper list, batch import | `delete_observers`, `view_observers`, `block_journal_observers`, `type_chip_observers`, `unblock_journal_observers` |
+| `mod_citation_network.R` | BFS citation graph, visNetwork rendering, async build with poller | `progress_poller` reactiveVal holds the polling observe() instance; result handler uses isolate() pattern |
+| `mod_query_builder.R` | NL query to OpenAlex filter generation via LLM | `provider` and `model` resolved inline at call site without upfront req() guard |
+| `R/db_migrations.R` | Versioned SQL migrations via `schema_migrations` table | Pure R, not reactive — called at app startup in `app.R` before server() |
+| `R/_ragnar.R` | Per-notebook ragnar store lifecycle — `ensure_ragnar_store()` | Called inside reactive contexts; secondary connection leak on creation error path |
+
+## Recommended Project Structure
+
+No structural changes needed. The existing layout is correct for this milestone:
 
 ```
-papers_data()
-    ↓ (reactive dependency)
-keyword_filtered_papers() [mod_keyword_filter_server]
-    ↓ (reactive dependency)
-journal_filtered_papers() [mod_journal_filter_server]
-    ↓ (alias)
-filtered_papers()
-    ↓ (renders)
-output$paper_list (UI)
+R/
+├── mod_slides.R             # Fix: isolate() on current_chips() in chip handlers
+├── mod_document_notebook.R  # Fix: verify fig_action_observer destroy path; isolate() audit
+├── mod_search_notebook.R    # Fix: type_chip_observers registration guard or destroy-before-replace
+├── mod_citation_network.R   # Fix: poller destroy-before-create; isolate() in result handler
+├── mod_query_builder.R      # Fix: add req(provider, model) after resolution
+├── db_migrations.R          # Investigate: fresh-install bootstrap ordering
+└── _ragnar.R                # Fix: secondary connection leak on ensure_ragnar_store() error path
 ```
 
-## Proposed Architecture (v11.0)
+All changes are in-place modifications to existing files. No new modules are created.
 
-### New Components
+## Architectural Patterns
 
-| Component | Location | Responsibility | Implementation |
-|-----------|----------|----------------|----------------|
-| **Toolbar module** | mod_search_notebook_ui (refactored lines 68-102) | Restructured button bar with semantic colors | Reorder buttons: Import → Refresh → Load More → Export → Network → Edit. Apply Catppuccin semantic colors. |
-| **Tooltip layer** | Toolbar buttons | Add contextual help | Use bslib tooltip() or custom title attributes on buttons |
-| **Load More button** | Toolbar (new) | Append next page of results | Calls search_papers() with cursor, appends to existing papers |
-| **Document type UI** | Edit modal (replace lines 1892-1912) | Expanded type filters with better UX | Replace 6 checkboxes with chip/pill UI or labeled checkboxGroupInput |
-| **Year slider alignment fix** | mod_search_notebook_ui (lines 129-153) | Fix histogram/slider visual alignment | Adjust CSS or layout to align histogram bars with slider ticks |
-| **Pagination state** | reactiveValues() in server | Track cursor for next page | `pagination_state <- reactiveValues(cursor = NULL, has_more = FALSE)` |
+### Pattern 1: Guard-First observeEvent
 
-### Integration Points
+**What:** All `observeEvent` handlers that access reactive state derived from external sources (config, notebook ID, API key, LLM provider) open with `req()` before any computation. This is already the dominant pattern throughout the codebase.
 
-#### 1. Button Bar Restructuring (mod_search_notebook_ui)
+**When to use:** Any handler that can legally fire before its dependencies are ready — button clicks before a notebook is selected, query generation before config is loaded.
 
-**Current:**
+**Trade-offs:** Adds one line per guard. Prevents silent NULL-propagation into downstream functions that assume valid inputs.
+
+**Correct form:**
 ```r
-# Lines 68-102
-actionButton(ns("open_bulk_import"), ..., icon = icon_file_import())
-# Export dropdown
-actionButton(ns("seed_citation_network"), ..., icon = icon_share_nodes())
-actionButton(ns("edit_search"), ..., icon = icon_edit())
-actionButton(ns("refresh_search"), "Refresh", ..., icon = icon_rotate())
+observeEvent(input$generate_btn, {
+  req(input$nl_query)
+  cfg <- config()
+  provider <- provider_from_config(cfg, con())
+  model    <- resolve_model_for_operation(cfg, "query_build")
+  req(provider, model)   # currently missing — add here
+  # ... rest of handler
+})
 ```
 
-**Proposed:**
+**Current gap in mod_query_builder.R:** `provider` and `model` are resolved but not req()-guarded. The manual `if (is.null(provider$api_key)...)` check handles the API key case but does not guard against `provider` itself being NULL or `model` being NULL when no model is configured.
+
+### Pattern 2: isolate() on Counter Reads Inside Observers That Write
+
+**What:** Any `observe()` or `observeEvent()` body that both reads and writes the same `reactiveVal` counter must wrap the read inside `isolate({})`. Only the primary trigger is left unguarded.
+
+**When to use:** Every `counter(counter() + 1)` call inside an observer that is also triggered by reactive reads. The canonical case is `fig_refresh(fig_refresh() + 1)`.
+
+**Trade-offs:** Without `isolate()`, reading `fig_refresh()` inside an observer that writes `fig_refresh()` creates the self-trigger cycle documented in CLAUDE.md. With `isolate()`, the update is side-effect only — no new dependency is created.
+
+**Correct form:**
 ```r
-# New order with tooltips and semantic colors
-actionButton(ns("open_bulk_import"), NULL,
-             class = "btn-sm btn-outline-success",
-             icon = icon_file_import()) |>
-  bslib::tooltip("Import DOIs from .bib or text"),
-
-actionButton(ns("refresh_search"), NULL,
-             class = "btn-sm btn-outline-primary",  # PRIMARY = lavender
-             icon = icon_rotate()) |>
-  bslib::tooltip("Replace results with new search"),
-
-actionButton(ns("load_more"), NULL,  # NEW
-             class = "btn-sm btn-outline-info",  # INFO = sapphire (distinct from primary)
-             icon = icon_plus_circle()) |>
-  bslib::tooltip("Load more papers from search"),
-
-# Export dropdown (unchanged)
-
-actionButton(ns("seed_citation_network"), NULL,
-             class = "btn-sm btn-outline-info",
-             icon = icon_share_nodes()) |>
-  bslib::tooltip("Build citation network from papers"),
-
-actionButton(ns("edit_search"), NULL,
-             class = "btn-sm btn-outline-secondary",
-             icon = icon_edit()) |>
-  bslib::tooltip("Edit search query and filters")
+obs_keep <- observeEvent(input[[paste0("keep_", f_id)]], {
+  db_update_figure(con(), f_id, is_excluded = FALSE)
+  fig_refresh(isolate(fig_refresh()) + 1)
+}, ignoreInit = TRUE)
 ```
 
-**Color harmonization:**
-- **Import** (success/green): New papers entering the system
-- **Refresh** (primary/lavender): Main action for updating results
-- **Load More** (info/sapphire): Secondary fetch action, visually distinct
-- **Network** (info/sapphire): Informational/exploratory action
-- **Edit** (secondary/gray): Utility action
-- **Export** (default): Neutral utility
+**Current state in mod_document_notebook.R:** `isolate(fig_refresh())` is correctly used at lines 1033, 1039, 1094. The raw `fig_refresh(fig_refresh() + 1)` calls at lines 790 and 948 are inside `observeEvent` handlers that do not read `fig_refresh()` as a reactive dependency — those are safe in their current context. Line 940 executes after async work inside an upload handler and should be audited to confirm it does not re-enter an observer that holds a `fig_refresh()` dependency.
 
-#### 2. Pagination State Management
+### Pattern 3: Once-Per-ID Observer Registration with reactiveValues Guard
 
-**New reactive state:**
+**What:** Per-item observers (delete buttons, figure action buttons, journal block buttons) check a `reactiveValues` registry before registering. If an entry already exists for a given ID, registration is skipped.
+
+**When to use:** Any `observe()` that iterates over a list (papers, documents, figures) and creates `observeEvent` handlers for dynamic UI elements. Without the guard, re-renders accumulate duplicate observers that all fire when the input is clicked.
+
+**Trade-offs:** Correct for insert-only lists. For mutable lists (figures that get replaced when document selection changes), the registry must be explicitly cleared and observers destroyed when the set changes.
+
+**Correct form:**
 ```r
-# In mod_search_notebook_server
-pagination_state <- reactiveValues(
-  cursor = NULL,         # Next cursor from meta.next_cursor
-  has_more = FALSE,      # Whether more results available
-  total_fetched = 0      # Running count of API-fetched papers this session
-)
-```
-
-**Updated after Refresh:**
-```r
-# In do_search_refresh()
-resp <- search_papers_with_pagination(...)  # MODIFIED function
-pagination_state$cursor <- resp$next_cursor
-pagination_state$has_more <- !is.null(resp$next_cursor)
-pagination_state$total_fetched <- length(resp$papers)
-```
-
-**Updated after Load More:**
-```r
-# New do_load_more() function
-resp <- search_papers_with_pagination(..., cursor = pagination_state$cursor)
-pagination_state$cursor <- resp$next_cursor
-pagination_state$has_more <- !is.null(resp$next_cursor)
-pagination_state$total_fetched <- pagination_state$total_fetched + length(resp$papers)
-```
-
-#### 3. OpenAlex API Cursor Pagination (api_openalex.R)
-
-**Current:** `search_papers()` does NOT return cursor metadata.
-
-**Proposed:** Add `search_papers_with_pagination()` function.
-
-**Implementation:**
-```r
-#' Search for papers with cursor pagination support
-#' @param cursor Cursor string from previous response (use "*" for first page)
-#' @return List with $papers (parsed works) and $next_cursor (string or NULL)
-search_papers_with_pagination <- function(query, email, api_key = NULL,
-                                          from_year = NULL, to_year = NULL,
-                                          per_page = 25, search_field = "default",
-                                          is_oa = FALSE, min_citations = NULL,
-                                          exclude_retracted = TRUE,
-                                          work_types = NULL,
-                                          cursor = "*") {
-  # Build filters (same as search_papers)
-  filters <- c("has_abstract:true")
-  # ... [existing filter logic] ...
-
-  filter_str <- paste(filters, collapse = ",")
-
-  # Build request with cursor parameter
-  req <- build_openalex_request("works", email, api_key)
-
-  if (use_search_param && nchar(query) > 0) {
-    req <- req |> req_url_query(search = query)
-  }
-
-  req <- req |> req_url_query(
-    filter = filter_str,
-    per_page = per_page,
-    cursor = cursor  # NEW: cursor parameter
-  )
-
-  resp <- tryCatch({
-    req_perform(req)
-  }, error = function(e) {
-    stop_api_error(e, "OpenAlex")
+if (is.null(fig_action_observers[[fig$id]])) {
+  local({
+    f_id <- fig$id
+    obs <- observeEvent(input[[paste0("keep_", f_id)]], { ... })
+    fig_action_observers[[f_id]] <- obs
   })
-
-  body <- resp_body_json(resp)
-
-  papers <- if (!is.null(body$results)) {
-    lapply(body$results, parse_openalex_work)
-  } else {
-    list()
-  }
-
-  # Extract next_cursor from meta object
-  next_cursor <- body$meta$next_cursor  # String like "ZjEwMD..." or NULL
-
-  list(
-    papers = papers,
-    next_cursor = next_cursor,
-    count = body$meta$count  # Total available (informational)
-  )
 }
 ```
 
-**Sources:**
-- [Paging | OpenAlex technical documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
-- [openalex-api-tutorials/notebooks/getting-started/paging.ipynb](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb)
+**Current state in mod_document_notebook.R:** The `fig_action_observers` registry already uses explicit `obs$destroy()` + NULL assignment at lines 932-937 when document selection changes. This destroy-and-reset pattern is correct and must be preserved. The risk is code paths that reach `renderUI` re-execution without passing through the destroy block.
 
-#### 4. Reactive Data Flow: Refresh vs Load More
+**Current gap in mod_search_notebook.R:** `type_chip_observers[[i]] <<- observeEvent(...)` at line 2457 always overwrites the registry entry without checking if one already exists and without calling `$destroy()` on the previous observer. The old observer remains alive. Each re-render of the chip UI registers a duplicate. Fix: either add a guard (`if (is.null(...))`) or explicitly call `type_chip_observers[[i]]$destroy()` before re-assigning.
 
-**Refresh (Replace):**
-```
-User clicks "Refresh"
-    ↓
-observeEvent(input$refresh_search)
-    ↓
-do_search_refresh()
-    ↓
-search_papers_with_pagination(..., cursor = "*")  # First page
-    ↓
-For each paper:
-    - If new: insert into DB
-    ↓
-pagination_state$cursor <- resp$next_cursor
-pagination_state$has_more <- !is.null(resp$next_cursor)
-    ↓
-paper_refresh(paper_refresh() + 1)  # Trigger UI update
-    ↓
-showNotification("Added X new papers (Y total)")
-```
+### Pattern 4: ExtendedTask Result Handler with isolate()
 
-**Load More (Append):**
-```
-User clicks "Load More"
-    ↓
-observeEvent(input$load_more)
-    ↓
-req(pagination_state$has_more)  # Disable if no more pages
-    ↓
-do_load_more()
-    ↓
-search_papers_with_pagination(..., cursor = pagination_state$cursor)
-    ↓
-For each paper:
-    - If new: insert into DB
-    ↓
-pagination_state$cursor <- resp$next_cursor
-pagination_state$has_more <- !is.null(resp$next_cursor)
-    ↓
-paper_refresh(paper_refresh() + 1)  # Append to existing list
-    ↓
-showNotification("Loaded X more papers (Y total)")
-```
+**What:** The `observe({ result <- task$result(); req(result); isolate({ ... }) })` pattern for handling async task completion. The primary trigger is the unguarded `task$result()` read. All secondary reactive reads and writes (notifications, counter increments, state updates) go inside `isolate({})`.
 
-**Key difference:** Refresh resets cursor to `"*"`. Load More uses existing `pagination_state$cursor`.
+**When to use:** Every ExtendedTask result handler — citation network build, batch import, re-index, bulk import.
 
-#### 5. Document Type Filter Expansion
+**Current state:** mod_document_notebook.R line 581 has a comment explicitly documenting this requirement (the reindex_task result handler). mod_search_notebook.R lines 874 and 3306 follow the same pattern. mod_citation_network.R line 707 is the network build result handler. All four need the `isolate()` wrap on secondary reactive writes confirmed in code review.
 
-**Current:** 6 checkboxInput widgets in edit modal (lines 1892-1912).
+### Pattern 5: Slide Chip Handler Registration via lapply at Module Init
 
-**Proposed:** Keep existing checkboxInput pattern BUT enhance visibility and usability.
+**What:** `lapply(seq_len(10), function(i) { observeEvent(input[[paste0("chip_", i)]], {...}) })` registers up to 10 chip click observers at module server startup — once, outside any reactive context.
 
-**Options:**
+**When to use:** Fixed-cardinality dynamic inputs where the count is bounded and known at startup.
 
-**Option A: Styled checkbox group with badges**
-```r
-div(
-  class = "d-flex flex-wrap gap-2 mb-3",
-  div(
-    checkboxInput(ns("edit_type_article"), NULL, value = TRUE, width = "auto"),
-    tags$label(
-      `for` = ns("edit_type_article"),
-      class = "badge bg-secondary",
-      "Articles"
-    )
-  ),
-  div(
-    checkboxInput(ns("edit_type_review"), NULL, value = TRUE, width = "auto"),
-    tags$label(
-      `for` = ns("edit_type_review"),
-      class = "badge bg-info",
-      "Reviews"
-    )
-  ),
-  # ... repeat for other types
-)
-```
+**Current state in mod_slides.R:** No accumulation issue — lapply runs once. The `current_chips()` read inside the handler at line 1220 is safe from a dependency perspective because the handler fires on input click, not on `current_chips()` change. However, `current_chips()` inside an `observeEvent` handler does create an incidental reactive dependency on `current_chips`. If `current_chips()` updates between a click and the handler body executing, this is benign — but wrapping with `isolate()` makes the intent explicit and consistent with the rest of the codebase.
 
-**Option B: Keep current layout, add distribution preview**
-```r
-# Existing checkboxInput widgets (unchanged)
-div(
-  class = "d-flex flex-wrap gap-3",
-  checkboxInput(ns("edit_type_article"), "Articles", ...),
-  checkboxInput(ns("edit_type_review"), "Reviews", ...),
-  # ... other types
-),
-# Distribution panel already exists (lines 1993-2023)
-# MOVE this collapsible panel ABOVE the checkboxes for better UX
-```
+### Pattern 6: Progress Poller Lifecycle
 
-**Recommendation:** Option B (minimal change). Distribution panel shows live counts per type, helping users decide which to include.
+**What:** Async tasks (citation network build, re-index, bulk import) create a polling `observe({ invalidateLater(1000); ... })` instance stored in a `reactiveVal`. On task completion or cancellation, the poller must be explicitly destroyed via `poller$destroy()`.
 
-**Modified component:** Move `output$type_distribution` from bottom of modal to ABOVE checkboxes in lines 1892-1912.
+**When to use:** Every `invalidateLater`-based polling loop spawned for an async task.
 
-#### 6. Year Slider + Histogram Alignment Fix
+**Current state in mod_citation_network.R:** The `progress_poller` reactiveVal stores the current poller. The result handler at line 707 destroys the poller when the task completes. The cancel handler at line 683 also destroys it. The gap to verify: when a new build is started before a previous one completes (user clicks "Build Network" twice), the old poller stored in `progress_poller()` must be destroyed before creating the new one. Pattern: `old <- progress_poller(); if (!is.null(old)) old$destroy()`.
 
-**Current:** sliderInput + plotOutput side-by-side (lines 129-153).
+## Data Flow
 
-**Issue:** Histogram bars may not align with slider tick positions due to CSS margin/padding differences.
-
-**Solution:** Wrap in a container with explicit width control.
-
-**Proposed:**
-```r
-div(
-  class = "mb-2",
-  # Year slider
-  div(
-    style = "margin-bottom: -10px;",  # Reduce gap
-    sliderInput(
-      ns("year_range"),
-      "Publication Year",
-      min = 1900,
-      max = 2026,
-      value = c(1900, 2026),
-      step = 1,
-      sep = "",
-      ticks = FALSE,
-      width = "100%"  # Explicit width
-    )
-  ),
-  # Histogram (same width as slider)
-  plotOutput(ns("year_histogram"), height = "60px", width = "100%"),
-  # Unknown year checkbox
-  div(
-    class = "d-flex justify-content-between align-items-center mt-1",
-    checkboxInput(ns("include_unknown_year"), "Include unknown year", value = TRUE),
-    textOutput(ns("unknown_year_count"), inline = TRUE) |>
-      tagAppendAttributes(class = "text-muted small")
-  )
-)
-```
-
-**CSS adjustment (if needed):**
-```css
-/* In www/custom.css or inline */
-#search_notebook-year_range .irs {
-  margin-bottom: 0;
-}
-#search_notebook-year_histogram {
-  margin-top: 0;
-}
-```
-
-#### 7. Tooltip Attachment to Buttons
-
-**Current:** `title` attributes used in some places (lines 75, 92, 96, 100), but not bslib tooltips.
-
-**Proposed:** Use `bslib::tooltip()` for richer tooltips with dark mode support.
-
-**Implementation:**
-```r
-# Wrap each actionButton with bslib::tooltip()
-actionButton(ns("refresh_search"), NULL, ...) |>
-  bslib::tooltip("Replace results with new search", placement = "bottom")
-```
-
-**Fallback for dynamic buttons (rendered in output$):**
-Use `title` attribute with `data-bs-toggle="tooltip"` and initialize via JavaScript.
-
-**For dynamic tooltips:**
-```r
-# In uiOutput() render
-output$send_btn_ui <- renderUI({
-  actionButton(ns("send"), NULL, icon = icon_paper_plane(), ...) |>
-    tagAppendAttributes(
-      `data-bs-toggle` = "tooltip",
-      `data-bs-placement` = "top",
-      title = "Send message to AI"
-    )
-})
-
-# Add Bootstrap tooltip initialization JS (once per module)
-tags$script(HTML("
-  $(document).ready(function() {
-    $('[data-bs-toggle=\"tooltip\"]').tooltip();
-  });
-"))
-```
-
-## Build Order
-
-### Phase Dependencies
-
-1. **Phase 1: API Pagination Foundation** (BLOCKING)
-   - Add `search_papers_with_pagination()` to `api_openalex.R`
-   - Test cursor pagination with OpenAlex API
-   - Returns `list(papers, next_cursor, count)`
-   - **Why first:** Required by both Refresh and Load More logic
-
-2. **Phase 2: Pagination State Management** (DEPENDS ON: Phase 1)
-   - Add `pagination_state` reactiveValues to `mod_search_notebook_server`
-   - Modify `do_search_refresh()` to use new API function and track cursor
-   - Add `do_load_more()` function
-   - **Why second:** Sets up state layer before UI changes
-
-3. **Phase 3: Load More Button** (DEPENDS ON: Phase 2)
-   - Add "Load More" button to toolbar
-   - Wire `observeEvent(input$load_more)` to `do_load_more()`
-   - Conditional rendering: disable if `!pagination_state$has_more`
-   - **Why third:** Implements append-mode pagination
-
-4. **Phase 4: Button Bar Restructuring** (DEPENDS ON: Phase 3)
-   - Reorder buttons: Import → Refresh → Load More → Export → Network → Edit
-   - Apply semantic colors (primary, info, success, secondary)
-   - Add icon wrappers (already exist in `theme_catppuccin.R`)
-   - **Why fourth:** Toolbar layout finalized with all buttons present
-
-5. **Phase 5: Tooltip Layer** (DEPENDS ON: Phase 4)
-   - Add `bslib::tooltip()` to static buttons
-   - Add title attributes + JS initialization for dynamic buttons
-   - Test in light and dark mode
-   - **Why fifth:** Visual polish after structure is stable
-
-6. **Phase 6: Document Type Filter UX** (INDEPENDENT)
-   - Move type distribution panel above checkboxes in edit modal
-   - Optional: Add badge styling to checkbox labels
-   - **Why sixth:** Independent of pagination, can proceed in parallel
-
-7. **Phase 7: Year Slider Alignment Fix** (INDEPENDENT)
-   - Adjust CSS margin/padding between slider and histogram
-   - Test across browser sizes
-   - **Why seventh:** Independent cosmetic fix
-
-### Parallel vs Sequential
-
-**Sequential (must be in order):**
-- Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
-
-**Parallel (can run concurrently):**
-- Phase 6 (document type) can start anytime after Phase 1
-- Phase 7 (year slider) can start anytime
-
-**Critical path:** Phase 1 → Phase 2 → Phase 3 (pagination foundation)
-
-## Cursor State Management Pattern
-
-### Storage Location
-
-**Recommendation:** Store cursor in `pagination_state` reactiveValues, NOT in database.
-
-**Rationale:**
-- Cursor is session-specific (different users may have different page positions)
-- Cursor expires (OpenAlex cursors are time-limited)
-- Refreshing search resets cursor (starts at `"*"`)
-- No cross-session persistence needed
-
-**Alternative (NOT recommended):** Store cursor in `notebooks.search_filters` JSON.
-- **Cons:** Cursor becomes stale across sessions, breaks on page load, complicates state management.
-
-### Cursor Lifecycle
+### Observer Registration Flow (the accumulation pattern being fixed)
 
 ```
-Session starts
-    ↓
-pagination_state$cursor = NULL
-pagination_state$has_more = FALSE
-    ↓
-User creates/opens search notebook
-    ↓
-User clicks "Refresh"
-    ↓
-cursor = "*" (first page)
-    ↓
-API response: next_cursor = "ZjEwMD..."
-    ↓
-pagination_state$cursor = "ZjEwMD..."
-pagination_state$has_more = TRUE
-    ↓
-User clicks "Load More"
-    ↓
-cursor = pagination_state$cursor ("ZjEwMD...")
-    ↓
-API response: next_cursor = "YWJj..." or NULL
-    ↓
-pagination_state$cursor = "YWJj..." or NULL
-pagination_state$has_more = !is.null(next_cursor)
-    ↓
-User clicks "Refresh" again
-    ↓
-cursor = "*" (reset to first page)
-pagination_state$cursor = NULL  # Reset state
-```
-
-### UI State: Load More Button
-
-**Conditional rendering:**
-```r
-output$load_more_btn <- renderUI({
-  if (!pagination_state$has_more) {
-    return(NULL)  # Hide button when no more pages
-  }
-
-  actionButton(ns("load_more"), NULL,
-               class = "btn-sm btn-outline-info",
-               icon = icon_plus_circle()) |>
-    bslib::tooltip(paste0("Load more papers (", pagination_state$total_fetched, " fetched so far)"))
+Module Server Init
+    |
+    v
+reactiveValues()   <-- observer registry (delete_observers, fig_action_observers, etc.)
+    |
+    v
+observe({ items <- reactive_list() })   <-- outer observer, re-fires when list changes
+    |
+    v
+lapply(items, function(item) {
+    if (is.null(registry[[item$id]])) {         <-- guard prevents duplicate registration
+        local({
+            id <- item$id
+            registry[[id]] <- observeEvent(input[[id]], { ... })
+        })
+    }
 })
 ```
 
-**Alternative:** Always show button, but disable when `!has_more`.
-```r
-actionButton(ns("load_more"), NULL,
-             class = "btn-sm btn-outline-info",
-             icon = icon_plus_circle(),
-             disabled = if (!pagination_state$has_more) "disabled" else NULL)
+Without the guard on line 3: each re-fire of the outer observer creates a new observer for the same input ID. After 10 re-fires, clicking one button fires 10 handlers.
+
+### fig_refresh Counter Flow
+
+```
+User action (keep/ban/retry figure button click)
+    |
+    v
+observeEvent fires
+    |
+    v
+db_update_figure()   <-- side effect write
+    |
+    v
+fig_refresh(isolate(fig_refresh()) + 1)   <-- MUST use isolate() to avoid self-trigger
+    |
+    v
+output$figure_gallery <- renderUI({ fig_refresh(); ... })   <-- reads counter, re-renders
+    |
+    v
+per-figure observers checked against fig_action_observers registry (no duplicates)
 ```
 
-**Recommendation:** Conditional rendering (hide when unavailable) for cleaner UI.
+### Migration Flow (fresh install vs upgrade path)
 
-## New vs Modified Components
+```
+app.R startup
+    |
+    v
+init_schema(con)           <-- creates base tables (notebooks, abstracts, etc.)
+    |
+    v
+run_pending_migrations(con)
+    |
+    v
+get_applied_migrations()
+    -> CREATE TABLE IF NOT EXISTS schema_migrations
+    -> SELECT version FROM schema_migrations
+    |
+    v
+length(applied) == 0?
+    YES -> bootstrap_existing_database()
+           -> "notebooks" table exists? YES -> mark v001 applied (existing user)
+                                        NO  -> no action (fresh install — proceed)
+    NO  -> skip bootstrap
+    |
+    v
+apply migrations NNN_description.sql in ascending version order
+```
 
-### New Components
+**Fresh install investigation target:** On a completely empty database, `bootstrap_existing_database()` correctly takes the NO branch and all migrations run. However, `init_schema()` is called before `run_pending_migrations()` and creates the base tables. If migration v001 SQL creates the same tables as `init_schema()`, running both on a fresh DB produces "table already exists" errors unless all migration SQL uses `CREATE TABLE IF NOT EXISTS`. Each migration file must be audited for idempotency on fresh databases.
 
-1. **search_papers_with_pagination()** (api_openalex.R)
-   - New function
-   - Returns `list(papers, next_cursor, count)`
+### Async Task Lifecycle (citation network example)
 
-2. **do_load_more()** (mod_search_notebook_server)
-   - New function
-   - Mirrors `do_search_refresh()` but with cursor continuation
-
-3. **pagination_state** (mod_search_notebook_server)
-   - New reactiveValues()
-   - Fields: `cursor`, `has_more`, `total_fetched`
-
-4. **Load More button** (mod_search_notebook_ui)
-   - New actionButton in toolbar
-   - Conditional rendering based on `has_more`
-
-5. **Tooltip layer** (mod_search_notebook_ui)
-   - New: `bslib::tooltip()` wrappers on buttons
-
-### Modified Components
-
-1. **do_search_refresh()** (mod_search_notebook_server)
-   - CHANGE: Call `search_papers_with_pagination()` instead of `search_papers()`
-   - ADD: Update `pagination_state$cursor` and `has_more`
-   - KEEP: Existing paper insertion logic
-
-2. **Button bar** (mod_search_notebook_ui, lines 68-102)
-   - REORDER: Import → Refresh → Load More → Export → Network → Edit
-   - CHANGE: Apply semantic color classes (btn-outline-primary, btn-outline-info, etc.)
-   - KEEP: Existing icon wrappers
-
-3. **Year slider section** (mod_search_notebook_ui, lines 129-153)
-   - CHANGE: Adjust margin/padding for histogram alignment
-   - KEEP: Existing sliderInput and plotOutput logic
-
-4. **Document type filters** (mod_search_notebook_ui, lines 1892-1912)
-   - MOVE: Type distribution panel above checkboxes
-   - OPTIONAL: Add badge styling to labels
-   - KEEP: Existing checkboxInput widgets and reactive logic
-
-## Color Harmonization with Existing Semantic Wrappers
-
-### Current Semantic Policy (from theme_catppuccin.R and PROJECT.md)
-
-| Role | Color | Mocha Hex | Latte Hex | Usage |
-|------|-------|-----------|-----------|-------|
-| PRIMARY | Lavender | #b4befe | #7287fd | Main actions (Search, Save, Add) |
-| INFO | Sapphire | #74c7ec | #209fb5 | Informational actions (Tooltips, Help) |
-| SUCCESS | Green | #a6e3a1 | #40a02b | Confirmations (Paper Added, Export Complete) |
-| WARNING | Yellow | #f9e2af | #df8e1d | Cautions (API Key Missing, Rate Limit) |
-| DANGER | Red | #f38ba8 | #d20f39 | Destructive (Delete, Remove, Clear) |
-| SECONDARY | Surface | #313244 / #45475a | #ccd0da / #bcc0cc | Less important (Cancel, Close) |
-
-### Sidebar Custom Colors (v10.0)
-
-- **Active sidebar items:** Peach (#fab387 Mocha, #fe640b Latte)
-- **Sidebar background:** Sky (#89dceb Mocha, #04a5e5 Latte)
-
-### Button Color Assignments
-
-| Button | Current | Proposed | Rationale |
-|--------|---------|----------|-----------|
-| Import | btn-outline-success | **btn-outline-success** (KEEP) | Adding papers to system = success/growth |
-| Refresh | btn-outline-secondary | **btn-outline-primary** (CHANGE) | Primary action for search notebooks |
-| **Load More** | N/A | **btn-outline-info** | Secondary fetch, distinct from primary refresh |
-| Export | btn-outline-primary | **default** (dropdown neutral) | Utility action, not primary |
-| Network | btn-outline-info | **btn-outline-info** (KEEP) | Exploratory/informational action |
-| Edit | btn-outline-secondary | **btn-outline-secondary** (KEEP) | Utility action |
-
-**Key changes:**
-- **Refresh:** secondary → primary (lavender) — main action deserves primary color
-- **Load More:** NEW → info (sapphire) — visually distinct from refresh
-- **Export:** No change (dropdown button, neutral)
-
-## Tooltips and Accessibility
-
-### Tooltip Content Guidelines
-
-- **Refresh:** "Replace results with new search" (clarifies destructive-refresh behavior)
-- **Load More:** "Load more papers from search" (clarifies append behavior)
-- **Import:** "Import DOIs from .bib or text"
-- **Export:** (dropdown already labeled)
-- **Network:** "Build citation network from papers"
-- **Edit:** "Edit search query and filters"
-
-### Dark Mode Compatibility
-
-**bslib::tooltip()** supports dark mode automatically via Bootstrap 5.3+ theming.
-
-**Custom title attributes:** Work in both modes but lack styling. Use bslib tooltips for consistency.
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Storing Cursor in Database
-
-**What people might do:** Add `cursor` column to `notebooks` table to persist across sessions.
-
-**Why it's wrong:**
-- Cursors expire (time-limited by OpenAlex)
-- Different users should have independent page positions
-- Refreshing search invalidates cursor
-- Adds unnecessary complexity to database schema
-
-**Do this instead:** Store cursor in `reactiveValues()` — session-scoped, no persistence needed.
-
-### Anti-Pattern 2: Merging Refresh and Load More Logic
-
-**What people might do:** Single button that "loads more unless first page."
-
-**Why it's wrong:**
-- User loses explicit control over replace vs append
-- Accidental data loss (user expects append, gets replace)
-- Unclear UI affordance
-
-**Do this instead:** Two distinct buttons with clear labels and tooltips.
-
-### Anti-Pattern 3: Tooltip Overload
-
-**What people might do:** Add tooltips to every UI element.
-
-**Why it's wrong:**
-- Clutters interface
-- Self-explanatory controls don't need tooltips
-- Over-reliance on tooltips = poor labeling
-
-**Do this instead:** Tooltips only for:
-- Icon-only buttons (no text label)
-- Actions with non-obvious side effects (Refresh = replace not append)
-- Contextual help (e.g., FWCI metric explanation)
+```
+User clicks "Build Network"
+    |
+    v
+observeEvent(input$build_network)
+    |
+    v
+old_poller <- progress_poller()
+if (!is.null(old_poller)) old_poller$destroy()   <-- destroy old poller before creating new
+    |
+    v
+create interrupt_flag file + progress_file
+    |
+    v
+poller <- observe({ invalidateLater(1000); read_progress(pf) })
+progress_poller(poller)   <-- store new poller
+    |
+    v
+network_task$invoke(...)   <-- mirai worker runs BFS in separate process
+    |
+    (time passes)
+    |
+    v
+observe({ result <- network_task$result(); req(result) })   <-- result handler fires
+    |
+    v
+isolate({
+    progress_poller()$destroy()    <-- clean up poller
+    progress_poller(NULL)
+    # process result, update current_network_data()
+})
+```
 
 ## Scaling Considerations
 
-| Scale | Considerations |
-|-------|----------------|
-| 0-100 papers/notebook | Current pagination strategy works fine. Load More rarely needed. |
-| 100-1000 papers/notebook | Load More becomes essential. Cursor pagination prevents API limits. |
-| 1000+ papers/notebook | Consider adding "Load All" option with progress modal (like bulk import). Infinite scroll NOT recommended (breaks Shiny reactive assumptions). |
+This is a local-first single-user application. Scaling is not relevant to this milestone. The reactive cleanup work improves correctness and memory efficiency within a single session.
 
-**Current max per request:** 200 papers (OpenAlex `per_page` limit).
+| Concern | Relevance to This Milestone |
+|---------|----------------------------|
+| Long-running session | Observer accumulation is worst here — user opens/closes many items over hours without restarting |
+| High paper count | More papers = more delete_observers registered; the registry guard prevents the O(N^2) accumulation |
+| Repeated network builds | Multiple build cycles without fix = multiple live pollers consuming invalidateLater ticks per second |
 
-**10,000-result limit:** OpenAlex basic pagination (offset-based) caps at 10,000 results. Cursor pagination bypasses this limit.
+## Anti-Patterns
 
-**Recommendation for v11.0:** Implement Load More with manual click, not infinite scroll. Infinite scroll adds complexity (intersection observers, debouncing) and breaks Shiny's reactive model.
+### Anti-Pattern 1: observe() Reading and Writing the Same reactiveVal Without isolate()
 
-## Integration Testing Strategy
+**What people do:**
+```r
+observe({
+  result <- task$result()
+  refresh(refresh() + 1)   # reads AND writes refresh()
+})
+```
 
-### Test Cases
+**Why it's wrong:** Reading `refresh()` inside `observe()` creates a reactive dependency. Writing `refresh()` invalidates that dependency. The observer re-fires. Infinite loop. This is the exact scenario documented in CLAUDE.md.
 
-1. **Refresh replaces papers**
-   - Create notebook with 25 papers
-   - Click Refresh
-   - Verify: cursor reset, new papers added, duplicates skipped
+**Do this instead:**
+```r
+observe({
+  result <- task$result()        # only trigger — unguarded
+  isolate({
+    refresh(refresh() + 1)       # isolated read + write
+    showNotification(...)        # any other reactive ops also go here
+  })
+})
+```
 
-2. **Load More appends papers**
-   - Create notebook, click Refresh
-   - Verify Load More button appears
-   - Click Load More
-   - Verify: new papers appended, cursor advanced, no duplicates
+### Anti-Pattern 2: Registering Dynamic Observers Inside renderUI Without a Registry Guard
 
-3. **Load More disabled at end**
-   - Navigate to last page (cursor returns NULL)
-   - Verify Load More button hidden
+**What people do:**
+```r
+output$gallery <- renderUI({
+  fig_refresh()   # reads counter to trigger re-render
+  lapply(figures, function(fig) {
+    observeEvent(input[[paste0("keep_", fig$id)]], { ... })
+    # renders UI AND registers observers in the same block
+  })
+})
+```
 
-4. **Document type filter works**
-   - Select only "Articles" in edit modal
-   - Refresh search
-   - Verify: API filter includes `type:article`
+**Why it's wrong:** renderUI fires every time `fig_refresh()` changes. Each fire creates a new set of observers for the same input IDs. After N clicks, there are N live observers per figure.
 
-5. **Year slider alignment**
-   - Load search with papers spanning 2000-2025
-   - Verify: histogram bars align with slider range
+**Do this instead:** Register observers outside renderUI, in a dedicated `observe()` keyed off the figure list. Use a `reactiveValues` registry to prevent duplicates. renderUI renders HTML only.
 
-6. **Tooltips render in dark mode**
-   - Toggle dark mode
-   - Hover over buttons
-   - Verify: tooltips visible and readable
+### Anti-Pattern 3: Missing req() on Resolved LLM Provider/Model
+
+**What people do:**
+```r
+observeEvent(input$generate_btn, {
+  req(input$nl_query)
+  cfg <- config()
+  provider <- provider_from_config(cfg, con())
+  model    <- resolve_model_for_operation(cfg, "query_build")
+  # No guard — if provider or model is NULL, next line throws
+  result <- provider_chat_completion(provider, model, messages)
+})
+```
+
+**Why it's wrong:** `provider_from_config()` can return a list with NULL fields or NULL itself. `resolve_model_for_operation()` can return NULL when no model is configured. The downstream call throws an uninformative error.
+
+**Do this instead:**
+```r
+req(provider, model)
+```
+Placed immediately after resolution. The existing manual `if (is.null(provider$api_key)...)` check handles the API key guidance message but does not prevent the crash when `provider` itself is NULL.
+
+### Anti-Pattern 4: ensure_ragnar_store() Opening a Connection Without Closing It on Error
+
+**What happens:** `ensure_ragnar_store()` calls `ragnar::ragnar_store_connect()` which opens a DuckDB connection. If the function errors partway through setup (e.g., embed function attachment fails), the partially-initialized `store` object falls out of scope without `DBI::dbDisconnect(store@con)` being called.
+
+**Why it's wrong:** DuckDB connections are file locks. Orphaned connections block future opens to the same store file until GC collects them — timing is non-deterministic.
+
+**Do this instead:** Wrap the creation path in `tryCatch` with an explicit disconnect on the error branch:
+```r
+store <- tryCatch({
+  s <- ragnar::ragnar_store_connect(store_path)
+  s@embed <- make_embed_function(provider, embed_model)
+  s
+}, error = function(e) {
+  if (exists("s") && !is.null(s)) {
+    try(DBI::dbDisconnect(s@con), silent = TRUE)
+  }
+  NULL
+})
+```
+
+### Anti-Pattern 5: Poller Not Destroyed Before Starting a New Build
+
+**What people do:**
+```r
+observeEvent(input$build_network, {
+  poller <- observe({ invalidateLater(1000); ... })
+  progress_poller(poller)   # overwrites old value but old poller keeps running
+})
+```
+
+**Why it's wrong:** The old `observe()` instance continues to fire every second indefinitely. After N builds, N pollers are running simultaneously, all reading from files that may no longer exist.
+
+**Do this instead:**
+```r
+observeEvent(input$build_network, {
+  old <- progress_poller()
+  if (!is.null(old)) old$destroy()
+  poller <- observe({ invalidateLater(1000); ... })
+  progress_poller(poller)
+})
+```
+
+## Integration Points
+
+### Cross-Module Reactive Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `mod_document_notebook` to `mod_slides` | `slides_trigger` reactiveVal passed as argument | Correct — one-directional push, no mutual dependency |
+| Discovery modules to `mod_search_notebook` | `discovery_request` reactiveVal in app.R | Producer-consumer; search nb polls for new requests |
+| `mod_citation_network` from `mod_search_notebook` | `seed_ids_r` reactive argument | Search nb pushes selected paper IDs as seeds |
+| `mod_citation_network` from `mod_bulk_import` / `mod_citation_audit` | Same `seed_ids_r` mechanism | Consistent pattern across all entry points |
+| All modules to `con()` | Passed as reactive argument to every module | Single shared DuckDB connection — all modules share the same DB |
+| All modules to `config()` | Passed as reactive argument | YAML config reactive, re-reads on change |
+
+### Observer Accumulation Integration Points (the fix targets)
+
+| Module | Observer Type | Accumulation Trigger | Fix |
+|--------|--------------|---------------------|-----|
+| `mod_document_notebook.R` | `fig_action_observers` (keep/ban/retry per figure) | `output$figure_gallery` renderUI re-fires on every `fig_refresh()` increment | Registry guard at line 1023 exists. Verify destroy block at lines 932-937 is reached by all code paths that change document selection. |
+| `mod_document_notebook.R` | `extract_observers[["view_"]]` (view figures toggle per doc) | `output$doc_list` renderUI re-fires on every `doc_refresh()` increment | Registry guard at line 782 exists. Confirm no bypass paths. |
+| `mod_search_notebook.R` | `type_chip_observers` (document type chips 1-N) | Chip UI rebuilt when type list changes | `type_chip_observers[[i]] <<- observeEvent(...)` always overwrites without destroying old. Add `if (!is.null(type_chip_observers[[i]])) type_chip_observers[[i]]$destroy()` before re-registering. |
+| `mod_search_notebook.R` | `delete_observers` (delete paper per paper) | `observe({ papers <- filtered_papers() })` re-fires on filter change | Registry guard at line 1540 exists and is correct. No change needed. |
+| `mod_search_notebook.R` | `block_journal_observers` / `unblock_journal_observers` | `observe({ papers <- filtered_papers() })` or blocklist reload | Registry guards at lines 2094 and 2162 follow the same pattern. Confirm `unblock_journal_observers` guard is exhaustive across all re-render paths. |
+| `mod_slides.R` | Chip click handlers 1-10 | Registered once at module init via `lapply` | No accumulation. Add `isolate()` on `current_chips()` read inside handlers for consistency. |
+| `mod_citation_network.R` | `progress_poller` polling observer | New build started before old one is canceled | Verify old poller is destroyed before creating new one in `observeEvent(input$build_network)`. |
+
+### New vs Modified Components
+
+All changes are modifications to existing files. No new modules or helper files are required for this milestone.
+
+| File | Change Type | What Changes |
+|------|-------------|-------------|
+| `R/mod_document_notebook.R` | Modify | Verify fig_action_observer destroy path is always reached; audit remaining `fig_refresh()` calls for missing `isolate()` |
+| `R/mod_search_notebook.R` | Modify | Fix `type_chip_observers` registration — add destroy-before-replace; verify `block_journal_observers` and `unblock_journal_observers` guards are exhaustive |
+| `R/mod_citation_network.R` | Modify | Add old-poller destroy before new poller creation; add `isolate()` wrapping on secondary reactive writes in network task result handler |
+| `R/mod_slides.R` | Modify | Add `isolate()` on `current_chips()` read inside chip click handlers; verify `generation_state` writes in ExtendedTask result handler use `isolate()` |
+| `R/mod_query_builder.R` | Modify | Add `req(provider, model)` after resolution in `observeEvent(input$generate_btn)` |
+| `R/db_migrations.R` and `migrations/*.sql` | Investigate + possibly modify | Audit fresh-install bootstrap: confirm `init_schema()` and migration SQL do not conflict; ensure all migration files use `CREATE TABLE IF NOT EXISTS` |
+| `R/_ragnar.R` | Modify | Fix `ensure_ragnar_store()` connection leak — add explicit `DBI::dbDisconnect(store@con)` on the error path |
+
+## Suggested Build Order
+
+Build order is driven by two constraints: risk of regression, and logical dependency between fixes.
+
+**Phase 1 — Pure additive guards (lowest risk, no behavior change)**
+
+- `R/mod_query_builder.R`: add `req(provider, model)` after resolution
+- `R/mod_slides.R`: add `isolate()` on `current_chips()` reads inside chip handlers
+
+These are additive-only changes. They add defensive guards without modifying any control flow. Risk of regression is near-zero. Smoke test after: `shiny::runApp()` to confirm app starts cleanly.
+
+**Phase 2 — Observer lifecycle fixes (moderate risk, targeted)**
+
+- `R/mod_citation_network.R`: add old-poller destroy in build handler; audit isolate() in result handler
+- `R/mod_document_notebook.R`: verify and patch fig_action_observer destroy path; audit fig_refresh isolate() calls
+- `R/mod_search_notebook.R`: fix type_chip_observers registration (highest accumulation risk in search module); verify block/unblock journal observer guards
+
+Each change should be followed by a smoke test before the next. mod_citation_network.R first because the poller fix is the simplest to verify (trigger two builds in sequence, confirm only one poller fires).
+
+**Phase 3 — Infrastructure investigation (isolated from reactive work)**
+
+- `R/db_migrations.R` + `migrations/*.sql`: audit fresh-install bootstrap ordering; test with empty database
+- `R/_ragnar.R`: fix `ensure_ragnar_store()` connection leak on error path
+
+The ragnar fix is last because it touches async infrastructure exercised by integration tests. Run `testthat::test_dir("tests/testthat")` after this phase.
+
+**Phase 4 — Error handling standardization (cross-cutting polish)**
+
+- Standardize error toast pattern across document and search notebook preset handlers
+- Verify z-index for error toasts behind synthesis modal (CSS-only)
+- Add input validation to `match_aa_model()` for NULL provider/model inputs
+- Reduce unnecessary `renderUI` re-queries during processing (add `req(!is_processing())` guard before reactive reads that trigger DB queries)
+
+These are polish and defensive hardening. All reactive and infrastructure fixes should pass smoke tests before starting this phase.
 
 ## Sources
 
-- [OpenAlex API Paging Documentation](https://docs.openalex.org/how-to-use-the-api/get-lists-of-entities/paging)
-- [OpenAlex Cursor Pagination Tutorial](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb)
-- Serapeum codebase: `R/mod_search_notebook.R`, `R/api_openalex.R`, `R/theme_catppuccin.R`
-- Catppuccin Design System: `.planning/PROJECT.md` (DSGN-01 Semantic Color Policy)
+- Direct code inspection: `R/mod_slides.R`, `R/mod_document_notebook.R`, `R/mod_search_notebook.R`, `R/mod_citation_network.R`, `R/mod_query_builder.R`, `R/db_migrations.R`, `R/_ragnar.R`
+- Project context: `.planning/PROJECT.md` (v20.0 milestone description, known tech debt section)
+- CLAUDE.md project instructions: `observe()` + `isolate()` pattern documentation (authoritative for this codebase)
 
 ---
-*Architecture research for: Search Notebook UX Improvements (v11.0)*
-*Researched: 2026-03-06*
+*Architecture research for: Shiny Reactivity Cleanup (v20.0)*
+*Researched: 2026-03-26*

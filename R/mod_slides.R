@@ -1214,7 +1214,8 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
       showModal(mod_slides_heal_modal_ui(ns, errors, is_success))
     }, ignoreInit = TRUE)
 
-    # Chip click handlers (up to 10 chips)
+    # LIFE-01: Pre-allocated chip handlers — registered once at module init.
+    # current_chips() reactiveVal gates which indices are active.
     lapply(seq_len(10), function(i) {
       observeEvent(input[[paste0("chip_", i)]], {
         chips <- current_chips()
@@ -1498,5 +1499,13 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         })
       }
     )
+
+    # LIFE-04: Clean up on session end.
+    # Chip observers are pre-allocated at init (LIFE-01) and managed by Shiny's
+    # module scoping. This hook is a safety net for any resource paths.
+    session$onSessionEnded(function() {
+      # No observer stores to clean — chip handlers are fixed-count at init.
+      # Resource paths (slides_preview) are session-scoped by Shiny.
+    })
   })
 }

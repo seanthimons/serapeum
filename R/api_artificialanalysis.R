@@ -161,6 +161,7 @@ normalize_model_id <- function(model_id) {
 #' @param mapping Manual mapping (from load_aa_model_mapping)
 #' @return Single-row data frame of AA data, or NULL if no match
 match_aa_model <- function(openrouter_id, aa_df, mapping = NULL, base_path = NULL) {
+  if (is.null(openrouter_id) || is.na(openrouter_id) || !nzchar(openrouter_id)) return(NULL)
   if (is.null(aa_df) || nrow(aa_df) == 0) return(NULL)
 
   if (is.null(mapping)) {

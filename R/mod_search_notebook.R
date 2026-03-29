@@ -52,33 +52,6 @@ is_safe_url <- function(url) {
   grepl("^https?://", url, ignore.case = TRUE)
 }
 
-#' Show a user-friendly error toast notification
-#' @param message Plain language error message
-#' @param details Technical details (HTTP status, raw error)
-#' @param severity "error" or "warning"
-#' @param duration Auto-dismiss seconds (default 8 for errors, 5 for warnings)
-show_error_toast <- function(message, details = NULL, severity = "error", duration = NULL) {
-  if (is.null(duration)) {
-    duration <- if (severity == "warning") 5 else 8
-  }
-
-  # Build notification content with optional expandable details
-  content <- if (!is.null(details) && nchar(details) > 0) {
-    HTML(paste0(
-      '<div>', htmltools::htmlEscape(message), '</div>',
-      '<details class="mt-1"><summary class="small text-muted" style="cursor:pointer;">Show details</summary>',
-      '<div class="small text-muted mt-1 font-monospace" style="word-break:break-all;">',
-      htmltools::htmlEscape(details),
-      '</div></details>'
-    ))
-  } else {
-    message
-  }
-
-  type <- if (severity == "warning") "warning" else "error"
-  showNotification(content, type = type, duration = duration)
-}
-
 #' Format result count for display (Phase 51)
 #' @param fetched Total papers in notebook
 #' @param total Total matching results from API
@@ -3450,13 +3423,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        paste("Sorry, I encountered an error processing your question.")
+        is_processing(FALSE)
+        session$sendCustomMessage("searchChatReady", ns(""))
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      session$sendCustomMessage("searchChatReady", ns(""))
+      if (!is.null(response)) {
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        session$sendCustomMessage("searchChatReady", ns(""))
+      }
     })
 
     # Reset Overview popover to defaults each time it opens
@@ -3507,25 +3484,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "search",
                                  depth = depth, mode = mode, session_id = session$token)
       }, error = function(e) {
+        removeModal()
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        "Sorry, I encountered an error generating the overview."
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "overview"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "overview"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Conclusions preset handler
@@ -3560,20 +3541,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
+        removeModal()
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        "Sorry, I encountered an error generating the synthesis."
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Phase 27: Research Questions preset handler
@@ -3612,25 +3597,29 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       response <- tryCatch({
         generate_research_questions(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
+        removeModal()
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        "Sorry, I encountered an error generating research questions."
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "research_questions"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "research_questions"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Return reactives for app.R to consume

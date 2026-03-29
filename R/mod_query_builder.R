@@ -77,6 +77,7 @@ OUTPUT (valid JSON only, no markdown, no code fences):
       cfg <- config()
       provider <- provider_from_config(cfg, con())
       model <- resolve_model_for_operation(cfg, "query_build")
+      req(provider, model)
 
       if ((is.null(provider$api_key) || nchar(provider$api_key) == 0) && !is_local_provider(provider)) {
         showNotification(

@@ -205,6 +205,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     extract_observers <- reactiveValues()  # Track extract button observers
     fig_action_observers <- reactiveValues()  # Track per-figure action observers
 
+    # LIFE-03: Cache list_documents() result — runs once per invalidation cycle
+    # regardless of how many renderUI blocks depend on it.
+    docs_reactive <- reactive({
+      doc_refresh()        # Invalidate on refresh counter
+      nb_id <- notebook_id()
+      req(nb_id)
+      list_documents(con(), nb_id)
+    })
+
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
     processing_doc_count <- reactiveVal(0L)
@@ -279,10 +288,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     output$index_action_ui <- renderUI({
+      docs <- docs_reactive()
       nb_id <- notebook_id()
-      req(nb_id)
 
-      docs <- list_documents(con(), nb_id)
       if (nrow(docs) == 0) {
         return(NULL)
       }
@@ -637,11 +645,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     output$document_list <- renderUI({
-      doc_refresh()
+      docs <- docs_reactive()
       nb_id <- notebook_id()
-      req(nb_id)
-
-      docs <- list_documents(con(), nb_id)
 
       if (nrow(docs) == 0) {
         return(
@@ -928,11 +933,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
                   result$n_extracted, desc_msg, filename),
           type = "message"
         )
-        # Destroy and clear old figure action observers (figure IDs changed)
+        # LIFE-02: Destroy all figure action observers before re-extraction.
+        # fig_refresh() increment (below) triggers gallery renderUI to re-register fresh observers.
+        # Sequential invalidation guarantees destroy completes before re-registration.
         for (old_id in names(fig_action_observers)) {
           obs_list <- fig_action_observers[[old_id]]
           if (is.list(obs_list)) {
-            for (obs in obs_list) if (!is.null(obs)) obs$destroy()
+            for (obs in obs_list) {
+              if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+            }
           }
           fig_action_observers[[old_id]] <- NULL
         }
@@ -1405,13 +1414,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        session$sendCustomMessage("docChatReady", ns(""))
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      session$sendCustomMessage("docChatReady", ns(""))
+      if (!is.null(response)) {
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        session$sendCustomMessage("docChatReady", ns(""))
+      }
     })
 
     # Also send on Enter key
@@ -1475,14 +1494,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         generate_preset(con(), cfg, nb_id, preset_type,
                         session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     }
 
     # Reset Overview popover to defaults each time it opens
@@ -1535,19 +1564,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "document",
                                  depth = depth, mode = mode, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "overview"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "overview"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
@@ -1582,14 +1621,24 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "document", session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Literature Review Table preset handler
@@ -1639,19 +1688,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_lit_review_table(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "lit_review"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "lit_review"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Methodology Extractor preset handler
@@ -1701,19 +1760,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_methodology_extractor(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "methodology_extractor"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "methodology_extractor"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Gap Analysis preset handler
@@ -1770,19 +1839,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         generate_gap_analysis(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      update_synthesis_status("Processing response...")
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "gap_analysis"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
-      removeModal()
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "gap_analysis"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Slides module
@@ -1791,6 +1870,37 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # Slides button
     observeEvent(input$btn_slides, {
       slides_trigger(slides_trigger() + 1)
+    })
+
+    # LIFE-04: Clean up observer handles on session end to prevent orphaned references.
+    # Follows mod_citation_network.R cleanup pattern.
+    session$onSessionEnded(function() {
+      # isolate() required: onSessionEnded runs outside reactive context,
+      # but names() on reactiveValues needs one.
+      isolate({
+        # Destroy figure action observers
+        for (id in names(fig_action_observers)) {
+          obs_list <- fig_action_observers[[id]]
+          if (is.list(obs_list)) {
+            for (obs in obs_list) {
+              if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+            }
+          }
+          fig_action_observers[[id]] <- NULL
+        }
+        # Destroy extract button observers
+        for (id in names(extract_observers)) {
+          obs <- extract_observers[[id]]
+          if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+          extract_observers[[id]] <- NULL
+        }
+        # Destroy delete document observers
+        for (id in names(delete_doc_observers)) {
+          obs <- delete_doc_observers[[id]]
+          if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+          delete_doc_observers[[id]] <- NULL
+        }
+      })
     })
   })
 }

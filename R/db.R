@@ -1109,6 +1109,12 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           results <- results[keep_rows, , drop = FALSE]
         }
 
+        # Normalize section_filter: drop NA and empty strings (defensive guard)
+        if (!is.null(section_filter)) {
+          section_filter <- section_filter[!is.na(section_filter) & nzchar(section_filter)]
+          if (length(section_filter) == 0) section_filter <- NULL
+        }
+
         # Filter by section_hint if specified
         if (!is.null(section_filter) && nrow(results) > 0) {
           # Ragnar results may not have section_hint column, need to look it up from chunks table

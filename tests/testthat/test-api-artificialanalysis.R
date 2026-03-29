@@ -61,6 +61,13 @@ test_that("match_aa_model returns NULL for unknown models", {
   expect_null(row)
 })
 
+test_that("match_aa_model returns NULL for NULL openrouter_id", {
+  data <- load_bundled_aa_data(app_root())
+  expect_null(match_aa_model(NULL, data))
+  expect_null(match_aa_model("", data))
+  expect_null(match_aa_model(NA_character_, data))
+})
+
 test_that("match_aa_model works via fuzzy match", {
   data <- load_bundled_aa_data(app_root())
 

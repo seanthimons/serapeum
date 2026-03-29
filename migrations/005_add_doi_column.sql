@@ -8,7 +8,7 @@
 --
 -- Existing papers will have NULL DOI until backfilled via OpenAlex API.
 
-ALTER TABLE abstracts ADD COLUMN doi VARCHAR;
+ALTER TABLE abstracts ADD COLUMN IF NOT EXISTS doi VARCHAR;
 
 -- Index for fast DOI lookups (export workflows, duplicate detection)
 CREATE INDEX IF NOT EXISTS idx_abstracts_doi ON abstracts(doi);
