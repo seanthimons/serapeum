@@ -1,9 +1,30 @@
 # Milestones
+
+## v20.0 Shiny Reactivity Cleanup (Shipped: 2026-03-29)
+
+**Phases completed:** 4 phases (64-67), 6 plans
+
+**Key accomplishments:**
+
+- Added req()/isolate() guards and input validation to prevent NULL crashes and infinite reactive loops (GARD-01..03)
+- Hardened observer lifecycle with destroy-before-create pattern and cached docs_reactive() (LIFE-01..03)
+- Added session$onSessionEnded cleanup hooks for slides and notebook modules (LIFE-04)
+- Extracted shared show_error_toast() utility with modal-then-notify pattern across all 9 preset handlers (ERRH-01..02)
+- Normalized SQL migration DDL to idempotent IF NOT EXISTS syntax for fresh installs (INFR-01)
+- Added fresh-install startup regression tests for the DuckDB migration path
+
+**Stats:** 7 files changed, +352 / -131 lines, ~82,900 R LOC + ~4,400 CSS LOC
+**Timeline:** 3 days (2026-03-27 → 2026-03-29)
+**Git range:** feat(64-01) → fix(67)
+
+---
+
 ## v10.0 Theme Harmonization & AI Synthesis (Shipped: 2026-03-06)
 
 **Phases completed:** 6 phases, 10 plans, 4 tasks
 
 **Key accomplishments:**
+
 - Fixed DuckDB connection leak in search_chunks_hybrid and removed dead ragnar code with automated regression tests
 - Catppuccin design system with semantic color policy, 76 icon wrappers, and visual swatch sheet for light/dark validation
 - Citation audit bug fixes — multi-paper import with duplicate tracking and abstract notebook sync
@@ -17,12 +38,12 @@
 
 ---
 
-
 ## v1.0 Fix + Discovery (Shipped: 2026-02-11)
 
 **Phases completed:** 5 phases, 9 plans, 0 tasks
 
 **Key accomplishments:**
+
 - Database migration versioning system with automatic schema upgrades on app startup
 - Fixed critical abstract embedding bug (#55) that broke all search notebook RAG chat
 - Seed paper discovery module — find related papers via DOI/title through citation relationships
@@ -36,12 +57,12 @@
 
 ---
 
-
 ## v1.2 Stabilization (Shipped: 2026-02-12)
 
 **Phases completed:** 2 phases (9-10), 2 plans
 
 **Key accomplishments:**
+
 - Fixed 401 error on OpenAlex topic searches (#59)
 - User-friendly error messages for OpenAlex/OpenRouter API failures (#65)
 - Prevented OpenAlex re-request when swapping tabs (#68)
@@ -54,13 +75,13 @@
 
 ---
 
-
 ## v1.1 Quality of Life (Shipped: 2026-02-11)
 
 **Phases completed:** 4 phases (5-8), 6 plans
 **Deferred:** Phase 9 (Bulk Import) → v1.2
 
 **Key accomplishments:**
+
 - Per-request cost tracking with session totals, cost history, and trend visualization
 - Dynamic chat model selector with 10+ OpenRouter models, live pricing, and model info panel
 - Tri-state keyword filtering (neutral/include/exclude) replacing destructive delete-by-keyword
@@ -73,12 +94,12 @@
 
 ---
 
-
 ## v2.0 Discovery Workflow & Output (Shipped: 2026-02-13)
 
 **Phases completed:** 5 phases (11-15), 8 plans, ~16 tasks
 
 **Key accomplishments:**
+
 - DOI storage infrastructure with migration, normalization, batch backfill, and clickable DOI links in abstract preview
 - Interactive citation network visualization with BFS traversal, visNetwork graphs, save/load persistence, and cross-link discovery via referenced_works
 - Seamless export-to-seed workflow — one-click "Use as Seed" from abstract detail navigates to seed discovery with auto-lookup
@@ -92,12 +113,12 @@
 
 ---
 
-
 ## v2.1 Polish & Analysis (Shipped: 2026-02-13)
 
 **Phases completed:** 4 phases (16-19), 7 plans
 
 **Key accomplishments:**
+
 - Distinct preset icons, browser favicon (blue "S" lettermark), and sidebar optimization reclaiming 60-90px vertical space
 - Interactive year range slider with histogram preview for search notebooks, Apply Filter button for citation network
 - Async citation network builds with ExtendedTask + mirai, file-based interrupt flags, progress modal with cancellation and partial results
@@ -111,12 +132,12 @@
 
 ---
 
-
 ## v3.0 Ragnar RAG Overhaul (Shipped: 2026-02-17)
 
 **Phases completed:** 5 phases (20-24), 9 plans
 
 **Key accomplishments:**
+
 - Per-notebook ragnar stores with deterministic path construction and pipe-delimited metadata encoding for clean notebook isolation
 - Full store lifecycle management — auto-creation on first content, deletion cascade, corruption detection with rebuild modal, and orphan cleanup in settings
 - Both document and search notebook modules migrated to per-notebook stores with async cancellable re-indexing (ExtendedTask + mirai) and migration prompts
@@ -131,12 +152,12 @@
 
 ---
 
-
 ## v4.0 Stability + Synthesis (Shipped: 2026-02-22)
 
 **Phases completed:** 4 phases (25-28), 6 plans
 
 **Key accomplishments:**
+
 - Bug fixes: seed paper display (#110), modal repeat (#111), cost tracking updates (#116), refresh after remove (#86)
 - Landed PR #112 (duplicate toasts) and PR #115 (collapsible keywords)
 - Unified Overview preset merging Summarize + Key Points into single synthesis output
@@ -148,12 +169,12 @@
 
 ---
 
-
 ## v5.0 Fix Document Embeddings (Shipped: 2026-02-22)
 
 **Phases completed:** 1 phase (29), 1 plan
 
 **Key accomplishments:**
+
 - Fixed critical ragnar embed closure serialization bug — runtime @embed property attachment bypasses broken deserialization
 - Fixed origin metadata parsing and stale chunk cleanup on delete
 - Added chat send button spinner for user feedback
@@ -163,12 +184,12 @@
 
 ---
 
-
 ## v6.0 Dark Mode + UI Polish (Shipped: 2026-02-25)
 
 **Phases completed:** 3 phases (30-32), 8 plans
 
 **Key accomplishments:**
+
 - Catppuccin Latte/Mocha palette via bs_theme() + bs_add_rules() with 11.8:1 contrast ratio
 - Centralized dark CSS in R/theme_catppuccin.R (~244 lines) — single source of truth for all dark overrides
 - visNetwork dark canvas with rgba borders for viridis node visibility across all color scales
@@ -182,12 +203,12 @@
 
 ---
 
-
 ## v7.0 Citation Audit + Quick Wins (Shipped: 2026-02-27)
 
 **Phases completed:** 7 phases (33-39), 14 plans
 
 **Key accomplishments:**
+
 - Robust batch DOI parsing with multi-format support (URLs, bare, comma/newline-separated) and categorized error reporting
 - OpenAlex batch API with 50-DOI batching, rate limiting, and exponential backoff on 429 errors
 - Full bulk DOI import UI — modal workflow with paste/upload, async ExtendedTask execution, progress bars, retry, and import history
@@ -203,12 +224,12 @@
 
 ---
 
-
 ## v8.0 Multi-Seeded Citation Network (Shipped: 2026-03-03)
 
 **Phases completed:** 2 phases (40, 40.1), 6 plans
 
 **Key accomplishments:**
+
 - Multi-seed BFS citation network engine with per-seed node caps, deduplication, and overlap detection for papers appearing in 2+ seed traversals
 - Shape-based overlap visualization: star (seed), diamond (overlap), dot (regular) — preserves year color gradient
 - Citation network module refactored for multi-seed state with search notebook + BibTeX import entry points
@@ -222,12 +243,12 @@
 
 ---
 
-
 ## v9.0 Network Graph Polish (Shipped: 2026-03-04)
 
 **Phases completed:** 3 phases (41-43), 3 plans
 
 **Key accomplishments:**
+
 - Fixed singularity collapse on physics toggle with position validation and debounced controls (PHYS-01)
 - Added ambient orbital drift for small/single-seed networks after stabilization (PHYS-02)
 - Dynamic year filter bounds from actual network data + trim-to-influential toggle with bridge preservation (FILT-01, FILT-02)
@@ -238,4 +259,3 @@
 **Key files:** R/mod_citation_network.R, R/citation_network.R, R/db.R
 
 ---
-

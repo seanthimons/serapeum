@@ -113,25 +113,14 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Sidebar & button theming with semantic colors (THEM-01..05, DSGN-03, DSGN-04) — v10.0
 - ✓ Methodology Extractor preset with section-targeted RAG (METH-01..05) — v10.0
 - ✓ Gap Analysis Report preset with contradiction detection (GAPS-01..06) — v10.0
+- ✓ req()/isolate() guards and input validation for NULL crash prevention (GARD-01..03) — v20.0
+- ✓ Observer destroy-before-create lifecycle and docs_reactive() caching (LIFE-01..04) — v20.0
+- ✓ Shared show_error_toast() with modal-then-notify pattern (ERRH-01..02) — v20.0
+- ✓ Idempotent SQL migration DDL for fresh installs (INFR-01) — v20.0
 
 ### Active
 
-(Defined in REQUIREMENTS.md for current milestone)
-
-## Current Milestone: v20.0 Shiny Reactivity Cleanup
-
-**Goal:** Eliminate observer leaks, add missing isolate()/req() guards, fix error handling patterns, and clean up lifecycle management across all modules.
-
-**Target features:**
-- Fix observer accumulation in slide chip handlers and figure action observers
-- Add missing isolate() guards on reactive counter reads in observers
-- Add req() guards for NULL provider/model in query builder and other inputs
-- Fix error toast z-index behind synthesis modal
-- Reduce unnecessary renderUI re-queries during processing
-- Clean up observer lifecycle and resource paths in slides/notebook modules
-- Standardize error handling patterns across document and search notebook presets
-- Add input validation to match_aa_model() and section_filter fallback
-- Investigate SQL migration strategies on fresh installs
+(No active milestone — ready for next milestone planning)
 
 ### Out of Scope
 
@@ -241,22 +230,19 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 | Adaptive citation percentile for trim (v9.0) | Different thresholds for different network sizes | ✓ Good — balanced filtering |
 | Lavender for primary, not blue (v10.0) | Blue too plain in light mode; lavender has more character | ✓ Good — matches existing theme, no breaking change |
 | Info semantic color: blue → sapphire (v10.0) | Better visual distinction from primary lavender | Pending — Phase 47 will apply |
+| Additive-only guards before lifecycle fixes (v20.0) | req()/isolate() catch NULL crashes that would surface during observer testing | ✓ Good — safe ordering |
+| GARD-02 audit: no code changes needed (v20.0) | All fig_refresh reads already in observeEvent/isolate contexts | ✓ Good — avoided unnecessary changes |
+| Shared show_error_toast() utility (v20.0) | Centralized error-handling across 9 preset handlers in both notebook modules | ✓ Good — consistent UX |
+| Modal-then-notify error pattern (v20.0) | removeModal() before toast ensures errors are never hidden behind modal backdrop | ✓ Good — ERRH-01 satisfied |
+| IF NOT EXISTS for all migration DDL (v20.0) | Fresh installs failed on non-idempotent CREATE TABLE/INDEX statements | ✓ Good — INFR-01 satisfied |
 | Semantic icon wrappers in theme_catppuccin.R (v10.0) | Centralized icon-to-action mapping for consistency | ✓ Good — 20 wrappers, color-neutral |
 
 ## Current State
 
-**Latest shipped:** v16.0 Content & Output Quality (2026-03-21)
-**Total milestones:** 15 shipped (v1.0–v16.0)
-**Total phases:** 64 complete across 106 plans
-**Current:** v20.0 Shiny Reactivity Cleanup complete
-
-**Phase 64 complete:** Additive Guards — req(provider, model) guard in query builder, fig_refresh isolate() audit confirmed clean, match_aa_model NULL/NA/empty validation, section_filter NA normalization. TDD: 39 assertions pass.
-
-**Phase 65 complete:** Observer Lifecycle — slide chip handlers, figure action observers, document list renderUI caching, session$onSessionEnded cleanup hooks.
-
-**Phase 66 complete:** Error Handling — show_error_toast() extracted to shared R/utils_notifications.R, modal-then-notify pattern applied to all 9 preset handlers across both notebook modules, error toasts always visible above modals.
-
-**Phase 67 complete:** Infrastructure — risky migration DDL normalized to explicit `IF NOT EXISTS` forms, startup-path regression coverage added for fresh install plus rerun, and `INFR-01` validated through automated DB tests.
+**Latest shipped:** v20.0 Shiny Reactivity Cleanup (2026-03-29)
+**Total milestones:** 16 shipped (v1.0–v20.0)
+**Total phases:** 68 complete across 112 plans
+**Codebase:** ~82,900 R LOC + ~4,400 CSS LOC
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
@@ -281,4 +267,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after Phase 67 completion*
+*Last updated: 2026-03-29 after v20.0 milestone*
