@@ -7,11 +7,13 @@
 #' @return Data frame of rerank models with id, name, price_per_search
 get_default_rerank_models <- function() {
   data.frame(
-    id = c("cohere/rerank-4-fast",
+    id = c("cohere/rerank-4-pro",
+           "cohere/rerank-4-fast",
            "cohere/rerank-v3.5"),
-    name = c("Cohere Rerank 4 Fast ($0.002/search)",
+    name = c("Cohere Rerank 4 Pro ($0.005/search)",
+             "Cohere Rerank 4 Fast ($0.002/search)",
              "Cohere Rerank v3.5 ($0.001/search)"),
-    price_per_search = c(0.002, 0.001),
+    price_per_search = c(0.005, 0.002, 0.001),
     stringsAsFactors = FALSE
   )
 }
@@ -24,7 +26,11 @@ list_rerank_models <- function(api_key) {
     return(get_default_rerank_models())
   }
 
-  req <- build_openrouter_request(api_key, "models")
+  # Rerank models are NOT in the default /models response (which defaults to
+
+  # output_modalities=text). Must request output_modalities=rerank explicitly.
+  req <- build_openrouter_request(api_key, "models") |>
+    req_url_query(output_modalities = "rerank")
 
   resp <- tryCatch({
     req_perform(req)
@@ -42,32 +48,28 @@ list_rerank_models <- function(api_key) {
     return(NULL)
   })
 
-  if (is.null(body) || is.null(body$data)) {
+  if (is.null(body) || is.null(body$data) || length(body$data) == 0) {
     return(get_default_rerank_models())
   }
 
-  # Filter to rerank models (output modality contains "rerank" or id contains "rerank")
-  rerank_models <- Filter(function(m) {
-    modality <- tolower(m$architecture$modality %||% "")
-    output <- tolower(m$architecture$output_modality %||% "")
-    id <- tolower(m$id %||% "")
-    grepl("rerank", modality) || grepl("rerank", output) || grepl("rerank", id)
-  }, body$data)
-
-  if (length(rerank_models) == 0) {
-    return(get_default_rerank_models())
-  }
+  rerank_models <- body$data
 
   df <- data.frame(
     id = sapply(rerank_models, function(x) x$id),
     name = sapply(rerank_models, function(x) {
-      # Rerank pricing is per-search, stored in pricing$prompt
-      price <- as.numeric(x$pricing$prompt %||% 0)
-      price_str <- if (price > 0) sprintf("$%.3f/search", price) else "Free"
-      paste0(x$name %||% x$id, " (", price_str, ")")
+      # Per-search pricing isn't in the standard prompt/completion fields;
+      # use context_length as a distinguishing feature instead
+      ctx <- as.integer(x$context_length %||% 0)
+      ctx_str <- if (ctx >= 1000) sprintf("%dk ctx", as.integer(ctx / 1000)) else ""
+      label <- x$name %||% x$id
+      if (nzchar(ctx_str)) paste0(label, " (", ctx_str, ")") else label
     }),
     price_per_search = sapply(rerank_models, function(x) {
-      as.numeric(x$pricing$prompt %||% 0)
+      # API returns "0" for prompt/completion — per-search pricing not exposed
+      # Fall back to known prices from defaults
+      known <- get_default_rerank_models()
+      idx <- match(x$id, known$id)
+      if (!is.na(idx)) known$price_per_search[idx] else 0
     }),
     stringsAsFactors = FALSE
   )

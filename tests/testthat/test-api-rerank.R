@@ -10,8 +10,9 @@ source_app("api_rerank.R")
 test_that("get_default_rerank_models returns expected structure", {
   df <- get_default_rerank_models()
   expect_s3_class(df, "data.frame")
-  expect_true(nrow(df) >= 2)
+  expect_true(nrow(df) >= 3)
   expect_true(all(c("id", "name", "price_per_search") %in% names(df)))
+  expect_true("cohere/rerank-4-pro" %in% df$id)
   expect_true("cohere/rerank-4-fast" %in% df$id)
   expect_true("cohere/rerank-v3.5" %in% df$id)
 })
@@ -21,7 +22,7 @@ test_that("get_default_rerank_models returns expected structure", {
 test_that("list_rerank_models falls back to defaults with invalid key", {
   df <- list_rerank_models(NULL)
   expect_s3_class(df, "data.frame")
-  expect_true(nrow(df) >= 2)
+  expect_true(nrow(df) >= 3)
 
   df2 <- list_rerank_models("short")
   expect_s3_class(df2, "data.frame")
