@@ -54,20 +54,19 @@ list_rerank_models <- function(api_key) {
 
   rerank_models <- body$data
 
+  known <- get_default_rerank_models()
+
   df <- data.frame(
     id = sapply(rerank_models, function(x) x$id),
     name = sapply(rerank_models, function(x) {
-      # Per-search pricing isn't in the standard prompt/completion fields;
-      # use context_length as a distinguishing feature instead
-      ctx <- as.integer(x$context_length %||% 0)
-      ctx_str <- if (ctx >= 1000) sprintf("%dk ctx", as.integer(ctx / 1000)) else ""
+      # Inject per-search price from known defaults (API returns "0" for prompt/completion)
+      idx <- match(x$id, known$id)
+      price <- if (!is.na(idx)) known$price_per_search[idx] else 0
+      price_str <- if (price > 0) sprintf("$%.3f/search", price) else "Free"
       label <- x$name %||% x$id
-      if (nzchar(ctx_str)) paste0(label, " (", ctx_str, ")") else label
+      paste0(label, " (", price_str, ")")
     }),
     price_per_search = sapply(rerank_models, function(x) {
-      # API returns "0" for prompt/completion — per-search pricing not exposed
-      # Fall back to known prices from defaults
-      known <- get_default_rerank_models()
       idx <- match(x$id, known$id)
       if (!is.na(idx)) known$price_per_search[idx] else 0
     }),
