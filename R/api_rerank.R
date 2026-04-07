@@ -62,9 +62,8 @@ list_rerank_models <- function(api_key) {
       # Inject per-search price from known defaults (API returns "0" for prompt/completion)
       idx <- match(x$id, known$id)
       price <- if (!is.na(idx)) known$price_per_search[idx] else 0
-      price_str <- if (price > 0) sprintf("$%.3f/search", price) else "Free"
       label <- x$name %||% x$id
-      paste0(label, " (", price_str, ")")
+      if (price > 0) paste0(label, " ($", format(price, scientific = FALSE), "/search)") else label
     }),
     price_per_search = sapply(rerank_models, function(x) {
       idx <- match(x$id, known$id)
