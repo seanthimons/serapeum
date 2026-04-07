@@ -165,8 +165,7 @@ mod_settings_ui <- function(id) {
               selectizeInput(ns("rerank_model"), "Reranker Model",
                              choices = c(
                                "Cohere Rerank 4 Pro ($0.005/search)" = "cohere/rerank-4-pro",
-                               "Cohere Rerank 4 Fast ($0.002/search)" = "cohere/rerank-4-fast",
-                               "Cohere Rerank v3.5 ($0.001/search)" = "cohere/rerank-v3.5"
+                               "Cohere Rerank 4 Fast ($0.002/search)" = "cohere/rerank-4-fast"
                              ))
             ),
             actionButton(ns("refresh_rerank_models"), NULL,

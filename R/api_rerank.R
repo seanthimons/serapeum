@@ -8,12 +8,10 @@
 get_default_rerank_models <- function() {
   data.frame(
     id = c("cohere/rerank-4-pro",
-           "cohere/rerank-4-fast",
-           "cohere/rerank-v3.5"),
+           "cohere/rerank-4-fast"),
     name = c("Cohere Rerank 4 Pro ($0.005/search)",
-             "Cohere Rerank 4 Fast ($0.002/search)",
-             "Cohere Rerank v3.5 ($0.001/search)"),
-    price_per_search = c(0.005, 0.002, 0.001),
+             "Cohere Rerank 4 Fast ($0.002/search)"),
+    price_per_search = c(0.005, 0.002),
     stringsAsFactors = FALSE
   )
 }
@@ -150,5 +148,29 @@ rerank <- function(api_key, model, query, documents, top_n = NULL) {
   })
 
   # Sort by relevance score descending
-  result[order(result$relevance_score, decreasing = TRUE), ]
+  result <- result[order(result$relevance_score, decreasing = TRUE), ]
+
+  # Verbose logging: show rank changes when enabled
+  if (isTRUE(getOption("serapeum.verbose_api", FALSE))) {
+    message("[Rerank] model=", model, " | query='",
+            substr(query, 1, 60), if (nchar(query) > 60) "...", "' | ",
+            nrow(result), " docs")
+    for (i in seq_len(nrow(result))) {
+      r <- result[i, ]
+      moved <- r$index - i
+      arrow <- if (moved > 0) {
+        paste0(" (+", moved, ")")
+      } else if (moved < 0) {
+        paste0(" (", moved, ")")
+      } else {
+        ""
+      }
+      snippet <- substr(r$document, 1, 80)
+      snippet <- gsub("\\s+", " ", snippet)
+      message(sprintf("  #%d <- was #%d%s  score=%.4f  %s",
+                      i, r$index, arrow, r$relevance_score, snippet))
+    }
+  }
+
+  result
 }
