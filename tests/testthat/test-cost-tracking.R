@@ -1,4 +1,5 @@
 library(testthat)
+library(shiny)
 
 
 source_app("config.R")
@@ -264,4 +265,57 @@ test_that("log_cost returns NULL and warns on INSERT failure", {
   )
 
   expect_null(result)
+})
+
+# --- #223: build_latency_sparkline edge cases ---
+
+test_that("build_latency_sparkline returns NULL for all-NA latencies", {
+  trend <- data.frame(
+    date = Sys.Date() - 0:2,
+    avg_latency_ms = c(NA_real_, NA_real_, NA_real_),
+    call_count = c(1L, 1L, 1L)
+  )
+  expect_null(build_latency_sparkline(trend))
+})
+
+test_that("build_latency_sparkline returns NULL for all-zero latencies", {
+  trend <- data.frame(
+    date = Sys.Date() - 0:2,
+    avg_latency_ms = c(0, 0, 0),
+    call_count = c(1L, 1L, 1L)
+  )
+  expect_null(build_latency_sparkline(trend))
+})
+
+test_that("build_latency_sparkline handles mixed NA and valid values", {
+  trend <- data.frame(
+    date = Sys.Date() - 0:2,
+    avg_latency_ms = c(NA_real_, 500, 1000),
+    call_count = c(1L, 2L, 3L)
+  )
+  result <- build_latency_sparkline(trend)
+  expect_false(is.null(result))
+  expect_s3_class(result, "shiny.tag")
+})
+
+test_that("build_latency_sparkline returns sparkline for normal input", {
+  trend <- data.frame(
+    date = Sys.Date() - 0:3,
+    avg_latency_ms = c(200, 500, 300, 800),
+    call_count = c(5L, 3L, 4L, 2L)
+  )
+  result <- build_latency_sparkline(trend)
+  expect_false(is.null(result))
+  expect_s3_class(result, "shiny.tag")
+  rendered <- as.character(result)
+  expect_match(rendered, "d-flex")
+})
+
+test_that("build_latency_sparkline returns NULL for single-row trend", {
+  trend <- data.frame(
+    date = Sys.Date(),
+    avg_latency_ms = 500,
+    call_count = 3L
+  )
+  expect_null(build_latency_sparkline(trend))
 })

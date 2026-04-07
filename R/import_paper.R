@@ -61,7 +61,7 @@ import_single_paper <- function(con, notebook_id, abstract_row,
         tryCatch(
           log_oa_usage(con, "content_download",
                        paste0("content/works/", abs$paper_id, ".pdf"),
-                       dl$usage, cost_usd = 0.01),
+                       dl$usage, cost_usd = OA_CONTENT_DOWNLOAD_COST_USD),
           error = function(e) message("[import] Failed to log OA usage: ", e$message)
         )
       }

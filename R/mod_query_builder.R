@@ -79,7 +79,7 @@ OUTPUT (valid JSON only, no markdown, no code fences):
       model <- resolve_model_for_operation(cfg, "query_build")
       req(provider, model)
 
-      if ((is.null(provider$api_key) || nchar(provider$api_key) == 0) && !is_local_provider(provider)) {
+      if ((is.null(provider$api_key) || is.na(provider$api_key) || !nzchar(provider$api_key)) && !is_local_provider(provider)) {
         showNotification(
           "OpenRouter API key not configured. Please go to Settings.",
           type = "warning",

@@ -314,7 +314,7 @@ build_latency_sparkline <- function(trend) {
   if (nrow(trend) < 2) return(NULL)
 
   max_ms <- max(trend$avg_latency_ms, na.rm = TRUE)
-  if (max_ms == 0) return(NULL)
+  if (!is.finite(max_ms) || max_ms <= 0) return(NULL)
 
   bar_heights <- (trend$avg_latency_ms / max_ms) * 40
 
