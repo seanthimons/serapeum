@@ -255,7 +255,7 @@ test_that("COST_OPERATION_META has slot field on every entry", {
                 info = paste("Missing slot on operation:", op_name))
     # Slot must be a valid value or NA
     if (!is.na(meta$slot)) {
-      expect_true(meta$slot %in% c("fast", "quality", "embedding"),
+      expect_true(meta$slot %in% c("fast", "quality", "embedding", "rerank"),
                   info = paste("Invalid slot on operation:", op_name, "got:", meta$slot))
     }
   }

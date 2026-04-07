@@ -49,7 +49,8 @@ COST_OPERATION_META <- list(
   "openalex_fetch" = list(label = "OA Fetch", slot = NA, icon_fun = "icon_download", accent_class = "text-success"),
   "openalex_topics" = list(label = "OA Topics", slot = "fast", icon_fun = "icon_layer_group", accent_class = "text-success"),
   "query_reformulation" = list(label = "Query Reformulation", slot = "fast", icon_fun = "icon_wand", accent_class = "text-info"),
-  "theme_generation" = list(label = "Theme Generation", slot = "quality", icon_fun = "icon_wand", accent_class = "text-info")
+  "theme_generation" = list(label = "Theme Generation", slot = "quality", icon_fun = "icon_wand", accent_class = "text-info"),
+  "rerank" = list(label = "Rerank", slot = "rerank", icon_fun = "icon_sort", accent_class = "text-purple")
 )
 
 KNOWN_MODEL_LABELS <- c(

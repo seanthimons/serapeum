@@ -392,7 +392,8 @@ resolve_model_for_operation <- function(config, operation) {
   model <- switch(slot,
     fast      = config$defaults$fast_model %||% config$defaults$quality_model,
     quality   = config$defaults$quality_model,
-    embedding = config$defaults$embedding_model
+    embedding = config$defaults$embedding_model,
+    rerank    = config$defaults$rerank_model
   )
 
   if (is.null(model) || model == "") {

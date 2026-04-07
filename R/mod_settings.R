@@ -158,6 +158,23 @@ mod_settings_ui <- function(id) {
           p(class = "text-muted small mt-0 mb-2",
             "For: document indexing and retrieval"),
           uiOutput(ns("embed_dimension_warning")),
+          div(
+            class = "d-flex align-items-end gap-2",
+            div(
+              style = "flex-grow: 1;",
+              selectizeInput(ns("rerank_model"), "Reranker Model",
+                             choices = c(
+                               "Cohere Rerank 4 Fast ($0.002/search)" = "cohere/rerank-4-fast",
+                               "Cohere Rerank v3.5 ($0.001/search)" = "cohere/rerank-v3.5"
+                             ))
+            ),
+            actionButton(ns("refresh_rerank_models"), NULL,
+                         icon = icon_refresh(),
+                         class = "btn-outline-secondary btn-sm mb-3",
+                         title = "Refresh model list")
+          ),
+          p(class = "text-muted small mt-0 mb-2",
+            "For: reranking search results and RAG chunks"),
           hr(),
           h5(icon_server(), " Providers"),
           p(class = "text-muted small",
@@ -250,6 +267,7 @@ mod_settings_server <- function(id, con, config_rv) {
     # Reactive values to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
     refresh_chat_trigger <- reactiveVal(0)
+    refresh_rerank_trigger <- reactiveVal(0)
 
     # Store chat models data for info panel
     chat_models_data <- reactiveVal(NULL)
@@ -335,6 +353,33 @@ mod_settings_server <- function(id, con, config_rv) {
       }
 
       updateSelectizeInput(session, "embed_model",
+                           choices = choices,
+                           selected = selected)
+    }
+
+    # Helper function to update rerank model choices
+    update_rerank_model_choices <- function(api_key, current_selection = NULL) {
+      models <- tryCatch({
+        list_rerank_models(api_key)
+      }, error = function(e) {
+        get_default_rerank_models()
+      })
+
+      if (is.null(models) || nrow(models) == 0) {
+        models <- get_default_rerank_models()
+      }
+
+      choices <- setNames(models$id, models$name)
+
+      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+        current_selection
+      } else if (length(choices) > 0) {
+        choices[[1]]
+      } else {
+        NULL
+      }
+
+      updateSelectizeInput(session, "rerank_model",
                            choices = choices,
                            selected = selected)
     }
@@ -448,6 +493,12 @@ mod_settings_server <- function(id, con, config_rv) {
                      "openai/text-embedding-3-small"
       update_embed_model_choices(or_key, embed_model)
 
+      # Reranker model
+      rerank_model <- get_db_setting(con(), "rerank_model") %||%
+                      get_setting(cfg, "defaults", "rerank_model") %||%
+                      "cohere/rerank-4-fast"
+      update_rerank_model_choices(or_key, rerank_model)
+
       # Advanced
       reformulation <- get_db_setting(con(), "rag_query_reformulation")
       if (is.null(reformulation)) {
@@ -504,6 +555,21 @@ mod_settings_server <- function(id, con, config_rv) {
     observeEvent(input$refresh_embed_models, {
       refresh_embed_trigger(refresh_embed_trigger() + 1)
       showNotification("Refreshing embedding models...", type = "message", duration = 2)
+    })
+
+    # Refresh rerank models when API key changes or refresh button clicked
+    observe({
+      api_key <- input$openrouter_key
+      refresh_rerank_trigger()
+
+      current <- input$rerank_model
+      update_rerank_model_choices(api_key, current)
+    }) |> bindEvent(input$openrouter_key, refresh_rerank_trigger(), ignoreInit = TRUE)
+
+    # Handle rerank refresh button click
+    observeEvent(input$refresh_rerank_models, {
+      refresh_rerank_trigger(refresh_rerank_trigger() + 1)
+      showNotification("Refreshing rerank models...", type = "message", duration = 2)
     })
 
     # Refresh chat/fast models when API key changes or refresh button clicked
@@ -1358,6 +1424,7 @@ mod_settings_server <- function(id, con, config_rv) {
           )
         }
         save_db_setting(con(), "embedding_model", input$embed_model)
+        save_db_setting(con(), "rerank_model", input$rerank_model)
         save_db_setting(con(), "rag_query_reformulation", input$query_reformulation)
         save_db_setting(con(), "chunk_size", input$chunk_size)
         save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
@@ -1404,7 +1471,10 @@ mod_settings_server <- function(id, con, config_rv) {
                           "google/gemini-3.1-flash-lite-preview",
           embedding_model = get_db_setting(con(), "embedding_model") %||%
                             get_setting(cfg, "defaults", "embedding_model") %||%
-                            "openai/text-embedding-3-small"
+                            "openai/text-embedding-3-small",
+          rerank_model = get_db_setting(con(), "rerank_model") %||%
+                         get_setting(cfg, "defaults", "rerank_model") %||%
+                         "cohere/rerank-4-fast"
         ),
         app = list(
           query_reformulation = get_db_setting(con(), "rag_query_reformulation") %||%
