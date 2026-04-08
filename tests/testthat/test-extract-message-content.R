@@ -28,6 +28,17 @@ test_that("extract_message_content returns empty string when no reasoning fallba
   expect_equal(extract_message_content(msg), "")
 })
 
+test_that("extract_message_content falls through character(0) to reasoning", {
+  msg <- list(content = character(0), reasoning = "fallback reasoning")
+  expect_equal(extract_message_content(msg), "fallback reasoning")
+})
+
+test_that("extract_message_content handles character(0) with no reasoning", {
+  msg <- list(content = character(0))
+  # character(0) is empty, no reasoning → returns content as-is
+  expect_equal(extract_message_content(msg), character(0))
+})
+
 test_that("extract_message_content handles multi-element character vector", {
   # This was the bug — nchar() on a vector yields a vector, if() errors
   msg <- list(content = c("Hello", "World"))

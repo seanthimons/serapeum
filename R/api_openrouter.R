@@ -90,7 +90,7 @@ extract_message_content <- function(msg) {
 
   # Reasoning models (e.g. gpt-5-nano) put output in $reasoning, $content is NULL
 
-  if (is.null(content) || (is.character(content) && all(nchar(content) == 0))) {
+  if (is.null(content) || (is.character(content) && (length(content) == 0 || all(nchar(content) == 0)))) {
     if (!is.null(msg$reasoning)) {
       return(msg$reasoning)
     }

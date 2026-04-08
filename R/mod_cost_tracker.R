@@ -317,6 +317,7 @@ build_latency_sparkline <- function(trend) {
   if (!is.finite(max_ms) || max_ms <= 0) return(NULL)
 
   bar_heights <- (trend$avg_latency_ms / max_ms) * 40
+  bar_heights[is.na(bar_heights)] <- 0
 
   tags$div(
     class = "d-flex align-items-end gap-1",

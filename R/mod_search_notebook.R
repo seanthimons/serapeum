@@ -555,6 +555,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         source("R/db_migrations.R")
         source("R/db.R")
         source("R/interrupt.R")
+        source("R/config.R")       # For DEFAULT_CONFIG (used by import_single_paper)
         source("R/bulk_import.R")  # For write_import_progress / read_import_progress
         source("R/_ragnar.R")      # For chunk_with_ragnar()
         source("R/pdf.R")          # For download_pdf_from_url(), process_pdf(), sanitize_filename()
@@ -2872,7 +2873,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         provider_or <- provider_from_config(cfg, con())
         embed_model <- resolve_model_for_operation(cfg, "embedding")
 
-        if ((is.null(provider_or$api_key) || nchar(provider_or$api_key) == 0) && !is_local_provider(provider_or)) {
+        if ((is.null(provider_or$api_key) || is.na(provider_or$api_key) || !nzchar(provider_or$api_key)) && !is_local_provider(provider_or)) {
           showNotification("API key required for embedding (unless using a local provider)", type = "error")
           return()
         }

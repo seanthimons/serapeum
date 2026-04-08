@@ -296,6 +296,7 @@ test_that("build_latency_sparkline handles mixed NA and valid values", {
   result <- build_latency_sparkline(trend)
   expect_false(is.null(result))
   expect_s3_class(result, "shiny.tag")
+  expect_false(grepl("NApx", as.character(result)))
 })
 
 test_that("build_latency_sparkline returns sparkline for normal input", {
