@@ -56,7 +56,7 @@ New features should have a design document in `docs/plans/` before implementatio
 
 ## Task Tracking
 
-GitHub Issues + beads (`bd`) is the sole source of truth for task tracking. Use `bd ready` to find work. Do not maintain a separate TODO.md.
+GitHub Issues + beans (`beans`) is the issue tracker. Use `beans list --ready` to find unblocked work. Issues live as markdown files in `.beans/`. Do not maintain a separate TODO.md.
 
 ## Evergreen Tasks
 

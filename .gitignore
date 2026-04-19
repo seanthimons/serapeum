@@ -32,6 +32,7 @@ Thumbs.db
 
 # Dot folders
 .*/
+!.beans/
 
 # Output/ Render files
 output/
