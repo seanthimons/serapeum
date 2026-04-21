@@ -18,12 +18,14 @@ library(jsonlite)
 #' @param timeout_chat Timeout in seconds for chat completions (default 120)
 #' @param timeout_embed Timeout in seconds for embeddings (default 60)
 #' @return Provider config list
-create_provider_config <- function(name,
-                                    base_url,
-                                    api_key = NULL,
-                                    provider_type = "openai-compatible",
-                                    timeout_chat = 120,
-                                    timeout_embed = 60) {
+create_provider_config <- function(
+  name,
+  base_url,
+  api_key = NULL,
+  provider_type = "openai-compatible",
+  timeout_chat = 120,
+  timeout_embed = 60
+) {
   # Strip trailing slash from base_url
   base_url <- sub("/+$", "", base_url)
 
@@ -72,8 +74,13 @@ build_provider_request <- function(provider, endpoint) {
   req <- request(paste0(provider$base_url, "/", endpoint)) |>
     req_headers("Content-Type" = "application/json")
 
-  if (!is.null(provider$api_key) && !is.na(provider$api_key) && nchar(provider$api_key) > 0) {
-    req <- req |> req_headers("Authorization" = paste("Bearer", provider$api_key))
+  if (
+    !is.null(provider$api_key) &&
+      !is.na(provider$api_key) &&
+      nchar(provider$api_key) > 0
+  ) {
+    req <- req |>
+      req_headers("Authorization" = paste("Bearer", provider$api_key))
   }
 
   req
@@ -115,11 +122,14 @@ provider_chat_completion <- function(provider, model, messages) {
 
   start_time <- proc.time()
 
-  resp <- tryCatch({
-    req_perform(req)
-  }, error = function(e) {
-    stop_api_error(e, provider$name)
-  })
+  resp <- tryCatch(
+    {
+      req_perform(req)
+    },
+    error = function(e) {
+      stop_api_error(e, provider$name)
+    }
+  )
 
   elapsed <- proc.time() - start_time
   duration_ms <- as.integer(round(elapsed[["elapsed"]] * 1000))
@@ -159,11 +169,14 @@ provider_get_embeddings <- function(provider, model, text) {
 
   start_time <- proc.time()
 
-  resp <- tryCatch({
-    req_perform(req)
-  }, error = function(e) {
-    stop_api_error(e, provider$name)
-  })
+  resp <- tryCatch(
+    {
+      req_perform(req)
+    },
+    error = function(e) {
+      stop_api_error(e, provider$name)
+    }
+  )
 
   elapsed <- proc.time() - start_time
   duration_ms <- as.integer(round(elapsed[["elapsed"]] * 1000))
@@ -193,25 +206,47 @@ provider_get_embeddings <- function(provider, model, text) {
 provider_list_models <- function(provider) {
   req <- build_provider_request(provider, "models")
 
-  resp <- tryCatch({
-    req_perform(req)
-  }, error = function(e) {
-    return(data.frame(id = character(), name = character(), stringsAsFactors = FALSE))
-  })
+  resp <- tryCatch(
+    {
+      req_perform(req)
+    },
+    error = function(e) {
+      return(data.frame(
+        id = character(),
+        name = character(),
+        stringsAsFactors = FALSE
+      ))
+    }
+  )
 
-  body <- tryCatch({
-    resp_body_json(resp)
-  }, error = function(e) {
-    return(data.frame(id = character(), name = character(), stringsAsFactors = FALSE))
-  })
+  body <- tryCatch(
+    {
+      resp_body_json(resp)
+    },
+    error = function(e) {
+      return(data.frame(
+        id = character(),
+        name = character(),
+        stringsAsFactors = FALSE
+      ))
+    }
+  )
 
   if (is.null(body$data) || length(body$data) == 0) {
-    return(data.frame(id = character(), name = character(), stringsAsFactors = FALSE))
+    return(data.frame(
+      id = character(),
+      name = character(),
+      stringsAsFactors = FALSE
+    ))
   }
 
   data.frame(
     id = vapply(body$data, function(x) x$id %||% "", character(1)),
-    name = vapply(body$data, function(x) x$name %||% x$id %||% "", character(1)),
+    name = vapply(
+      body$data,
+      function(x) x$name %||% x$id %||% "",
+      character(1)
+    ),
     stringsAsFactors = FALSE
   )
 }
@@ -224,39 +259,44 @@ provider_list_models <- function(provider) {
 #' @param timeout Probe timeout in seconds (default 3)
 #' @return List with alive (logical), model_count (integer), server_type (character)
 provider_check_health <- function(provider, timeout = 3) {
-  tryCatch({
-    req <- build_provider_request(provider, "models") |>
-      req_timeout(timeout)
+  tryCatch(
+    {
+      req <- build_provider_request(provider, "models") |>
+        req_timeout(timeout)
 
-    resp <- req_perform(req)
-    body <- resp_body_json(resp)
+      resp <- req_perform(req)
+      body <- resp_body_json(resp)
 
-    models <- if (!is.null(body$data)) body$data else list()
-    model_ids <- vapply(models, function(m) m$id %||% "", character(1))
+      models <- if (!is.null(body$data)) body$data else list()
+      model_ids <- vapply(models, function(m) m$id %||% "", character(1))
 
-    # Detect server type from model ID patterns
-    server_type <- if (any(grepl("\\.gguf$", model_ids, ignore.case = TRUE))) {
-      "lmstudio"
-    } else if (any(grepl(":", model_ids))) {
-      "ollama"
-    } else if (provider$provider_type == "openrouter") {
-      "openrouter"
-    } else {
-      "openai-compatible"
+      # Detect server type from model ID patterns
+      server_type <- if (
+        any(grepl("\\.gguf$", model_ids, ignore.case = TRUE))
+      ) {
+        "lmstudio"
+      } else if (any(grepl(":", model_ids))) {
+        "ollama"
+      } else if (provider$provider_type == "openrouter") {
+        "openrouter"
+      } else {
+        "openai-compatible"
+      }
+
+      list(
+        alive = TRUE,
+        model_count = length(models),
+        server_type = server_type
+      )
+    },
+    error = function(e) {
+      list(
+        alive = FALSE,
+        model_count = 0L,
+        server_type = "unknown"
+      )
     }
-
-    list(
-      alive = TRUE,
-      model_count = length(models),
-      server_type = server_type
-    )
-  }, error = function(e) {
-    list(
-      alive = FALSE,
-      model_count = 0L,
-      server_type = "unknown"
-    )
-  })
+  )
 }
 
 #' Check if a provider serves local models (not cloud-billed)
@@ -271,39 +311,116 @@ is_local_provider <- function(provider) {
 
 #' Known embedding dimensions by model ID
 KNOWN_EMBED_DIMS <- c(
+  # OpenAI
   "openai/text-embedding-3-small" = 1536L,
   "openai/text-embedding-3-large" = 3072L,
-  "openai/text-embedding-ada-002" = 1536L,
-  "google/gemini-embedding-001" = 768L,
+  # Google
+  "google/gemini-embedding-001" = 3072L, # FIXED: was 768 (MRL truncation), default is 3072
+  "google/gemini-embedding-2-preview" = 3072L,
+  # Qwen (Alibaba) -- CISA-filterable
   "qwen/qwen3-embedding-8b" = 4096L,
+  "qwen/qwen3-embedding-4b" = 2560L,
+  # Mistral
   "mistralai/mistral-embed-2312" = 1024L,
-  "nomic-embed-text" = 768L,    # Ollama
-  "mxbai-embed-large" = 1024L,  # Ollama
-  "all-minilm" = 384L           # Ollama
+  "mistralai/codestral-embed-2505" = 3072L,
+  # BAAI
+  "baai/bge-m3" = 1024L,
+  # NVIDIA
+  "nvidia/llama-nemotron-embed-vl-1b-v2" = 2048L,
+  # Perplexity
+  "perplexity/pplx-embed-v1-4b" = 2560L,
+  "perplexity/pplx-embed-v1-0.6b" = 1024L,
+  # Local (Ollama)
+  "nomic-embed-text" = 768L,
+  "mxbai-embed-large" = 1024L,
+  "all-minilm" = 384L
 )
+
+# Provider prefixes for CISA countries of concern (DOJ Data Security Rule, April 2025)
+CISA_BLOCKED_PROVIDERS <- c(
+  "deepseek",
+  "qwen",
+  "moonshotai",
+  "minimax",
+  "z-ai",
+  "stepfun",
+  "xiaomi",
+  "baichuan",
+  "01-ai"
+)
+
+#' Filter model IDs by CISA blocked provider prefixes
+#'
+#' @param provider_ids Character vector of model IDs (e.g., "deepseek/deepseek-v3")
+#'   or bare provider names (e.g., "deepseek").
+#' @param cisa_filter Logical. If TRUE, removes IDs whose provider prefix is in
+#'   CISA_BLOCKED_PROVIDERS.
+#' @return Filtered character vector
+filter_cisa_providers <- function(provider_ids, cisa_filter = FALSE) {
+  if (!isTRUE(cisa_filter)) {
+    return(provider_ids)
+  }
+  prefixes <- paste0("^", CISA_BLOCKED_PROVIDERS, "/")
+  blocked <- Reduce(`|`, lapply(prefixes, function(p) grepl(p, provider_ids)))
+  provider_ids[!blocked]
+}
 
 #' Detect embedding dimension for a model
 #'
-#' Checks known dimensions first, then optionally probes the provider
-#' with a test embedding call.
+#' Three-tier lookup: hardcoded table -> DB cache -> live probe.
 #'
 #' @param model Embedding model ID
-#' @param provider Optional provider_config for probe (NULL to skip)
-#' @return Integer dimension, or NULL if unknown and no provider given
-detect_embedding_dimension <- function(model, provider = NULL) {
-  # Check known table first
+#' @param con Optional DuckDB connection for DB cache reads/writes (NULL to skip)
+#' @param provider Optional provider_config for live probe (NULL to skip)
+#' @return Integer dimension, or NULL if unknown and neither con nor provider given
+detect_embedding_dimension <- function(model, con = NULL, provider = NULL) {
+  # Tier 1: Check hardcoded lookup (instant, no I/O)
   dim <- unname(KNOWN_EMBED_DIMS[model])
-  if (length(dim) == 1 && !is.na(dim)) return(as.integer(dim))
+  if (length(dim) == 1 && !is.na(dim)) {
+    return(as.integer(dim))
+  }
 
-  # Probe with a test call if provider available
+  # Tier 2: Check DB cache (fast)
+  if (!is.null(con)) {
+    cached <- tryCatch(
+      DBI::dbGetQuery(
+        con,
+        "SELECT dimensions FROM embedding_dim_cache WHERE model_id = ?",
+        params = list(model)
+      ),
+      error = function(e) data.frame()
+    )
+    if (nrow(cached) > 0) return(as.integer(cached$dimensions[1]))
+  }
 
+  # Tier 3: Probe via test embedding (slow, costs tokens)
   if (!is.null(provider)) {
-    result <- tryCatch({
-      resp <- provider_get_embeddings(provider, model, "test")
-      length(resp$embeddings[[1]])
-    }, error = function(e) NULL)
+    result <- tryCatch(
+      {
+        resp <- provider_get_embeddings(provider, model, "test")
+        length(resp$embeddings[[1]])
+      },
+      error = function(e) NULL
+    )
 
-    if (!is.null(result) && result > 0) return(as.integer(result))
+    if (!is.null(result) && result > 0) {
+      # Write probe result back to DB cache
+      if (!is.null(con)) {
+        tryCatch(
+          DBI::dbExecute(
+            con,
+            "INSERT INTO embedding_dim_cache (model_id, dimensions)
+             VALUES (?, ?)
+             ON CONFLICT (model_id) DO UPDATE SET
+               dimensions = EXCLUDED.dimensions,
+               probed_at  = CURRENT_TIMESTAMP",
+            params = list(model, as.integer(result))
+          ),
+          error = function(e) NULL
+        )
+      }
+      return(as.integer(result))
+    }
   }
 
   NULL
@@ -322,8 +439,10 @@ detect_embedding_dimension <- function(model, provider = NULL) {
 get_all_available_models <- function(provider_configs, timeout = 3) {
   if (length(provider_configs) == 0) {
     return(data.frame(
-      model_id = character(), display_name = character(),
-      provider_id = character(), provider_name = character(),
+      model_id = character(),
+      display_name = character(),
+      provider_id = character(),
+      provider_name = character(),
       stringsAsFactors = FALSE
     ))
   }
@@ -334,13 +453,22 @@ get_all_available_models <- function(provider_configs, timeout = 3) {
     probe_cfg <- cfg
     probe_cfg$timeout_chat <- timeout
 
-    models <- tryCatch({
-      provider_list_models(probe_cfg)
-    }, error = function(e) {
-      data.frame(id = character(), name = character(), stringsAsFactors = FALSE)
-    })
+    models <- tryCatch(
+      {
+        provider_list_models(probe_cfg)
+      },
+      error = function(e) {
+        data.frame(
+          id = character(),
+          name = character(),
+          stringsAsFactors = FALSE
+        )
+      }
+    )
 
-    if (nrow(models) == 0) return(NULL)
+    if (nrow(models) == 0) {
+      return(NULL)
+    }
 
     data.frame(
       model_id = models$id,
@@ -358,8 +486,10 @@ get_all_available_models <- function(provider_configs, timeout = 3) {
   result <- do.call(rbind, Filter(Negate(is.null), all_models))
   if (is.null(result)) {
     return(data.frame(
-      model_id = character(), display_name = character(),
-      provider_id = character(), provider_name = character(),
+      model_id = character(),
+      display_name = character(),
+      provider_id = character(),
+      provider_name = character(),
       stringsAsFactors = FALSE
     ))
   }
@@ -389,15 +519,22 @@ resolve_model_for_operation <- function(config, operation) {
     stop("Operation '", operation, "' is not an LLM operation (slot = NA)")
   }
 
-  model <- switch(slot,
-    fast      = config$defaults$fast_model %||% config$defaults$quality_model,
-    quality   = config$defaults$quality_model,
+  model <- switch(
+    slot,
+    fast = config$defaults$fast_model %||% config$defaults$quality_model,
+    quality = config$defaults$quality_model,
     embedding = config$defaults$embedding_model,
-    rerank    = config$defaults$rerank_model
+    rerank = config$defaults$rerank_model
   )
 
   if (is.null(model) || model == "") {
-    stop("No model configured for slot '", slot, "'. Please configure a ", slot, " model in Settings.")
+    stop(
+      "No model configured for slot '",
+      slot,
+      "'. Please configure a ",
+      slot,
+      " model in Settings."
+    )
   }
 
   model
@@ -419,7 +556,7 @@ provider_from_config <- function(config, con = NULL) {
   if (!is.null(con)) {
     providers <- tryCatch(get_providers(con), error = function(e) data.frame())
     if (nrow(providers) > 0) {
-      default_row <- providers[providers$is_default == TRUE, , drop = FALSE]
+      default_row <- providers[providers$is_default, , drop = FALSE]
       if (nrow(default_row) > 0) {
         row <- default_row[1, ]
         # For OpenRouter default, inject API key from settings (settings key is canonical)

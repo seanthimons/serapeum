@@ -7,11 +7,17 @@
 #' @return Data frame of rerank models with id, name, price_per_search
 get_default_rerank_models <- function() {
   data.frame(
-    id = c("cohere/rerank-4-pro",
-           "cohere/rerank-4-fast"),
-    name = c("Cohere Rerank 4 Pro ($0.005/search)",
-             "Cohere Rerank 4 Fast ($0.002/search)"),
-    price_per_search = c(0.005, 0.002),
+    id = c(
+      "cohere/rerank-4-pro",
+      "cohere/rerank-4-fast",
+      "cohere/rerank-v3.5"
+    ),
+    name = c(
+      "Cohere Rerank 4 Pro ($0.0025/search) - SOTA",
+      "Cohere Rerank 4 Fast ($0.002/search) - Low Latency",
+      "Cohere Rerank v3.5 ($0.002/search) - Legacy"
+    ),
+    price_per_search = c(0.0025, 0.002, 0.002),
     stringsAsFactors = FALSE
   )
 }
@@ -30,21 +36,27 @@ list_rerank_models <- function(api_key) {
   req <- build_openrouter_request(api_key, "models") |>
     req_url_query(output_modalities = "rerank")
 
-  resp <- tryCatch({
-    req_perform(req)
-  }, error = function(e) {
-    return(NULL)
-  })
+  resp <- tryCatch(
+    {
+      req_perform(req)
+    },
+    error = function(e) {
+      return(NULL)
+    }
+  )
 
   if (is.null(resp)) {
     return(get_default_rerank_models())
   }
 
-  body <- tryCatch({
-    resp_body_json(resp)
-  }, error = function(e) {
-    return(NULL)
-  })
+  body <- tryCatch(
+    {
+      resp_body_json(resp)
+    },
+    error = function(e) {
+      return(NULL)
+    }
+  )
 
   if (is.null(body) || is.null(body$data) || length(body$data) == 0) {
     return(get_default_rerank_models())
@@ -61,7 +73,11 @@ list_rerank_models <- function(api_key) {
       idx <- match(x$id, known$id)
       price <- if (!is.na(idx)) known$price_per_search[idx] else 0
       label <- x$name %||% x$id
-      if (price > 0) paste0(label, " ($", format(price, scientific = FALSE), "/search)") else label
+      if (price > 0) {
+        paste0(label, " ($", format(price, scientific = FALSE), "/search)")
+      } else {
+        label
+      }
     }),
     price_per_search = sapply(rerank_models, function(x) {
       idx <- match(x$id, known$id)
@@ -101,60 +117,78 @@ rerank <- function(api_key, model, query, documents, top_n = NULL) {
     query = query,
     documents = as.list(documents)
   )
-  if (!is.null(top_n)) body$top_n <- as.integer(top_n)
+  if (!is.null(top_n)) {
+    body$top_n <- as.integer(top_n)
+  }
 
-  result <- tryCatch({
-    req <- build_openrouter_request(api_key, "rerank") |>
-      req_body_json(body) |>
-      req_timeout(60)
+  result <- tryCatch(
+    {
+      req <- build_openrouter_request(api_key, "rerank") |>
+        req_body_json(body) |>
+        req_timeout(60)
 
-    resp <- req_perform(req)
-    resp_body <- resp_body_json(resp)
+      resp <- req_perform(req)
+      resp_body <- resp_body_json(resp)
 
-    if (!is.null(resp_body$error)) {
-      stop("OpenRouter rerank error: ", resp_body$error$message)
+      if (!is.null(resp_body$error)) {
+        stop("OpenRouter rerank error: ", resp_body$error$message)
+      }
+
+      results <- resp_body$results
+      if (is.null(results) || length(results) == 0) {
+        stop("No rerank results returned")
+      }
+
+      data.frame(
+        index = sapply(results, function(r) as.integer(r$index) + 1L),
+        relevance_score = sapply(results, function(r) {
+          as.numeric(r$relevance_score)
+        }),
+        document = sapply(results, function(r) {
+          # Some models return document text, others just index
+          if (!is.null(r$document) && !is.null(r$document$text)) {
+            r$document$text
+          } else {
+            documents[as.integer(r$index) + 1L]
+          }
+        }),
+        stringsAsFactors = FALSE
+      )
+    },
+    error = function(e) {
+      err <- classify_api_error(e, "OpenRouter")
+      message("Rerank failed (graceful degradation): ", err$message)
+
+      # Return documents in original order as fallback
+      n <- if (!is.null(top_n) && top_n < length(documents)) {
+        top_n
+      } else {
+        length(documents)
+      }
+      data.frame(
+        index = seq_len(n),
+        relevance_score = rep(0, n),
+        document = documents[seq_len(n)],
+        stringsAsFactors = FALSE
+      )
     }
-
-    results <- resp_body$results
-    if (is.null(results) || length(results) == 0) {
-      stop("No rerank results returned")
-    }
-
-    data.frame(
-      index = sapply(results, function(r) as.integer(r$index) + 1L),
-      relevance_score = sapply(results, function(r) as.numeric(r$relevance_score)),
-      document = sapply(results, function(r) {
-        # Some models return document text, others just index
-        if (!is.null(r$document) && !is.null(r$document$text)) {
-          r$document$text
-        } else {
-          documents[as.integer(r$index) + 1L]
-        }
-      }),
-      stringsAsFactors = FALSE
-    )
-  }, error = function(e) {
-    err <- classify_api_error(e, "OpenRouter")
-    message("Rerank failed (graceful degradation): ", err$message)
-
-    # Return documents in original order as fallback
-    n <- if (!is.null(top_n) && top_n < length(documents)) top_n else length(documents)
-    data.frame(
-      index = seq_len(n),
-      relevance_score = rep(0, n),
-      document = documents[seq_len(n)],
-      stringsAsFactors = FALSE
-    )
-  })
+  )
 
   # Sort by relevance score descending
   result <- result[order(result$relevance_score, decreasing = TRUE), ]
 
   # Verbose logging: show rank changes when enabled
   if (isTRUE(getOption("serapeum.verbose_api", FALSE))) {
-    message("[Rerank] model=", model, " | query='",
-            substr(query, 1, 60), if (nchar(query) > 60) "...", "' | ",
-            nrow(result), " docs")
+    message(
+      "[Rerank] model=",
+      model,
+      " | query='",
+      substr(query, 1, 60),
+      if (nchar(query) > 60) "...",
+      "' | ",
+      nrow(result),
+      " docs"
+    )
     for (i in seq_len(nrow(result))) {
       r <- result[i, ]
       moved <- r$index - i
@@ -167,8 +201,14 @@ rerank <- function(api_key, model, query, documents, top_n = NULL) {
       }
       snippet <- substr(r$document, 1, 80)
       snippet <- gsub("\\s+", " ", snippet)
-      message(sprintf("  #%d <- was #%d%s  score=%.4f  %s",
-                      i, r$index, arrow, r$relevance_score, snippet))
+      message(sprintf(
+        "  #%d <- was #%d%s  score=%.4f  %s",
+        i,
+        r$index,
+        arrow,
+        r$relevance_score,
+        snippet
+      ))
     }
   }
 

@@ -33,3 +33,9 @@ app:
   # Citation networks
   # One of: viridis, magma, plasma, inferno, cividis
   network_palette: "viridis"
+
+# Compliance
+compliance:
+  # Filter out models from providers in CISA-designated countries of concern
+  # Countries: China (inc. HK/Macau), Russia, Iran, North Korea, Cuba, Venezuela
+  cisa_filter: false
