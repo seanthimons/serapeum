@@ -29,7 +29,8 @@ mod_research_refiner_ui <- function(id) {
                        choices = c("Seed Papers" = "seeds",
                                    "Research Intent" = "intent",
                                    "Seeds + Intent" = "both",
-                                   "From Notebook" = "notebook_anchor"),
+                                   "From Notebook" = "notebook_anchor",
+                                   "Notebook + Intent" = "notebook_intent"),
                        selected = "seeds", inline = TRUE),
           conditionalPanel(
             condition = sprintf("input['%s'] === 'seeds' || input['%s'] === 'both'",
@@ -49,8 +50,8 @@ mod_research_refiner_ui <- function(id) {
             )
           ),
           conditionalPanel(
-            condition = sprintf("input['%s'] === 'notebook_anchor'",
-                                ns("anchor_type")),
+            condition = sprintf("input['%s'] === 'notebook_anchor' || input['%s'] === 'notebook_intent'",
+                                ns("anchor_type"), ns("anchor_type")),
             div(
               class = "mb-3",
               uiOutput(ns("anchor_notebook_selector")),
@@ -61,8 +62,8 @@ mod_research_refiner_ui <- function(id) {
             )
           ),
           conditionalPanel(
-            condition = sprintf("input['%s'] === 'intent' || input['%s'] === 'both'",
-                                ns("anchor_type"), ns("anchor_type")),
+            condition = sprintf("input['%s'] === 'intent' || input['%s'] === 'both' || input['%s'] === 'notebook_intent'",
+                                ns("anchor_type"), ns("anchor_type"), ns("anchor_type")),
             textAreaInput(ns("anchor_intent"),
                           "Research Intent",
                           placeholder = "Describe what you're looking for, e.g., 'How do transformers improve clinical NLP outcomes compared to traditional methods?'",
@@ -73,7 +74,7 @@ mod_research_refiner_ui <- function(id) {
 
       # Step 2: Select Candidates (hidden when anchor is notebook)
       conditionalPanel(
-        condition = sprintf("input['%s'] !== 'notebook_anchor'", ns("anchor_type")),
+        condition = sprintf("input['%s'] !== 'notebook_anchor' && input['%s'] !== 'notebook_intent'", ns("anchor_type"), ns("anchor_type")),
         div(
           class = "card mb-3",
           div(
