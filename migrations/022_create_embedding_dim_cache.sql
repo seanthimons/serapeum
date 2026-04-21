@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS embedding_dim_cache (
+  model_id  VARCHAR PRIMARY KEY,
+  dimensions INTEGER NOT NULL,
+  probed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

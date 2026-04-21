@@ -84,7 +84,7 @@ test_that("normalize_usage handles partial usage (missing fields)", {
 
   expect_equal(result$prompt_tokens, 100L)
   expect_equal(result$completion_tokens, 0L)
-  expect_equal(result$total_tokens, 100L)  # calculated from prompt + completion
+  expect_equal(result$total_tokens, 100L) # calculated from prompt + completion
 })
 
 # ---- Config Bridge ----
@@ -138,12 +138,12 @@ test_that("estimate_cost returns $0 for local models", {
 
 test_that("estimate_cost uses DEFAULT_PRICING for unknown cloud models", {
   cost <- estimate_cost("unknown/model", 1000000, 0, is_local = FALSE)
-  expect_equal(cost, DEFAULT_PRICING$prompt)  # 1M tokens * $1.00/M
+  expect_equal(cost, DEFAULT_PRICING$prompt) # 1M tokens * $1.00/M
 })
 
 test_that("estimate_cost uses known pricing when available", {
   cost <- estimate_cost("openai/text-embedding-3-small", 1000000, 0)
-  expect_equal(cost, 0.02)  # 1M tokens * $0.02/M
+  expect_equal(cost, 0.02) # 1M tokens * $0.02/M
 })
 
 # ---- log_cost with duration_ms ----
@@ -157,14 +157,28 @@ test_that("log_cost works with and without duration_ms", {
   init_schema(con)
 
   # Without duration_ms (backward compatible)
-  id1 <- log_cost(con, "chat", "test/model", 100, 50,
-                   estimated_cost = 0.001, session_id = "s1")
+  id1 <- log_cost(
+    con,
+    "chat",
+    "test/model",
+    100,
+    50,
+    estimated_cost = 0.001,
+    session_id = "s1"
+  )
   expect_true(nchar(id1) > 0)
 
   # With duration_ms (when column doesn't exist yet — no migration 012)
-  id2 <- log_cost(con, "chat", "test/model", 100, 50,
-                   estimated_cost = 0.001, session_id = "s1",
-                   duration_ms = 1500)
+  id2 <- log_cost(
+    con,
+    "chat",
+    "test/model",
+    100,
+    50,
+    estimated_cost = 0.001,
+    session_id = "s1",
+    duration_ms = 1500
+  )
   expect_true(nchar(id2) > 0)
 
   # Verify records exist
@@ -175,88 +189,159 @@ test_that("log_cost works with and without duration_ms", {
 # ---- Model Slot Resolution ----
 
 test_that("resolve_model_for_operation routes quality operations correctly", {
-  config <- list(defaults = list(
-    fast_model = "google/gemini-3.1-flash-lite-preview",
-    quality_model = "anthropic/claude-sonnet-4",
-    embedding_model = "openai/text-embedding-3-small"
-  ))
+  config <- list(
+    defaults = list(
+      fast_model = "google/gemini-3.1-flash-lite-preview",
+      quality_model = "anthropic/claude-sonnet-4",
+      embedding_model = "openai/text-embedding-3-small"
+    )
+  )
 
-  expect_equal(resolve_model_for_operation(config, "chat"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "overview"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "slide_generation"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "conclusion_synthesis"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "research_questions"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "lit_review_table"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "methodology_extractor"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "gap_analysis"), "anthropic/claude-sonnet-4")
+  expect_equal(
+    resolve_model_for_operation(config, "chat"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "overview"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "slide_generation"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "conclusion_synthesis"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "research_questions"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "lit_review_table"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "methodology_extractor"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "gap_analysis"),
+    "anthropic/claude-sonnet-4"
+  )
 })
 
 test_that("resolve_model_for_operation routes fast operations correctly", {
-  config <- list(defaults = list(
-    fast_model = "google/gemini-3.1-flash-lite-preview",
-    quality_model = "anthropic/claude-sonnet-4",
-    embedding_model = "openai/text-embedding-3-small"
-  ))
+  config <- list(
+    defaults = list(
+      fast_model = "google/gemini-3.1-flash-lite-preview",
+      quality_model = "anthropic/claude-sonnet-4",
+      embedding_model = "openai/text-embedding-3-small"
+    )
+  )
 
-  expect_equal(resolve_model_for_operation(config, "query_build"), "google/gemini-3.1-flash-lite-preview")
-  expect_equal(resolve_model_for_operation(config, "query_reformulation"), "google/gemini-3.1-flash-lite-preview")
-  expect_equal(resolve_model_for_operation(config, "openalex_topics"), "google/gemini-3.1-flash-lite-preview")
+  expect_equal(
+    resolve_model_for_operation(config, "query_build"),
+    "google/gemini-3.1-flash-lite-preview"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "query_reformulation"),
+    "google/gemini-3.1-flash-lite-preview"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "openalex_topics"),
+    "google/gemini-3.1-flash-lite-preview"
+  )
 })
 
 test_that("resolve_model_for_operation routes embedding operations correctly", {
-  config <- list(defaults = list(
-    fast_model = "google/gemini-3.1-flash-lite-preview",
-    quality_model = "anthropic/claude-sonnet-4",
-    embedding_model = "openai/text-embedding-3-small"
-  ))
+  config <- list(
+    defaults = list(
+      fast_model = "google/gemini-3.1-flash-lite-preview",
+      quality_model = "anthropic/claude-sonnet-4",
+      embedding_model = "openai/text-embedding-3-small"
+    )
+  )
 
-  expect_equal(resolve_model_for_operation(config, "embedding"), "openai/text-embedding-3-small")
+  expect_equal(
+    resolve_model_for_operation(config, "embedding"),
+    "openai/text-embedding-3-small"
+  )
 })
 
 test_that("fast slot falls back to quality model when fast_model is NULL", {
-  config <- list(defaults = list(
-    fast_model = NULL,
-    quality_model = "anthropic/claude-sonnet-4",
-    embedding_model = "openai/text-embedding-3-small"
-  ))
+  config <- list(
+    defaults = list(
+      fast_model = NULL,
+      quality_model = "anthropic/claude-sonnet-4",
+      embedding_model = "openai/text-embedding-3-small"
+    )
+  )
 
-  expect_equal(resolve_model_for_operation(config, "query_build"), "anthropic/claude-sonnet-4")
-  expect_equal(resolve_model_for_operation(config, "query_reformulation"), "anthropic/claude-sonnet-4")
+  expect_equal(
+    resolve_model_for_operation(config, "query_build"),
+    "anthropic/claude-sonnet-4"
+  )
+  expect_equal(
+    resolve_model_for_operation(config, "query_reformulation"),
+    "anthropic/claude-sonnet-4"
+  )
 })
 
 test_that("resolve_model_for_operation errors on NA-slot operations", {
   config <- list(defaults = list(quality_model = "test"))
 
-  expect_error(resolve_model_for_operation(config, "openalex_search"), "not an LLM operation")
-  expect_error(resolve_model_for_operation(config, "openalex_fetch"), "not an LLM operation")
+  expect_error(
+    resolve_model_for_operation(config, "openalex_search"),
+    "not an LLM operation"
+  )
+  expect_error(
+    resolve_model_for_operation(config, "openalex_fetch"),
+    "not an LLM operation"
+  )
 })
 
 test_that("resolve_model_for_operation errors on unknown operation", {
   config <- list(defaults = list(quality_model = "test"))
 
-  expect_error(resolve_model_for_operation(config, "totally_fake_op"), "Unknown operation")
+  expect_error(
+    resolve_model_for_operation(config, "totally_fake_op"),
+    "Unknown operation"
+  )
 })
 
 test_that("resolve_model_for_operation errors when no model configured", {
-  config <- list(defaults = list(
-    fast_model = NULL,
-    quality_model = NULL,
-    embedding_model = NULL
-  ))
+  config <- list(
+    defaults = list(
+      fast_model = NULL,
+      quality_model = NULL,
+      embedding_model = NULL
+    )
+  )
 
-  expect_error(resolve_model_for_operation(config, "chat"), "No model configured")
-  expect_error(resolve_model_for_operation(config, "embedding"), "No model configured")
+  expect_error(
+    resolve_model_for_operation(config, "chat"),
+    "No model configured"
+  )
+  expect_error(
+    resolve_model_for_operation(config, "embedding"),
+    "No model configured"
+  )
 })
 
 test_that("COST_OPERATION_META has slot field on every entry", {
   for (op_name in names(COST_OPERATION_META)) {
     meta <- COST_OPERATION_META[[op_name]]
-    expect_true("slot" %in% names(meta),
-                info = paste("Missing slot on operation:", op_name))
+    expect_true(
+      "slot" %in% names(meta),
+      info = paste("Missing slot on operation:", op_name)
+    )
     # Slot must be a valid value or NA
     if (!is.na(meta$slot)) {
-      expect_true(meta$slot %in% c("fast", "quality", "embedding", "rerank"),
-                  info = paste("Invalid slot on operation:", op_name, "got:", meta$slot))
+      expect_true(
+        meta$slot %in% c("fast", "quality", "embedding", "rerank"),
+        info = paste("Invalid slot on operation:", op_name, "got:", meta$slot)
+      )
     }
   }
 })
@@ -271,19 +356,25 @@ setup_db_with_providers <- function() {
   con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   init_schema(con)
   # Apply migration 013 directly since test cwd may not have migrations/
-  DBI::dbExecute(con, "
+  DBI::dbExecute(
+    con,
+    "
     CREATE TABLE IF NOT EXISTS providers (
       id VARCHAR PRIMARY KEY, name VARCHAR NOT NULL, base_url VARCHAR NOT NULL,
       api_key VARCHAR, provider_type VARCHAR NOT NULL DEFAULT 'openai-compatible',
       timeout_chat INTEGER DEFAULT 300, timeout_embed INTEGER DEFAULT 600,
       is_default BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  ")
-  DBI::dbExecute(con, "
+  "
+  )
+  DBI::dbExecute(
+    con,
+    "
     INSERT INTO providers (id, name, base_url, provider_type, is_default, timeout_chat, timeout_embed)
     VALUES ('openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1', 'openrouter', TRUE, 120, 60)
     ON CONFLICT DO NOTHING
-  ")
+  "
+  )
   con
 }
 
@@ -291,9 +382,13 @@ test_that("save_provider and get_provider round-trip correctly", {
   con <- setup_db_with_providers()
   on.exit(close_db_connection(con))
 
-  save_provider(con, "ollama-local", "My Ollama",
-                "http://localhost:11434/v1",
-                provider_type = "openai-compatible")
+  save_provider(
+    con,
+    "ollama-local",
+    "My Ollama",
+    "http://localhost:11434/v1",
+    provider_type = "openai-compatible"
+  )
 
   p <- get_provider(con, "ollama-local")
   expect_equal(p$name, "My Ollama")
@@ -342,9 +437,12 @@ test_that("delete_provider refuses to delete default provider", {
 
 test_that("provider_row_to_config creates valid provider_config", {
   row <- list(
-    name = "Ollama", base_url = "http://localhost:11434/v1",
-    api_key = NULL, provider_type = "openai-compatible",
-    timeout_chat = 300L, timeout_embed = 600L
+    name = "Ollama",
+    base_url = "http://localhost:11434/v1",
+    api_key = NULL,
+    provider_type = "openai-compatible",
+    timeout_chat = 300L,
+    timeout_embed = 600L
   )
   cfg <- provider_row_to_config(row)
   expect_true(is_provider_config(cfg))
@@ -354,9 +452,12 @@ test_that("provider_row_to_config creates valid provider_config", {
 
 test_that("provider_row_to_config respects api_key_override", {
   row <- list(
-    name = "OR", base_url = "https://openrouter.ai/api/v1",
-    api_key = NULL, provider_type = "openrouter",
-    timeout_chat = 120L, timeout_embed = 60L
+    name = "OR",
+    base_url = "https://openrouter.ai/api/v1",
+    api_key = NULL,
+    provider_type = "openrouter",
+    timeout_chat = 120L,
+    timeout_embed = 60L
   )
   cfg <- provider_row_to_config(row, api_key_override = "sk-test")
   expect_equal(cfg$api_key, "sk-test")
@@ -377,13 +478,99 @@ test_that("is_local_provider identifies non-openrouter as local", {
 # ---- Embedding Dimension Detection ----
 
 test_that("detect_embedding_dimension returns known dimensions", {
-  expect_equal(detect_embedding_dimension("openai/text-embedding-3-small"), 1536L)
-  expect_equal(detect_embedding_dimension("openai/text-embedding-3-large"), 3072L)
+  expect_equal(
+    detect_embedding_dimension("openai/text-embedding-3-small"),
+    1536L
+  )
+  expect_equal(
+    detect_embedding_dimension("openai/text-embedding-3-large"),
+    3072L
+  )
   expect_equal(detect_embedding_dimension("nomic-embed-text"), 768L)
+})
+
+test_that("detect_embedding_dimension returns 3072 for gemini-embedding-001 (fix verification)", {
+  expect_equal(detect_embedding_dimension("google/gemini-embedding-001"), 3072L)
 })
 
 test_that("detect_embedding_dimension returns NULL for unknown model without provider", {
   expect_null(detect_embedding_dimension("unknown/model"))
+})
+
+test_that("KNOWN_EMBED_DIMS has exactly 15 entries", {
+  expect_equal(length(KNOWN_EMBED_DIMS), 15L)
+})
+
+test_that("CISA_BLOCKED_PROVIDERS has exactly 9 entries", {
+  expect_equal(length(CISA_BLOCKED_PROVIDERS), 9L)
+})
+
+test_that("filter_cisa_providers passes all IDs through when cisa_filter=FALSE", {
+  ids <- c("openai/gpt-4", "deepseek/deepseek-v3", "qwen/qwen3-8b")
+  expect_equal(filter_cisa_providers(ids, cisa_filter = FALSE), ids)
+})
+
+test_that("filter_cisa_providers removes deepseek/ and qwen/ prefixed models when cisa_filter=TRUE", {
+  ids <- c(
+    "openai/gpt-4",
+    "deepseek/deepseek-v3",
+    "qwen/qwen3-8b",
+    "anthropic/claude-3"
+  )
+  result <- filter_cisa_providers(ids, cisa_filter = TRUE)
+  expect_equal(result, c("openai/gpt-4", "anthropic/claude-3"))
+  expect_false(any(grepl("^deepseek/", result)))
+  expect_false(any(grepl("^qwen/", result)))
+})
+
+test_that("filter_cisa_providers removes all 9 CISA prefixes when cisa_filter=TRUE", {
+  blocked_ids <- paste0(CISA_BLOCKED_PROVIDERS, "/model-x")
+  safe_ids <- c("openai/gpt-4", "anthropic/claude-3")
+  all_ids <- c(safe_ids, blocked_ids)
+  result <- filter_cisa_providers(all_ids, cisa_filter = TRUE)
+  expect_equal(result, safe_ids)
+})
+
+test_that("detect_embedding_dimension reads from DB cache (tier 2)", {
+  source_app("db_migrations.R")
+  source_app("db.R")
+
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+
+  # Create embedding_dim_cache table manually (migration 022)
+  DBI::dbExecute(
+    con,
+    "
+    CREATE TABLE IF NOT EXISTS embedding_dim_cache (
+      model_id  VARCHAR PRIMARY KEY,
+      dimensions INTEGER NOT NULL,
+      probed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  "
+  )
+
+  # Insert a cached dimension for an unknown model
+  DBI::dbExecute(
+    con,
+    "INSERT INTO embedding_dim_cache (model_id, dimensions) VALUES (?, ?)",
+    params = list("unknown/cached-model", 512L)
+  )
+
+  result <- detect_embedding_dimension("unknown/cached-model", con = con)
+  expect_equal(result, 512L)
+})
+
+test_that("detect_embedding_dimension gracefully handles missing embedding_dim_cache table", {
+  source_app("db_migrations.R")
+  source_app("db.R")
+
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+
+  # No table created — should fall through to NULL without erroring
+  result <- detect_embedding_dimension("unknown/model", con = con)
+  expect_null(result)
 })
 
 # ---- Model Aggregation ----
@@ -391,7 +578,10 @@ test_that("detect_embedding_dimension returns NULL for unknown model without pro
 test_that("get_all_available_models returns empty frame for empty input", {
   result <- get_all_available_models(list())
   expect_equal(nrow(result), 0)
-  expect_true(all(c("model_id", "display_name", "provider_id", "provider_name") %in% names(result)))
+  expect_true(all(
+    c("model_id", "display_name", "provider_id", "provider_name") %in%
+      names(result)
+  ))
 })
 
 # ---- Stale Index Detection ----
@@ -404,13 +594,25 @@ test_that("is_ragnar_store_stale detects embedding model mismatch", {
   init_schema(con)
 
   nb_id <- "test-nb"
-  mark_ragnar_store_current(con, nb_id, embed_model = "openai/text-embedding-3-small")
+  mark_ragnar_store_current(
+    con,
+    nb_id,
+    embed_model = "openai/text-embedding-3-small"
+  )
 
   # Same model — not stale
-  expect_false(is_ragnar_store_stale(con, nb_id, current_embed_model = "openai/text-embedding-3-small"))
+  expect_false(is_ragnar_store_stale(
+    con,
+    nb_id,
+    current_embed_model = "openai/text-embedding-3-small"
+  ))
 
   # Different model — stale
-  expect_true(is_ragnar_store_stale(con, nb_id, current_embed_model = "openai/text-embedding-3-large"))
+  expect_true(is_ragnar_store_stale(
+    con,
+    nb_id,
+    current_embed_model = "openai/text-embedding-3-large"
+  ))
 })
 
 test_that("is_ragnar_store_stale works without embed model check", {
