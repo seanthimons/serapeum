@@ -53,6 +53,7 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260420-u8h | Add notebook-plus-intent anchor type to research refiner | 2026-04-21 | 0fa708f | [260420-u8h-add-notebook-plus-intent-anchor-type-to-](./quick/260420-u8h-add-notebook-plus-intent-anchor-type-to-/) |
+| 260421-eoy | Update OpenRouter model lists: 12 embedding models, CISA filter, DB-cached dimension probing | 2026-04-21 | a72447c | [260421-eoy-update-openrouter-model-lists-to-include](./quick/260421-eoy-update-openrouter-model-lists-to-include/) |
 
 ---
-*Updated: 2026-04-21 — Completed quick task 260420-u8h: Add notebook-plus-intent anchor type to research refiner*
+*Updated: 2026-04-21 — Completed quick task 260421-eoy: Update OpenRouter model lists to include current embedding models*
