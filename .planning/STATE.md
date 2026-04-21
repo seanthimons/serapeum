@@ -48,5 +48,11 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260420-u8h | Add notebook-plus-intent anchor type to research refiner | 2026-04-21 | 0fa708f | [260420-u8h-add-notebook-plus-intent-anchor-type-to-](./quick/260420-u8h-add-notebook-plus-intent-anchor-type-to-/) |
+
 ---
-*Updated: 2026-03-29 — v20.0 milestone completed*
+*Updated: 2026-04-21 — Completed quick task 260420-u8h: Add notebook-plus-intent anchor type to research refiner*
