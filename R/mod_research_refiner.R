@@ -416,12 +416,23 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           return()
         }
       }
+      if (anchor_type == "notebook_intent") {
+        anchor_nb_id <- input$anchor_notebook_id
+        if (is.null(anchor_nb_id) || nchar(anchor_nb_id) == 0) {
+          showNotification("Please select an anchor notebook.", type = "warning")
+          return()
+        }
+        if (is.null(input$anchor_intent) || nchar(trimws(input$anchor_intent)) == 0) {
+          showNotification("Please enter a research intent.", type = "warning")
+          return()
+        }
+      }
 
       weights <- get_current_weights()
       seed_ids <- vapply(seeds, function(p) p$paper_id, character(1))
 
       # Step 1: Get candidates (outside withProgress to avoid frozen progress bar on early return)
-      if (anchor_type == "notebook_anchor") {
+      if (anchor_type %in% c("notebook_anchor", "notebook_intent")) {
         anchor_nb_id <- input$anchor_notebook_id
         nb_papers <- prepare_candidates_from_notebook(con, anchor_nb_id)
         if (nrow(nb_papers) == 0) {
@@ -502,7 +513,7 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         incProgress(0.4, detail = "Computing semantic relevance...")
 
         # Build query from intent and/or seed abstracts
-        seed_abstracts <- if (anchor_type == "notebook_anchor") {
+        seed_abstracts <- if (anchor_type %in% c("notebook_anchor", "notebook_intent")) {
           # For notebook anchor, use anchor notebook paper abstracts
           nb_papers <- dbGetQuery(con, "
             SELECT abstract FROM abstracts WHERE notebook_id = ? AND abstract IS NOT NULL
@@ -513,12 +524,12 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         } else {
           NULL
         }
-        intent_text <- if (anchor_type %in% c("intent", "both")) input$anchor_intent else NULL
+        intent_text <- if (anchor_type %in% c("intent", "both", "notebook_intent")) input$anchor_intent else NULL
         semantic_query <- build_semantic_query(intent_text, seed_abstracts)
 
         if (!is.null(semantic_query)) {
           # Determine which path: existing ragnar store or temp store
-          source_nb_id <- if (anchor_type == "notebook_anchor") NULL
+          source_nb_id <- if (anchor_type %in% c("notebook_anchor", "notebook_intent")) NULL
                           else if (input$source_type == "notebook") input$source_notebook_id
                           else NULL
 
@@ -595,8 +606,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
         # Step 4: Save to DB
         incProgress(0.8, detail = "Saving results...")
         # Determine source metadata for DB
-        effective_source_type <- if (anchor_type == "notebook_anchor") "fetch" else input$source_type
-        effective_source_nb <- if (anchor_type == "notebook_anchor") {
+        effective_source_type <- if (anchor_type %in% c("notebook_anchor", "notebook_intent")) "fetch" else input$source_type
+        effective_source_nb <- if (anchor_type %in% c("notebook_anchor", "notebook_intent")) {
           input$anchor_notebook_id
         } else if (input$source_type == "notebook") {
           input$source_notebook_id
@@ -608,7 +619,7 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           con,
           anchor_type = anchor_type,
           source_type = effective_source_type,
-          anchor_intent = if (anchor_type %in% c("intent", "both")) input$anchor_intent else NULL,
+          anchor_intent = if (anchor_type %in% c("intent", "both", "notebook_intent")) input$anchor_intent else NULL,
           anchor_seed_ids = if (length(seed_ids) > 0) jsonlite::toJSON(seed_ids) else NULL,
           source_notebook_id = effective_source_nb,
           mode = input$scoring_mode,
