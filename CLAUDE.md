@@ -1,3 +1,33 @@
+# Behavioral Rules
+
+## Think Before Coding
+
+- State non-obvious assumptions explicitly when they affect implementation.
+- If multiple interpretations are plausible, surface them instead of silently choosing one.
+- If ambiguity materially affects correctness, UX, or architecture, ask before proceeding.
+- Push back on approaches that are clearly more complex than necessary.
+
+## Simplicity First
+
+- Write the minimum code that solves the actual request.
+- Do not add speculative flexibility, configurability, or abstractions that were not requested.
+- Prefer direct, readable code over cleverness.
+- If a simpler approach would satisfy the requirement, use it.
+
+## Surgical Changes
+
+- Touch only the code necessary to complete the task.
+- Match the existing style and patterns unless the task explicitly requires a change.
+- Do not refactor or clean up unrelated code while implementing the request.
+- Remove only the unused code or imports made obsolete by your own changes.
+
+## Goal-Driven Verification
+
+- Translate requests into verifiable outcomes before implementing.
+- For bugs, reproduce first when practical, then fix, then verify.
+- For refactors, verify behavior is preserved.
+- For multi-step work, keep a brief plan and pair each step with a concrete check.
+
 # Git Workflow
 
 **IMPORTANT: Always create a feature branch or worktree (depending on impact) before making code changes.**

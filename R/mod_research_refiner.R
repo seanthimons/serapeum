@@ -536,25 +536,33 @@ mod_research_refiner_server <- function(id, con_r, config_r,
           ragnar_path <- if (!is.null(source_nb_id)) get_notebook_ragnar_path(source_nb_id) else NULL
           has_ragnar <- !is.null(ragnar_path) && file.exists(ragnar_path)
 
-          or_key <- get_db_setting(con, "openrouter_api_key") %||%
-                    get_setting(cfg, "openrouter", "api_key")
-          embed_model <- get_db_setting(con, "embedding_model") %||%
-                         "openai/text-embedding-3-small"
+          # Guard: notebook source requires an existing ragnar store
+          if (!is.null(source_nb_id) && !has_ragnar) {
+            showModal(modalDialog(
+              title = "Search Index Required",
+              tags$p("The source notebook needs a search index before semantic scoring can work."),
+              tags$p("Open the notebook and click ", tags$strong("Build Search Index"), " to embed its papers."),
+              footer = modalButton("OK"),
+              easyClose = TRUE
+            ))
+          }
 
-          if (has_ragnar && !is.null(or_key) && nchar(or_key) > 0) {
-            # Path A: use existing ragnar store
+          embed_provider <- provider_from_config(cfg, con)
+          embed_model <- resolve_model_for_operation(cfg, "embedding")
+          has_provider <- !is.null(embed_provider$api_key) && nzchar(embed_provider$api_key) ||
+                          is_local_provider(embed_provider)
+
+          if (has_ragnar && has_provider) {
+            # Path A: use existing ragnar store (same pattern as search notebook)
             incProgress(0.45, detail = "Scoring from embedded notebook...")
-            store <- tryCatch(
-              get_ragnar_store(ragnar_path, or_key, embed_model),
-              error = function(e) {
-                showNotification(
-                  paste("Failed to open ragnar store:", e$message),
-                  type = "warning", duration = 8
-                )
-                NULL
-              }
-            )
+            store <- connect_ragnar_store(ragnar_path)
             if (!is.null(store)) {
+              store@embed <- make_embed_function(embed_provider, embed_model)
+              on.exit(
+                tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL),
+                add = TRUE
+              )
+
               # Build UUID -> OpenAlex paper_id mapping from abstracts table
               id_map <- dbGetQuery(con, "
                 SELECT id, paper_id FROM abstracts WHERE notebook_id = ?
@@ -570,18 +578,17 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                     type = "warning", duration = 8
                   )
                   NULL
-                },
-                finally = tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
+                }
               )
               if (!is.null(sim_scores)) {
                 candidates$embedding_similarity <- unname(sim_scores[candidates$paper_id])
               }
             }
-          } else if (!is.null(or_key) && nchar(or_key) > 0) {
-            # Path B: create temp ragnar store for fetched candidates
+          } else if (has_provider && is.null(source_nb_id)) {
+            # Path B: create temp ragnar store for fetched candidates (no notebook source)
             incProgress(0.45, detail = "Embedding candidates...")
             sim_scores <- tryCatch(
-              score_with_temp_ragnar(candidates, semantic_query, or_key, embed_model,
+              score_with_temp_ragnar(candidates, semantic_query, embed_provider, con, embed_model,
                                       progress_callback = function(detail) {
                                         incProgress(0, detail = detail)
                                       }),

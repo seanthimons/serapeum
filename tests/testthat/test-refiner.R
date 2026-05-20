@@ -1,6 +1,6 @@
 library(testthat)
 
-source_app("config.R", "db_migrations.R", "db.R", "pdf_images.R", "_ragnar.R",
+source_app("config.R", "db_migrations.R", "db.R", "api_provider.R", "pdf_images.R", "_ragnar.R",
            "api_openalex.R", "research_refiner.R")
 
 # ---- Helper: set up a fresh DB with schema + migrations ----
@@ -338,4 +338,232 @@ test_that("authors survive full refiner round-trip (notebook path)", {
   final_parsed <- jsonlite::fromJSON(final$authors)
   expect_type(final_parsed, "character")
   expect_equal(final_parsed, c("Alice", "Bob"))
+})
+
+test_that("split_refiner_embedding_batches keeps batches under conservative limits", {
+  chunks <- data.frame(
+    content = c(
+      strrep("a", 5000),
+      strrep("b", 5000),
+      strrep("c", 5000),
+      strrep("d", 1000)
+    ),
+    page_number = NA_integer_,
+    chunk_index = 0L,
+    context = "",
+    origin = paste0("abstract:W", 1:4),
+    stringsAsFactors = FALSE
+  )
+
+  batches <- split_refiner_embedding_batches(
+    chunks,
+    max_batch_items = 2L,
+    max_batch_chars = 9000L
+  )
+
+  expect_length(batches, 3)
+  expect_equal(vapply(batches, nrow, integer(1)), c(1L, 1L, 2L))
+  expect_true(all(vapply(batches, nrow, integer(1)) <= 2L))
+  expect_true(all(vapply(
+    batches,
+    function(batch) sum(nchar(batch$content)),
+    integer(1)
+  ) <= 9000L))
+})
+
+test_that("insert_refiner_chunks_batched inserts multiple smaller batches", {
+  calls <- list()
+  original_insert <- insert_chunks_to_ragnar
+
+  assign("insert_chunks_to_ragnar", function(store, chunks, source_id, source_type) {
+    calls <<- c(calls, list(list(
+      rows = nrow(chunks),
+      chars = sum(nchar(chunks$content)),
+      source_id = source_id,
+      source_type = source_type
+    )))
+    invisible(store)
+  }, envir = .GlobalEnv)
+  on.exit(assign("insert_chunks_to_ragnar", original_insert, envir = .GlobalEnv), add = TRUE)
+
+  chunks <- data.frame(
+    content = c(
+      strrep("a", 5000),
+      strrep("b", 5000),
+      strrep("c", 5000),
+      strrep("d", 1000)
+    ),
+    page_number = NA_integer_,
+    chunk_index = 0L,
+    context = "",
+    origin = paste0("abstract:W", 1:4),
+    stringsAsFactors = FALSE
+  )
+
+  expect_invisible(insert_refiner_chunks_batched(
+    store = structure(list(), class = "mock_store"),
+    chunks = chunks,
+    max_batch_items = 2L,
+    max_batch_chars = 9000L
+  ))
+
+  expect_length(calls, 3)
+  expect_equal(vapply(calls, `[[`, integer(1), "rows"), c(1L, 1L, 2L))
+  expect_true(all(vapply(calls, `[[`, integer(1), "chars") <= 9000L))
+  expect_true(all(vapply(calls, `[[`, character(1), "source_id") == "batch"))
+  expect_true(all(vapply(calls, `[[`, character(1), "source_type") == "abstract"))
+})
+
+test_that("insert_refiner_chunks_batched reports batch and abstract counts", {
+  original_insert <- insert_chunks_to_ragnar
+  progress_messages <- character(0)
+
+  assign("insert_chunks_to_ragnar", function(store, chunks, source_id, source_type) {
+    invisible(store)
+  }, envir = .GlobalEnv)
+  on.exit(assign("insert_chunks_to_ragnar", original_insert, envir = .GlobalEnv), add = TRUE)
+
+  chunks <- data.frame(
+    content = c(strrep("a", 5000), strrep("b", 5000), strrep("c", 1000)),
+    page_number = NA_integer_,
+    chunk_index = 0L,
+    context = "",
+    origin = paste0("abstract:W", 1:3),
+    stringsAsFactors = FALSE
+  )
+
+  insert_refiner_chunks_batched(
+    store = structure(list(), class = "mock_store"),
+    chunks = chunks,
+    progress_callback = function(detail) {
+      progress_messages <<- c(progress_messages, detail)
+    },
+    max_batch_items = 2L,
+    max_batch_chars = 9000L
+  )
+
+  expect_equal(
+    progress_messages,
+    c(
+      "Embedding abstract batch 1/2 (1/3 abstracts)...",
+      "Embedding abstract batch 2/2 (3/3 abstracts)..."
+    )
+  )
+})
+
+test_that("score_from_ragnar_store handles VSS metric_value schema", {
+  skip_if_not(tryCatch({ library(ragnar); TRUE }, error = function(e) FALSE), "ragnar not loadable")
+
+  store_path <- tempfile(fileext = ".duckdb")
+  mock_embed <- function(texts) {
+    m <- matrix(0, nrow = length(texts), ncol = 4L)
+    for (i in seq_along(texts)) {
+      m[i, ] <- c(i, i + 1, i + 2, i + 3)
+    }
+    m
+  }
+
+  store <- ragnar::ragnar_store_create(
+    store_path,
+    embed = mock_embed,
+    embedding_size = 4L,
+    version = 1
+  )
+  on.exit({
+    tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
+    unlink(c(store_path, paste0(store_path, ".wal"), paste0(store_path, ".tmp")), force = TRUE)
+  }, add = TRUE)
+
+  chunks <- data.frame(
+    origin = c("abstract:W1", "abstract:W2"),
+    hash = c("h1", "h2"),
+    text = c("alpha beta", "gamma delta"),
+    stringsAsFactors = FALSE
+  )
+  ragnar::ragnar_store_insert(store, chunks)
+  ragnar::ragnar_store_build_index(store)
+
+  scores <- score_from_ragnar_store(store, "alpha", c("W1", "W2"))
+
+  expect_true(!is.na(scores[["W1"]]))
+  expect_true(!is.na(scores[["W2"]]))
+  expect_gt(scores[["W1"]], scores[["W2"]])
+})
+
+test_that("refiner embedding cache round-trips and filters by abstract hash", {
+  env <- setup_test_db()
+  on.exit(teardown_test_db(env))
+  con <- env$con
+
+  cache_df <- data.frame(
+    paper_id = "W123",
+    embed_model = "test/embed",
+    abstract_hash = hash_refiner_abstract("alpha abstract"),
+    embedding = serialize_embedding(c(0.1, 0.2, 0.3)),
+    stringsAsFactors = FALSE
+  )
+
+  expect_equal(save_refiner_embedding_cache(con, cache_df), 1L)
+
+  matching <- get_refiner_embedding_cache(
+    con, "W123", "test/embed",
+    abstract_hashes = c(W123 = hash_refiner_abstract("alpha abstract"))
+  )
+  expect_equal(nrow(matching), 1)
+  expect_equal(deserialize_embedding(matching$embedding[1]), c(0.1, 0.2, 0.3))
+
+  stale <- get_refiner_embedding_cache(
+    con, "W123", "test/embed",
+    abstract_hashes = c(W123 = hash_refiner_abstract("changed abstract"))
+  )
+  expect_equal(nrow(stale), 0)
+})
+
+test_that("score_with_temp_ragnar reuses cached candidate embeddings", {
+  env <- setup_test_db()
+  on.exit(teardown_test_db(env))
+  con <- env$con
+
+  calls <- list()
+  original_provider_get_embeddings <- provider_get_embeddings
+  assign("provider_get_embeddings", function(provider, model, text) {
+    texts <- if (length(text) == 1) as.character(text) else unlist(text, use.names = FALSE)
+    calls <<- c(calls, list(texts))
+
+    embeddings <- lapply(texts, function(txt) {
+      txt_len <- nchar(txt)
+      c(txt_len, txt_len + 1, txt_len + 2)
+    })
+
+    list(
+      embeddings = embeddings,
+      usage = list(prompt_tokens = 0L, completion_tokens = 0L, total_tokens = 0L),
+      model = model,
+      duration_ms = 1L
+    )
+  }, envir = .GlobalEnv)
+  on.exit(assign("provider_get_embeddings", original_provider_get_embeddings, envir = .GlobalEnv), add = TRUE)
+
+  provider <- create_provider_config("Mock", "http://localhost:1234/v1")
+  candidates <- data.frame(
+    paper_id = c("W1", "W2"),
+    abstract = c("Candidate abstract one", "Candidate abstract two"),
+    stringsAsFactors = FALSE
+  )
+
+  first_scores <- score_with_temp_ragnar(
+    candidates, "semantic query", provider, con, "test/embed"
+  )
+  expect_equal(length(calls), 2)
+  expect_equal(length(calls[[1]]), 2) # candidate batch
+  expect_equal(length(calls[[2]]), 1) # query embedding
+  expect_true(all(!is.na(first_scores)))
+
+  calls <- list()
+  second_scores <- score_with_temp_ragnar(
+    candidates, "semantic query", provider, con, "test/embed"
+  )
+  expect_equal(length(calls), 1)
+  expect_equal(length(calls[[1]]), 1) # query only; candidates came from cache
+  expect_equal(unname(first_scores), unname(second_scores))
 })

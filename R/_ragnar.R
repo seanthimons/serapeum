@@ -144,17 +144,35 @@ decode_origin_metadata <- function(origin) {
 #' @param provider provider_config object
 #' @param embed_model Embedding model ID
 #' @return Function(texts) -> matrix of embeddings
-make_embed_function <- function(provider, embed_model) {
+make_embed_function <- function(provider, embed_model, batch_size = 4L) {
   force(provider)
   force(embed_model)
+  force(batch_size)
   function(texts) {
-    result <- tryCatch(
-      provider_get_embeddings(provider, embed_model, texts),
-      error = function(e) {
-        stop("Embedding failed (", provider$name, "): ", e$message)
-      }
-    )
-    do.call(rbind, result$embeddings)
+    if (length(texts) <= batch_size) {
+      result <- tryCatch(
+        provider_get_embeddings(provider, embed_model, texts),
+        error = function(e) {
+          stop("Embedding failed (", provider$name, "): ", e$message)
+        }
+      )
+      return(do.call(rbind, result$embeddings))
+    }
+
+    # Batch to avoid exceeding provider limits
+    all_embeddings <- list()
+    starts <- seq(1, length(texts), by = batch_size)
+    for (s in starts) {
+      batch <- texts[s:min(s + batch_size - 1L, length(texts))]
+      result <- tryCatch(
+        provider_get_embeddings(provider, embed_model, batch),
+        error = function(e) {
+          stop("Embedding failed (", provider$name, "): ", e$message)
+        }
+      )
+      all_embeddings <- c(all_embeddings, result$embeddings)
+    }
+    do.call(rbind, all_embeddings)
   }
 }
 

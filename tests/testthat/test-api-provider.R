@@ -505,30 +505,28 @@ test_that("CISA_BLOCKED_PROVIDERS has exactly 9 entries", {
   expect_equal(length(CISA_BLOCKED_PROVIDERS), 9L)
 })
 
-test_that("filter_cisa_providers passes all IDs through when cisa_filter=FALSE", {
-  ids <- c("openai/gpt-4", "deepseek/deepseek-v3", "qwen/qwen3-8b")
-  expect_equal(filter_cisa_providers(ids, cisa_filter = FALSE), ids)
+test_that("list_embedding_models excludes CISA providers when cisa_filter=TRUE", {
+  df <- list_embedding_models(NULL, cisa_filter = TRUE)
+  providers <- sapply(df$id, function(id) strsplit(id, "/")[[1]][1])
+  expect_false(any(providers %in% CISA_BLOCKED_PROVIDERS))
 })
 
-test_that("filter_cisa_providers removes deepseek/ and qwen/ prefixed models when cisa_filter=TRUE", {
-  ids <- c(
-    "openai/gpt-4",
-    "deepseek/deepseek-v3",
-    "qwen/qwen3-8b",
-    "anthropic/claude-3"
-  )
-  result <- filter_cisa_providers(ids, cisa_filter = TRUE)
-  expect_equal(result, c("openai/gpt-4", "anthropic/claude-3"))
-  expect_false(any(grepl("^deepseek/", result)))
-  expect_false(any(grepl("^qwen/", result)))
+test_that("list_embedding_models includes CISA providers when cisa_filter=FALSE", {
+  df <- list_embedding_models(NULL, cisa_filter = FALSE)
+  providers <- sapply(df$id, function(id) strsplit(id, "/")[[1]][1])
+  expect_true(any(providers %in% CISA_BLOCKED_PROVIDERS))
 })
 
-test_that("filter_cisa_providers removes all 9 CISA prefixes when cisa_filter=TRUE", {
-  blocked_ids <- paste0(CISA_BLOCKED_PROVIDERS, "/model-x")
-  safe_ids <- c("openai/gpt-4", "anthropic/claude-3")
-  all_ids <- c(safe_ids, blocked_ids)
-  result <- filter_cisa_providers(all_ids, cisa_filter = TRUE)
-  expect_equal(result, safe_ids)
+test_that("list_chat_models excludes CISA providers when cisa_filter=TRUE", {
+  df <- list_chat_models(NULL, cisa_filter = TRUE)
+  providers <- sapply(df$id, function(id) strsplit(id, "/")[[1]][1])
+  expect_false(any(providers %in% CISA_BLOCKED_PROVIDERS))
+})
+
+test_that("list_chat_models includes CISA providers when cisa_filter=FALSE", {
+  df <- list_chat_models(NULL, cisa_filter = FALSE)
+  providers <- sapply(df$id, function(id) strsplit(id, "/")[[1]][1])
+  expect_true(any(providers %in% CISA_BLOCKED_PROVIDERS))
 })
 
 test_that("detect_embedding_dimension reads from DB cache (tier 2)", {

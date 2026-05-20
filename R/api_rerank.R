@@ -24,8 +24,9 @@ get_default_rerank_models <- function() {
 
 #' List available rerank models from OpenRouter
 #' @param api_key API key
+#' @param cisa_filter Logical. If TRUE, excludes models from CISA countries of concern.
 #' @return Data frame of rerank models with id, name, price_per_search
-list_rerank_models <- function(api_key) {
+list_rerank_models <- function(api_key, cisa_filter = FALSE) {
   if (is.null(api_key) || nchar(api_key) < 10) {
     return(get_default_rerank_models())
   }
@@ -85,6 +86,15 @@ list_rerank_models <- function(api_key) {
     }),
     stringsAsFactors = FALSE
   )
+
+  # Apply CISA filter if requested
+  if (isTRUE(cisa_filter) && nrow(df) > 0) {
+    df <- df[
+      !sapply(df$id, function(id) {
+        strsplit(id, "/")[[1]][1] %in% CISA_BLOCKED_PROVIDERS
+      }),
+    ]
+  }
 
   # Sort by price (cheapest first)
   df[order(df$price_per_search), ]

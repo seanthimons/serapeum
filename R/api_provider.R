@@ -163,7 +163,8 @@ provider_get_embeddings <- function(provider, model, text) {
   req <- build_provider_request(provider, "embeddings") |>
     req_body_json(list(
       model = model,
-      input = as.list(text)
+      input = if (length(text) == 1) text else as.list(text),
+      encoding_format = "float"
     )) |>
     req_timeout(provider$timeout_embed)
 
@@ -348,22 +349,6 @@ CISA_BLOCKED_PROVIDERS <- c(
   "baichuan",
   "01-ai"
 )
-
-#' Filter model IDs by CISA blocked provider prefixes
-#'
-#' @param provider_ids Character vector of model IDs (e.g., "deepseek/deepseek-v3")
-#'   or bare provider names (e.g., "deepseek").
-#' @param cisa_filter Logical. If TRUE, removes IDs whose provider prefix is in
-#'   CISA_BLOCKED_PROVIDERS.
-#' @return Filtered character vector
-filter_cisa_providers <- function(provider_ids, cisa_filter = FALSE) {
-  if (!isTRUE(cisa_filter)) {
-    return(provider_ids)
-  }
-  prefixes <- paste0("^", CISA_BLOCKED_PROVIDERS, "/")
-  blocked <- Reduce(`|`, lapply(prefixes, function(p) grepl(p, provider_ids)))
-  provider_ids[!blocked]
-}
 
 #' Detect embedding dimension for a model
 #'

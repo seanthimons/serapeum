@@ -255,8 +255,19 @@ get_default_embedding_models <- function() {
 #' @param cisa_filter Logical. If TRUE, excludes models from CISA countries of concern.
 #' @return Data frame of embedding models with id, name, price_per_million
 list_embedding_models <- function(api_key, cisa_filter = FALSE) {
+  apply_cisa <- function(df) {
+    if (!isTRUE(cisa_filter) || nrow(df) == 0) {
+      return(df)
+    }
+    df[
+      !sapply(df$id, function(id) {
+        strsplit(id, "/")[[1]][1] %in% CISA_BLOCKED_PROVIDERS
+      }),
+    ]
+  }
+
   if (is.null(api_key) || nchar(api_key) < 10) {
-    return(get_default_embedding_models())
+    return(apply_cisa(get_default_embedding_models()))
   }
 
   req <- build_openrouter_request(api_key, "models")
@@ -271,7 +282,7 @@ list_embedding_models <- function(api_key, cisa_filter = FALSE) {
   )
 
   if (is.null(resp)) {
-    return(get_default_embedding_models())
+    return(apply_cisa(get_default_embedding_models()))
   }
 
   body <- tryCatch(
@@ -284,7 +295,7 @@ list_embedding_models <- function(api_key, cisa_filter = FALSE) {
   )
 
   if (is.null(body) || is.null(body$data)) {
-    return(get_default_embedding_models())
+    return(apply_cisa(get_default_embedding_models()))
   }
 
   # Filter to embedding models only (architecture contains "embedding" or modality includes "embedding")
@@ -298,7 +309,7 @@ list_embedding_models <- function(api_key, cisa_filter = FALSE) {
   )
 
   if (length(embedding_models) == 0) {
-    return(get_default_embedding_models())
+    return(apply_cisa(get_default_embedding_models()))
   }
 
   # Extract pricing info and format display names
@@ -315,15 +326,7 @@ list_embedding_models <- function(api_key, cisa_filter = FALSE) {
     stringsAsFactors = FALSE
   )
 
-  # Apply CISA filter if requested
-  if (isTRUE(cisa_filter) && nrow(df) > 0) {
-    df <- df[
-      !sapply(df$id, function(id) {
-        provider <- strsplit(id, "/")[[1]][1]
-        provider %in% CISA_BLOCKED_PROVIDERS
-      }),
-    ]
-  }
+  df <- apply_cisa(df)
 
   # Sort by price (cheapest first)
   df[order(df$price_per_million), ]
@@ -444,8 +447,19 @@ get_default_chat_models <- function() {
 #' @param cisa_filter Logical. If TRUE, excludes models from CISA countries of concern.
 #' @return Data frame of chat models with id, name, context_length, prompt_price, completion_price, tier
 list_chat_models <- function(api_key, cisa_filter = FALSE) {
+  apply_cisa_chat <- function(df) {
+    if (!isTRUE(cisa_filter) || nrow(df) == 0) {
+      return(df)
+    }
+    df[
+      !sapply(df$id, function(id) {
+        strsplit(id, "/")[[1]][1] %in% CISA_BLOCKED_PROVIDERS
+      }),
+    ]
+  }
+
   if (is.null(api_key) || nchar(api_key) < 10) {
-    return(get_default_chat_models())
+    return(apply_cisa_chat(get_default_chat_models()))
   }
 
   req <- build_openrouter_request(api_key, "models")
@@ -460,7 +474,7 @@ list_chat_models <- function(api_key, cisa_filter = FALSE) {
   )
 
   if (is.null(resp)) {
-    return(get_default_chat_models())
+    return(apply_cisa_chat(get_default_chat_models()))
   }
 
   body <- tryCatch(
@@ -473,7 +487,7 @@ list_chat_models <- function(api_key, cisa_filter = FALSE) {
   )
 
   if (is.null(body) || is.null(body$data)) {
-    return(get_default_chat_models())
+    return(apply_cisa_chat(get_default_chat_models()))
   }
 
   # Filter to chat models (text generation, not embeddings)
@@ -493,7 +507,7 @@ list_chat_models <- function(api_key, cisa_filter = FALSE) {
   )
 
   if (length(chat_models) == 0) {
-    return(get_default_chat_models())
+    return(apply_cisa_chat(get_default_chat_models()))
   }
 
   # Curated provider list
@@ -560,7 +574,7 @@ list_chat_models <- function(api_key, cisa_filter = FALSE) {
 
   # Return defaults if filtering resulted in empty set
   if (nrow(df) == 0) {
-    return(get_default_chat_models())
+    return(apply_cisa_chat(get_default_chat_models()))
   }
 
   df

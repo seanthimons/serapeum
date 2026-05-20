@@ -802,6 +802,98 @@ get_db_setting <- function(con, key) {
   jsonlite::fromJSON(result$value[1])
 }
 
+#' Hash abstract text for refiner embedding cache invalidation
+#' @param abstract_text Character abstract text
+#' @return Stable hash string
+hash_refiner_abstract <- function(abstract_text) {
+  rlang::hash(enc2utf8(abstract_text %||% ""))
+}
+
+#' Serialize an embedding vector for DuckDB storage
+#' @param embedding Numeric vector
+#' @return JSON string
+serialize_embedding <- function(embedding) {
+  jsonlite::toJSON(as.numeric(embedding), auto_unbox = FALSE)
+}
+
+#' Deserialize an embedding vector from DuckDB storage
+#' @param embedding_json JSON string
+#' @return Numeric vector
+deserialize_embedding <- function(embedding_json) {
+  as.numeric(jsonlite::fromJSON(embedding_json))
+}
+
+#' Get cached refiner embeddings for a set of papers
+#'
+#' @param con DuckDB connection
+#' @param paper_ids Character vector of paper IDs
+#' @param embed_model Embedding model ID
+#' @param abstract_hashes Optional named character vector paper_id -> hash
+#' @return Data frame with paper_id, embed_model, abstract_hash, embedding
+get_refiner_embedding_cache <- function(con, paper_ids, embed_model, abstract_hashes = NULL) {
+  if (length(paper_ids) == 0) {
+    return(data.frame(
+      paper_id = character(0),
+      embed_model = character(0),
+      abstract_hash = character(0),
+      embedding = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  has_table <- tryCatch(DBI::dbExistsTable(con, "refiner_embedding_cache"), error = function(e) FALSE)
+  if (!has_table) {
+    return(data.frame(
+      paper_id = character(0),
+      embed_model = character(0),
+      abstract_hash = character(0),
+      embedding = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+  cached <- dbGetQuery(con, sprintf("
+    SELECT paper_id, embed_model, abstract_hash, embedding
+    FROM refiner_embedding_cache
+    WHERE embed_model = ? AND paper_id IN (%s)
+  ", placeholders), c(list(embed_model), as.list(paper_ids)))
+
+  if (!is.null(abstract_hashes) && nrow(cached) > 0) {
+    expected_hashes <- unname(abstract_hashes[cached$paper_id])
+    cached <- cached[!is.na(expected_hashes) & cached$abstract_hash == expected_hashes, , drop = FALSE]
+  }
+
+  cached
+}
+
+#' Save refiner embeddings to cache
+#'
+#' @param con DuckDB connection
+#' @param cache_df Data frame with paper_id, embed_model, abstract_hash, embedding
+#' @return Number of cached rows written
+save_refiner_embedding_cache <- function(con, cache_df) {
+  if (is.null(cache_df) || nrow(cache_df) == 0) return(invisible(0L))
+
+  for (i in seq_len(nrow(cache_df))) {
+    DBI::dbExecute(con, "
+      INSERT INTO refiner_embedding_cache (
+        paper_id, embed_model, abstract_hash, embedding
+      ) VALUES (?, ?, ?, ?)
+      ON CONFLICT (paper_id, embed_model) DO UPDATE SET
+        abstract_hash = EXCLUDED.abstract_hash,
+        embedding = EXCLUDED.embedding
+    ", list(
+      as.character(cache_df$paper_id[i]),
+      as.character(cache_df$embed_model[i]),
+      as.character(cache_df$abstract_hash[i]),
+      as.character(cache_df$embedding[i])
+    ))
+  }
+
+  invisible(nrow(cache_df))
+}
+
 # --- Provider CRUD ---
 
 #' Save or update a provider

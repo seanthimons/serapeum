@@ -21,89 +21,153 @@ mod_settings_ui <- function(id) {
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              textInput(ns("openrouter_key"), "OpenRouter API Key",
-                        placeholder = "sk-or-...")
+              textInput(
+                ns("openrouter_key"),
+                "OpenRouter API Key",
+                placeholder = "sk-or-..."
+              )
             ),
             uiOutput(ns("openrouter_status"))
           ),
-          p(class = "text-muted small",
-            "Get your key at ", tags$a(href = "https://openrouter.ai/keys",
-                                       target = "_blank", "openrouter.ai/keys")),
+          p(
+            class = "text-muted small",
+            "Get your key at ",
+            tags$a(
+              href = "https://openrouter.ai/keys",
+              target = "_blank",
+              "openrouter.ai/keys"
+            )
+          ),
           hr(),
           div(
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              textInput(ns("openalex_email"), "OpenAlex Email",
-                        placeholder = "your@email.com")
+              textInput(
+                ns("openalex_email"),
+                "OpenAlex Email",
+                placeholder = "your@email.com"
+              )
             ),
             uiOutput(ns("openalex_status"))
           ),
-          p(class = "text-muted small",
-            "Used for polite pool access (optional if API key is set)."),
+          p(
+            class = "text-muted small",
+            "Used for polite pool access (optional if API key is set)."
+          ),
           hr(),
           div(
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              textInput(ns("openalex_api_key"), "OpenAlex API Key",
-                        placeholder = "openalex_api_key_...")
+              textInput(
+                ns("openalex_api_key"),
+                "OpenAlex API Key",
+                placeholder = "openalex_api_key_..."
+              )
             ),
             uiOutput(ns("openalex_key_status"))
           ),
           uiOutput(ns("oa_migration_nudge")),
-          p(class = "text-muted small",
+          p(
+            class = "text-muted small",
             "Free tier: $1/day. Get your key at ",
-            tags$a(href = "https://openalex.org/settings/api",
-                   target = "_blank", "openalex.org/settings/api")),
+            tags$a(
+              href = "https://openalex.org/settings/api",
+              target = "_blank",
+              "openalex.org/settings/api"
+            )
+          ),
           hr(),
           h5(icon_edit(), " AI Prompts"),
-          p(class = "text-muted small",
-            "Customize the task instructions for each AI preset. Changes affect all future generations."),
+          p(
+            class = "text-muted small",
+            "Customize the task instructions for each AI preset. Changes affect all future generations."
+          ),
           div(
             style = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;",
             lapply(unlist(PRESET_GROUPS, use.names = FALSE), function(slug) {
-              actionLink(ns(paste0("edit_", slug)),
-                         label = PRESET_DISPLAY_NAMES[[slug]],
-                         class = "btn btn-outline-secondary btn-sm")
+              actionLink(
+                ns(paste0("edit_", slug)),
+                label = PRESET_DISPLAY_NAMES[[slug]],
+                class = "btn btn-outline-secondary btn-sm"
+              )
             })
           ),
           hr(),
           h5(icon_sliders(), " RAG Options"),
-          checkboxInput(ns("query_reformulation"), "Query Reformulation (RAG-Fusion)",
-                        value = TRUE),
-          p(class = "text-muted small",
+          checkboxInput(
+            ns("query_reformulation"),
+            "Query Reformulation (RAG-Fusion)",
+            value = TRUE
+          ),
+          p(
+            class = "text-muted small",
             "When enabled, generates multiple query variants before retrieval ",
-            "to improve recall. Adds one small LLM call per chat query."),
-          numericInput(ns("chunk_size"), "Chunk Size (words)",
-                       value = 500, min = 100, max = 2000, step = 50),
-          numericInput(ns("chunk_overlap"), "Chunk Overlap (words)",
-                       value = 50, min = 0, max = 200, step = 10),
-          p(class = "text-muted small",
+            "to improve recall. Adds one small LLM call per chat query."
+          ),
+          numericInput(
+            ns("chunk_size"),
+            "Chunk Size (words)",
+            value = 500,
+            min = 100,
+            max = 2000,
+            step = 50
+          ),
+          numericInput(
+            ns("chunk_overlap"),
+            "Chunk Overlap (words)",
+            value = 50,
+            min = 0,
+            max = 200,
+            step = 10
+          ),
+          p(
+            class = "text-muted small",
             "Chunk settings affect how documents are split for processing. ",
-            "Changes only apply to newly uploaded documents."),
-          bslib::input_switch(ns("verbose_mode"), "Verbose API logging", value = FALSE),
-          p(class = "text-muted small",
-            "Log OpenAlex API calls to the R console for debugging."),
+            "Changes only apply to newly uploaded documents."
+          ),
+          bslib::input_switch(
+            ns("verbose_mode"),
+            "Verbose API logging",
+            value = FALSE
+          ),
+          p(
+            class = "text-muted small",
+            "Log OpenAlex API calls to the R console for debugging."
+          ),
           hr(),
           h5(icon_search(), " Search"),
-          numericInput(ns("abstracts_per_search"), "Abstracts per Search",
-                       value = 25, min = 5, max = 100, step = 5),
-          p(class = "text-muted small",
-            "Number of paper abstracts to fetch from OpenAlex per search (max 100)."),
+          numericInput(
+            ns("abstracts_per_search"),
+            "Abstracts per Search",
+            value = 25,
+            min = 5,
+            max = 100,
+            step = 5
+          ),
+          p(
+            class = "text-muted small",
+            "Number of paper abstracts to fetch from OpenAlex per search (max 100)."
+          ),
           hr(),
           h5(icon_diagram(), " Citation Networks"),
-          selectInput(ns("network_palette"), "Color Palette",
-                      choices = c(
-                        "Viridis (Default)" = "viridis",
-                        "Magma" = "magma",
-                        "Plasma" = "plasma",
-                        "Inferno" = "inferno",
-                        "Cividis (Colorblind-safe)" = "cividis"
-                      ),
-                      selected = "viridis"),
-          p(class = "text-muted small",
-            "Choose a colorblind-friendly palette for network node colors. Applied to new and loaded networks.")
+          selectInput(
+            ns("network_palette"),
+            "Color Palette",
+            choices = c(
+              "Viridis (Default)" = "viridis",
+              "Magma" = "magma",
+              "Plasma" = "plasma",
+              "Inferno" = "inferno",
+              "Cividis (Colorblind-safe)" = "cividis"
+            ),
+            selected = "viridis"
+          ),
+          p(
+            class = "text-muted small",
+            "Choose a colorblind-friendly palette for network node colors. Applied to new and loaded networks."
+          )
         ),
 
         # Right column: Models + Quality Data + DOI Management
@@ -113,117 +177,181 @@ mod_settings_ui <- function(id) {
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              selectizeInput(ns("quality_model"), "Quality Model",
-                             choices = format_chat_model_choices(get_default_chat_models()),
-                             selected = "google/gemini-3.1-flash-lite-preview")
+              selectizeInput(
+                ns("quality_model"),
+                "Quality Model",
+                choices = format_chat_model_choices(get_default_chat_models()),
+                selected = "google/gemini-3.1-flash-lite-preview"
+              )
             ),
-            actionButton(ns("refresh_chat_models"), NULL,
-                         icon = icon_refresh(),
-                         class = "btn-outline-secondary btn-sm mb-3",
-                         title = "Refresh model list")
+            actionButton(
+              ns("refresh_chat_models"),
+              NULL,
+              icon = icon_refresh(),
+              class = "btn-outline-secondary btn-sm mb-3",
+              title = "Refresh model list"
+            )
           ),
-          p(class = "text-muted small mt-0 mb-2",
-            "For: chat, synthesis, analysis, slides, overviews"),
+          p(
+            class = "text-muted small mt-0 mb-2",
+            "For: chat, synthesis, analysis, slides, overviews"
+          ),
           uiOutput(ns("model_info")),
           div(
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              selectizeInput(ns("fast_model"), "Fast Model (optional)",
-                             choices = c("(Use Quality model)" = "", format_chat_model_choices(get_default_chat_models())),
-                             selected = "")
+              selectizeInput(
+                ns("fast_model"),
+                "Fast Model (optional)",
+                choices = c(
+                  "(Use Quality model)" = "",
+                  format_chat_model_choices(get_default_chat_models())
+                ),
+                selected = ""
+              )
             )
           ),
           uiOutput(ns("fast_model_fallback_hint")),
-          p(class = "text-muted small mt-0 mb-2",
-            "For: query building, reformulation. Use a cheap/fast model to save costs."),
+          p(
+            class = "text-muted small mt-0 mb-2",
+            "For: query building, reformulation. Use a cheap/fast model to save costs."
+          ),
           div(
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              selectizeInput(ns("embed_model"), "Embedding Model",
-                             choices = c(
-                               "OpenAI text-embedding-3-small ($0.02/M)" = "openai/text-embedding-3-small",
-                               "OpenAI text-embedding-3-large ($0.13/M)" = "openai/text-embedding-3-large",
-                               "Google Gemini Embedding ($0.15/M) - MTEB #1" = "google/gemini-embedding-001",
-                               "Qwen3 Embedding 8B ($0.01/M) - Budget" = "qwen/qwen3-embedding-8b",
-                               "Mistral Embed ($0.10/M)" = "mistralai/mistral-embed-2312"
-                             ))
+              selectizeInput(
+                ns("embed_model"),
+                "Embedding Model",
+                choices = c(
+                  "OpenAI text-embedding-3-small ($0.02/M)" = "openai/text-embedding-3-small",
+                  "OpenAI text-embedding-3-large ($0.13/M)" = "openai/text-embedding-3-large",
+                  "Google Gemini Embedding ($0.15/M) - MTEB #1" = "google/gemini-embedding-001",
+                  "Qwen3 Embedding 8B ($0.01/M) - Budget" = "qwen/qwen3-embedding-8b",
+                  "Mistral Embed ($0.10/M)" = "mistralai/mistral-embed-2312"
+                )
+              )
             ),
-            actionButton(ns("refresh_embed_models"), NULL,
-                         icon = icon_refresh(),
-                         class = "btn-outline-secondary btn-sm mb-3",
-                         title = "Refresh model list")
+            actionButton(
+              ns("refresh_embed_models"),
+              NULL,
+              icon = icon_refresh(),
+              class = "btn-outline-secondary btn-sm mb-3",
+              title = "Refresh model list"
+            )
           ),
-          p(class = "text-muted small mt-0 mb-2",
-            "For: document indexing and retrieval"),
+          p(
+            class = "text-muted small mt-0 mb-2",
+            "For: document indexing and retrieval"
+          ),
           uiOutput(ns("embed_dimension_warning")),
           div(
             class = "d-flex align-items-end gap-2",
             div(
               style = "flex-grow: 1;",
-              selectizeInput(ns("rerank_model"), "Reranker Model",
-                             choices = c(
-                               "Cohere Rerank 4 Pro ($0.005/search)" = "cohere/rerank-4-pro",
-                               "Cohere Rerank 4 Fast ($0.002/search)" = "cohere/rerank-4-fast"
-                             ))
+              selectizeInput(
+                ns("rerank_model"),
+                "Reranker Model",
+                choices = c(
+                  "Cohere Rerank 4 Pro ($0.005/search)" = "cohere/rerank-4-pro",
+                  "Cohere Rerank 4 Fast ($0.002/search)" = "cohere/rerank-4-fast"
+                )
+              )
             ),
-            actionButton(ns("refresh_rerank_models"), NULL,
-                         icon = icon_refresh(),
-                         class = "btn-outline-secondary btn-sm mb-3",
-                         title = "Refresh model list")
+            actionButton(
+              ns("refresh_rerank_models"),
+              NULL,
+              icon = icon_refresh(),
+              class = "btn-outline-secondary btn-sm mb-3",
+              title = "Refresh model list"
+            )
           ),
-          p(class = "text-muted small mt-0 mb-2",
-            "For: reranking search results and RAG chunks"),
+          p(
+            class = "text-muted small mt-0 mb-2",
+            "For: reranking search results and RAG chunks"
+          ),
           hr(),
           h5(icon_server(), " Providers"),
-          p(class = "text-muted small",
+          p(
+            class = "text-muted small",
             "Add OpenAI-compatible endpoints (Ollama, LM Studio, vLLM) ",
-            "to use local models alongside cloud providers."),
+            "to use local models alongside cloud providers."
+          ),
           uiOutput(ns("providers_list")),
-          actionButton(ns("add_provider"), "Add Provider",
-                       class = "btn-outline-secondary btn-sm mt-2",
-                       icon = icon_plus()),
+          actionButton(
+            ns("add_provider"),
+            "Add Provider",
+            class = "btn-outline-secondary btn-sm mt-2",
+            icon = icon_plus()
+          ),
           hr(),
           h5(icon_chart_bar(), " Model Benchmarks"),
-          p(class = "text-muted small",
+          p(
+            class = "text-muted small",
             "Quality scores, speed, and pricing from ",
-            tags$a(href = "https://artificialanalysis.ai",
-                   target = "_blank", "Artificial Analytics"), "."),
+            tags$a(
+              href = "https://artificialanalysis.ai",
+              target = "_blank",
+              "Artificial Analytics"
+            ),
+            "."
+          ),
           uiOutput(ns("aa_status")),
           div(
             class = "d-flex gap-2 mt-2",
-            actionButton(ns("refresh_aa_data"), "Refresh Data",
-                         class = "btn-outline-secondary btn-sm",
-                         icon = icon_refresh()),
-            passwordInput(ns("aa_api_key"), NULL,
-                          placeholder = "AA API key (optional)",
-                          width = "200px")
+            actionButton(
+              ns("refresh_aa_data"),
+              "Refresh Data",
+              class = "btn-outline-secondary btn-sm",
+              icon = icon_refresh()
+            ),
+            passwordInput(
+              ns("aa_api_key"),
+              NULL,
+              placeholder = "AA API key (optional)",
+              width = "200px"
+            )
           ),
           hr(),
           h5(icon_shield(), " Quality Data"),
-          p(class = "text-muted small",
+          p(
+            class = "text-muted small",
             "Download lists of predatory journals/publishers and retracted papers ",
-            "to flag questionable sources in search results."),
+            "to flag questionable sources in search results."
+          ),
           uiOutput(ns("quality_data_status")),
-          actionButton(ns("download_quality_data"), "Download Quality Data",
-                       class = "btn-outline-secondary btn-sm mt-2",
-                       icon = icon_download()),
+          actionButton(
+            ns("download_quality_data"),
+            "Download Quality Data",
+            class = "btn-outline-secondary btn-sm mt-2",
+            icon = icon_download()
+          ),
           hr(),
           h5(icon_fingerprint(), " DOI Management"),
-          p(class = "text-muted small",
-            "Backfill missing DOIs for legacy papers by fetching from OpenAlex."),
+          p(
+            class = "text-muted small",
+            "Backfill missing DOIs for legacy papers by fetching from OpenAlex."
+          ),
           uiOutput(ns("doi_status")),
-          actionButton(ns("backfill_dois"), "Backfill Missing DOIs",
-                       class = "btn-outline-primary btn-sm mt-2",
-                       icon = icon_rotate()),
+          actionButton(
+            ns("backfill_dois"),
+            "Backfill Missing DOIs",
+            class = "btn-outline-primary btn-sm mt-2",
+            icon = icon_rotate()
+          ),
           hr(),
           h5(icon_broom(), " Maintenance"),
-          p(class = "text-muted small",
-            "Remove orphaned search index files left over from failed notebook deletions."),
-          actionButton(ns("cleanup_orphans"), "Clean Up Orphaned Indexes",
-                       class = "btn-outline-secondary btn-sm",
-                       icon = icon_trash_can()),
+          p(
+            class = "text-muted small",
+            "Remove orphaned search index files left over from failed notebook deletions."
+          ),
+          actionButton(
+            ns("cleanup_orphans"),
+            "Clean Up Orphaned Indexes",
+            class = "btn-outline-secondary btn-sm",
+            icon = icon_trash_can()
+          ),
           textOutput(ns("cleanup_status"))
         )
       )
@@ -238,8 +366,13 @@ mod_settings_ui <- function(id) {
 #'
 #' @param con DuckDB connection
 migrate_model_slots <- function(con) {
-  quality <- tryCatch(get_db_setting(con, "quality_model"), error = function(e) NULL)
-  if (!is.null(quality)) return(invisible(NULL))
+  quality <- tryCatch(
+    get_db_setting(con, "quality_model"),
+    error = function(e) NULL
+  )
+  if (!is.null(quality)) {
+    return(invisible(NULL))
+  }
 
   chat <- tryCatch(get_db_setting(con, "chat_model"), error = function(e) NULL)
   if (!is.null(chat)) {
@@ -262,7 +395,13 @@ mod_settings_server <- function(id, con, config_rv) {
     observe({
       req(con())
       migrate_model_slots(con())
-    }) |> bindEvent(con(), once = TRUE)
+    }) |>
+      bindEvent(con(), once = TRUE)
+
+    get_cisa_filter <- function() {
+      cfg <- config_rv()
+      isTRUE(get_setting(cfg, "compliance", "cisa_filter"))
+    }
 
     # Reactive values to trigger model refresh
     refresh_embed_trigger <- reactiveVal(0)
@@ -284,22 +423,37 @@ mod_settings_server <- function(id, con, config_rv) {
     # Helper function to validate OpenRouter key and update status
     validate_and_update_openrouter_status <- function(key) {
       if (is.null(key) || nchar(key) == 0) {
-        api_status$openrouter <- list(status = "empty", message = "No API key entered")
+        api_status$openrouter <- list(
+          status = "empty",
+          message = "No API key entered"
+        )
       } else if (nchar(key) < MIN_API_KEY_LENGTH) {
-        api_status$openrouter <- list(status = "invalid", message = "Key too short")
+        api_status$openrouter <- list(
+          status = "invalid",
+          message = "Key too short"
+        )
       } else {
-        api_status$openrouter <- list(status = "validating", message = "Checking...")
-        
-        result <- tryCatch({
-          validate_openrouter_key(key)
-        }, error = function(e) {
-          list(valid = FALSE, error = e$message)
-        })
-        
+        api_status$openrouter <- list(
+          status = "validating",
+          message = "Checking..."
+        )
+
+        result <- tryCatch(
+          {
+            validate_openrouter_key(key)
+          },
+          error = function(e) {
+            list(valid = FALSE, error = e$message)
+          }
+        )
+
         api_status$openrouter <- if (isTRUE(result$valid)) {
           list(status = "valid", message = "API key validated")
         } else {
-          list(status = "invalid", message = result$error %||% "Validation failed")
+          list(
+            status = "invalid",
+            message = result$error %||% "Validation failed"
+          )
         }
       }
     }
@@ -307,34 +461,53 @@ mod_settings_server <- function(id, con, config_rv) {
     # Helper function to validate OpenAlex email and update status
     validate_and_update_openalex_status <- function(email) {
       if (is.null(email) || nchar(email) == 0) {
-        api_status$openalex <- list(status = "empty", message = "No email entered")
+        api_status$openalex <- list(
+          status = "empty",
+          message = "No email entered"
+        )
       } else if (!grepl("@", email)) {
-        api_status$openalex <- list(status = "invalid", message = "Invalid email format")
+        api_status$openalex <- list(
+          status = "invalid",
+          message = "Invalid email format"
+        )
       } else {
-        api_status$openalex <- list(status = "validating", message = "Checking...")
-        
-        result <- tryCatch({
-          validate_openalex_email(email)
-        }, error = function(e) {
-          list(valid = FALSE, error = e$message)
-        })
-        
+        api_status$openalex <- list(
+          status = "validating",
+          message = "Checking..."
+        )
+
+        result <- tryCatch(
+          {
+            validate_openalex_email(email)
+          },
+          error = function(e) {
+            list(valid = FALSE, error = e$message)
+          }
+        )
+
         api_status$openalex <- if (isTRUE(result$valid)) {
           list(status = "valid", message = "Polite pool access confirmed")
         } else {
-          list(status = "invalid", message = result$error %||% "Validation failed")
+          list(
+            status = "invalid",
+            message = result$error %||% "Validation failed"
+          )
         }
       }
     }
 
     # Helper function to update embedding model choices
     update_embed_model_choices <- function(api_key, current_selection = NULL) {
+      cisa <- get_cisa_filter()
       # Always get models - list_embedding_models returns defaults if API key invalid
-      models <- tryCatch({
-        list_embedding_models(api_key)
-      }, error = function(e) {
-        get_default_embedding_models()
-      })
+      models <- tryCatch(
+        {
+          list_embedding_models(api_key, cisa_filter = cisa)
+        },
+        error = function(e) {
+          get_default_embedding_models()
+        }
+      )
 
       # Ensure we have valid data
       if (is.null(models) || nrow(models) == 0) {
@@ -344,7 +517,9 @@ mod_settings_server <- function(id, con, config_rv) {
       choices <- setNames(models$id, models$name)
 
       # Preserve current selection if it exists in new choices
-      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+      selected <- if (
+        !is.null(current_selection) && current_selection %in% choices
+      ) {
         current_selection
       } else if (length(choices) > 0) {
         choices[[1]]
@@ -352,18 +527,25 @@ mod_settings_server <- function(id, con, config_rv) {
         NULL
       }
 
-      updateSelectizeInput(session, "embed_model",
-                           choices = choices,
-                           selected = selected)
+      updateSelectizeInput(
+        session,
+        "embed_model",
+        choices = choices,
+        selected = selected
+      )
     }
 
     # Helper function to update rerank model choices
     update_rerank_model_choices <- function(api_key, current_selection = NULL) {
-      models <- tryCatch({
-        list_rerank_models(api_key)
-      }, error = function(e) {
-        get_default_rerank_models()
-      })
+      cisa <- get_cisa_filter()
+      models <- tryCatch(
+        {
+          list_rerank_models(api_key, cisa_filter = cisa)
+        },
+        error = function(e) {
+          get_default_rerank_models()
+        }
+      )
 
       if (is.null(models) || nrow(models) == 0) {
         models <- get_default_rerank_models()
@@ -371,7 +553,9 @@ mod_settings_server <- function(id, con, config_rv) {
 
       choices <- setNames(models$id, models$name)
 
-      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+      selected <- if (
+        !is.null(current_selection) && current_selection %in% choices
+      ) {
         current_selection
       } else if (length(choices) > 0) {
         choices[[1]]
@@ -379,19 +563,26 @@ mod_settings_server <- function(id, con, config_rv) {
         NULL
       }
 
-      updateSelectizeInput(session, "rerank_model",
-                           choices = choices,
-                           selected = selected)
+      updateSelectizeInput(
+        session,
+        "rerank_model",
+        choices = choices,
+        selected = selected
+      )
     }
 
     # Helper function to update quality model choices
     update_chat_model_choices <- function(api_key, current_selection = NULL) {
+      cisa <- get_cisa_filter()
       # Always get models - list_chat_models returns defaults if API key invalid
-      models <- tryCatch({
-        list_chat_models(api_key)
-      }, error = function(e) {
-        get_default_chat_models()
-      })
+      models <- tryCatch(
+        {
+          list_chat_models(api_key, cisa_filter = cisa)
+        },
+        error = function(e) {
+          get_default_chat_models()
+        }
+      )
 
       # Ensure we have valid data
       if (is.null(models) || nrow(models) == 0) {
@@ -402,17 +593,22 @@ mod_settings_server <- function(id, con, config_rv) {
       chat_models_data(models)
 
       # Update pricing for cost tracking
-      tryCatch({
-        update_model_pricing(models)
-      }, error = function(e) {
-        # Silently fail pricing update - not critical
-      })
+      tryCatch(
+        {
+          update_model_pricing(models)
+        },
+        error = function(e) {
+          # Silently fail pricing update - not critical
+        }
+      )
 
       # Format choices for display
       choices <- format_chat_model_choices(models)
 
       # Preserve current selection if it exists in new choices
-      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+      selected <- if (
+        !is.null(current_selection) && current_selection %in% choices
+      ) {
         current_selection
       } else if (length(choices) > 0) {
         choices[[1]]
@@ -420,34 +616,49 @@ mod_settings_server <- function(id, con, config_rv) {
         NULL
       }
 
-      updateSelectizeInput(session, "quality_model",
-                           choices = choices,
-                           selected = selected)
+      updateSelectizeInput(
+        session,
+        "quality_model",
+        choices = choices,
+        selected = selected
+      )
     }
 
     # Helper function to update fast model choices
     update_fast_model_choices <- function(api_key, current_selection = NULL) {
-      models <- tryCatch({
-        list_chat_models(api_key)
-      }, error = function(e) {
-        get_default_chat_models()
-      })
+      cisa <- get_cisa_filter()
+      models <- tryCatch(
+        {
+          list_chat_models(api_key, cisa_filter = cisa)
+        },
+        error = function(e) {
+          get_default_chat_models()
+        }
+      )
 
       if (is.null(models) || nrow(models) == 0) {
         models <- get_default_chat_models()
       }
 
-      choices <- c("(Use Quality model)" = "", format_chat_model_choices(models))
+      choices <- c(
+        "(Use Quality model)" = "",
+        format_chat_model_choices(models)
+      )
 
-      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+      selected <- if (
+        !is.null(current_selection) && current_selection %in% choices
+      ) {
         current_selection
       } else {
-        ""  # default to empty = use quality model
+        "" # default to empty = use quality model
       }
 
-      updateSelectizeInput(session, "fast_model",
-                           choices = choices,
-                           selected = selected)
+      updateSelectizeInput(
+        session,
+        "fast_model",
+        choices = choices,
+        selected = selected
+      )
     }
 
     # Load current settings on init
@@ -463,40 +674,44 @@ mod_settings_server <- function(id, con, config_rv) {
 
       # API Keys - prefer DB settings, fall back to config file
       or_key <- get_db_setting(con(), "openrouter_api_key") %||%
-                get_setting(cfg, "openrouter", "api_key") %||% ""
+        get_setting(cfg, "openrouter", "api_key") %||%
+        ""
       updateTextInput(session, "openrouter_key", value = or_key)
 
       oa_email <- get_db_setting(con(), "openalex_email") %||%
-                  get_setting(cfg, "openalex", "email") %||% ""
+        get_setting(cfg, "openalex", "email") %||%
+        ""
       updateTextInput(session, "openalex_email", value = oa_email)
 
       oa_key <- get_db_setting(con(), "openalex_api_key") %||%
-                get_setting(cfg, "openalex", "api_key") %||% ""
+        get_setting(cfg, "openalex", "api_key") %||%
+        ""
       updateTextInput(session, "openalex_api_key", value = oa_key)
 
       # Quality model (with chat_model fallback for existing users)
       quality_model <- get_db_setting(con(), "quality_model") %||%
-                       get_db_setting(con(), "chat_model") %||%
-                       get_setting(cfg, "defaults", "quality_model") %||%
-                       get_setting(cfg, "defaults", "chat_model") %||%
-                       "google/gemini-3.1-flash-lite-preview"
+        get_db_setting(con(), "chat_model") %||%
+        get_setting(cfg, "defaults", "quality_model") %||%
+        get_setting(cfg, "defaults", "chat_model") %||%
+        "google/gemini-3.1-flash-lite-preview"
       update_chat_model_choices(or_key, quality_model)
 
       # Fast model (optional — empty string means use quality model)
       fast_model <- get_db_setting(con(), "fast_model") %||%
-                    get_setting(cfg, "defaults", "fast_model") %||% ""
+        get_setting(cfg, "defaults", "fast_model") %||%
+        ""
       update_fast_model_choices(or_key, fast_model)
 
       # Embedding model - get saved selection then populate dropdown
       embed_model <- get_db_setting(con(), "embedding_model") %||%
-                     get_setting(cfg, "defaults", "embedding_model") %||%
-                     "openai/text-embedding-3-small"
+        get_setting(cfg, "defaults", "embedding_model") %||%
+        "openai/text-embedding-3-small"
       update_embed_model_choices(or_key, embed_model)
 
       # Reranker model
       rerank_model <- get_db_setting(con(), "rerank_model") %||%
-                      get_setting(cfg, "defaults", "rerank_model") %||%
-                      "cohere/rerank-4-fast"
+        get_setting(cfg, "defaults", "rerank_model") %||%
+        "cohere/rerank-4-fast"
       update_rerank_model_choices(or_key, rerank_model)
 
       # Advanced
@@ -505,33 +720,48 @@ mod_settings_server <- function(id, con, config_rv) {
         reformulation <- get_setting(cfg, "app", "query_reformulation")
       }
       if (!is.null(reformulation)) {
-        updateCheckboxInput(session, "query_reformulation", value = isTRUE(reformulation))
+        updateCheckboxInput(
+          session,
+          "query_reformulation",
+          value = isTRUE(reformulation)
+        )
       }
 
       chunk_size <- get_db_setting(con(), "chunk_size") %||%
-                    get_setting(cfg, "app", "chunk_size") %||% 500
+        get_setting(cfg, "app", "chunk_size") %||%
+        500
       updateNumericInput(session, "chunk_size", value = chunk_size)
 
       chunk_overlap <- get_db_setting(con(), "chunk_overlap") %||%
-                       get_setting(cfg, "app", "chunk_overlap") %||% 50
+        get_setting(cfg, "app", "chunk_overlap") %||%
+        50
       updateNumericInput(session, "chunk_overlap", value = chunk_overlap)
 
       verbose_mode <- get_db_setting(con(), "verbose_mode")
       if (is.null(verbose_mode)) {
         verbose_mode <- get_setting(cfg, "app", "verbose_mode") %||% FALSE
       }
-      bslib::update_switch("verbose_mode", value = isTRUE(verbose_mode), session = session)
+      bslib::update_switch(
+        "verbose_mode",
+        value = isTRUE(verbose_mode),
+        session = session
+      )
       options(serapeum.verbose_api = isTRUE(verbose_mode))
 
       # Search settings
       abstracts_per_search <- get_db_setting(con(), "abstracts_per_search") %||%
-                              get_setting(cfg, "app", "abstracts_per_search") %||% 25
-      updateNumericInput(session, "abstracts_per_search", value = abstracts_per_search)
+        get_setting(cfg, "app", "abstracts_per_search") %||%
+        25
+      updateNumericInput(
+        session,
+        "abstracts_per_search",
+        value = abstracts_per_search
+      )
 
       # Network settings
       network_palette <- get_db_setting(con(), "network_palette") %||%
-                         get_setting(cfg, "app", "network_palette") %||%
-                         "viridis"
+        get_setting(cfg, "app", "network_palette") %||%
+        "viridis"
       updateSelectInput(session, "network_palette", selected = network_palette)
 
       # Validate initial API key values using helper functions
@@ -544,17 +774,26 @@ mod_settings_server <- function(id, con, config_rv) {
     # Refresh embedding models when API key changes or refresh button clicked
     observe({
       api_key <- input$openrouter_key
-      refresh_embed_trigger()  # Also trigger on manual refresh
+      refresh_embed_trigger() # Also trigger on manual refresh
 
       # Always update - will use defaults if API key is invalid
       current <- input$embed_model
       update_embed_model_choices(api_key, current)
-    }) |> bindEvent(input$openrouter_key, refresh_embed_trigger(), ignoreInit = TRUE)
+    }) |>
+      bindEvent(
+        input$openrouter_key,
+        refresh_embed_trigger(),
+        ignoreInit = TRUE
+      )
 
     # Handle refresh button click
     observeEvent(input$refresh_embed_models, {
       refresh_embed_trigger(refresh_embed_trigger() + 1)
-      showNotification("Refreshing embedding models...", type = "message", duration = 2)
+      showNotification(
+        "Refreshing embedding models...",
+        type = "message",
+        duration = 2
+      )
     })
 
     # Refresh rerank models when API key changes or refresh button clicked
@@ -564,54 +803,93 @@ mod_settings_server <- function(id, con, config_rv) {
 
       current <- input$rerank_model
       update_rerank_model_choices(api_key, current)
-    }) |> bindEvent(input$openrouter_key, refresh_rerank_trigger(), ignoreInit = TRUE)
+    }) |>
+      bindEvent(
+        input$openrouter_key,
+        refresh_rerank_trigger(),
+        ignoreInit = TRUE
+      )
 
     # Handle rerank refresh button click
     observeEvent(input$refresh_rerank_models, {
       refresh_rerank_trigger(refresh_rerank_trigger() + 1)
-      showNotification("Refreshing rerank models...", type = "message", duration = 2)
+      showNotification(
+        "Refreshing rerank models...",
+        type = "message",
+        duration = 2
+      )
     })
 
     # Refresh chat/fast models when API key changes or refresh button clicked
     observe({
       api_key <- input$openrouter_key
-      refresh_chat_trigger()  # Also trigger on manual refresh
+      refresh_chat_trigger() # Also trigger on manual refresh
       current_quality <- input$quality_model
       update_chat_model_choices(api_key, current_quality)
       current_fast <- input$fast_model
       update_fast_model_choices(api_key, current_fast)
-    }) |> bindEvent(input$openrouter_key, refresh_chat_trigger(), ignoreInit = TRUE)
+    }) |>
+      bindEvent(input$openrouter_key, refresh_chat_trigger(), ignoreInit = TRUE)
 
     # Handle chat model refresh button click
     observeEvent(input$refresh_chat_models, {
       refresh_chat_trigger(refresh_chat_trigger() + 1)
-      showNotification("Refreshing chat models...", type = "message", duration = 2)
+      showNotification(
+        "Refreshing chat models...",
+        type = "message",
+        duration = 2
+      )
     })
 
     # --- API Key Validation ---
 
     # Helper to render status icon
     render_status_icon <- function(status, message) {
-      icon_info <- switch(status,
-        "empty" = list(icon = "circle-xmark", class = "text-danger", title = "No value entered"),
-        "validating" = list(icon = "spinner", class = "text-primary", title = "Checking..."),
-        "valid" = list(icon = "circle-check", class = "text-success", title = message %||% "Validated"),
-        "invalid" = list(icon = "circle-exclamation", class = "text-danger", title = message %||% "Invalid"),
-        list(icon = "circle-question", class = "text-muted", title = "Unknown status")
+      icon_info <- switch(
+        status,
+        "empty" = list(
+          icon = "circle-xmark",
+          class = "text-danger",
+          title = "No value entered"
+        ),
+        "validating" = list(
+          icon = "spinner",
+          class = "text-primary",
+          title = "Checking..."
+        ),
+        "valid" = list(
+          icon = "circle-check",
+          class = "text-success",
+          title = message %||% "Validated"
+        ),
+        "invalid" = list(
+          icon = "circle-exclamation",
+          class = "text-danger",
+          title = message %||% "Invalid"
+        ),
+        list(
+          icon = "circle-question",
+          class = "text-muted",
+          title = "Unknown status"
+        )
       )
 
       div(
         class = paste(icon_info$class, "mb-3"),
         style = "font-size: 1.2em; cursor: help;",
         title = icon_info$title,
-        icon(icon_info$icon, class = if (status == "validating") "fa-spin" else NULL)
+        icon(
+          icon_info$icon,
+          class = if (status == "validating") "fa-spin" else NULL
+        )
       )
     }
 
     # Debounced OpenRouter key validation (wait 1 second after typing stops)
     openrouter_key_debounced <- reactive({
       input$openrouter_key
-    }) |> debounce(1000)
+    }) |>
+      debounce(1000)
 
     observe({
       key <- openrouter_key_debounced()
@@ -626,7 +904,8 @@ mod_settings_server <- function(id, con, config_rv) {
     # Debounced OpenAlex email validation
     openalex_email_debounced <- reactive({
       input$openalex_email
-    }) |> debounce(1000)
+    }) |>
+      debounce(1000)
 
     observe({
       email <- openalex_email_debounced()
@@ -657,15 +936,24 @@ mod_settings_server <- function(id, con, config_rv) {
           class = "alert alert-info alert-dismissible py-2 px-3 small mt-2",
           role = "alert",
           tags$button(
-            type = "button", class = "btn-close btn-close-sm",
-            `data-bs-dismiss` = "alert", `aria-label` = "Close",
+            type = "button",
+            class = "btn-close btn-close-sm",
+            `data-bs-dismiss` = "alert",
+            `aria-label` = "Close",
             onclick = paste0(
-              "Shiny.setInputValue('", ns("dismiss_oa_nudge"), "', true, {priority: 'event'})"
+              "Shiny.setInputValue('",
+              ns("dismiss_oa_nudge"),
+              "', true, {priority: 'event'})"
             )
           ),
-          icon_circle_info(), " ",
+          icon_circle_info(),
+          " ",
           "OpenAlex now offers free API keys with $1/day credit and usage tracking. ",
-          tags$a(href = "https://openalex.org/settings/api", target = "_blank", "Get your free key"),
+          tags$a(
+            href = "https://openalex.org/settings/api",
+            target = "_blank",
+            "Get your free key"
+          ),
           " to enable budget monitoring."
         )
       }
@@ -680,7 +968,10 @@ mod_settings_server <- function(id, con, config_rv) {
     output$fast_model_fallback_hint <- renderUI({
       fast <- input$fast_model
       if (is.null(fast) || fast == "") {
-        tags$p(class = "small text-info mt-0 mb-1", "Using Quality model as fallback")
+        tags$p(
+          class = "small text-info mt-0 mb-1",
+          "Using Quality model as fallback"
+        )
       } else {
         NULL
       }
@@ -693,10 +984,13 @@ mod_settings_server <- function(id, con, config_rv) {
       req(models)
 
       selected <- models[models$id == input$quality_model, ]
-      if (nrow(selected) == 0) return(NULL)
+      if (nrow(selected) == 0) {
+        return(NULL)
+      }
 
       row <- selected[1, ]
-      tier_badge <- switch(row$tier,
+      tier_badge <- switch(
+        row$tier,
         "budget" = span(class = "badge bg-success", "Budget"),
         "mid" = span(class = "badge bg-primary", "Mid-tier"),
         "premium" = span(class = "badge bg-warning text-body", "Premium"),
@@ -706,7 +1000,10 @@ mod_settings_server <- function(id, con, config_rv) {
       ctx_display <- if (row$context_length >= 1000000) {
         sprintf("%.1fM tokens", row$context_length / 1000000)
       } else {
-        sprintf("%sk tokens", format(round(row$context_length / 1000), big.mark = ","))
+        sprintf(
+          "%sk tokens",
+          format(round(row$context_length / 1000), big.mark = ",")
+        )
       }
 
       # Look up AA data for this model
@@ -718,22 +1015,39 @@ mod_settings_server <- function(id, con, config_rv) {
       }
 
       aa_section <- if (!is.null(aa_row)) {
-        div(class = "text-muted mt-1",
+        div(
+          class = "text-muted mt-1",
           sprintf("Quality: %d", as.integer(aa_row$intelligence_index)),
-          if (!is.na(aa_row$coding_index)) sprintf(" | Coding: %d", as.integer(aa_row$coding_index)) else "",
-          if (!is.na(aa_row$tokens_per_second)) sprintf(" | Speed: %d tok/s", as.integer(aa_row$tokens_per_second)) else "",
-          if (!is.na(aa_row$ttft_seconds)) sprintf(" | TTFT: %.1fs", aa_row$ttft_seconds) else ""
+          if (!is.na(aa_row$coding_index)) {
+            sprintf(" | Coding: %d", as.integer(aa_row$coding_index))
+          } else {
+            ""
+          },
+          if (!is.na(aa_row$tokens_per_second)) {
+            sprintf(" | Speed: %d tok/s", as.integer(aa_row$tokens_per_second))
+          } else {
+            ""
+          },
+          if (!is.na(aa_row$ttft_seconds)) {
+            sprintf(" | TTFT: %.1fs", aa_row$ttft_seconds)
+          } else {
+            ""
+          }
         )
       }
 
       div(
         class = "card card-body bg-body-secondary py-2 px-3 mt-2 small",
-        div(class = "d-flex justify-content-between align-items-center mb-1",
+        div(
+          class = "d-flex justify-content-between align-items-center mb-1",
           span(class = "fw-semibold", row$name),
           tier_badge
         ),
-        div(class = "text-muted",
-          icon_window_maximize(class = "me-1"), "Context: ", ctx_display,
+        div(
+          class = "text-muted",
+          icon_window_maximize(class = "me-1"),
+          "Context: ",
+          ctx_display,
           span(class = "mx-2", "|"),
           icon_arrow_right_bracket(class = "me-1"),
           sprintf("$%.2f/M in", row$prompt_price),
@@ -753,19 +1067,32 @@ mod_settings_server <- function(id, con, config_rv) {
       req(con())
       data <- get_aa_models(con())
       aa_data(data)
-    }) |> bindEvent(con(), once = TRUE)
+    }) |>
+      bindEvent(con(), once = TRUE)
 
     # AA status display
     output$aa_status <- renderUI({
       data <- aa_data()
       if (is.null(data) || nrow(data) == 0) {
-        div(class = "small text-muted", "Using bundled snapshot. Add an API key and refresh for latest data.")
+        div(
+          class = "small text-muted",
+          "Using bundled snapshot. Add an API key and refresh for latest data."
+        )
       } else {
-        cached <- tryCatch(get_db_setting(con(), "aa_model_cache"), error = function(e) NULL)
-        refresh_time <- if (!is.null(cached$refreshed_at)) cached$refreshed_at else "bundled"
-        div(class = "small text-success",
-            icon("circle-check"),
-            sprintf(" %d models loaded (as of %s)", nrow(data), refresh_time))
+        cached <- tryCatch(
+          get_db_setting(con(), "aa_model_cache"),
+          error = function(e) NULL
+        )
+        refresh_time <- if (!is.null(cached$refreshed_at)) {
+          cached$refreshed_at
+        } else {
+          "bundled"
+        }
+        div(
+          class = "small text-success",
+          icon("circle-check"),
+          sprintf(" %d models loaded (as of %s)", nrow(data), refresh_time)
+        )
       }
     })
 
@@ -779,36 +1106,60 @@ mod_settings_server <- function(id, con, config_rv) {
         if (nrow(data) > 0) {
           save_aa_cache(con(), data)
           aa_data(data)
-          showNotification(sprintf("Loaded %d models from bundled snapshot.", nrow(data)), type = "message")
+          showNotification(
+            sprintf("Loaded %d models from bundled snapshot.", nrow(data)),
+            type = "message"
+          )
         } else {
-          showNotification("No bundled data found. Add an AA API key to fetch from the API.", type = "warning")
+          showNotification(
+            "No bundled data found. Add an AA API key to fetch from the API.",
+            type = "warning"
+          )
         }
         return()
       }
 
       # Fetch from API
-      tryCatch({
-        data <- fetch_aa_models(api_key)
-        save_aa_cache(con(), data)
-        save_db_setting(con(), "aa_api_key", api_key)
-        aa_data(data)
-        showNotification(sprintf("Refreshed: %d models from Artificial Analytics API.", nrow(data)), type = "message")
+      tryCatch(
+        {
+          data <- fetch_aa_models(api_key)
+          save_aa_cache(con(), data)
+          save_db_setting(con(), "aa_api_key", api_key)
+          aa_data(data)
+          showNotification(
+            sprintf(
+              "Refreshed: %d models from Artificial Analytics API.",
+              nrow(data)
+            ),
+            type = "message"
+          )
 
-        # Re-enrich model choices
-        or_key <- trimws(input$openrouter_key %||% "")
-        update_chat_model_choices(or_key, input$quality_model)
-        update_fast_model_choices(or_key, input$fast_model)
-      }, error = function(e) {
-        showNotification(paste("AA refresh failed:", e$message), type = "error")
-      })
+          # Re-enrich model choices
+          or_key <- trimws(input$openrouter_key %||% "")
+          update_chat_model_choices(or_key, input$quality_model)
+          update_fast_model_choices(or_key, input$fast_model)
+        },
+        error = function(e) {
+          showNotification(
+            paste("AA refresh failed:", e$message),
+            type = "error"
+          )
+        }
+      )
     })
 
     # Enrich models with AA data when updating choices
     # Override update_chat_model_choices to include AA enrichment
     original_update_chat <- update_chat_model_choices
     update_chat_model_choices <<- function(api_key, current_selection = NULL) {
-      models <- tryCatch(list_chat_models(api_key), error = function(e) get_default_chat_models())
-      if (is.null(models) || nrow(models) == 0) models <- get_default_chat_models()
+      cisa <- get_cisa_filter()
+      models <- tryCatch(
+        list_chat_models(api_key, cisa_filter = cisa),
+        error = function(e) get_default_chat_models()
+      )
+      if (is.null(models) || nrow(models) == 0) {
+        models <- get_default_chat_models()
+      }
 
       chat_models_data(models)
       tryCatch(update_model_pricing(models), error = function(e) NULL)
@@ -820,7 +1171,9 @@ mod_settings_server <- function(id, con, config_rv) {
       }
 
       choices <- format_chat_model_choices(models)
-      selected <- if (!is.null(current_selection) && current_selection %in% choices) {
+      selected <- if (
+        !is.null(current_selection) && current_selection %in% choices
+      ) {
         current_selection
       } else if (length(choices) > 0) {
         choices[[1]]
@@ -828,7 +1181,12 @@ mod_settings_server <- function(id, con, config_rv) {
         NULL
       }
 
-      updateSelectizeInput(session, "quality_model", choices = choices, selected = selected)
+      updateSelectizeInput(
+        session,
+        "quality_model",
+        choices = choices,
+        selected = selected
+      )
     }
 
     # --- Provider Management ---
@@ -860,12 +1218,22 @@ mod_settings_server <- function(id, con, config_rv) {
         } else {
           # For non-default providers, test health synchronously (quick 3s timeout)
           cfg <- provider_row_to_config(p)
-          health <- tryCatch(provider_check_health(cfg, timeout = 3), error = function(e) list(alive = FALSE))
+          health <- tryCatch(
+            provider_check_health(cfg, timeout = 3),
+            error = function(e) list(alive = FALSE)
+          )
           if (isTRUE(health$alive)) {
-            span(class = "text-success me-1", icon("circle-check"),
-                 title = sprintf("%d models", health$model_count %||% 0))
+            span(
+              class = "text-success me-1",
+              icon("circle-check"),
+              title = sprintf("%d models", health$model_count %||% 0)
+            )
           } else {
-            span(class = "text-danger me-1", icon("circle-xmark"), title = "Offline")
+            span(
+              class = "text-danger me-1",
+              icon("circle-xmark"),
+              title = "Offline"
+            )
           }
         }
 
@@ -884,7 +1252,9 @@ mod_settings_server <- function(id, con, config_rv) {
           div(
             class = "flex-grow-1",
             span(class = "fw-semibold", p$name),
-            if (is_openrouter) span(class = "badge bg-secondary ms-1", "built-in"),
+            if (is_openrouter) {
+              span(class = "badge bg-secondary ms-1", "built-in")
+            },
             tags$br(),
             span(class = "text-muted small", p$base_url, " ", key_display)
           ),
@@ -892,18 +1262,24 @@ mod_settings_server <- function(id, con, config_rv) {
             div(
               class = "d-flex gap-1",
               actionButton(
-                ns(paste0("test_provider_", p$id)), NULL,
-                icon = icon("plug"), class = "btn-outline-secondary btn-sm",
+                ns(paste0("test_provider_", p$id)),
+                NULL,
+                icon = icon("plug"),
+                class = "btn-outline-secondary btn-sm",
                 title = "Test connection"
               ),
               actionButton(
-                ns(paste0("edit_provider_", p$id)), NULL,
-                icon = icon("pen"), class = "btn-outline-secondary btn-sm",
+                ns(paste0("edit_provider_", p$id)),
+                NULL,
+                icon = icon("pen"),
+                class = "btn-outline-secondary btn-sm",
                 title = "Edit"
               ),
               actionButton(
-                ns(paste0("delete_provider_", p$id)), NULL,
-                icon = icon("trash"), class = "btn-outline-danger btn-sm",
+                ns(paste0("delete_provider_", p$id)),
+                NULL,
+                icon = icon("trash"),
+                class = "btn-outline-danger btn-sm",
                 title = "Delete"
               )
             )
@@ -918,15 +1294,20 @@ mod_settings_server <- function(id, con, config_rv) {
       showModal(modalDialog(
         title = "Add Provider",
         textInput(ns("new_provider_name"), "Name", placeholder = "My Ollama"),
-        textInput(ns("new_provider_url"), "Base URL",
-                  placeholder = "http://localhost:11434/v1"),
+        textInput(
+          ns("new_provider_url"),
+          "Base URL",
+          placeholder = "http://localhost:11434/v1"
+        ),
         passwordInput(ns("new_provider_key"), "API Key (optional)"),
         uiOutput(ns("new_provider_test_result")),
         footer = tagList(
-          actionButton(ns("test_new_provider"), "Test Connection",
-                       class = "btn-outline-secondary"),
-          actionButton(ns("save_new_provider"), "Save",
-                       class = "btn-primary"),
+          actionButton(
+            ns("test_new_provider"),
+            "Test Connection",
+            class = "btn-outline-secondary"
+          ),
+          actionButton(ns("save_new_provider"), "Save", class = "btn-primary"),
           modalButton("Cancel")
         )
       ))
@@ -939,25 +1320,38 @@ mod_settings_server <- function(id, con, config_rv) {
 
       if (nchar(url) == 0) {
         output$new_provider_test_result <- renderUI(
-          div(class = "alert alert-warning py-1 small mt-2", "Please enter a base URL.")
+          div(
+            class = "alert alert-warning py-1 small mt-2",
+            "Please enter a base URL."
+          )
         )
         return()
       }
 
       cfg <- create_provider_config(
-        name = "test", base_url = url,
+        name = "test",
+        base_url = url,
         api_key = if (nchar(key) > 0) key else NULL
       )
       health <- provider_check_health(cfg, timeout = 5)
 
       output$new_provider_test_result <- renderUI({
         if (isTRUE(health$alive)) {
-          div(class = "alert alert-success py-1 small mt-2",
-              icon("circle-check"), sprintf(" Connected! Found %d models. Server type: %s",
-                                            health$model_count, health$server_type))
+          div(
+            class = "alert alert-success py-1 small mt-2",
+            icon("circle-check"),
+            sprintf(
+              " Connected! Found %d models. Server type: %s",
+              health$model_count,
+              health$server_type
+            )
+          )
         } else {
-          div(class = "alert alert-danger py-1 small mt-2",
-              icon("circle-xmark"), " Could not connect. Check the URL and try again.")
+          div(
+            class = "alert alert-danger py-1 small mt-2",
+            icon("circle-xmark"),
+            " Could not connect. Check the URL and try again."
+          )
         }
       })
     })
@@ -977,8 +1371,13 @@ mod_settings_server <- function(id, con, config_rv) {
       id <- tolower(gsub("[^a-z0-9]+", "-", name))
       id <- sub("-+$", "", sub("^-+", "", id))
 
-      save_provider(con(), id, name, url,
-                    api_key = if (nchar(key) > 0) key else NULL)
+      save_provider(
+        con(),
+        id,
+        name,
+        url,
+        api_key = if (nchar(key) > 0) key else NULL
+      )
 
       removeModal()
       provider_refresh(provider_refresh() + 1)
@@ -1002,17 +1401,30 @@ mod_settings_server <- function(id, con, config_rv) {
           local_pid <- pid
           local_name <- p$name
           btn_id <- paste0("test_provider_", local_pid)
-          observeEvent(input[[btn_id]], {
-            cfg <- provider_row_to_config(get_provider(con(), local_pid))
-            health <- provider_check_health(cfg, timeout = 5)
-            if (isTRUE(health$alive)) {
-              showNotification(
-                sprintf("%s: connected (%d models, %s)", local_name, health$model_count, health$server_type),
-                type = "message")
-            } else {
-              showNotification(sprintf("%s: connection failed", local_name), type = "error")
-            }
-          }, ignoreInit = TRUE)
+          observeEvent(
+            input[[btn_id]],
+            {
+              cfg <- provider_row_to_config(get_provider(con(), local_pid))
+              health <- provider_check_health(cfg, timeout = 5)
+              if (isTRUE(health$alive)) {
+                showNotification(
+                  sprintf(
+                    "%s: connected (%d models, %s)",
+                    local_name,
+                    health$model_count,
+                    health$server_type
+                  ),
+                  type = "message"
+                )
+              } else {
+                showNotification(
+                  sprintf("%s: connection failed", local_name),
+                  type = "error"
+                )
+              }
+            },
+            ignoreInit = TRUE
+          )
         })
 
         # Delete button
@@ -1020,37 +1432,77 @@ mod_settings_server <- function(id, con, config_rv) {
           local_pid <- pid
           local_name <- p$name
           btn_id <- paste0("delete_provider_", local_pid)
-          observeEvent(input[[btn_id]], {
-            tryCatch({
-              delete_provider(con(), local_pid)
-              provider_refresh(provider_refresh() + 1)
-              showNotification(paste("Deleted provider:", local_name), type = "message")
-            }, error = function(e) {
-              showNotification(e$message, type = "error")
-            })
-          }, ignoreInit = TRUE)
+          observeEvent(
+            input[[btn_id]],
+            {
+              tryCatch(
+                {
+                  delete_provider(con(), local_pid)
+                  provider_refresh(provider_refresh() + 1)
+                  showNotification(
+                    paste("Deleted provider:", local_name),
+                    type = "message"
+                  )
+                },
+                error = function(e) {
+                  showNotification(e$message, type = "error")
+                }
+              )
+            },
+            ignoreInit = TRUE
+          )
         })
 
         # Edit button
         local({
           local_pid <- pid
           btn_id <- paste0("edit_provider_", local_pid)
-          observeEvent(input[[btn_id]], {
-            p_data <- get_provider(con(), local_pid)
-            ns <- session$ns
-            showModal(modalDialog(
-              title = paste("Edit Provider:", p_data$name),
-              textInput(ns("edit_provider_name"), "Name", value = p_data$name),
-              textInput(ns("edit_provider_url"), "Base URL", value = p_data$base_url),
-              passwordInput(ns("edit_provider_key"), "API Key",
-                            placeholder = if (!is.null(p_data$api_key) && nchar(p_data$api_key %||% "") > 0) "******** (leave blank to keep)" else ""),
-              tags$input(type = "hidden", id = ns("edit_provider_id"), value = local_pid),
-              footer = tagList(
-                actionButton(ns("save_edit_provider"), "Save", class = "btn-primary"),
-                modalButton("Cancel")
-              )
-            ))
-          }, ignoreInit = TRUE)
+          observeEvent(
+            input[[btn_id]],
+            {
+              p_data <- get_provider(con(), local_pid)
+              ns <- session$ns
+              showModal(modalDialog(
+                title = paste("Edit Provider:", p_data$name),
+                textInput(
+                  ns("edit_provider_name"),
+                  "Name",
+                  value = p_data$name
+                ),
+                textInput(
+                  ns("edit_provider_url"),
+                  "Base URL",
+                  value = p_data$base_url
+                ),
+                passwordInput(
+                  ns("edit_provider_key"),
+                  "API Key",
+                  placeholder = if (
+                    !is.null(p_data$api_key) &&
+                      nchar(p_data$api_key %||% "") > 0
+                  ) {
+                    "******** (leave blank to keep)"
+                  } else {
+                    ""
+                  }
+                ),
+                tags$input(
+                  type = "hidden",
+                  id = ns("edit_provider_id"),
+                  value = local_pid
+                ),
+                footer = tagList(
+                  actionButton(
+                    ns("save_edit_provider"),
+                    "Save",
+                    class = "btn-primary"
+                  ),
+                  modalButton("Cancel")
+                )
+              ))
+            },
+            ignoreInit = TRUE
+          )
         })
       })
     })
@@ -1084,21 +1536,32 @@ mod_settings_server <- function(id, con, config_rv) {
       req(embed_model)
       req(con())
 
-      # Get dimension of selected model
-      new_dim <- detect_embedding_dimension(embed_model)
-      if (is.null(new_dim)) return(NULL)
+      # Get dimension of selected model (passes con for DB cache lookup/write-back)
+      new_dim <- detect_embedding_dimension(embed_model, con = con())
+      if (is.null(new_dim)) {
+        return(NULL)
+      }
 
       # Check stored dimension
-      stored_dim <- tryCatch(get_db_setting(con(), "embedding_dimension"), error = function(e) NULL)
-      if (is.null(stored_dim)) return(NULL)
+      stored_dim <- tryCatch(
+        get_db_setting(con(), "embedding_dimension"),
+        error = function(e) NULL
+      )
+      if (is.null(stored_dim)) {
+        return(NULL)
+      }
       stored_dim <- as.integer(stored_dim)
 
       if (new_dim != stored_dim) {
         div(
           class = "alert alert-warning py-2 small mt-2",
           icon("triangle-exclamation"),
-          sprintf(" Dimension mismatch: indexes were built with %d dims, but %s produces %d dims. ",
-                  stored_dim, embed_model, new_dim),
+          sprintf(
+            " Dimension mismatch: indexes were built with %d dims, but %s produces %d dims. ",
+            stored_dim,
+            embed_model,
+            new_dim
+          ),
           "Re-index your notebooks for retrieval to work."
         )
       }
@@ -1108,18 +1571,27 @@ mod_settings_server <- function(id, con, config_rv) {
     doi_refresh <- reactiveVal(0)
 
     output$doi_status <- renderUI({
-      doi_refresh()  # Dependency for refresh
+      doi_refresh() # Dependency for refresh
 
-      status <- tryCatch({
-        get_doi_backfill_status(con())
-      }, error = function(e) {
-        list(total_papers = 0, has_doi = 0, missing_doi = 0)
-      })
+      status <- tryCatch(
+        {
+          get_doi_backfill_status(con())
+        },
+        error = function(e) {
+          list(total_papers = 0, has_doi = 0, missing_doi = 0)
+        }
+      )
 
       div(
         class = "small",
-        span(class = "badge bg-success me-2", paste(status$has_doi, "with DOI")),
-        span(class = "badge bg-warning text-body", paste(status$missing_doi, "missing DOI"))
+        span(
+          class = "badge bg-success me-2",
+          paste(status$has_doi, "with DOI")
+        ),
+        span(
+          class = "badge bg-warning text-body",
+          paste(status$missing_doi, "missing DOI")
+        )
       )
     })
 
@@ -1129,8 +1601,11 @@ mod_settings_server <- function(id, con, config_rv) {
       email <- get_db_setting(con(), "openalex_email")
 
       if (is.null(email) || nchar(email) == 0) {
-        showNotification("OpenAlex email not configured. Please set it in Settings.",
-                         type = "error", duration = 5)
+        showNotification(
+          "OpenAlex email not configured. Please set it in Settings.",
+          type = "error",
+          duration = 5
+        )
         return()
       }
 
@@ -1140,13 +1615,18 @@ mod_settings_server <- function(id, con, config_rv) {
           updated <- backfill_dois(con(), email = email, batch_size = 50)
           total_updated <- total_updated + updated
           incProgress(0.1, detail = paste(total_updated, "papers updated"))
-          if (updated < 50) break  # No more papers to backfill
-          Sys.sleep(0.5)  # Be polite to OpenAlex API
+          if (updated < 50) {
+            break
+          } # No more papers to backfill
+          Sys.sleep(0.5) # Be polite to OpenAlex API
         }
       })
 
-      showNotification(paste("Backfill complete:", total_updated, "DOIs updated"),
-                       type = "message", duration = 5)
+      showNotification(
+        paste("Backfill complete:", total_updated, "DOIs updated"),
+        type = "message",
+        duration = 5
+      )
 
       # Refresh status display
       doi_refresh(doi_refresh() + 1)
@@ -1156,18 +1636,27 @@ mod_settings_server <- function(id, con, config_rv) {
     quality_refresh <- reactiveVal(0)
 
     output$quality_data_status <- renderUI({
-      quality_refresh()  # Dependency for refresh
+      quality_refresh() # Dependency for refresh
 
-      status <- tryCatch({
-        check_quality_cache_status(con())
-      }, error = function(e) {
-        list(is_empty = TRUE, is_stale = TRUE, last_updated = NULL, sources = list())
-      })
+      status <- tryCatch(
+        {
+          check_quality_cache_status(con())
+        },
+        error = function(e) {
+          list(
+            is_empty = TRUE,
+            is_stale = TRUE,
+            last_updated = NULL,
+            sources = list()
+          )
+        }
+      )
 
       if (status$is_empty) {
         return(div(
           class = "alert alert-warning py-2 small",
-          icon_warning(), " No quality data downloaded yet."
+          icon_warning(),
+          " No quality data downloaded yet."
         ))
       }
 
@@ -1178,8 +1667,11 @@ mod_settings_server <- function(id, con, config_rv) {
         icon_name <- if (s$is_stale) "clock" else "circle-check"
         tags$li(
           icon(icon_name, class = icon_class),
-          " ", gsub("_", " ", src), ": ",
-          format(s$record_count, big.mark = ","), " records",
+          " ",
+          gsub("_", " ", src),
+          ": ",
+          format(s$record_count, big.mark = ","),
+          " records",
           if (s$is_stale) span(class = "text-warning", " (stale)")
         )
       })
@@ -1187,51 +1679,77 @@ mod_settings_server <- function(id, con, config_rv) {
       div(
         class = "small",
         tags$ul(class = "list-unstyled mb-1", source_items),
-        div(class = "text-muted",
-            "Last updated: ", format(status$last_updated, "%Y-%m-%d %H:%M"))
+        div(
+          class = "text-muted",
+          "Last updated: ",
+          format(status$last_updated, "%Y-%m-%d %H:%M")
+        )
       )
     })
 
     # Download quality data
     observeEvent(input$download_quality_data, {
-      showNotification("Downloading quality data...", type = "message",
-                       id = "quality_download", duration = NULL)
+      showNotification(
+        "Downloading quality data...",
+        type = "message",
+        id = "quality_download",
+        duration = NULL
+      )
 
-      result <- tryCatch({
-        refresh_quality_cache(con())
-      }, error = function(e) {
-        list(success = FALSE, error = e$message,
-             predatory_publishers = list(success = FALSE, error = e$message),
-             predatory_journals = list(success = FALSE, error = e$message),
-             retraction_watch = list(success = FALSE, error = e$message))
-      })
+      result <- tryCatch(
+        {
+          refresh_quality_cache(con())
+        },
+        error = function(e) {
+          list(
+            success = FALSE,
+            error = e$message,
+            predatory_publishers = list(success = FALSE, error = e$message),
+            predatory_journals = list(success = FALSE, error = e$message),
+            retraction_watch = list(success = FALSE, error = e$message)
+          )
+        }
+      )
 
       removeNotification("quality_download")
 
       if (result$success) {
         showNotification(
-          sprintf("Downloaded: %s publishers, %s journals, %s retractions",
-                  format(result$predatory_publishers$count, big.mark = ","),
-                  format(result$predatory_journals$count, big.mark = ","),
-                  format(result$retraction_watch$count, big.mark = ",")),
-          type = "message", duration = 5
+          sprintf(
+            "Downloaded: %s publishers, %s journals, %s retractions",
+            format(result$predatory_publishers$count, big.mark = ","),
+            format(result$predatory_journals$count, big.mark = ","),
+            format(result$retraction_watch$count, big.mark = ",")
+          ),
+          type = "message",
+          duration = 5
         )
         quality_refresh(quality_refresh() + 1)
       } else {
         # Show detailed error
         errors <- character()
         if (!result$predatory_publishers$success) {
-          errors <- c(errors, paste("Publishers:", result$predatory_publishers$error))
+          errors <- c(
+            errors,
+            paste("Publishers:", result$predatory_publishers$error)
+          )
         }
         if (!result$predatory_journals$success) {
-          errors <- c(errors, paste("Journals:", result$predatory_journals$error))
+          errors <- c(
+            errors,
+            paste("Journals:", result$predatory_journals$error)
+          )
         }
         if (!result$retraction_watch$success) {
-          errors <- c(errors, paste("Retractions:", result$retraction_watch$error))
+          errors <- c(
+            errors,
+            paste("Retractions:", result$retraction_watch$error)
+          )
         }
         showNotification(
           paste("Download failed:", paste(errors, collapse = "; ")),
-          type = "error", duration = 10
+          type = "error",
+          duration = 10
         )
       }
     })
@@ -1248,21 +1766,34 @@ mod_settings_server <- function(id, con, config_rv) {
       }
 
       # Delete orphans
-      removed <- vapply(orphans, function(f) {
-        tryCatch({
-          result <- file.remove(f)
-          # Also clean up WAL/tmp sidecar files
-          suppressWarnings({
-            file.remove(paste0(f, ".wal"))
-            file.remove(paste0(f, ".tmp"))
-          })
-          result
-        }, error = function(e) FALSE)
-      }, logical(1))
+      removed <- vapply(
+        orphans,
+        function(f) {
+          tryCatch(
+            {
+              result <- file.remove(f)
+              # Also clean up WAL/tmp sidecar files
+              suppressWarnings({
+                file.remove(paste0(f, ".wal"))
+                file.remove(paste0(f, ".tmp"))
+              })
+              result
+            },
+            error = function(e) FALSE
+          )
+        },
+        logical(1)
+      )
 
       output$cleanup_status <- renderText(
-        paste("Cleaned up", sum(removed), "of", length(orphans), "orphaned indexes.",
-              format(Sys.time(), "(%H:%M:%S)"))
+        paste(
+          "Cleaned up",
+          sum(removed),
+          "of",
+          length(orphans),
+          "orphaned indexes.",
+          format(Sys.time(), "(%H:%M:%S)")
+        )
       )
 
       showNotification(
@@ -1289,28 +1820,53 @@ mod_settings_server <- function(id, con, config_rv) {
           initial_text <- get_effective_prompt(con(), s)
 
           version_choices <- if (length(versions) > 0) {
-            c("Current" = "current", setNames(versions, paste("Saved:", versions)))
+            c(
+              "Current" = "current",
+              setNames(versions, paste("Saved:", versions))
+            )
           } else {
             c("Current (default)" = "current")
           }
 
           showModal(modalDialog(
-            title = tagList(icon_edit(), paste("Edit Prompt:", PRESET_DISPLAY_NAMES[[s]])),
+            title = tagList(
+              icon_edit(),
+              paste("Edit Prompt:", PRESET_DISPLAY_NAMES[[s]])
+            ),
             size = "l",
             easyClose = TRUE,
-            selectInput(session$ns("version_select"), "Version History",
-                        choices = version_choices, selected = "current"),
-            p(class = "text-muted small",
+            selectInput(
+              session$ns("version_select"),
+              "Version History",
+              choices = version_choices,
+              selected = "current"
+            ),
+            p(
+              class = "text-muted small",
               icon_info(),
               "This prompt is combined with citation rules and source context when generating output.",
-              "You're editing the task instructions only."),
-            textAreaInput(session$ns("prompt_text"), NULL,
-                          value = initial_text, rows = 15, width = "100%"),
+              "You're editing the task instructions only."
+            ),
+            textAreaInput(
+              session$ns("prompt_text"),
+              NULL,
+              value = initial_text,
+              rows = 15,
+              width = "100%"
+            ),
             footer = tagList(
-              actionButton(session$ns("save_prompt"), "Save",
-                           class = "btn-primary", icon = icon_save()),
-              actionButton(session$ns("reset_prompt"), "Reset to Default",
-                           class = "btn-outline-secondary", icon = icon_refresh()),
+              actionButton(
+                session$ns("save_prompt"),
+                "Save",
+                class = "btn-primary",
+                icon = icon_save()
+              ),
+              actionButton(
+                session$ns("reset_prompt"),
+                "Reset to Default",
+                class = "btn-outline-secondary",
+                icon = icon_refresh()
+              ),
               modalButton("Cancel")
             )
           ))
@@ -1319,19 +1875,23 @@ mod_settings_server <- function(id, con, config_rv) {
     })
 
     # Version dropdown observer — load text for selected version
-    observeEvent(input$version_select, {
-      slug <- current_preset_slug()
-      req(slug)
-      selected <- input$version_select
+    observeEvent(
+      input$version_select,
+      {
+        slug <- current_preset_slug()
+        req(slug)
+        selected <- input$version_select
 
-      if (selected == "current") {
-        text <- get_effective_prompt(con(), slug)
-      } else {
-        text <- get_prompt_version(con(), slug, selected)
-        if (is.null(text)) text <- get_effective_prompt(con(), slug)
-      }
-      updateTextAreaInput(session, "prompt_text", value = text)
-    }, ignoreInit = TRUE)
+        if (selected == "current") {
+          text <- get_effective_prompt(con(), slug)
+        } else {
+          text <- get_prompt_version(con(), slug, selected)
+          if (is.null(text)) text <- get_effective_prompt(con(), slug)
+        }
+        updateTextAreaInput(session, "prompt_text", value = text)
+      },
+      ignoreInit = TRUE
+    )
 
     # Save button observer
     observeEvent(input$save_prompt, {
@@ -1357,12 +1917,19 @@ mod_settings_server <- function(id, con, config_rv) {
         # Refresh version dropdown
         versions <- list_prompt_versions(con(), slug)
         version_choices <- if (length(versions) > 0) {
-          c("Current" = "current", setNames(versions, paste("Saved:", versions)))
+          c(
+            "Current" = "current",
+            setNames(versions, paste("Saved:", versions))
+          )
         } else {
           c("Current (default)" = "current")
         }
-        updateSelectInput(session, "version_select",
-                          choices = version_choices, selected = "current")
+        updateSelectInput(
+          session,
+          "version_select",
+          choices = version_choices,
+          selected = "current"
+        )
 
         showNotification(
           paste("Prompt saved:", PRESET_DISPLAY_NAMES[[slug]]),
@@ -1379,65 +1946,88 @@ mod_settings_server <- function(id, con, config_rv) {
       programmatic_update(TRUE)
       default_text <- PROMPT_DEFAULTS[[slug]]
       updateTextAreaInput(session, "prompt_text", value = default_text)
-      showNotification("Default text loaded. Click Save to confirm reset.", type = "warning")
+      showNotification(
+        "Default text loaded. Click Save to confirm reset.",
+        type = "warning"
+      )
     })
 
     # Clear reset_pending when user manually edits the prompt text
     # (skip programmatic updates from reset button / version selector)
-    observeEvent(input$prompt_text, {
-      if (programmatic_update()) {
-        programmatic_update(FALSE)
-      } else if (reset_pending()) {
-        reset_pending(FALSE)
-      }
-    }, ignoreInit = TRUE)
+    observeEvent(
+      input$prompt_text,
+      {
+        if (programmatic_update()) {
+          programmatic_update(FALSE)
+        } else if (reset_pending()) {
+          reset_pending(FALSE)
+        }
+      },
+      ignoreInit = TRUE
+    )
 
     # Save settings
     observeEvent(input$save, {
-      tryCatch({
-        # Only save credentials to DB if non-empty (empty = defer to config.yml)
-        or_key <- trimws(input$openrouter_key %||% "")
-        if (nchar(or_key) > 0) {
-          save_db_setting(con(), "openrouter_api_key", or_key)
-        }
+      tryCatch(
+        {
+          # Only save credentials to DB if non-empty (empty = defer to config.yml)
+          or_key <- trimws(input$openrouter_key %||% "")
+          if (nchar(or_key) > 0) {
+            save_db_setting(con(), "openrouter_api_key", or_key)
+          }
 
-        oa_email <- trimws(input$openalex_email %||% "")
-        if (nchar(oa_email) > 0) {
-          save_db_setting(con(), "openalex_email", oa_email)
-        }
+          oa_email <- trimws(input$openalex_email %||% "")
+          if (nchar(oa_email) > 0) {
+            save_db_setting(con(), "openalex_email", oa_email)
+          }
 
-        oa_key <- trimws(input$openalex_api_key %||% "")
-        if (nchar(oa_key) > 0) {
-          save_db_setting(con(), "openalex_api_key", oa_key)
-        }
+          oa_key <- trimws(input$openalex_api_key %||% "")
+          if (nchar(oa_key) > 0) {
+            save_db_setting(con(), "openalex_api_key", oa_key)
+          }
 
-        save_db_setting(con(), "quality_model", input$quality_model)
-        # Save fast_model: empty string means "use quality model"
-        fast_val <- input$fast_model %||% ""
-        if (nchar(fast_val) > 0) {
-          save_db_setting(con(), "fast_model", fast_val)
-        } else {
-          # Remove fast_model setting so fallback to quality works
-          tryCatch(
-            DBI::dbExecute(con(), "DELETE FROM settings WHERE key = 'fast_model'"),
-            error = function(e) NULL
+          save_db_setting(con(), "quality_model", input$quality_model)
+          # Save fast_model: empty string means "use quality model"
+          fast_val <- input$fast_model %||% ""
+          if (nchar(fast_val) > 0) {
+            save_db_setting(con(), "fast_model", fast_val)
+          } else {
+            # Remove fast_model setting so fallback to quality works
+            tryCatch(
+              DBI::dbExecute(
+                con(),
+                "DELETE FROM settings WHERE key = 'fast_model'"
+              ),
+              error = function(e) NULL
+            )
+          }
+          save_db_setting(con(), "embedding_model", input$embed_model)
+          save_db_setting(con(), "rerank_model", input$rerank_model)
+          save_db_setting(
+            con(),
+            "rag_query_reformulation",
+            input$query_reformulation
+          )
+          save_db_setting(con(), "chunk_size", input$chunk_size)
+          save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
+          save_db_setting(
+            con(),
+            "abstracts_per_search",
+            input$abstracts_per_search
+          )
+          save_db_setting(con(), "network_palette", input$network_palette)
+          save_db_setting(con(), "verbose_mode", isTRUE(input$verbose_mode))
+          options(serapeum.verbose_api = isTRUE(input$verbose_mode))
+
+          showNotification("Settings saved!", type = "message")
+        },
+        error = function(e) {
+          showNotification(
+            paste("Error saving settings:", e$message),
+            type = "error"
           )
         }
-        save_db_setting(con(), "embedding_model", input$embed_model)
-        save_db_setting(con(), "rerank_model", input$rerank_model)
-        save_db_setting(con(), "rag_query_reformulation", input$query_reformulation)
-        save_db_setting(con(), "chunk_size", input$chunk_size)
-        save_db_setting(con(), "chunk_overlap", input$chunk_overlap)
-        save_db_setting(con(), "abstracts_per_search", input$abstracts_per_search)
-        save_db_setting(con(), "network_palette", input$network_palette)
-        save_db_setting(con(), "verbose_mode", isTRUE(input$verbose_mode))
-        options(serapeum.verbose_api = isTRUE(input$verbose_mode))
-
-        showNotification("Settings saved!", type = "message")
-      }, error = function(e) {
-        showNotification(paste("Error saving settings:", e$message),
-                         type = "error")
-      })
+      )
     })
 
     # Return reactive that gets current effective settings
@@ -1453,45 +2043,57 @@ mod_settings_server <- function(id, con, config_rv) {
       list(
         openrouter = list(
           api_key = non_empty(get_db_setting(con(), "openrouter_api_key")) %||%
-                    non_empty(get_setting(cfg, "openrouter", "api_key")) %||% ""
+            non_empty(get_setting(cfg, "openrouter", "api_key")) %||%
+            ""
         ),
         openalex = list(
           email = non_empty(get_db_setting(con(), "openalex_email")) %||%
-                  non_empty(get_setting(cfg, "openalex", "email")) %||% "",
+            non_empty(get_setting(cfg, "openalex", "email")) %||%
+            "",
           api_key = non_empty(get_db_setting(con(), "openalex_api_key")) %||%
-                    non_empty(get_setting(cfg, "openalex", "api_key")) %||% ""
+            non_empty(get_setting(cfg, "openalex", "api_key")) %||%
+            ""
         ),
         defaults = list(
           fast_model = get_db_setting(con(), "fast_model") %||%
-                       get_setting(cfg, "defaults", "fast_model"),
+            get_setting(cfg, "defaults", "fast_model"),
           quality_model = get_db_setting(con(), "quality_model") %||%
-                          get_db_setting(con(), "chat_model") %||%
-                          get_setting(cfg, "defaults", "quality_model") %||%
-                          get_setting(cfg, "defaults", "chat_model") %||%
-                          "google/gemini-3.1-flash-lite-preview",
+            get_db_setting(con(), "chat_model") %||%
+            get_setting(cfg, "defaults", "quality_model") %||%
+            get_setting(cfg, "defaults", "chat_model") %||%
+            "google/gemini-3.1-flash-lite-preview",
           embedding_model = get_db_setting(con(), "embedding_model") %||%
-                            get_setting(cfg, "defaults", "embedding_model") %||%
-                            "openai/text-embedding-3-small",
+            get_setting(cfg, "defaults", "embedding_model") %||%
+            "openai/text-embedding-3-small",
           rerank_model = get_db_setting(con(), "rerank_model") %||%
-                         get_setting(cfg, "defaults", "rerank_model") %||%
-                         "cohere/rerank-4-fast"
+            get_setting(cfg, "defaults", "rerank_model") %||%
+            "cohere/rerank-4-fast"
         ),
         app = list(
-          query_reformulation = get_db_setting(con(), "rag_query_reformulation") %||%
-                                get_setting(cfg, "app", "query_reformulation") %||%
-                                TRUE,
+          query_reformulation = get_db_setting(
+            con(),
+            "rag_query_reformulation"
+          ) %||%
+            get_setting(cfg, "app", "query_reformulation") %||%
+            TRUE,
           chunk_size = get_db_setting(con(), "chunk_size") %||%
-                       get_setting(cfg, "app", "chunk_size") %||% 500,
+            get_setting(cfg, "app", "chunk_size") %||%
+            500,
           chunk_overlap = get_db_setting(con(), "chunk_overlap") %||%
-                          get_setting(cfg, "app", "chunk_overlap") %||% 50,
+            get_setting(cfg, "app", "chunk_overlap") %||%
+            50,
           verbose_mode = get_db_setting(con(), "verbose_mode") %||%
-                         get_setting(cfg, "app", "verbose_mode") %||%
-                         FALSE,
-          abstracts_per_search = get_db_setting(con(), "abstracts_per_search") %||%
-                                 get_setting(cfg, "app", "abstracts_per_search") %||% 25,
+            get_setting(cfg, "app", "verbose_mode") %||%
+            FALSE,
+          abstracts_per_search = get_db_setting(
+            con(),
+            "abstracts_per_search"
+          ) %||%
+            get_setting(cfg, "app", "abstracts_per_search") %||%
+            25,
           network_palette = get_db_setting(con(), "network_palette") %||%
-                            get_setting(cfg, "app", "network_palette") %||%
-                            "viridis"
+            get_setting(cfg, "app", "network_palette") %||%
+            "viridis"
         )
       )
     })

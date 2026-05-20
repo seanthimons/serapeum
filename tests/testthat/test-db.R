@@ -46,14 +46,16 @@ test_that("get_db_connection applies migrations on fresh install and rerun", {
   expect_true("network_nodes" %in% tables)
   expect_true("network_edges" %in% tables)
   expect_true("prompt_versions" %in% tables)
+  expect_true("refiner_embedding_cache" %in% tables)
 
   applied <- get_applied_migrations(con)
-  expect_true(max(applied) >= 20)
+  expect_true(max(applied) >= 21)
   expect_equal(length(unique(applied)), length(applied))
 
   expect_columns_present(con, "abstracts", c("doi"))
   expect_columns_present(con, "documents", c("title", "authors", "year", "doi", "abstract_id"))
   expect_columns_present(con, "cost_log", c("duration_ms"))
+  expect_columns_present(con, "refiner_embedding_cache", c("paper_id", "embed_model", "abstract_hash", "embedding"))
 
   close_db_connection(con)
   gc()  # ensure DuckDB releases file lock on Windows
