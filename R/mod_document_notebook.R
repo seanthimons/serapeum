@@ -237,33 +237,52 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # Async re-index state (Phase 22)
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_reindex_task_id <- reactiveVal(NULL)
     reindex_poller <- reactiveVal(NULL)
 
     # Async re-index task (Phase 22) — follows mod_citation_network.R ExtendedTask pattern
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir, task_id, async_context) {
       mirai::mirai({
-        source(file.path(app_dir, "R", "interrupt.R"))
-        source(file.path(app_dir, "R", "config.R"))
-        source(file.path(app_dir, "R", "api_openalex.R"))
-        source(file.path(app_dir, "R", "api_openrouter.R"))
-        source(file.path(app_dir, "R", "api_provider.R"))
-        source(file.path(app_dir, "R", "_ragnar.R"))
+        source(file.path(app_dir, "R", "async_observability.R"))
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        ))
 
-        result <- rebuild_notebook_store(
-          notebook_id = notebook_id,
-          provider = provider,
-          embed_model = embed_model,
-          documents = documents,
-          abstracts = abstracts,
-          interrupt_flag = interrupt_flag,
-          progress_file = progress_file,
-          progress_callback = NULL
-        )
-        result
+        tryCatch({
+          source(file.path(app_dir, "R", "interrupt.R"))
+          source(file.path(app_dir, "R", "config.R"))
+          source(file.path(app_dir, "R", "api_openalex.R"))
+          source(file.path(app_dir, "R", "api_openrouter.R"))
+          source(file.path(app_dir, "R", "api_provider.R"))
+          source(file.path(app_dir, "R", "_ragnar.R"))
+
+          result <- rebuild_notebook_store(
+            notebook_id = notebook_id,
+            provider = provider,
+            embed_model = embed_model,
+            documents = documents,
+            abstracts = abstracts,
+            interrupt_flag = interrupt_flag,
+            progress_file = progress_file,
+            progress_callback = NULL
+          )
+          async_task_completed(
+            task_id,
+            async_task_status_from_result(result),
+            metadata = list(count = result$count, success = result$success)
+          )
+          result
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
          provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         progress_file = progress_file, app_dir = app_dir,
+         task_id = task_id, async_context = async_context)
     })
 
     # Phase 22: RAG operations check both store_healthy and rag_ready
@@ -530,6 +549,25 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       current_interrupt_flag(flag_file)
       current_progress_file(progress_file)
 
+      task_id <- async_task_id("document_reindex")
+      current_reindex_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "document_reindex",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "document_reindex",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        )
+      )
+
       # Show progress modal with Stop button
       showModal(modalDialog(
         title = "Re-indexing Notebook",
@@ -560,13 +598,17 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), task_id, async_context)
     })
 
     # Cancel re-index handler (Phase 22)
     observeEvent(input$cancel_reindex, {
       flag <- current_interrupt_flag()
       if (!is.null(flag)) signal_interrupt(flag)
+      task_id <- current_reindex_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
+      }
 
       # Stop polling
       poller <- reindex_poller()
@@ -599,6 +641,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       clear_progress_file(isolate(current_progress_file()))
       current_interrupt_flag(NULL)
       current_progress_file(NULL)
+      current_reindex_task_id(NULL)
 
       removeModal()
 

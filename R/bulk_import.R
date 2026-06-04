@@ -107,11 +107,25 @@ estimate_import_time <- function(doi_count, batch_size = 50, delay_per_batch = 0
 #' @param message Human-readable status message
 write_import_progress <- function(progress_file, batch, total_batches, found, failed, message) {
   if (is.null(progress_file)) return(invisible(NULL))
+  pct <- round(min(batch / max(total_batches, 1L) * 100, 99))
   tryCatch({
     writeLines(paste(batch, total_batches, found, failed, message, sep = "|"), progress_file)
   }, error = function(e) {
     # Silently handle errors (file may be deleted)
   })
+  if (exists("async_task_emit_progress", mode = "function")) {
+    async_task_emit_progress(
+      "bulk_import",
+      message,
+      metadata = list(
+        batch = batch,
+        total_batches = total_batches,
+        found = found,
+        failed = failed,
+        pct = pct
+      )
+    )
+  }
   invisible(NULL)
 }
 

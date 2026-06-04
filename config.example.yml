@@ -25,6 +25,7 @@ app:
   chunk_overlap: 50
   # Boolean: true or false
   verbose_mode: false
+  async_observability_enabled: false
 
   # Search
   # Integer: 5-100

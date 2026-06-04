@@ -460,7 +460,11 @@ server <- function(input, output, session) {
     {
       cfg <- effective_config()
       options(
-        serapeum.verbose_api = isTRUE(get_setting(cfg, "app", "verbose_mode"))
+        serapeum.verbose_api = isTRUE(get_setting(cfg, "app", "verbose_mode")),
+        serapeum.async_observability_enabled = isTRUE(
+          get_setting(cfg, "app", "async_observability_enabled")
+        ),
+        serapeum.async_task_log_path = async_task_log_path()
       )
 
       api_key <- get_setting(cfg, "openrouter", "api_key")

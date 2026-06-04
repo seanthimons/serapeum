@@ -492,6 +492,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 38: Batch import state
     batch_import_interrupt <- reactiveVal(NULL)
     batch_import_progress <- reactiveVal(NULL)
+    batch_import_task_id <- reactiveVal(NULL)
     batch_import_poller <- reactiveVal(NULL)
 
     # Phase 22: Per-notebook store migration state
@@ -499,6 +500,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     store_healthy <- reactiveVal(NULL)
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_reindex_task_id <- reactiveVal(NULL)
     reindex_poller <- reactiveVal(NULL)
 
     # Phase 35: Bulk DOI import module
@@ -519,48 +521,75 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 22: Async re-index task (mirai worker)
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir, db_path) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir, db_path, task_id, async_context) {
       mirai::mirai({
-        source(file.path(app_dir, "R", "interrupt.R"))
-        source(file.path(app_dir, "R", "config.R"))
-        source(file.path(app_dir, "R", "api_openalex.R"))
-        source(file.path(app_dir, "R", "api_openrouter.R"))
-        source(file.path(app_dir, "R", "api_provider.R"))
-        source(file.path(app_dir, "R", "_ragnar.R"))
+        source(file.path(app_dir, "R", "async_observability.R"))
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        ))
 
-        result <- rebuild_notebook_store(
-          notebook_id = notebook_id,
-          provider = provider,
-          embed_model = embed_model,
-          documents = documents,
-          abstracts = abstracts,
-          interrupt_flag = interrupt_flag,
-          progress_file = progress_file,
-          db_path = db_path,
-          progress_callback = NULL
-        )
-        result
+        tryCatch({
+          source(file.path(app_dir, "R", "interrupt.R"))
+          source(file.path(app_dir, "R", "config.R"))
+          source(file.path(app_dir, "R", "api_openalex.R"))
+          source(file.path(app_dir, "R", "api_openrouter.R"))
+          source(file.path(app_dir, "R", "api_provider.R"))
+          source(file.path(app_dir, "R", "_ragnar.R"))
+
+          result <- rebuild_notebook_store(
+            notebook_id = notebook_id,
+            provider = provider,
+            embed_model = embed_model,
+            documents = documents,
+            abstracts = abstracts,
+            interrupt_flag = interrupt_flag,
+            progress_file = progress_file,
+            db_path = db_path,
+            progress_callback = NULL
+          )
+          async_task_completed(
+            task_id,
+            async_task_status_from_result(result),
+            metadata = list(count = result$count, success = result$success)
+          )
+          result
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
          provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir, db_path = db_path)
+         progress_file = progress_file, app_dir = app_dir, db_path = db_path,
+         task_id = task_id, async_context = async_context)
     })
 
     # Phase 38: ExtendedTask for batch abstract import (50+ papers)
     batch_import_task <- ExtendedTask$new(function(abstract_ids, target_notebook_id,
                                                     db_path, interrupt_flag, progress_file,
                                                     app_dir, download_pdfs = FALSE,
-                                                    openalex_api_key = NULL) {
+                                                    openalex_api_key = NULL,
+                                                    task_id, async_context) {
       mirai::mirai({
         setwd(app_dir)
-        source("R/db_migrations.R")
-        source("R/db.R")
-        source("R/interrupt.R")
-        source("R/config.R")       # For DEFAULT_CONFIG (used by import_single_paper)
-        source("R/bulk_import.R")  # For write_import_progress / read_import_progress
-        source("R/_ragnar.R")      # For chunk_with_ragnar()
-        source("R/pdf.R")          # For download_pdf_from_url(), process_pdf(), sanitize_filename()
-        source("R/api_openalex.R") # For log_oa_usage() (content API cost tracking)
-        source("R/import_paper.R") # For import_single_paper()
+        source("R/async_observability.R")
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          total_requested = length(abstract_ids),
+          download_pdfs = download_pdfs
+        ))
+
+        result <- tryCatch({
+          source("R/db_migrations.R")
+          source("R/db.R")
+          source("R/interrupt.R")
+          source("R/config.R")       # For DEFAULT_CONFIG (used by import_single_paper)
+          source("R/bulk_import.R")  # For write_import_progress / read_import_progress
+          source("R/_ragnar.R")      # For chunk_with_ragnar()
+          source("R/pdf.R")          # For download_pdf_from_url(), process_pdf(), sanitize_filename()
+          source("R/api_openalex.R") # For log_oa_usage() (content API cost tracking)
+          source("R/import_paper.R") # For import_single_paper()
 
         # Open own DB connection (mirai workers can't share)
         con <- get_connection(db_path)
@@ -645,22 +674,37 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         cancelled <- check_interrupt(interrupt_flag)
 
-        list(
-          imported = imported,
-          pdf_imported = pdf_imported,
-          abstract_imported = abstract_imported,
-          failed = failed,
-          duplicates = length(duplicates),
-          duplicate_ids = duplicates,
-          failed_details = failed_details,
-          cancelled = cancelled,
-          total_requested = length(abstract_ids)
+          list(
+            imported = imported,
+            pdf_imported = pdf_imported,
+            abstract_imported = abstract_imported,
+            failed = failed,
+            duplicates = length(duplicates),
+            duplicate_ids = duplicates,
+            failed_details = failed_details,
+            cancelled = cancelled,
+            total_requested = length(abstract_ids)
+          )
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
+        async_task_completed(
+          task_id,
+          async_task_status_from_result(result),
+          metadata = list(
+            imported = result$imported,
+            failed = result$failed,
+            duplicates = result$duplicates
+          )
         )
+        result
       }, abstract_ids = abstract_ids, target_notebook_id = target_notebook_id,
          db_path = db_path, interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir,
          download_pdfs = download_pdfs,
-         openalex_api_key = openalex_api_key)
+         openalex_api_key = openalex_api_key,
+         task_id = task_id, async_context = async_context)
     })
 
     # Phase 22: Check for per-notebook store migration on notebook open
@@ -745,6 +789,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       current_interrupt_flag(flag_file)
       current_progress_file(progress_file)
 
+      task_id <- async_task_id("search_reindex")
+      current_reindex_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "search_reindex",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "search_reindex",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          action = "build",
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        )
+      )
+
       # Show progress modal with Stop button
       showModal(modalDialog(
         title = "Re-indexing Search Notebook",
@@ -775,7 +839,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r(), task_id, async_context)
     })
 
     # Phase 22: Rebuild handler (corruption recovery — same async pattern)
@@ -799,6 +863,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       progress_file <- create_progress_file(session$token)
       current_interrupt_flag(flag_file)
       current_progress_file(progress_file)
+
+      task_id <- async_task_id("search_reindex")
+      current_reindex_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "search_reindex",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "search_reindex",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          action = "rebuild",
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        )
+      )
 
       showModal(modalDialog(
         title = "Rebuilding Search Index",
@@ -824,13 +908,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
       reindex_poller(poller)
 
-      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r(), task_id, async_context)
     })
 
     # Phase 22: Cancel re-index handler
     observeEvent(input$cancel_reindex, {
       flag <- current_interrupt_flag()
       if (!is.null(flag)) signal_interrupt(flag)
+      task_id <- current_reindex_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
+      }
 
       poller <- reindex_poller()
       if (!is.null(poller)) poller$destroy()
@@ -857,6 +945,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         clear_progress_file(current_progress_file())
         current_interrupt_flag(NULL)
         current_progress_file(NULL)
+        current_reindex_task_id(NULL)
 
         removeModal()
 
@@ -3202,6 +3291,25 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
         db_path_val <- if (is.function(db_path)) db_path() else db_path
 
+        task_id <- async_task_id("search_batch_import")
+        batch_import_task_id(task_id)
+        async_context <- async_task_context(
+          task_id = task_id,
+          task_type = "search_batch_import",
+          session_id = session$token,
+          notebook_id = target
+        )
+        async_task_submitted(
+          "search_batch_import",
+          task_id,
+          metadata = list(
+            session_id = session$token,
+            notebook_id = target,
+            abstract_count = length(selected),
+            download_pdfs = download_pdfs
+          )
+        )
+
         # Show progress modal (matches bulk import modal pattern)
         showModal(modalDialog(
           title = tagList(icon_spinner(class = "fa-spin"), "Importing Papers"),
@@ -3238,7 +3346,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           progress_file = prog_file,
           app_dir = getwd(),
           download_pdfs = download_pdfs,
-          openalex_api_key = oa_api_key
+          openalex_api_key = oa_api_key,
+          task_id = task_id,
+          async_context = async_context
         )
 
         # Start progress polling
@@ -3262,6 +3372,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       flag_file <- batch_import_interrupt()
       if (!is.null(flag_file)) {
         signal_interrupt(flag_file)
+      }
+      task_id <- batch_import_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
       }
       poller <- batch_import_poller()
       if (!is.null(poller)) {
@@ -3295,6 +3409,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       batch_import_interrupt(NULL)
       clear_progress_file(batch_import_progress())
       batch_import_progress(NULL)
+      batch_import_task_id(NULL)
 
       # Show results
       show_import_results(

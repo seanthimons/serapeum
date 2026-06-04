@@ -749,6 +749,13 @@ write_reindex_progress <- function(progress_file, count, total, name) {
     writeLines(paste(count, total, pct, msg, sep = "|"), progress_file),
     error = function(e) NULL
   )
+  if (exists("async_task_emit_progress", mode = "function")) {
+    async_task_emit_progress(
+      "reindex",
+      msg,
+      metadata = list(count = count, total = total, pct = pct)
+    )
+  }
   invisible(NULL)
 }
 

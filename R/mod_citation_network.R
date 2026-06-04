@@ -325,35 +325,60 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
     # Async task state
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_network_task_id <- reactiveVal(NULL)
     progress_poller <- reactiveVal(NULL)
     missing_refresh <- reactiveVal(0)
 
     # Create ExtendedTask for async network building
-    network_task <- ExtendedTask$new(function(seed_ids, email, direction, depth, node_limit_per_seed, interrupt_flag, progress_file, app_dir) {
+    network_task <- ExtendedTask$new(function(seed_ids, email, direction, depth, node_limit_per_seed, interrupt_flag, progress_file, app_dir, task_id, async_context) {
       mirai::mirai({
-        # Source required files in isolated process
-        source(file.path(app_dir, "R", "interrupt.R"))
-        source(file.path(app_dir, "R", "api_openalex.R"))
-        source(file.path(app_dir, "R", "citation_network.R"))
+        source(file.path(app_dir, "R", "async_observability.R"))
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          seed_count = length(seed_ids),
+          direction = direction,
+          depth = depth,
+          node_limit_per_seed = node_limit_per_seed
+        ))
 
-        # Build network with interrupt and progress support
-        result <- fetch_multi_seed_citation_network(
-          seed_ids, email, api_key = NULL,
-          direction = direction, depth = depth,
-          node_limit_per_seed = node_limit_per_seed,
-          interrupt_flag = interrupt_flag,
-          progress_file = progress_file
+        result <- tryCatch({
+          # Source required files in isolated process
+          source(file.path(app_dir, "R", "interrupt.R"))
+          source(file.path(app_dir, "R", "api_openalex.R"))
+          source(file.path(app_dir, "R", "citation_network.R"))
+
+          # Build network with interrupt and progress support
+          result <- fetch_multi_seed_citation_network(
+            seed_ids, email, api_key = NULL,
+            direction = direction, depth = depth,
+            node_limit_per_seed = node_limit_per_seed,
+            interrupt_flag = interrupt_flag,
+            progress_file = progress_file
+          )
+
+          # Compute layout for full results only
+          if (!isTRUE(result$partial) && nrow(result$nodes) > 0) {
+            result$nodes <- compute_layout_positions(result$nodes, result$edges)
+          }
+
+          result
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
+        async_task_completed(
+          task_id,
+          async_task_status_from_result(result),
+          metadata = list(
+            nodes = if (!is.null(result$nodes)) nrow(result$nodes) else 0L,
+            edges = if (!is.null(result$edges)) nrow(result$edges) else 0L
+          )
         )
-
-        # Compute layout for full results only
-        if (!isTRUE(result$partial) && nrow(result$nodes) > 0) {
-          result$nodes <- compute_layout_positions(result$nodes, result$edges)
-        }
-
         result
       }, seed_ids = seed_ids, email = email, direction = direction,
          depth = depth, node_limit_per_seed = node_limit_per_seed,
-         interrupt_flag = interrupt_flag, progress_file = progress_file, app_dir = app_dir)
+         interrupt_flag = interrupt_flag, progress_file = progress_file, app_dir = app_dir,
+         task_id = task_id, async_context = async_context)
     })
 
     # Initialize palette from DB setting, then config, then default
@@ -617,9 +642,31 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       current_interrupt_flag(flag_file)
       prog_file <- create_progress_file(session$token)
       current_progress_file(prog_file)
+      seed_ids <- current_seed_ids()
+
+      task_id <- async_task_id("citation_network")
+      current_network_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "citation_network",
+        session_id = session$token,
+        notebook_id = source_notebook_id()
+      )
+      async_task_submitted(
+        "citation_network",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = source_notebook_id(),
+          seed_count = length(seed_ids),
+          direction = input$direction,
+          depth = input$depth,
+          node_limit = input$node_limit
+        )
+      )
 
       # Determine modal title based on number of seeds
-      modal_title <- if (length(current_seed_ids()) > 1) {
+      modal_title <- if (length(seed_ids) > 1) {
         "Building Multi-Seed Citation Network"
       } else {
         "Building Citation Network"
@@ -654,14 +701,16 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
 
       # Invoke async task
       network_task$invoke(
-        seed_ids = current_seed_ids(),
+        seed_ids = seed_ids,
         email = config_r()$openalex$email,
         direction = input$direction,
         depth = input$depth,
         node_limit_per_seed = input$node_limit,
         interrupt_flag = flag_file,
         progress_file = prog_file,
-        app_dir = getwd()
+        app_dir = getwd(),
+        task_id = task_id,
+        async_context = async_context
       )
 
       # Start polling observer — reads real progress from file
@@ -685,6 +734,10 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       flag_file <- current_interrupt_flag()
       if (!is.null(flag_file)) {
         signal_interrupt(flag_file)
+      }
+      task_id <- current_network_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
       }
 
       # Stop progress poller
@@ -724,6 +777,7 @@ mod_citation_network_server <- function(id, con_r, config_r, network_id_r, netwo
       current_interrupt_flag(NULL)
       clear_progress_file(current_progress_file())
       current_progress_file(NULL)
+      current_network_task_id(NULL)
 
       # Handle empty results
       if (is.null(result$nodes) || nrow(result$nodes) == 0) {
