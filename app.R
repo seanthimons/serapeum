@@ -3,10 +3,6 @@ library(bslib)
 library(DBI)
 library(duckdb)
 
-# Set up persistent mirai daemons for async tasks (bulk import, embedding, etc.)
-mirai::daemons(2)
-onStop(function() mirai::daemons(0))
-
 # Source all R files
 for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
   source(f)
@@ -14,6 +10,11 @@ for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
 
 # Load config from file (if exists)
 config_file <- load_config()
+
+# Set up persistent mirai daemons for async tasks (bulk import, embedding, etc.)
+mirai_daemon_count <- resolve_mirai_daemons(config_file)
+mirai::daemons(mirai_daemon_count)
+onStop(function() mirai::daemons(0))
 
 # Maximum file upload size (default 60 MB). Shiny's built-in default is 5 MB.
 max_upload_mb <- get_setting(config_file, "app", "max_upload_mb") %||% 60
@@ -61,7 +62,28 @@ ui <- page_sidebar(
       "Serapeum",
       span(class = "badge bg-secondary small", paste0("v", SERAPEUM_VERSION))
     ),
-    bslib::input_dark_mode(id = "dark_mode")
+    div(
+      class = "d-flex align-items-center gap-2 serapeum-header-controls",
+      bslib::popover(
+        trigger = actionButton(
+          "async_observability_toggle",
+          NULL,
+          icon = icon_server(),
+          class = "btn-outline-secondary btn-sm",
+          title = "Async diagnostics",
+          `aria-label` = "Async diagnostics"
+        ),
+        title = "Async Diagnostics",
+        id = "async_observability_popover",
+        placement = "bottom",
+        options = list(customClass = "async-observability-popover-shell"),
+        div(
+          class = "async-observability-popover",
+          mod_async_observability_ui("async_observability_global")
+        )
+      ),
+      bslib::input_dark_mode(id = "dark_mode")
+    )
   ),
   theme = {
     serapeum_theme <- bs_theme(
@@ -362,6 +384,8 @@ server <- function(input, output, session) {
     ignoreNULL = FALSE,
     ignoreInit = TRUE
   )
+
+  mod_async_observability_server("async_observability_global")
 
   # Database connection - create fresh for this session
   con <- get_db_connection(db_path)

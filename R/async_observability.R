@@ -228,7 +228,10 @@ capture_async_mirai_status <- function() {
     as.integer(mirai_counts[[name]])
   }
 
-  daemon_count <- if (is.null(status$daemons)) {
+  connection_count <- as.integer(async_task_coalesce(status$connections, 0L))
+  daemon_count <- if (!is.na(connection_count) && connection_count > 0L) {
+    connection_count
+  } else if (is.null(status$daemons)) {
     0L
   } else if (is.numeric(status$daemons)) {
     as.integer(status$daemons[1])
@@ -241,7 +244,7 @@ capture_async_mirai_status <- function() {
     awaiting = get_count("awaiting"),
     executing = get_count("executing"),
     completed = get_count("completed"),
-    connections = as.integer(async_task_coalesce(status$connections, 0L)),
+    connections = connection_count,
     daemons = daemon_count,
     error = NULL
   )

@@ -159,6 +159,66 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Async diagnostics popover */
+.serapeum-header-controls {
+  flex-shrink: 0;
+}
+
+.serapeum-header-controls .action-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 2rem;
+  min-width: 2rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.async-observability-popover-shell {
+  --bs-popover-max-width: min(92vw, 44rem);
+}
+
+.async-observability-popover-shell .popover-body {
+  max-height: min(72vh, 42rem);
+  overflow-y: auto;
+  width: min(92vw, 44rem);
+}
+
+.async-observability-panel {
+  color: var(--bs-body-color);
+  min-width: min(100%, 36rem);
+}
+
+.async-observability-panel table {
+  margin-bottom: 0.5rem;
+}
+
+.async-observability-panel pre {
+  background-color: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-body-color);
+  max-height: 18rem;
+  overflow: auto;
+}
+
+[data-bs-theme="dark"] .async-observability-popover-shell {
+  --bs-popover-bg: var(--bs-body-bg);
+  --bs-popover-border-color: var(--bs-border-color);
+  --bs-popover-header-bg: var(--bs-secondary-bg);
+  --bs-popover-header-color: var(--bs-body-color);
+  --bs-popover-body-color: var(--bs-body-color);
+}
+
+@media (max-width: 576px) {
+  .async-observability-popover-shell .popover-body {
+    width: 92vw;
+  }
+
+  .async-observability-panel {
+    min-width: 0;
+  }
+}
+
 /* Cost tracker interactive history */
 .cost-history-row {
   display: flex;

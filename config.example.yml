@@ -26,6 +26,8 @@ app:
   # Boolean: true or false
   verbose_mode: false
   async_observability_enabled: false
+  # Integer: number of background mirai workers for async tasks
+  mirai_daemons: 2
 
   # Search
   # Integer: 5-100

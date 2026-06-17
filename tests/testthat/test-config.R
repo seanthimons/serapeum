@@ -38,6 +38,35 @@ test_that("get_setting returns config value", {
   unlink(tmp)
 })
 
+test_that("resolve_mirai_daemons falls back when missing", {
+  value <- expect_warning(
+    resolve_mirai_daemons(list(app = list())),
+    "missing"
+  )
+
+  expect_equal(value, 2L)
+})
+
+test_that("resolve_mirai_daemons uses valid configured count", {
+  config <- list(app = list(mirai_daemons = 6))
+
+  expect_equal(resolve_mirai_daemons(config, warn = FALSE), 6L)
+})
+
+test_that("resolve_mirai_daemons falls back for invalid values", {
+  negative <- expect_warning(
+    resolve_mirai_daemons(list(app = list(mirai_daemons = -1))),
+    "non-negative integer"
+  )
+  text_value <- expect_warning(
+    resolve_mirai_daemons(list(app = list(mirai_daemons = "many"))),
+    "non-negative integer"
+  )
+
+  expect_equal(negative, 2L)
+  expect_equal(text_value, 2L)
+})
+
 test_that("null coalescing operator works", {
   expect_equal(NULL %||% "default", "default")
   expect_equal("value" %||% "default", "value")

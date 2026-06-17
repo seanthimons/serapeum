@@ -1,5 +1,21 @@
 source_app("async_observability.R")
 
+test_that("async observability module exposes diagnostics controls and outputs", {
+  skip_if_not_installed("shiny")
+  library(shiny)
+  source_app("theme_catppuccin.R", "mod_async_observability.R")
+
+  ui <- mod_async_observability_ui("diag")
+  ui_html <- as.character(ui)
+
+  expect_true(grepl('id="diag-async_diag_refresh"', ui_html, fixed = TRUE))
+  expect_true(grepl('id="diag-async_diag_clear"', ui_html, fixed = TRUE))
+  expect_true(grepl('id="diag-async_mirai_status"', ui_html, fixed = TRUE))
+  expect_true(grepl('id="diag-async_task_summary"', ui_html, fixed = TRUE))
+  expect_true(grepl('id="diag-async_recent_event_picker"', ui_html, fixed = TRUE))
+  expect_true(grepl('id="diag-async_event_detail"', ui_html, fixed = TRUE))
+})
+
 test_that("async task events append valid JSONL when enabled", {
   log_file <- tempfile(fileext = ".jsonl")
   withr::local_options(list(
