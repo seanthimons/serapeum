@@ -1,5 +1,5 @@
 # App version — single source of truth
-SERAPEUM_VERSION <- "18.0.0"
+SERAPEUM_VERSION <- "22.0.0"
 
 # Cost estimate for OpenAlex content API PDF download (USD per request)
 OA_CONTENT_DOWNLOAD_COST_USD <- 0.01
