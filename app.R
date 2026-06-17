@@ -15,6 +15,10 @@ for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
 # Load config from file (if exists)
 config_file <- load_config()
 
+# Maximum file upload size (default 60 MB). Shiny's built-in default is 5 MB.
+max_upload_mb <- get_setting(config_file, "app", "max_upload_mb") %||% 60
+options(shiny.maxRequestSize = max_upload_mb * 1024^2)
+
 # Initialize database
 db_path <- get_setting(config_file, "app", "db_path") %||%
   "data/notebooks.duckdb"
