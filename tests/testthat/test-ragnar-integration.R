@@ -4,7 +4,7 @@
 
 library(testthat)
 
-source_app("db_migrations.R", "db.R", "_ragnar.R", "config.R")
+source_app("config.R", "db_migrations.R", "db.R", "rag.R", "_ragnar.R")
 
 # Ragnar availability check using safe pattern
 # requireNamespace() is unreliable on this machine due to broken renv DESCRIPTION files
@@ -75,7 +75,7 @@ test_that("ragnar workflow: chunk -> insert -> build_index -> retrieve works end
   # Assertions
   expect_s3_class(results, "data.frame")
   expect_true(nrow(results) > 0)
-  expect_true("text" %in% names(results))
+  expect_true("content" %in% names(results))
 })
 
 # ============================================================================

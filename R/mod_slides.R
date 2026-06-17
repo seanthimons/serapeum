@@ -249,7 +249,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model, figure_cou
             `for` = ns("theme_file"),
             class = "small text-muted d-inline-flex align-items-center gap-1",
             style = "cursor:pointer; margin-top:-8px;",
-            icon("upload"),
+            icon_upload(),
             " Upload .scss"
           ),
           div(
@@ -262,7 +262,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model, figure_cou
         div(
           tags$label(
             class = "form-label",
-            icon("wand-magic-sparkles", class = "text-muted"),
+            icon_wand(class = "text-muted"),
             " AI Generate"
           ),
           div(
@@ -310,7 +310,7 @@ mod_slides_modal_ui <- function(ns, documents, models, current_model, figure_cou
           role = "button",
           `aria-expanded` = "false",
           `aria-controls` = ns("customize_panel"),
-          icon("chevron-right", class = "customize-chevron"),
+          icon_chevron_right(class = "customize-chevron"),
           " Customize colors & font"
         ),
         # Collapsible content
@@ -936,7 +936,7 @@ mod_slides_server <- function(id, con, notebook_id, config, trigger) {
         class = "mt-1",
         actionButton(ns("regenerate_theme"), "Regenerate",
                      class = "btn btn-outline-secondary btn-sm",
-                     icon = icon("rotate"))
+                     icon = icon_rotate())
       )
     })
 

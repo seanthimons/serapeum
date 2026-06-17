@@ -1273,7 +1273,7 @@ mod_settings_server <- function(id, con, config_rv) {
         }
         div(
           class = "small text-success",
-          icon("circle-check"),
+          icon_check_circle(),
           sprintf(" %d models loaded (as of %s)", nrow(data), refresh_time)
         )
       }
@@ -1395,9 +1395,9 @@ mod_settings_server <- function(id, con, config_rv) {
 
         # Status indicator
         status_icon <- if (is_openrouter && nchar(or_key) > 0) {
-          span(class = "text-success me-1", icon("circle-check"))
+          span(class = "text-success me-1", icon_check_circle())
         } else if (is_openrouter) {
-          span(class = "text-warning me-1", icon("circle-exclamation"))
+          span(class = "text-warning me-1", icon_circle_exclamation())
         } else {
           # For non-default providers, test health synchronously (quick 3s timeout)
           cfg <- provider_row_to_config(p)
@@ -1408,13 +1408,13 @@ mod_settings_server <- function(id, con, config_rv) {
           if (isTRUE(health$alive)) {
             span(
               class = "text-success me-1",
-              icon("circle-check"),
+              icon_check_circle(),
               title = sprintf("%d models", health$model_count %||% 0)
             )
           } else {
             span(
               class = "text-danger me-1",
-              icon("circle-xmark"),
+              icon_circle_xmark(),
               title = "Offline"
             )
           }
@@ -1447,21 +1447,21 @@ mod_settings_server <- function(id, con, config_rv) {
               actionButton(
                 ns(paste0("test_provider_", p$id)),
                 NULL,
-                icon = icon("plug"),
+                icon = icon_plug(),
                 class = "btn-outline-secondary btn-sm",
                 title = "Test connection"
               ),
               actionButton(
                 ns(paste0("edit_provider_", p$id)),
                 NULL,
-                icon = icon("pen"),
+                icon = icon_edit(),
                 class = "btn-outline-secondary btn-sm",
                 title = "Edit"
               ),
               actionButton(
                 ns(paste0("delete_provider_", p$id)),
                 NULL,
-                icon = icon("trash"),
+                icon = icon_delete(),
                 class = "btn-outline-danger btn-sm",
                 title = "Delete"
               )
@@ -1522,7 +1522,7 @@ mod_settings_server <- function(id, con, config_rv) {
         if (isTRUE(health$alive)) {
           div(
             class = "alert alert-success py-1 small mt-2",
-            icon("circle-check"),
+            icon_check_circle(),
             sprintf(
               " Connected! Found %d models. Server type: %s",
               health$model_count,
@@ -1532,7 +1532,7 @@ mod_settings_server <- function(id, con, config_rv) {
         } else {
           div(
             class = "alert alert-danger py-1 small mt-2",
-            icon("circle-xmark"),
+            icon_circle_xmark(),
             " Could not connect. Check the URL and try again."
           )
         }
@@ -1738,7 +1738,7 @@ mod_settings_server <- function(id, con, config_rv) {
       if (new_dim != stored_dim) {
         div(
           class = "alert alert-warning py-2 small mt-2",
-          icon("triangle-exclamation"),
+          icon_warning(),
           sprintf(
             " Dimension mismatch: indexes were built with %d dims, but %s produces %d dims. ",
             stored_dim,

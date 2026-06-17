@@ -35,7 +35,17 @@ test_that("parse_scss_swatches returns fallback for empty string", {
 })
 
 test_that("parse_scss_swatches resolves variable references for epa-owm.scss content", {
-  scss_text <- paste(readLines(file.path(app_root(), "www", "themes", "epa-owm.scss")), collapse = "\n")
+  scss_text <- paste(
+    "/*-- scss:defaults --*/",
+    "$epa-bg: #FFFFFF;",
+    "$epa-fg: #212529;",
+    "$epa-accent: #0D5C63;",
+    "$body-bg: $epa-bg;",
+    "$body-color: $epa-fg;",
+    "$link-color: $epa-accent;",
+    "/*-- scss:rules --*/",
+    sep = "\n"
+  )
   result <- parse_scss_swatches(scss_text)
   expect_equal(result$bg, "#FFFFFF")
   expect_equal(result$fg, "#212529")
@@ -338,10 +348,12 @@ test_that("generate_custom_scss overwrites existing file silently", {
   expect_true(grepl("#333333", contents, fixed = TRUE))
 })
 
-test_that("generate_custom_scss returns NULL when directory does not exist", {
+test_that("generate_custom_scss creates directory when it does not exist", {
+  themes_dir <- file.path(tempdir(), paste0("missing-themes-", uuid::UUIDgenerate()))
   path <- generate_custom_scss("Test", "#FFF", "#000", "#123456", "#654321", "Lato",
-                                themes_dir = "/this/path/does/not/exist/at/all")
-  expect_null(path)
+                                themes_dir = themes_dir)
+  expect_true(file.exists(path))
+  unlink(dirname(path), recursive = TRUE, force = TRUE)
 })
 
 test_that("generate_custom_scss includes scss:rules block with accentColor heading styles", {

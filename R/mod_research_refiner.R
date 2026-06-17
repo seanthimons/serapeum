@@ -42,9 +42,9 @@ mod_research_refiner_ui <- function(id) {
               div(
                 class = "d-flex gap-2",
                 actionButton(ns("add_seed"), "Add Seed",
-                             icon = icon("plus"), class = "btn-sm btn-outline-primary"),
+                             icon = icon_plus(), class = "btn-sm btn-outline-primary"),
                 actionButton(ns("clear_seeds"), "Clear All",
-                             icon = icon("times"), class = "btn-sm btn-outline-secondary")
+                             icon = icon_times(), class = "btn-sm btn-outline-secondary")
               ),
               uiOutput(ns("seed_list"))
             )
@@ -298,7 +298,7 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                    paste0("(", p$year, ", ", p$cited_by_count, " citations)"))
             ),
             actionButton(ns(paste0("remove_seed_", i)), NULL,
-                         icon = icon("times"),
+                         icon = icon_times(),
                          class = "btn-sm btn-link text-muted p-0")
           )
         })
@@ -691,9 +691,9 @@ mod_research_refiner_server <- function(id, con_r, config_r,
             class = "d-flex gap-2",
             actionButton(ns("accept_top_n"),
                          if (nrow(results) <= 25) "Accept All" else "Accept Top 25",
-                         icon = icon("check"), class = "btn-sm btn-outline-success"),
+                         icon = icon_check(), class = "btn-sm btn-outline-success"),
             actionButton(ns("reject_below_median"), "Reject Bottom Half",
-                         icon = icon("times"), class = "btn-sm btn-outline-danger")
+                         icon = icon_times(), class = "btn-sm btn-outline-danger")
           )
         ),
         if (nrow(results) > 100) div(
@@ -776,14 +776,14 @@ mod_research_refiner_server <- function(id, con_r, config_r,
                         type = "button",
                         class = paste("btn btn-sm action-button",
                           if (action == "accepted") "btn-success" else "btn-outline-success"),
-                        icon("check")
+                        icon_check()
                       ),
                       tags$button(
                         id = ns(paste0("reject_", i)),
                         type = "button",
                         class = paste("btn btn-sm action-button",
                           if (action == "rejected") "btn-danger" else "btn-outline-danger"),
-                        icon("times")
+                        icon_times()
                       )
                     )
                   )

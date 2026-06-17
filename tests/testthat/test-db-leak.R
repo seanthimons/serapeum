@@ -66,7 +66,6 @@ test_that("search_chunks_hybrid closes self-opened stores", {
     "test query",
     notebook_id = nb_id,
     ragnar_store_path = store_path,
-    api_key = "test",
     embed_model = "mock"
   )
 
@@ -127,7 +126,6 @@ test_that("search_chunks_hybrid does NOT close caller-provided stores", {
     "test query",
     notebook_id = nb_id,
     ragnar_store = store,
-    api_key = "test",
     embed_model = "mock"
   )
 

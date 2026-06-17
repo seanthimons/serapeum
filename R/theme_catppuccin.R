@@ -376,6 +376,11 @@ icon_external_link <- function(...) shiny::icon("arrow-up-right-from-square", ..
 #' @return Icon tag
 icon_chevron_down <- function(...) shiny::icon("chevron-down", ...)
 
+#' Chevron right icon (collapsible panels)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_chevron_right <- function(...) shiny::icon("chevron-right", ...)
+
 #' Bars icon (menu)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
@@ -605,6 +610,16 @@ icon_clock <- function(...) shiny::icon("clock", ...)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
 icon_server <- function(...) shiny::icon("server", ...)
+
+#' Plug icon (provider test)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_plug <- function(...) shiny::icon("plug", ...)
+
+#' Circle exclamation icon (warning status)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_circle_exclamation <- function(...) shiny::icon("circle-exclamation", ...)
 
 #' Plus icon (add actions)
 #' @param ... Additional arguments passed to shiny::icon()

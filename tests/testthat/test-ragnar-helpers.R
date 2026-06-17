@@ -188,9 +188,10 @@ describe("Store Lifecycle", {
   test_that("delete_notebook_store removes existing file and returns TRUE", {
     # Create temp directory and file
     temp_dir <- withr::local_tempdir()
+    withr::local_dir(temp_dir)
 
-    # Override ragnar dir for testing
-    ragnar_dir <- file.path(temp_dir, "ragnar")
+    # Create a fake store under the app-relative ragnar directory
+    ragnar_dir <- file.path("data", "ragnar")
     dir.create(ragnar_dir, recursive = TRUE)
 
     # Create a fake store file
@@ -199,16 +200,6 @@ describe("Store Lifecycle", {
     file.create(store_path)
 
     expect_true(file.exists(store_path))
-
-    # Temporarily override get_notebook_ragnar_path
-    original_fun <- get_notebook_ragnar_path
-    assignInNamespace("get_notebook_ragnar_path", function(notebook_id) {
-      file.path(ragnar_dir, paste0(notebook_id, ".duckdb"))
-    }, ns = "serapeum", envir = parent.frame())
-
-    on.exit({
-      assignInNamespace("get_notebook_ragnar_path", original_fun, ns = "serapeum")
-    })
 
     result <- delete_notebook_store(test_id)
 
@@ -219,7 +210,8 @@ describe("Store Lifecycle", {
   test_that("delete_notebook_store cleans up WAL file alongside main store", {
     # Create temp directory
     temp_dir <- withr::local_tempdir()
-    ragnar_dir <- file.path(temp_dir, "ragnar")
+    withr::local_dir(temp_dir)
+    ragnar_dir <- file.path("data", "ragnar")
     dir.create(ragnar_dir, recursive = TRUE)
 
     # Create fake files
@@ -232,16 +224,6 @@ describe("Store Lifecycle", {
 
     expect_true(file.exists(store_path))
     expect_true(file.exists(wal_path))
-
-    # Override path function
-    original_fun <- get_notebook_ragnar_path
-    assignInNamespace("get_notebook_ragnar_path", function(notebook_id) {
-      file.path(ragnar_dir, paste0(notebook_id, ".duckdb"))
-    }, ns = "serapeum", envir = parent.frame())
-
-    on.exit({
-      assignInNamespace("get_notebook_ragnar_path", original_fun, ns = "serapeum")
-    })
 
     result <- delete_notebook_store(test_id)
 
@@ -258,7 +240,7 @@ describe("Store Lifecycle", {
 
     # Create temp directory for ragnar stores
     temp_dir <- withr::local_tempdir()
-    ragnar_dir <- file.path(temp_dir, "ragnar")
+    ragnar_dir <- file.path(temp_dir, "data", "ragnar")
     dir.create(ragnar_dir, recursive = TRUE)
 
     # Create in-memory database with one notebook

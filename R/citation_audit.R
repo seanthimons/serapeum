@@ -470,7 +470,7 @@ run_citation_audit <- function(notebook_id, email, api_key, db_path,
 #'
 #' @param ranked Data frame from rank_missing_papers
 #' @param metadata List of parsed work objects from fetch_missing_paper_metadata
-#' @return Enriched data frame with title, authors, year, doi, cited_by_count
+#' @return Enriched data frame with title, authors, year, doi, cited_by_count, fwci
 enrich_ranked_with_metadata <- function(ranked, metadata) {
   if (length(metadata) == 0 || nrow(ranked) == 0) {
     # Add empty metadata columns if not present
@@ -479,6 +479,7 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
     if (!"year" %in% names(ranked)) ranked$year <- NA_integer_
     if (!"doi" %in% names(ranked)) ranked$doi <- NA_character_
     if (!"cited_by_count" %in% names(ranked)) ranked$cited_by_count <- 0L
+    if (!"fwci" %in% names(ranked)) ranked$fwci <- NA_real_
     return(ranked)
   }
 
@@ -496,7 +497,8 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
       authors = authors_str,
       year = paper$year %||% NA_integer_,
       doi = paper$doi %||% NA_character_,
-      cited_by_count = paper$cited_by_count %||% 0L
+      cited_by_count = paper$cited_by_count %||% 0L,
+      fwci = paper$fwci %||% NA_real_
     )
   }
 
@@ -520,6 +522,10 @@ enrich_ranked_with_metadata <- function(ranked, metadata) {
   ranked$cited_by_count <- vapply(ranked$work_id, function(wid) {
     if (!is.null(meta_lookup[[wid]])) as.integer(meta_lookup[[wid]]$cited_by_count) else 0L
   }, integer(1))
+
+  ranked$fwci <- vapply(ranked$work_id, function(wid) {
+    if (!is.null(meta_lookup[[wid]])) as.numeric(meta_lookup[[wid]]$fwci) else NA_real_
+  }, numeric(1))
 
   ranked
 }

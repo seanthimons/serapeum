@@ -1,4 +1,8 @@
 # tests/testthat/test-slides.R
+library(testthat)
+
+source_app("prompt_helpers.R", "slides.R")
+
 test_that("check_quarto_installed returns TRUE when quarto exists", {
   # This test will pass/fail based on local environment
   # We're testing the function exists and returns boolean
@@ -114,7 +118,7 @@ test_that("generate_slides returns qmd content", {
 
 # --- Phase 39: Slide Healing tests ---
 
-test_that("build_slides_prompt includes YAML template in system prompt", {
+test_that("build_slides_prompt tells the LLM not to output YAML", {
   chunks <- data.frame(
     content = "Test content",
     doc_name = "test.pdf",
@@ -125,9 +129,9 @@ test_that("build_slides_prompt includes YAML template in system prompt", {
   prompt <- build_slides_prompt(chunks, list())
 
   expect_true(grepl("CRITICAL", prompt$system))
-  expect_true(grepl("title:", prompt$system))
-  expect_true(grepl("revealjs", prompt$system))
-  expect_true(grepl("---", prompt$system))
+  expect_true(grepl("Do NOT output YAML frontmatter", prompt$system))
+  expect_true(grepl("The app builds the YAML frontmatter separately", prompt$system))
+  expect_true(grepl("Quarto Syntax Reference", prompt$system))
 })
 
 test_that("build_slides_prompt includes Quarto syntax reference", {

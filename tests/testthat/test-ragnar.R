@@ -3,7 +3,7 @@
 
 library(testthat)
 
-source_app("config.R", "api_openrouter.R", "db_migrations.R", "db.R", "_ragnar.R")
+source_app("config.R", "api_provider.R", "api_openrouter.R", "db_migrations.R", "db.R", "_ragnar.R")
 
 test_that("chunk_with_ragnar returns expected structure when ragnar available", {
   # Simple test with mock pages
@@ -54,10 +54,10 @@ test_that("get_ragnar_store requires API key for new stores", {
   tmp_store <- tempfile(fileext = ".ragnar.duckdb")
   on.exit(unlink(tmp_store))
 
-  # Creating a new store without API key should error
- expect_error(
+  # Creating a new store without provider config should error
+  expect_error(
     get_ragnar_store(tmp_store),
-    "OpenRouter API key required"
+    "Provider required"
   )
 })
 
@@ -72,17 +72,18 @@ test_that("connect_ragnar_store returns NULL for non-existent store", {
 test_that("make_embed_function returns a function that calls get_embeddings", {
   # Mock get_embeddings to verify it's called with correct args
   called_with <- NULL
-  mock_embeddings <- function(api_key, model, texts) {
-    called_with <<- list(api_key = api_key, model = model, texts = texts)
+  mock_embeddings <- function(provider, model, texts) {
+    called_with <<- list(provider = provider, model = model, texts = texts)
     list(embeddings = list(c(0.1, 0.2, 0.3), c(0.4, 0.5, 0.6)))
   }
 
-  # Temporarily replace get_embeddings
-  original <- get_embeddings
-  assign("get_embeddings", mock_embeddings, envir = environment(make_embed_function))
-  on.exit(assign("get_embeddings", original, envir = environment(make_embed_function)))
+  # Temporarily replace provider_get_embeddings
+  original <- provider_get_embeddings
+  assign("provider_get_embeddings", mock_embeddings, envir = environment(make_embed_function))
+  on.exit(assign("provider_get_embeddings", original, envir = environment(make_embed_function)))
 
-  embed_fn <- make_embed_function("test-key", "test-model")
+  provider <- create_provider_config("Test Provider", "http://example.test", api_key = "test-key")
+  embed_fn <- make_embed_function(provider, "test-model")
 
   # Verify it returns a function
 
@@ -91,7 +92,7 @@ test_that("make_embed_function returns a function that calls get_embeddings", {
   # Call it and verify correct args passed through
   result <- embed_fn(c("hello", "world"))
 
-  expect_equal(called_with$api_key, "test-key")
+  expect_equal(called_with$provider$api_key, "test-key")
   expect_equal(called_with$model, "test-model")
   expect_equal(called_with$texts, c("hello", "world"))
 
@@ -105,9 +106,9 @@ test_that("get_ragnar_store creates a fresh store without invoking a placeholder
   skip_if_not(tryCatch({ library(ragnar); TRUE }, error = function(e) FALSE), "ragnar not loadable")
 
   called_with <- list()
-  mock_embeddings <- function(api_key, model, texts) {
+  mock_embeddings <- function(provider, model, texts) {
     called_with <<- append(called_with, list(list(
-      api_key = api_key,
+      provider = provider,
       model = model,
       texts = texts
     )))
@@ -116,12 +117,13 @@ test_that("get_ragnar_store creates a fresh store without invoking a placeholder
     list(embeddings = embeddings)
   }
 
-  original <- get_embeddings
-  assign("get_embeddings", mock_embeddings, envir = environment(make_embed_function))
-  on.exit(assign("get_embeddings", original, envir = environment(make_embed_function)), add = TRUE)
+  original <- provider_get_embeddings
+  assign("provider_get_embeddings", mock_embeddings, envir = environment(make_embed_function))
+  on.exit(assign("provider_get_embeddings", original, envir = environment(make_embed_function)), add = TRUE)
 
   tmp_store <- tempfile(fileext = ".ragnar.duckdb")
-  store <- get_ragnar_store(tmp_store, openrouter_api_key = "test-key", embed_model = "test-model")
+  provider <- create_provider_config("Test Provider", "http://example.test", api_key = "test-key")
+  store <- get_ragnar_store(tmp_store, provider = provider, embed_model = "test-model")
   on.exit({
     tryCatch(DBI::dbDisconnect(store@con, shutdown = TRUE), error = function(e) NULL)
     unlink(c(tmp_store, paste0(tmp_store, ".wal"), paste0(tmp_store, ".tmp")), force = TRUE)

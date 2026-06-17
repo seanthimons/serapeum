@@ -12,9 +12,10 @@ test_that("no raw icon() calls remain outside wrapper definitions", {
     if (basename(f) == "theme_catppuccin.R") next
 
     if (!file.exists(f)) next
-    lines <- readLines(f)
-    # Find lines with icon(" but NOT shiny::icon(" (which are wrapper definitions)
-    matches <- grep('(?<!shiny::)icon\\("', lines, perl = TRUE)
+    lines <- readLines(f, warn = FALSE)
+    # Find bare icon(" calls, excluding shiny::icon(...) and function names
+    # such as render_status_icon(...).
+    matches <- grep('(?<![A-Za-z0-9_:])icon\\("', lines, perl = TRUE)
 
     if (length(matches) > 0) {
       raw_calls <- c(raw_calls, paste0(f, ":", matches, ": ", trimws(lines[matches])))

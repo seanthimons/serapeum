@@ -13,6 +13,12 @@ test_that("load_config reads yaml file", {
 })
 
 test_that("load_config returns NULL for missing file", {
+  withr::local_envvar(c(
+    OPENROUTER_API_KEY = NA,
+    OPENALEX_EMAIL = NA,
+    OPENALEX_API_KEY = NA
+  ))
+
   config <- load_config("nonexistent.yml")
   expect_null(config)
 })
