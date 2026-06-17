@@ -1,11 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "api_openalex.R"))) {
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "api_openalex.R"))
+source_app("api_openalex.R")
 
 # --- chunk_dois tests ---
 

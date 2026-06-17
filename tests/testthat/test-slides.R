@@ -327,3 +327,67 @@ test_that("get_healing_chips returns Quarto fix chip on render error", {
 
   expect_true("Fix Quarto formatting" %in% chips)
 })
+
+# --- Phase 58: Custom SCSS theme support tests ---
+
+test_that("build_qmd_frontmatter emits array theme when custom_scss provided", {
+  fm <- build_qmd_frontmatter("Talk", "moon", "www/themes/epa-owm.scss")
+  expect_true(grepl("theme: \\[moon, epa-owm.scss\\]", fm))
+  expect_true(grepl("^---\\n", fm))
+})
+
+test_that("build_qmd_frontmatter uses basename of custom_scss path", {
+  fm <- build_qmd_frontmatter("Talk", "default", "www/themes/epa-owm.scss")
+  expect_true(grepl("theme: \\[default, epa-owm.scss\\]", fm))
+  expect_false(grepl("www/themes/", fm))
+})
+
+test_that("build_qmd_frontmatter preserves scalar theme when custom_scss is NULL", {
+  fm1 <- build_qmd_frontmatter("Talk", "moon", NULL)
+  fm2 <- build_qmd_frontmatter("Talk", "moon")
+  expect_true(grepl("theme: moon", fm1))
+  expect_false(grepl("\\[", fm1))
+  expect_true(grepl("theme: moon", fm2))
+  expect_false(grepl("\\[", fm2))
+})
+
+test_that("build_qmd_frontmatter default behavior unchanged without custom_scss", {
+  fm <- build_qmd_frontmatter("Default Talk")
+  expect_true(grepl("theme: default", fm))
+  expect_false(grepl("\\[", fm))
+})
+
+# --- #229: NA page_number handling in build_slides_prompt ---
+
+test_that("build_slides_prompt handles NA page_number without p.NA", {
+  chunks <- data.frame(
+    content = c("Intro text.", "Methods text."),
+    doc_name = c("paper.pdf", "paper.pdf"),
+    page_number = c(1, NA_integer_),
+    stringsAsFactors = FALSE
+  )
+
+  prompt <- build_slides_prompt(chunks, list(length = "short"))
+
+  # Should contain page ref for first chunk
+  expect_true(grepl("p\\.1", prompt$user))
+  # Should NOT contain p.NA for second chunk
+  expect_false(grepl("p\\.NA", prompt$user))
+  # Content should still be present
+  expect_true(grepl("Methods text", prompt$user))
+})
+
+test_that("build_slides_prompt handles NA doc_name", {
+  chunks <- data.frame(
+    content = "Some text.",
+    doc_name = NA_character_,
+    page_number = 3L,
+    stringsAsFactors = FALSE
+  )
+
+  prompt <- build_slides_prompt(chunks, list(length = "short"))
+
+  # Should use "unknown" instead of NA
+  expect_true(grepl("unknown", prompt$user))
+  expect_false(grepl("\\bNA\\b", prompt$user))
+})

@@ -100,6 +100,24 @@ write_progress <- function(progress_file, hop, total_hops, paper_idx, frontier_s
   }, error = function(e) {
     # Silently handle errors (file may be deleted)
   })
+  if (exists("async_task_emit_progress", mode = "function")) {
+    safe_total_hops <- max(as.integer(total_hops), 1L)
+    safe_frontier_size <- max(as.integer(frontier_size), 1L)
+    hop_pct <- (as.integer(hop) - 1L) / safe_total_hops
+    within_hop_pct <- as.integer(paper_idx) / safe_frontier_size / safe_total_hops
+    pct <- round(min((hop_pct + within_hop_pct) * 100, 99))
+    async_task_emit_progress(
+      "citation_network",
+      message,
+      metadata = list(
+        hop = hop,
+        total_hops = total_hops,
+        paper_idx = paper_idx,
+        frontier_size = frontier_size,
+        pct = pct
+      )
+    )
+  }
   invisible(NULL)
 }
 

@@ -1,3 +1,215 @@
+#' Reciprocal Rank Fusion (RRF) merge of multiple ranked lists
+#'
+#' Combines ranked lists using the formula: score = SUM(1 / (k + rank_i))
+#' where rank_i is the 1-based position in each list.
+#'
+#' @param ranked_lists List of data frames, each must have a `hash` column for dedup
+#'   and a `text` column. Other columns (origin, etc.) are preserved from the first occurrence.
+#' @param k RRF constant (default 60, standard in literature)
+#' @return Data frame sorted by RRF score descending, with `rrf_score` column added
+rrf_merge <- function(ranked_lists, k = 60) {
+  # Filter out empty lists
+  ranked_lists <- ranked_lists[vapply(ranked_lists, function(df) {
+    is.data.frame(df) && nrow(df) > 0
+  }, logical(1))]
+
+  if (length(ranked_lists) == 0) {
+    return(data.frame(
+      text = character(), origin = character(), hash = character(),
+      rrf_score = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+
+  # Accumulate scores by hash
+  scores <- list()  # hash -> score
+  first_seen <- list()  # hash -> row data (preserve metadata from first occurrence)
+
+  for (df in ranked_lists) {
+    # Ensure hash column exists
+    if (!"hash" %in% names(df)) next
+
+    for (rank_i in seq_len(nrow(df))) {
+      h <- df$hash[rank_i]
+      if (is.na(h) || !nzchar(h)) next
+
+      rrf_contribution <- 1 / (k + rank_i)
+
+      if (is.null(scores[[h]])) {
+        scores[[h]] <- rrf_contribution
+        first_seen[[h]] <- df[rank_i, , drop = FALSE]
+      } else {
+        scores[[h]] <- scores[[h]] + rrf_contribution
+      }
+    }
+  }
+
+  if (length(scores) == 0) {
+    return(data.frame(
+      text = character(), origin = character(), hash = character(),
+      rrf_score = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+
+  # Build result data frame
+  # Align columns across all rows before rbind — VSS and BM25 results from ragnar
+
+  # can have different schemas (e.g., VSS includes `embedding` column, BM25 does not).
+  # NOTE: The `embedding` column from VSS contains the raw embedding vector for each
+  # chunk. This is not currently used in the RAG chat path, but IS relevant for the
+  # Research Refiner's embedding_similarity scoring (utils_scoring.R / mod_research_refiner.R).
+  # If you drop it here, RR semantic scoring will lose its signal.
+  all_cols <- unique(unlist(lapply(first_seen, names)))
+  first_seen <- lapply(first_seen, function(row) {
+    missing <- setdiff(all_cols, names(row))
+    for (col in missing) row[[col]] <- NA
+    row[, all_cols, drop = FALSE]
+  })
+  result <- do.call(rbind, first_seen)
+  result$rrf_score <- vapply(result$hash, function(h) scores[[h]], numeric(1))
+
+  # Sort by RRF score descending
+  result <- result[order(-result$rrf_score), , drop = FALSE]
+  rownames(result) <- NULL
+
+  result
+}
+
+#' Parse LLM output into individual query variants
+#'
+#' Handles both plain newline-separated and numbered list formats.
+#'
+#' @param text Raw LLM response text
+#' @return Character vector of clean query variants
+parse_query_variants <- function(text) {
+  lines <- strsplit(text, "\n")[[1]]
+  lines <- trimws(lines)
+  lines <- lines[nchar(lines) > 0]
+
+  # Strip numbering: "1. query" or "1) query" or "- query"
+  lines <- sub("^\\d+[.):]\\s*", "", lines)
+  lines <- sub("^[-*]\\s*", "", lines)
+  lines <- trimws(lines)
+  lines <- lines[nchar(lines) > 0]
+
+  lines
+}
+
+#' Generate query variants for RAG-Fusion retrieval
+#'
+#' Uses a fast LLM call to generate alternative search queries that capture
+#' different vocabulary and angles. Always includes the original query.
+#'
+#' @param query Original user query
+#' @param provider provider_config object
+#' @param model LLM model to use
+#' @param con Optional DuckDB connection for cost logging
+#' @param session_id Optional session ID for cost logging
+#' @param n_variants Number of variants to generate (default 3)
+#' @return Character vector: original query + n_variants alternatives
+generate_query_variants <- function(query, provider, model, con = NULL,
+                                     session_id = NULL, n_variants = 3) {
+  system_prompt <- sprintf(
+    "Generate %d alternative search queries for the following research question. Each variant should use different vocabulary, synonyms, or approach the topic from a different angle. Return only the queries, one per line.",
+    n_variants
+  )
+
+  messages <- format_chat_messages(system_prompt, query)
+
+  result <- tryCatch({
+    provider_chat_completion(provider, model, messages)
+  }, error = function(e) {
+    message("[rag] Query reformulation failed: ", e$message)
+    return(NULL)
+  })
+
+  if (is.null(result)) return(query)
+
+  # Log cost
+  if (!is.null(con) && !is.null(session_id) && !is.null(result$usage)) {
+    cost <- estimate_cost(model,
+                          result$usage$prompt_tokens %||% 0,
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
+    log_cost(con, "query_reformulation", model,
+             result$usage$prompt_tokens %||% 0,
+             result$usage$completion_tokens %||% 0,
+             result$usage$total_tokens %||% 0,
+             cost, session_id,
+             duration_ms = result$duration_ms)
+  }
+
+  # Parse variants and prepend original
+  variants <- parse_query_variants(result$content)
+  unique(c(query, variants))
+}
+
+#' Format a citation label from author JSON and year
+#'
+#' Parses author JSON (array of strings or objects with display_name) and year
+#' into academic citation format like "Smith et al. (2023)".
+#'
+#' @param authors_json JSON string of authors, or NULL/NA
+#' @param year Integer year, or NULL/NA
+#' @param fallback_label Character fallback when author/year unavailable
+#' @return Formatted label string
+format_citation_label <- function(authors_json, year, fallback_label = "[Source]") {
+  # Parse authors to "LastName et al." format
+
+  author_str <- tryCatch({
+    if (is.null(authors_json) || length(authors_json) == 0 ||
+        isTRUE(is.na(authors_json)) || !nzchar(trimws(authors_json))) {
+      NULL
+    } else {
+      parsed <- jsonlite::fromJSON(authors_json)
+
+      # Handle double-encoding (#177): if fromJSON returns a string that looks
+      # like JSON, try parsing again
+      if (is.character(parsed) && length(parsed) == 1 && grepl("^\\[", parsed)) {
+        parsed <- tryCatch(jsonlite::fromJSON(parsed), error = function(e) parsed)
+      }
+
+      if (is.null(parsed) || length(parsed) == 0) {
+        NULL
+      } else if (is.data.frame(parsed) && "display_name" %in% names(parsed)) {
+        last_names <- vapply(parsed$display_name, function(a) {
+          parts <- strsplit(trimws(a), "\\s+")[[1]]
+          parts[length(parts)]
+        }, character(1))
+        if (length(last_names) == 0) NULL
+        else if (length(last_names) > 2) paste0(last_names[1], " et al.")
+        else if (length(last_names) == 2) paste0(last_names[1], " & ", last_names[2])
+        else last_names[1]
+      } else if (is.character(parsed)) {
+        last_names <- vapply(parsed, function(a) {
+          parts <- strsplit(trimws(a), "\\s+")[[1]]
+          parts[length(parts)]
+        }, character(1))
+        if (length(last_names) == 0) NULL
+        else if (length(last_names) > 2) paste0(last_names[1], " et al.")
+        else if (length(last_names) == 2) paste0(last_names[1], " & ", last_names[2])
+        else last_names[1]
+      } else {
+        NULL
+      }
+    }
+  }, error = function(e) NULL)
+
+  # Normalize year
+  yr <- tryCatch(as.integer(year), error = function(e) NA_integer_)
+  if (length(yr) == 0 || isTRUE(is.na(yr))) yr <- NA_integer_
+
+  # Build label with fallback chain
+  if (!is.null(author_str) && !is.na(yr)) {
+    sprintf("%s (%d)", author_str, yr)
+  } else if (!is.null(author_str)) {
+    sprintf("%s (n.d.)", author_str)
+  } else if (!is.na(yr)) {
+    sprintf("Unknown (%d)", yr)
+  } else {
+    fallback_label
+  }
+}
+
 #' Build RAG context from retrieved chunks
 #' @param chunks Data frame of chunks from search_chunks
 #' @return Formatted context string
@@ -8,36 +220,46 @@ build_context <- function(chunks) {
     chunk <- chunks[i, , drop = FALSE]
 
     # Safely extract scalar values (handle potential vector/NULL cases)
-    doc_name <- NA_character_
-    if ("doc_name" %in% names(chunk)) {
-      val <- chunk$doc_name
-      if (length(val) > 0) doc_name <- as.character(val)[1]
+    safe_chr <- function(field) {
+      if (field %in% names(chunk)) {
+        val <- chunk[[field]]
+        if (length(val) > 0 && !isTRUE(is.na(val[1]))) return(as.character(val)[1])
+      }
+      NA_character_
+    }
+    safe_int <- function(field) {
+      if (field %in% names(chunk)) {
+        val <- chunk[[field]]
+        if (length(val) > 0 && !isTRUE(is.na(val[1]))) return(as.integer(val)[1])
+      }
+      NA_integer_
     }
 
-    abstract_title <- NA_character_
-    if ("abstract_title" %in% names(chunk)) {
-      val <- chunk$abstract_title
-      if (length(val) > 0) abstract_title <- as.character(val)[1]
-    }
+    doc_name <- safe_chr("doc_name")
+    abstract_title <- safe_chr("abstract_title")
+    abstract_authors <- safe_chr("abstract_authors")
+    doc_authors <- safe_chr("doc_authors")
+    page_number <- safe_int("page_number")
+    abstract_year <- safe_int("abstract_year")
+    doc_year <- safe_int("doc_year")
+    content <- safe_chr("content")
+    if (is.na(content)) content <- ""
 
-    page_number <- NA_integer_
-    if ("page_number" %in% names(chunk)) {
-      val <- chunk$page_number
-      if (length(val) > 0) page_number <- as.integer(val)[1]
-    }
-
-    content <- ""
-    if ("content" %in% names(chunk)) {
-      val <- chunk$content
-      if (length(val) > 0) content <- as.character(val)[1]
-    }
-
-    # Determine source label using safe scalar checks
+    # Build source label using format_citation_label() when metadata available
     source <- "[Source]"
-    if (!isTRUE(is.na(doc_name)) && isTRUE(nchar(doc_name) > 0)) {
-      source <- sprintf("[%s, p.%d]", doc_name, page_number)
-    } else if (!isTRUE(is.na(abstract_title)) && isTRUE(nchar(abstract_title) > 0)) {
-      source <- sprintf("[%s]", abstract_title)
+    if (!is.na(doc_name) && nchar(doc_name) > 0) {
+      # Document chunk: try author/year, fall back to filename
+      label <- format_citation_label(doc_authors, doc_year, fallback_label = doc_name)
+      if (!is.na(page_number)) {
+        source <- sprintf("[%s, p.%d]", label, page_number)
+      } else {
+        source <- sprintf("[%s]", label)
+      }
+    } else if (!is.na(abstract_title) && nchar(abstract_title) > 0) {
+      # Abstract chunk: try author/year, fall back to title
+      source <- sprintf("[%s]",
+        format_citation_label(abstract_authors, abstract_year,
+                               fallback_label = abstract_title))
     }
 
     sprintf("Source %s:\n%s", source, content)
@@ -57,21 +279,20 @@ build_context <- function(chunks) {
 #' @param session_id Optional Shiny session ID for cost logging (default NULL)
 #' @return Generated response with citations
 rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
-  # Extract settings with defensive scalar checks
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  # Build provider from config
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "chat")
 
   # Safely check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
     return("Error: OpenRouter API key not configured. Please set your API key in Settings.")
   }
 
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Debug: check store existence
   store_path <- get_notebook_ragnar_path(notebook_id)
@@ -79,7 +300,8 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 
   chunks <- tryCatch({
     search_chunks_hybrid(con, question, notebook_id, limit = 5,
-                         api_key = api_key, embed_model = embed_model)
+                         provider = provider, embed_model = embed_model,
+                         config = config, session_id = session_id)
   }, error = function(e) {
     message("[rag_query] Ragnar search failed: ", e$message)
     NULL
@@ -105,7 +327,19 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   }
 
   # Build prompt
-  system_prompt <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. Always cite your sources using the format [Document Name, p.X] or [Paper Title]. If the sources don't contain enough information to fully answer the question, say so clearly."
+  system_prompt <- "You are a helpful research assistant. Answer questions based ONLY on the provided sources. If the sources don't contain enough information to fully answer the question, say so clearly.
+
+CITATION RULES:
+- Each source is labeled with its citation in brackets, e.g., [Smith et al. (2023), p.5] or [Jones & Lee (2021)]
+- Cite every substantive claim using the author and year from the source label: (Smith et al., 2023, p.5)
+- When the label includes a page number: (Author, Year, p.X)
+- When the source is an abstract with no page: (Author, Year)
+- When multiple sources support a claim, cite all: (Smith et al., 2023, p.5; Jones & Lee, 2021)
+- Use the citation exactly as it appears in the source label — do not invent author names or years
+
+Correct: \"Studies show increased resistance rates (Smith et al., 2023, p.12; WHO, 2024, p.45).\"
+Wrong: \"Studies show increased resistance rates [Abstract].\"
+Wrong: \"Studies show increased resistance rates.\" (missing citation)"
 
   user_prompt <- sprintf("Sources:\n%s\n\nQuestion: %s", context, question)
 
@@ -113,18 +347,20 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 
   # Generate response
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "chat", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -135,33 +371,46 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   response
 }
 
-#' Generate preset content (summary, key points, etc.)
-#' @param con Database connection
-#' @param config App config
-#' @param notebook_id Notebook ID
-#' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline")
-#' @param session_id Optional Shiny session ID for cost logging (default NULL)
-#' @return Generated content
-generate_preset <- function(con, config, notebook_id, preset_type, session_id = NULL) {
+#' Get the task instruction for a preset type
+#' @param preset_type Preset type string
+#' @return Task instruction string, or NULL if unknown
+get_preset_instruction <- function(preset_type) {
   presets <- list(
     summarize = "Provide a comprehensive summary of all the documents. Highlight the main themes, key findings, and important conclusions. Organize your summary with clear sections.",
     keypoints = "Extract the key points from these documents as a bulleted list. Focus on the most important facts, findings, arguments, and conclusions. Group related points together.",
     studyguide = "Create a study guide based on these documents. Include:\n1. Key concepts and definitions\n2. Important facts and figures\n3. Main arguments and their supporting evidence\n4. Potential exam questions with brief answers",
-    outline = "Create a structured outline of the main topics covered in these documents. Use hierarchical headings (I, A, 1, a) to organize the content logically. Include brief descriptions under each heading."
+    outline = "Create a structured outline of the main topics covered in these documents. Use hierarchical headings (I, A, 1, a) to organize the content logically. Include brief descriptions under each heading.",
+    overview = "Generate an overview with a summary and thematically organized key points from the research sources.",
+    conclusions = "Synthesize the conclusions, limitations, and future research directions from these papers. Identify common themes and divergences across studies.",
+    lit_review = "Create a literature review comparison table with columns: Paper, Year, Methods, Key Findings, Limitations. Cover all papers in the collection.",
+    methodology_extractor = "Extract and compare research methodologies across these papers. For each paper, identify: study design, data sources, sample/population, analytical methods, and key variables.",
+    gap_analysis = "Identify research gaps by analyzing what topics, methods, and questions are NOT covered by the current collection. Suggest specific future research directions."
   )
+  presets[[preset_type]]
+}
 
-  prompt <- presets[[preset_type]]
+#' Generate preset content (summary, key points, etc.)
+#' @param con Database connection
+#' @param config App config
+#' @param notebook_id Notebook ID
+#' @param preset_type Type of preset ("summarize", "keypoints", "studyguide", "outline",
+#'   "overview", "conclusions", "lit_review", "methodology_extractor", "gap_analysis")
+#' @param session_id Optional Shiny session ID for cost logging (default NULL)
+#' @param custom_prompt Optional custom prompt to override the default preset instruction
+#' @return Generated content
+generate_preset <- function(con, config, notebook_id, preset_type, session_id = NULL,
+                            custom_prompt = NULL) {
+  prompt <- custom_prompt %||% get_effective_prompt(con, preset_type)
   if (is.null(prompt)) {
     return(sprintf("Unknown preset type: %s", preset_type))
   }
 
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "chat")
 
   # Safely check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -179,7 +428,9 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   if (notebook$type == "document") {
     chunks <- dbGetQuery(con, "
       SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
-             d.filename as doc_name, NULL as abstract_title
+             d.filename as doc_name, NULL as abstract_title,
+             d.authors as doc_authors, d.year as doc_year,
+             NULL as abstract_authors, NULL as abstract_year
       FROM chunks c
       JOIN documents d ON c.source_id = d.id
       WHERE d.notebook_id = ?
@@ -189,7 +440,9 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   } else {
     chunks <- dbGetQuery(con, "
       SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
-             NULL as doc_name, a.title as abstract_title
+             NULL as doc_name, a.title as abstract_title,
+             NULL as doc_authors, NULL as doc_year,
+             a.authors as abstract_authors, a.year as abstract_year
       FROM chunks c
       JOIN abstracts a ON c.source_id = a.id
       WHERE a.notebook_id = ?
@@ -205,24 +458,37 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   # Build context
   context <- build_context(chunks)
 
-  system_prompt <- "You are a helpful research assistant. Generate the requested content based on the provided sources. Be thorough and well-organized."
+  system_prompt <- "You are a helpful research assistant. Generate the requested content based on the provided sources. Be thorough and well-organized.
+
+CITATION RULES:
+- Each source is labeled with its citation in brackets, e.g., [Smith et al. (2023), p.5] or [Jones & Lee (2021)]
+- Cite every substantive claim using the author and year from the source label: (Smith et al., 2023, p.5)
+- When the label includes a page number: (Author, Year, p.X)
+- When the source is an abstract with no page: (Author, Year)
+- When multiple sources support a claim, cite all: (Smith et al., 2023, p.5; Jones & Lee, 2021)
+- Use the citation exactly as it appears in the source label — do not invent author names or years
+
+Correct: \"Machine learning improves diagnostic accuracy (Chen et al., 2023, p.15; WHO, 2024, p.8).\"
+Wrong: \"Machine learning improves diagnostic accuracy.\" (missing citation)"
   user_prompt <- sprintf("Sources:\n%s\n\nTask: %s", context, prompt)
 
   messages <- format_chat_messages(system_prompt, user_prompt)
 
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "chat", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -247,15 +513,13 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
 #' @return Generated synthesis content (plain markdown, no AI disclaimer)
 generate_conclusions_preset <- function(con, config, notebook_id, notebook_type = "document", session_id = NULL) {
   # Extract settings
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
-
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  chat_model <- resolve_model_for_operation(config, "conclusion_synthesis")
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -280,7 +544,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         notebook_id = notebook_id,
         limit = 10,
         section_filter = c("conclusion", "limitations", "future_work", "discussion", "late_section"),
-        api_key = api_key, embed_model = embed_model
+        provider = provider, embed_model = embed_model
       )
     }, error = function(e) {
       message("[generate_conclusions_preset] Section-filtered search failed: ", e$message)
@@ -296,7 +560,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
           query = "conclusions results findings discussion agreements",
           notebook_id = notebook_id,
           limit = 10,
-          api_key = api_key, embed_model = embed_model
+          provider = provider, embed_model = embed_model
         )
       }, error = function(e) {
         message("[generate_conclusions_preset] Fallback search failed: ", e$message)
@@ -311,7 +575,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         query = "conclusions results findings discussion agreements",
         notebook_id = notebook_id,
         limit = 10,
-        api_key = api_key, embed_model = embed_model
+        provider = provider, embed_model = embed_model
       )
     }, error = function(e) {
       message("[generate_conclusions_preset] Search notebook retrieval failed: ", e$message)
@@ -359,18 +623,25 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
   context <- build_context(chunks)
 
   # OWASP LLM01:2025 compliant prompt (instructions BEFORE data, clear delimiters)
-  system_prompt <- "You are a research synthesis assistant. Your task is to:
-1. Summarize the key conclusions across the provided research sources
-2. Identify common themes, agreements, and divergent positions
-
-IMPORTANT: Base your synthesis ONLY on the provided sources. Do not invent findings or cite sources not provided. If sources conflict, note the disagreement explicitly.
-
-OUTPUT FORMAT:
-## Research Conclusions
-[Synthesized conclusions with citations using [Source Name] format]
-
-## Agreements & Disagreements
-[Where sources agree and diverge, with specific citations]"
+  task_instruction <- get_effective_prompt(con, "conclusions")
+  system_prompt <- paste0(
+    "You are a research synthesis assistant. Your task is to:\n",
+    task_instruction,
+    "\n\nCITATION RULES:\n",
+    "- Cite every substantive claim using (Author, Year, p.X) format\n",
+    "- When page metadata is available: (Author, Year, p.X)\n",
+    "- When source is an abstract only: (Author, Year, abstract)\n",
+    "- When page number is missing: (Author, Year, chunk N)\n",
+    "- When multiple sources support a claim, cite all: (Smith, 2023, p.5; Jones, 2022, p.12)\n",
+    "- Extract author name and year from the source labels provided\n\n",
+    "Correct: \"Multiple studies confirm reduced efficacy (Smith, 2023, p.14; Jones, 2022, p.8).\"\n",
+    "Wrong: \"Multiple studies confirm reduced efficacy [Source Name].\"\n\n",
+    "OUTPUT FORMAT:\n",
+    "## Research Conclusions\n",
+    "[Synthesized conclusions with (Author, Year, p.X) citations]\n\n",
+    "## Agreements & Disagreements\n",
+    "[Where sources agree and diverge, with specific (Author, Year, p.X) citations]"
+  )
 
   user_prompt <- sprintf("===== BEGIN RESEARCH SOURCES =====
 %s
@@ -382,18 +653,20 @@ Synthesize the key conclusions and identify where sources agree or diverge.", co
 
   # Generate response
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "conclusion_synthesis", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -424,13 +697,12 @@ generate_overview_preset <- function(con, config, notebook_id,
                                      mode = "quick",
                                      session_id = NULL) {
   # Extract settings with defensive scalar checks
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
+  chat_model <- resolve_model_for_operation(config, "overview")
 
   # Check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -514,38 +786,28 @@ generate_overview_preset <- function(con, config, notebook_id,
 
   # Helper: single "Quick" LLM call returning full overview text
   call_overview_quick <- function(df) {
+    task_instruction <- get_effective_prompt(con, "overview")
     system_prompt <- sprintf(
-      "You are a research synthesis assistant. Generate an Overview of the provided research sources.
-The Overview must have exactly two sections:
-
-## Summary
-%s
-Cover main themes, key findings, and important conclusions.
-Base your summary ONLY on the provided sources.
-
-## Key Points
-Organize key points under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps.
-Each subheading should contain 3-5 bullet points.
-Do not use a flat bullet list - group all related points under their subheading.
-
-IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings.",
-      depth_instruction
+      "You are a research synthesis assistant. %s\n\nCITATION RULES:\n- Cite every substantive claim using (Author, Year, p.X) format\n- For abstracts: (Author, Year, abstract)\n- For missing page numbers: (Author, Year, chunk N)\n- When multiple sources support a claim, cite all\n- Extract author/year from the source labels in the provided data",
+      sprintf(task_instruction, depth_instruction)
     )
     user_prompt <- sprintf("%s\n\nGenerate an Overview with a Summary and thematically organized Key Points.",
                            wrap_sources(df))
     messages <- format_chat_messages(system_prompt, user_prompt)
 
     tryCatch({
-      result <- chat_completion(api_key, chat_model, messages)
+      result <- provider_chat_completion(provider, chat_model, messages)
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
                  result$usage$total_tokens %||% 0,
-                 cost, session_id)
+                 cost, session_id,
+               duration_ms = result$duration_ms)
       }
       result$content
     }, error = function(e) {
@@ -553,10 +815,15 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     })
   }
 
+  # Citation and grounding instructions appended to all overview calls
+  citation_rules <- "Base all content ONLY on the provided sources. Do not invent findings. Cite every substantive claim using (Author, Year, p.X) format. For abstracts: (Author, Year, abstract). For missing page numbers: (Author, Year, chunk N)."
+
   # Helper: "Thorough" Call 1 — Summary only
   call_overview_summary <- function(df) {
     system_prompt <- sprintf(
-      "You are a research summarizer. %s Cover main themes, key findings, and conclusions. Base the summary ONLY on the provided sources.",
+      "You are a research summarizer. %s %s %s",
+      get_effective_prompt(con, "summarize"),
+      citation_rules,
       depth_instruction
     )
     user_prompt <- sprintf("%s\n\n%s",
@@ -565,16 +832,18 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     messages <- format_chat_messages(system_prompt, user_prompt)
 
     tryCatch({
-      result <- chat_completion(api_key, chat_model, messages)
+      result <- provider_chat_completion(provider, chat_model, messages)
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview_summary", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
                  result$usage$total_tokens %||% 0,
-                 cost, session_id)
+                 cost, session_id,
+               duration_ms = result$duration_ms)
       }
       result$content
     }, error = function(e) {
@@ -584,7 +853,11 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
 
   # Helper: "Thorough" Call 2 — Key Points only
   call_overview_keypoints <- function(df) {
-    system_prompt <- "You are a research analyst. Extract key points organized by theme from the provided research. Base all content ONLY on the provided sources. Do not invent findings."
+    system_prompt <- sprintf(
+      "You are a research analyst. %s %s",
+      get_effective_prompt(con, "keypoints"),
+      citation_rules
+    )
     user_prompt <- sprintf(
       "%s\n\nExtract key points organized under thematic subheadings in this order: Background/Context, Methodology, Findings/Results, Limitations, Future Directions/Gaps. Each subheading: 3-5 bullet points.",
       wrap_sources(df)
@@ -592,16 +865,18 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
     messages <- format_chat_messages(system_prompt, user_prompt)
 
     tryCatch({
-      result <- chat_completion(api_key, chat_model, messages)
+      result <- provider_chat_completion(provider, chat_model, messages)
       if (!is.null(session_id) && !is.null(result$usage)) {
         cost <- estimate_cost(chat_model,
                               result$usage$prompt_tokens %||% 0,
-                              result$usage$completion_tokens %||% 0)
+                              result$usage$completion_tokens %||% 0,
+                              is_local = is_local_provider(provider))
         log_cost(con, "overview_keypoints", chat_model,
                  result$usage$prompt_tokens %||% 0,
                  result$usage$completion_tokens %||% 0,
                  result$usage$total_tokens %||% 0,
-                 cost, session_id)
+                 cost, session_id,
+               duration_ms = result$duration_ms)
       }
       result$content
     }, error = function(e) {
@@ -659,15 +934,13 @@ IMPORTANT: Base all content ONLY on the provided sources. Do not invent findings
 #' @return Generated research questions as markdown string
 generate_research_questions <- function(con, config, notebook_id, notebook_type = "search", session_id = NULL) {
   # Extract settings
-  api_key <- get_setting(config, "openrouter", "api_key")
-  if (length(api_key) > 1) api_key <- api_key[1]
+  provider <- provider_from_config(config, con)
 
-  chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-  if (length(chat_model) > 1) chat_model <- chat_model[1]
-
-  embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+  chat_model <- resolve_model_for_operation(config, "research_questions")
+  embed_model <- resolve_model_for_operation(config, "embedding")
 
   # Check api_key
+  api_key <- provider$api_key
   api_key_empty <- is.null(api_key) || isTRUE(is.na(api_key)) ||
                    (is.character(api_key) && nchar(api_key) == 0)
   if (api_key_empty) {
@@ -722,7 +995,7 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
       query = "research gaps limitations future work methodology population understudied contradictions",
       notebook_id = notebook_id,
       limit = 15,
-      api_key = api_key, embed_model = embed_model
+      provider = provider, embed_model = embed_model
     )
   }, error = function(e) {
     message("[generate_research_questions] Hybrid search failed: ", e$message)
@@ -768,27 +1041,11 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
   context <- build_context(chunks)
 
   # System prompt: gap analyst role with PICO-invisible adaptive framing
-  system_prompt <- "You are a research gap analyst. Your task is to identify gaps in the existing research and generate focused research questions.
-
-INSTRUCTIONS:
-1. Analyze the provided research sources to identify gaps, contradictions, and unexplored areas
-2. Generate research questions that address the most significant gaps
-3. For each question, provide a 2-3 sentence rationale citing specific papers by author name and year
-4. Use an appropriate research framework internally (PICO for clinical/health topics, PEO for qualitative, SPIDER for mixed methods, or freeform for other domains) but do NOT label or mention the framework in your output
-5. Group questions by gap type (methodological, population/sample, temporal, theoretical, etc.)
-6. Prioritize the strongest/most significant gaps; vary gap types when possible
-
-OUTPUT FORMAT:
-- Numbered list of questions, each followed by an indented rationale
-- No introductory paragraph or scope note
-- Each rationale MUST name specific papers by 'Author et al. (Year)' format
-- When a gap spans multiple papers, name ALL relevant papers
-
-SCALING:
-- For collections of 2-3 papers: generate 3-4 questions
-- For collections of 5+ papers: generate 5-7 questions
-
-IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. Every claim in a rationale must trace to a specific source."
+  task_instruction <- get_effective_prompt(con, "research_questions")
+  system_prompt <- paste0(
+    "You are a research gap analyst. Your task is to identify gaps in the existing research and generate focused research questions.\n\n",
+    task_instruction
+  )
 
   # User prompt with paper metadata + retrieved content
   user_prompt <- sprintf(
@@ -803,18 +1060,20 @@ IMPORTANT: Base analysis ONLY on the provided sources. Do not invent findings. E
 
   # Generate response
   response <- tryCatch({
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     # Log cost if session_id provided
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                           result$usage$prompt_tokens %||% 0,
-                          result$usage$completion_tokens %||% 0)
+                          result$usage$completion_tokens %||% 0,
+                          is_local = is_local_provider(provider))
       log_cost(con, "research_questions", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     result$content
@@ -836,10 +1095,12 @@ build_context_by_paper <- function(papers_with_chunks) {
 
     chunk_texts <- vapply(seq_len(nrow(paper$chunks)), function(i) {
       hint <- if (!is.na(paper$chunks$section_hint[i])) paper$chunks$section_hint[i] else "general"
-      sprintf("[p.%d, %s] %s",
-              paper$chunks$page_number[i],
-              hint,
-              paper$chunks$content[i])
+      page_ref <- if (!isTRUE(is.na(paper$chunks$page_number[i]))) {
+        sprintf("p.%d, ", paper$chunks$page_number[i])
+      } else {
+        ""
+      }
+      sprintf("[%s%s] %s", page_ref, hint, paper$chunks$content[i])
     }, character(1))
 
     sprintf("=== PAPER: %s ===\n%s", paper$label, paste(chunk_texts, collapse = "\n\n"))
@@ -874,11 +1135,12 @@ validate_gfm_table <- function(text) {
 generate_lit_review_table <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    provider <- provider_from_config(config, con)
+    api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
+    chat_model <- resolve_model_for_operation(config, "lit_review_table")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -993,18 +1255,10 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     }
 
     # System prompt
+    task_instruction <- get_effective_prompt(con, "lit_review")
     system_prompt <- paste0(
       "You are a systematic review assistant. Generate a literature review comparison table in GFM (GitHub Flavored Markdown) pipe table format.\n\n",
-      "COLUMNS (exactly these, in this order):\n",
-      "| Author/Year | Methodology | Sample | Key Findings | Limitations |\n\n",
-      "RULES:\n",
-      "- One row per paper, ordered by most recent first\n",
-      "- Author/Year: Use the exact label from the paper delimiter (e.g., 'Smith et al. (2023)')\n",
-      "- Each cell: brief phrases (2-5 words), NOT full sentences\n",
-      "- Key Findings: single consolidated statement per paper, no bullet points\n",
-      "- For N/A columns: use contextual notes (e.g., 'Theoretical framework', 'Systematic review') instead of literal 'N/A'\n",
-      "- Output ONLY the markdown table. No introduction, no summary, no notes before or after the table.\n",
-      "- Every line of the table must have exactly 6 pipe characters (| col1 | col2 | col3 | col4 | col5 |)"
+      task_instruction
     )
 
     # User prompt
@@ -1014,17 +1268,19 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
     )
 
     messages <- format_chat_messages(system_prompt, user_prompt)
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "lit_review_table", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     response <- result$content
@@ -1073,12 +1329,13 @@ generate_lit_review_table <- function(con, config, notebook_id, session_id = NUL
 generate_methodology_extractor <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    provider <- provider_from_config(config, con)
+    api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+    chat_model <- resolve_model_for_operation(config, "methodology_extractor")
+    embed_model <- resolve_model_for_operation(config, "embedding")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1193,22 +1450,10 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     }
 
     # System prompt
+    task_instruction <- get_effective_prompt(con, "methodology")
     system_prompt <- paste0(
       "You are a methodology extraction assistant. Generate a table in GFM (GitHub Flavored Markdown) pipe table format.\n\n",
-      "COLUMNS (exactly these, in this order):\n",
-      "| Paper | Study Design | Data Sources | Sample Characteristics | Statistical Methods | Tools/Instruments |\n\n",
-      "RULES:\n",
-      "- One row per paper, ordered by most recent first\n",
-      "- Paper: Use the exact label from the paper delimiter (e.g., 'Smith et al. (2023)')\n",
-      "- Each cell: brief phrases (2-5 words), NOT full sentences\n",
-      "- Study Design: experimental, quasi-experimental, observational, case study, systematic review, meta-analysis, qualitative, mixed methods, etc.\n",
-      "- Data Sources: specify databases, surveys, instruments, or datasets used\n",
-      "- Sample Characteristics: population type, size (n=X), demographics\n",
-      "- Statistical Methods: specific tests or analytical approaches (e.g., regression, ANOVA, thematic analysis)\n",
-      "- Tools/Instruments: software, scales, measurement tools\n",
-      "- For papers with no clear methodology: use 'Not described' or contextual notes (e.g., 'Theoretical framework')\n",
-      "- Output ONLY the markdown table. No introduction, no summary, no notes.\n",
-      "- Every line must have exactly 7 pipe characters"
+      task_instruction
     )
 
     # User prompt
@@ -1218,17 +1463,19 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
     )
 
     messages <- format_chat_messages(system_prompt, user_prompt)
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "methodology_extractor", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     response <- result$content
@@ -1282,12 +1529,13 @@ generate_methodology_extractor <- function(con, config, notebook_id, session_id 
 generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
   tryCatch({
     # API setup
-    api_key <- get_setting(config, "openrouter", "api_key") %||% ""
+    provider <- provider_from_config(config, con)
+    api_key <- provider$api_key %||% ""
     if (nchar(trimws(api_key)) == 0) {
       return("API key not configured. Please add your OpenRouter API key in Settings.")
     }
-    chat_model <- get_setting(config, "defaults", "chat_model") %||% "google/gemini-3.1-flash-lite-preview"
-    embed_model <- get_setting(config, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+    chat_model <- resolve_model_for_operation(config, "gap_analysis")
+    embed_model <- resolve_model_for_operation(config, "embedding")
 
     # Get documents with metadata
     docs <- dbGetQuery(con, "
@@ -1418,27 +1666,10 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     }
 
     # System prompt for gap analysis
+    task_instruction <- get_effective_prompt(con, "gap_analysis")
     system_prompt <- paste0(
       "You are a research gap analyst. Generate a narrative prose gap analysis report.\n\n",
-      "OUTPUT FORMAT:\n",
-      "Use these 5 section headings (always show all 5):\n",
-      "## Summary\n",
-      "## Methodological Gaps\n",
-      "## Geographic Gaps\n",
-      "## Population Gaps\n",
-      "## Measurement Gaps\n",
-      "## Theoretical Gaps\n\n",
-      "RULES:\n",
-      "- Write in narrative prose, not bullet points\n",
-      "- Weave inline citations naturally: 'Smith et al. (2020) found...', 'contradicting Johnson (2018)'\n",
-      "- When no gaps found in a category: 'No significant [type] gaps identified across the reviewed papers.'\n",
-      "- Actively search for contradictions between papers\n",
-      "- Format contradictions as visually separated blockquotes on their own line:\n",
-      "  > **Contradictory finding:** Jones (2021) reported X while Lee (2022) found Y\n",
-      "- Integrate contradictions within their relevant gap category (e.g., methodological contradictions go in Methodological Gaps)\n",
-      "- Base analysis ONLY on the provided sources\n",
-      "- Summary: 2-3 sentences capturing the corpus's main themes and overall gap landscape\n",
-      "- Each gap section: identify specific absent elements, underrepresented contexts, or unresolved questions"
+      task_instruction
     )
 
     # User prompt
@@ -1448,17 +1679,19 @@ generate_gap_analysis <- function(con, config, notebook_id, session_id = NULL) {
     )
 
     messages <- format_chat_messages(system_prompt, user_prompt)
-    result <- chat_completion(api_key, chat_model, messages)
+    result <- provider_chat_completion(provider, chat_model, messages)
 
     if (!is.null(session_id) && !is.null(result$usage)) {
       cost <- estimate_cost(chat_model,
                             result$usage$prompt_tokens %||% 0,
-                            result$usage$completion_tokens %||% 0)
+                            result$usage$completion_tokens %||% 0,
+                            is_local = is_local_provider(provider))
       log_cost(con, "gap_analysis", chat_model,
                result$usage$prompt_tokens %||% 0,
                result$usage$completion_tokens %||% 0,
                result$usage$total_tokens %||% 0,
-               cost, session_id)
+               cost, session_id,
+               duration_ms = result$duration_ms)
     }
 
     response <- result$content

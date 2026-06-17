@@ -1,207 +1,188 @@
 # Project Research Summary
 
-**Project:** Serapeum v11.0 Search Notebook UX Milestone
-**Domain:** Academic search interface with toolbar improvements, pagination, filtering enhancements
-**Researched:** 2026-03-06
+**Project:** Serapeum v20.0 — Shiny Reactivity Cleanup
+**Domain:** R/Shiny reactive lifecycle correctness — observer leaks, isolate() guards, req() guards, error handling
+**Researched:** 2026-03-26
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone refines the search notebook interface with seven targeted UX improvements: toolbar button reorganization with semantic colors, Load More pagination to replace single-page results, expanded document type filters (16 OpenAlex types vs current 3), year slider/histogram alignment fixes, comprehensive tooltip coverage for accessibility, and visual harmonization with Catppuccin theme. Research confirms all features can be implemented with the existing stack (bslib, Bootstrap 5, Shiny, OpenAlex API) — no new dependencies required.
+This is a correctness fix milestone, not a feature milestone. Serapeum is a 27,000+ LOC, 15-module R/Shiny application with systematic reactive lifecycle bugs: accumulated observers that never get destroyed, missing `isolate()` guards that risk infinite reactive loops, missing `req()` guards that produce cryptic crashes, inconsistent error handling that hides errors from users, and SQL migration code that may fail on fresh installs. None of these require new libraries. Every fix uses primitives already in the codebase (`observe()`, `observeEvent()`, `isolate()`, `req()`, `$destroy()`, `reactiveValues()`).
 
-The recommended approach is sequential implementation following dependency order: (1) establish OpenAlex cursor pagination in API layer, (2) implement pagination state management in server, (3) add Load More UI, (4) restructure toolbar with semantic colors, (5) add tooltips for accessibility, (6) enhance document type filter UX, (7) fix year slider alignment. This order ensures stable foundation before cosmetic refinements. Icon+text buttons outperform icon-only for comprehension in academic tools where users are infrequent (not daily power users), and Load More buttons provide better control than infinite scroll for goal-oriented search workflows.
+The recommended approach is surgical, module-by-module correction following patterns that already exist in the codebase. `mod_document_notebook.R` has the correct observer lifecycle pattern (`reactiveValues()` registry + explicit `$destroy()`) and `mod_research_refiner.R` has the correct per-item observer teardown pattern. The work is applying these established patterns consistently to the three modules that diverged: `mod_search_notebook.R`, `mod_slides.R`, and `mod_citation_network.R`. The `mod_query_builder.R` needs two lines of `req()` guards. DB migrations need an idempotency audit.
 
-Key risks center on reactive programming pitfalls: cursor state invalidation loops if Load More observer isn't properly isolated, cursor becoming stale when filters change if reset logic is incomplete, and bslib tooltips disappearing on dynamic UI re-renders. Mitigations include strict reactive hygiene (isolate() for cursor reads, cursor reset on ALL filter changes), tooltip strategy (title attributes for dynamic content, bslib for static buttons), and composable filter chain integrity (document type filtering before keyword/journal modules). Color harmonization must remain CSS-only to avoid scope creep into known tech debt (secondary ragnar leak).
+The primary risk during this milestone is introducing new bugs while fixing old ones. The two highest-risk mistakes are: (1) over-applying `isolate()` to the primary trigger of an observer, which silently kills reactivity with no error surfaced; and (2) placing `req()` guards after side effects, which leaves modals or progress overlays stuck open. Both are prevented by following the specific patterns documented in this research rather than applying fixes mechanically.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-**No new dependencies required.** All v11.0 features use existing capabilities: bslib 0.10.0 provides `tooltip()` with Bootstrap 5 dark mode integration, OpenAlex API v1 supports cursor pagination via `cursor` parameter and `meta.next_cursor` response field, Bootstrap 5 `btn-toolbar` and `btn-group` classes handle button layout, and bsicons 0.1.2 provides 2000+ icons (76 wrappers already in `R/theme_catppuccin.R`).
+No new production dependencies are required. Shiny 1.11.1 (currently installed) provides all needed primitives. The single recommended development tool addition is `reactlog` 1.1.1 — a dev-only diagnostic that visualizes the reactive dependency graph to confirm whether observer accumulation is actually occurring and which reads are creating unintended dependencies. It must never be enabled in production (memory leak, exposes reactive source code).
 
 **Core technologies:**
-- **bslib 0.10.0**: Native Bootstrap 5 tooltips via `tooltip()`, flexbox cards for slider/histogram alignment — already installed, no upgrade needed
-- **OpenAlex API v1**: Cursor pagination (`cursor` param, returns `meta.next_cursor`), 16 work type taxonomy — existing endpoint, new parameter usage
-- **Bootstrap 5.3**: `btn-toolbar`, `btn-group`, flexbox utilities, tooltip JavaScript — available via bslib, no custom framework
-- **bsicons 0.1.2**: Icon library for button icons (arrow-clockwise, plus-circle, download) — already integrated with 76 semantic wrappers
+- **shiny 1.11.1** — `observe()`, `observeEvent()`, `isolate()`, `req()`, `$destroy()`, `reactiveValues()` are all present and correct; the problem is inconsistent application across modules
+- **testthat 3.2.3** — `shiny::testServer()` for module-level reactive testing of fixes
+- **reactlog 1.1.1** (dev only) — observer dependency graph visualization for audit and post-fix verification; install with `install.packages("reactlog")`, use `reactlog::reactlog_enable()` before `runApp()`, then Ctrl+F3
 
-**What NOT to add:**
-- histoslider package (overkill for simple alignment)
-- shinyWidgets (bslib tooltips sufficient)
-- Custom tooltip JavaScript (Bootstrap 5 native support)
-- New icon library (bsicons established, mixing libraries fragments design)
+### Expected Fixes (Feature Landscape)
 
-### Expected Features
+This milestone has 10 issues across two priority tiers. All 10 should be resolved within the milestone.
 
-**Must have (table stakes):**
-- Icon+text for toolbar buttons — text labels reduce ambiguity, icon-only increases cognitive load and fails on touch devices (no hover)
-- Load More button at result set end — academic search is goal-oriented, users need control over loading vs infinite scroll
-- Tooltips for icon-only buttons — WCAG 2.2 requirement (1.4.13), keyboard-accessible
-- Distinct Refresh vs Load More — different actions require different affordances (Refresh = retry/replace, Load More = expand/append)
-- Disable Load More when exhausted — prevents confusion, shows "all results loaded" state
-- Checkboxes for multi-select document types — standard faceted search pattern
+**P1 — Fixes that prevent crashes or silent failures:**
+- **Issue 1: Chip observer accumulation** (mod_slides.R) — chip observers registered via `lapply(seq_len(10), ...)` accumulate on every heal modal open; destroy before re-registering
+- **Issue 2: Missing isolate() on fig_refresh counter reads** (mod_document_notebook.R) — `fig_refresh(fig_refresh() + 1)` inside `observe()` is a self-triggering loop; wrap the read in `isolate()`
+- **Issue 3: Missing req() for NULL provider/model** (mod_query_builder.R) — NULL model passed to `provider_chat_completion()` causes cryptic crash; add `req(provider, model)` after resolution
+- **Issue 4: Error toast z-index behind synthesis modal** — `showNotification()` renders under the modal backdrop; fix by calling `removeModal()` before `showNotification()` (modal-then-notify pattern)
+- **Issue 10: SQL migration on fresh installs** — migration SQL must use `CREATE TABLE IF NOT EXISTS` throughout; audit all 9 migrations for idempotency
 
-**Should have (competitive):**
-- Icon+text with brand colors — Topics button pattern (icon + label + semantic color) already established in v10.0
-- Result count in Load More tooltip — "Load More (50 available)" sets expectation for batch size
-- Active filter chips for document types — modern faceted search UI, helps users track active filters
-- Button grouping with visual separators — groups related actions (Import|Edit vs Export|Network)
-- Consistent icon position (left-of-text) — dominant 2026 pattern, visual rhythm
+**P2 — Quality and consistency improvements:**
+- **Issue 5: renderUI re-query reduction** — extract `list_documents()` into a shared `reactive()` so multiple `renderUI` blocks share one DB call per invalidation cycle
+- **Issue 6: Figure action observer destruction on re-extraction** — `fig_action_observers[[f_id]] <- NULL` drops the R reference but does not call `$destroy()`; fix to explicitly destroy before clearing
+- **Issue 7: Observer lifecycle cleanup in slides/notebook** — same pattern as Issue 6 for the slides module
+- **Issue 8: Standardize error handling across presets** — define a single `handle_preset_error(e, session)` helper and apply uniformly across all 7 preset handlers
+- **Issue 9: Input validation for match_aa_model() and section_filter** — add `req(openrouter_id)` at top of `match_aa_model()` to guard startup race condition
 
-**Defer (v2+):**
-- Adaptive labels (mobile collapse to icon-only) — responsive design complexity, not needed for desktop app
-- Batch size control for Load More — adds UI complexity, unclear user demand
-- Sticky Load More — mobile pattern, less useful for desktop scroll
-- Keyboard shortcut hints in tooltips — power user feature
-- Expanded document types beyond current 6 — low priority until user requests
+**Anti-features to avoid:**
+- Blanket `isolate()` around entire observer bodies — silently breaks legitimate reactive dependencies
+- `onStop(session, ...)` as substitute for mid-session `$destroy()` — does not solve within-session accumulation
+- Global `z-index: 9999` override for notifications — destabilizes Catppuccin CSS z-index layering
+- Global `list_documents()` cache in app.R — couples module invalidation cycles
+
+**Issue dependencies:**
+- Issues 1, 6, 7 share one root cause (observer registration without destroy); fix the pattern once, apply to all three
+- Issue 8 resolves Issue 4 as a side effect if "modal-then-notify" is adopted as the standard
+- Issue 10 is fully independent of all reactive work
 
 ### Architecture Approach
 
-The composable filter chain pattern (papers_data → keyword_filter → journal_filter → display) must be preserved when adding document type filtering. Pagination state lives in `reactiveValues()` (cursor, has_more, total_fetched) rather than database — cursors are ephemeral, session-scoped, and expire. OpenAlex cursor pagination requires new `search_papers_with_pagination()` function returning `list(papers, next_cursor, count)`. Tooltip strategy splits: static buttons use `bslib::tooltip()`, dynamic renderUI elements use `title` attributes (JavaScript reinitialization complexity avoided).
+The existing module structure is correct and requires no changes. All fixes are in-place modifications to 6 existing files. The codebase already has the correct patterns in `mod_document_notebook.R` (per-item observer registry with explicit `$destroy()`) and `mod_research_refiner.R` (destroy-before-replace in a seed observer loop). The audit must confirm that correct patterns are exhaustive — that no code paths reach `renderUI` re-execution without passing through the appropriate destroy block.
 
-**Major components:**
-1. **API pagination layer** (api_openalex.R) — `search_papers_with_pagination()` adds cursor parameter, extracts `meta.next_cursor` from response, treats cursor as opaque string (never parse/decode)
-2. **Pagination state management** (mod_search_notebook_server) — `pagination_state` reactiveValues tracks cursor/has_more, reset on ALL filter changes (year, type, Edit Search save), `do_load_more()` mirrors Refresh but with cursor continuation
-3. **Toolbar restructuring** (mod_search_notebook_ui) — reorder to Import → Refresh → Load More → Export → Network → Edit, apply semantic colors (primary=lavender for Refresh, info=sapphire for Load More/Network), add tooltips via `bslib::tooltip()` for static buttons
-4. **Document type filter** (Edit Search modal) — move type distribution panel above checkboxes for better UX, keep existing checkboxInput pattern (scalable to 16 types with collapsible sections)
-5. **Year slider alignment** (card layout) — wrap slider + histogram in single container div, `theme(plot.margin = margin(0,0,0,0))` eliminates ggplot2 padding, Bootstrap gap utilities control spacing
-6. **Tooltip layer** — `bslib::tooltip()` for toolbar buttons (static), `title` attributes for dynamic UI (keyword/journal filter buttons), test dark mode inheritance from `bs_theme()`
+**Modules requiring changes:**
+1. **mod_document_notebook.R** — verify fig_action_observer destroy path is reached by all document-change code paths; audit remaining `fig_refresh()` calls
+2. **mod_search_notebook.R** — fix `type_chip_observers` always-overwrite without destroy (line 2457); verify `block_journal_observers` and `unblock_journal_observers` guard exhaustiveness
+3. **mod_citation_network.R** — add old-poller destroy before new poller creation; add `isolate()` on secondary reactive writes in network task result handler
+4. **mod_slides.R** — add `isolate()` on `current_chips()` reads inside chip click handlers; verify `generation_state` writes use `isolate()`
+5. **mod_query_builder.R** — add `req(provider, model)` after resolution in `observeEvent(input$generate_btn)`
+6. **db_migrations.R + migrations/*.sql** — audit fresh-install bootstrap; ensure all migration SQL is idempotent; also fix `_ragnar.R` connection leak on `ensure_ragnar_store()` error path
 
 ### Critical Pitfalls
 
-1. **Reactive invalidation loop from Load More state** — Cursor state reactive triggers UI re-render which fires observer that modifies cursor, creating infinite loop. **Avoid:** Use `isolate(cursor_state())` when reading cursor inside load-more observer, keep pagination state separate from display state (cursor is data, paper_refresh is UI trigger). **Warning signs:** App hangs on Load More click, repeated "Listening for messages" in console, memory climbs steadily.
+1. **isolate() over-application kills reactivity silently** — wrapping the primary trigger in `isolate()` makes the observer dead; rule is "isolate the reads, not the trigger." Warning sign: observer fires once on startup but never again after user action.
 
-2. **OpenAlex cursor invalidation on filter changes** — Storing cursor from previous API call, user changes year filter or document type, then clicks Load More — app sends cursor with NEW filters, OpenAlex returns inconsistent results or error. **Avoid:** Reset `cursor_state(NULL)` in ALL filter change observers (year_range, document type checkboxes, Edit Search save, keyword filter module). Hide/disable Load More button when cursor is NULL. **Warning signs:** Load More returns papers outside year range, duplicate papers after filter change, OpenAlex 400 error.
+2. **observe() + read/write same reactiveVal = infinite loop** — this is the documented v3.0 incident (`doc_refresh(doc_refresh() + 1)` without isolate). Adding new counter increments during cleanup without `isolate()` will re-introduce it. Warning sign: CPU spikes to 100%, toast appears repeatedly.
 
-3. **Document type filtering breaking composable filter chain** — Adding document type filtering AFTER keyword filtering breaks chain because keywords process full set, then types remove papers keywords already filtered. **Avoid:** Document type filtering must happen in `papers_data()` reactive BEFORE passing to keyword filter module. Maintain filter order: API filters (OpenAlex query) → year range → document type → keyword → journal quality → display. **Warning signs:** Keyword badges show counts but paper list empty, unchecking all types shows "no papers" but keyword panel shows keywords, journal quality filter has no effect.
+3. **req() after side effects leaves state corrupted** — `req()` is a silent abort; any `showModal()`, `withProgress()`, or reactiveVal mutation before the `req()` call executes and persists. All `req()` guards must appear at the top of the observer body before any side effects.
 
-4. **bslib tooltips disappearing on dynamic renderUI** — Wrapping buttons with `bslib::tooltip()` in `renderUI()` output — tooltip doesn't appear after re-render because Bootstrap 5 JavaScript bindings lost. **Avoid:** Use static UI with `conditionalPanel()` instead of `renderUI()` where possible, use `title` attributes for truly dynamic content, add JavaScript reinitialization handler if bslib tooltip required. **Warning signs:** Tooltip works once then disappears after UI update, "Tooltip is not defined" JavaScript error, icon-only button with no hover feedback.
+4. **Poller not destroyed on all exit paths** — the happy path destroys the poller; error and re-invoke paths often do not. After N task cycles without proper cleanup, N pollers run simultaneously reading files that may no longer exist.
 
-5. **Button reordering breaking observer bindings** — Reordering toolbar buttons changes DOM order, developer confusion about which `ns("action")` corresponds to which visual button leads to copy-paste errors. **Avoid:** Keep input IDs and observer names in sync, use unique descriptive IDs (edit_search, refresh_search, NOT btn1, btn2), search codebase for all references after reordering, test every button click. **Warning signs:** Button click has no effect, wrong modal appears, "input$X is undefined" in console.
+5. **Destroying observers from within their own execution context** — calling `$destroy()` or setting the registry entry to NULL from inside the observer's own body can cause one additional fire after destroy. Destroy from the parent context, or use `once = TRUE` for genuinely single-fire cases.
+
+---
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure follows dependency order with critical path through pagination foundation (Phases 1-3):
+Based on combined research, a 4-phase structure is recommended. Phase ordering is driven by regression risk, dependency between fixes, and the build order documented in ARCHITECTURE.md.
 
-### Phase 1: API Pagination Foundation
-**Rationale:** Cursor pagination is blocking for both Refresh and Load More logic. Must establish API contract before UI/server changes.
-**Delivers:** `search_papers_with_pagination()` function in `api_openalex.R` returning `list(papers, next_cursor, count)`
-**Uses:** OpenAlex API cursor parameter, `meta.next_cursor` response field (STACK.md §5)
-**Avoids:** Pitfall #8 (cursor format assumptions) — treat cursor as opaque string, never parse/decode/validate
+### Phase 1: Additive Guards (Pure Safety, Zero Regression Risk)
 
-### Phase 2: Pagination State Management
-**Rationale:** Server-side state layer required before UI implementation, enables both Refresh and Load More patterns.
-**Delivers:** `pagination_state` reactiveValues (cursor, has_more, total_fetched), modified `do_search_refresh()` to track cursor, new `do_load_more()` function
-**Depends on:** Phase 1 (uses search_papers_with_pagination)
-**Avoids:** Pitfall #1 (reactive loops) via `isolate()` pattern, Pitfall #2 (cursor invalidation) via reset logic in ALL filter observers
+**Rationale:** These are additive-only changes — they add defensive guards without modifying any existing control flow. Lowest risk, fastest to validate. Building confidence before touching reactive lifecycle code.
 
-### Phase 3: Load More Button
-**Rationale:** Implements append-mode pagination UI with conditional rendering based on cursor state.
-**Delivers:** Load More button in toolbar, `observeEvent(input$load_more)` wired to `do_load_more()`, conditional rendering when `pagination_state$has_more`
-**Addresses:** Table stakes Load More feature (FEATURES.md Pattern 2), distinct from Refresh mental model (FEATURES.md Pattern 6)
-**Depends on:** Phase 2 (uses pagination_state)
-**Avoids:** UX pitfall (Load More visible when cursor NULL) via conditional rendering
+**Delivers:** NULL crash prevention in query builder; explicit intent declaration in slides chip handlers.
 
-### Phase 4: Button Bar Restructuring
-**Rationale:** Toolbar layout finalized with all buttons present before applying colors/tooltips.
-**Delivers:** Reordered buttons (Import → Refresh → Load More → Export → Network → Edit), semantic color classes (btn-outline-primary, btn-outline-info, btn-outline-success)
-**Uses:** Bootstrap 5 btn-toolbar, btn-group classes (STACK.md §1), Catppuccin semantic colors (ARCHITECTURE.md color table)
-**Addresses:** Button grouping table stakes (FEATURES.md Pattern 5), color harmonization differentiator
-**Depends on:** Phase 3 (Load More button exists)
-**Avoids:** Pitfall #6 (observer binding breaks) via verification after reorder
+**Addresses:** Issue 3 (req() for NULL provider/model), Issue 1 partial (isolate() on current_chips() in slides).
 
-### Phase 5: Tooltip Layer
-**Rationale:** Visual polish after structure stable, accessibility requirement for icon-only buttons.
-**Delivers:** `bslib::tooltip()` wrappers on static toolbar buttons, `title` attributes on dynamic buttons (keyword/journal filter), dark mode testing
-**Uses:** bslib tooltip() function (STACK.md §2)
-**Addresses:** WCAG 2.2 tooltips table stakes (FEATURES.md Pattern 1 & 4), under-15-word content guideline
-**Depends on:** Phase 4 (toolbar buttons finalized)
-**Avoids:** Pitfall #4 (dynamic UI tooltips) via title attribute strategy, Pitfall #10 (namespace collision) via `ns()` for tooltip IDs
+**Avoids:** Pitfall — req() after side effects: guards are placed at observer top before any side effects in these files.
 
-### Phase 6: Document Type Filter UX
-**Rationale:** Independent of pagination, can proceed in parallel with Phases 4-5, enhances discoverability.
-**Delivers:** Type distribution panel moved above checkboxes in Edit Search modal, optional badge styling for labels
-**Addresses:** Expanded document types differentiator (FEATURES.md Pattern 3), 16 OpenAlex work types (STACK.md §3)
-**Avoids:** Pitfall #3 (composable chain break) by verifying type filtering happens in `papers_data()` before keyword module
-**Independent:** Can start after Phase 1 (no pagination dependency)
+### Phase 2: Observer Lifecycle Fixes (Targeted, Moderate Risk)
 
-### Phase 7: Year Slider Alignment Fix
-**Rationale:** Independent cosmetic fix, no functional dependencies, pure CSS/layout.
-**Delivers:** Adjusted CSS margin/padding between slider and histogram, shared container div with explicit width
-**Uses:** bslib flexbox cards, Bootstrap gap utilities (STACK.md §4)
-**Avoids:** Pitfall #5 (grid misalignment) via `theme(plot.margin = margin(0,0,0,0))` and container strategy, Pitfall #7 (color harmonization scope creep) by keeping changes CSS-only
-**Independent:** Can start anytime
+**Rationale:** The three accumulation bugs (Issues 1, 6, 7) share a root cause. Fixing them together prevents cross-contamination analysis. The citation network poller fix is simplest to verify (trigger two builds, confirm one poller fires). Sequence: mod_citation_network.R first for confidence, then document notebook, then search notebook.
+
+**Delivers:** Elimination of observer accumulation across all affected modules; correct fig_action_observer destroy path; type_chip_observers registration fix.
+
+**Addresses:** Issues 1, 6, 7 (observer accumulation); Issue 2 (fig_refresh isolate() audit).
+
+**Avoids:** Pitfall — dynamic observer accumulation without destroy; Pitfall — destroying observers from within their own context (destroy from parent, not from self).
+
+### Phase 3: Infrastructure Fixes (Isolated from Reactive Work)
+
+**Rationale:** DB migration audit and ragnar connection leak are independent of all reactive patterns. Running them after Phase 2 means reactive fixes are stable before touching startup and async infrastructure. Full test suite run after this phase.
+
+**Delivers:** Fresh install reliability; no orphaned DuckDB connections on ragnar setup failure.
+
+**Addresses:** Issue 10 (SQL migration fresh install); ragnar connection leak in `_ragnar.R`.
+
+**Avoids:** Pitfall — poller not destroyed on all exit paths: the ragnar fix template mirrors the poller cleanup pattern — explicit disconnect on all error paths.
+
+### Phase 4: Error Handling and Polish (Cross-Cutting)
+
+**Rationale:** Error handling standardization (Issue 8) resolves the toast z-index bug (Issue 4) as a side effect via the modal-then-notify pattern, making Issue 4 a natural consequence rather than a separate CSS fix. Performance improvement (Issue 5) and remaining input validation (Issue 9) belong here as non-correctness improvements.
+
+**Delivers:** Consistent user-visible error feedback across all preset handlers; reduced DB query load during async processing; defensive input validation.
+
+**Addresses:** Issues 4, 5, 8, 9 (error handling, renderUI re-query, toast z-index, input validation).
+
+**Avoids:** Pitfall — isolate() over-application: the modal-then-notify pattern in Issue 4/8 does not involve any reactive dependency changes.
 
 ### Phase Ordering Rationale
 
-- **Sequential critical path (1 → 2 → 3 → 4 → 5):** API changes must precede state management, state must exist before UI, UI structure must finalize before polish. Breaking this order causes rework (e.g., adding Load More before pagination state requires UI rewrite when state added).
-- **Parallel opportunities:** Phase 6 (document types) and Phase 7 (year slider) are independent, can proceed alongside Phases 4-5 to compress schedule.
-- **Pitfall avoidance:** Order explicitly prevents Pitfall #1 (reactive loops established before UI triggers them), Pitfall #2 (cursor reset logic co-located with filter state in Phase 2), Pitfall #3 (composable chain verified in Phase 6 before expanding filters), Pitfall #7 (color harmonization deferred to Phase 4 after structure stable, CSS-only rule enforced).
-- **Architecture patterns:** Follows ARCHITECTURE.md build order (§ "Build Order") — foundation before features, features before polish.
+- Phase 1 before Phase 2 because additive guards catch the NULL crashes that would otherwise surface during Phase 2 reactive testing.
+- Phase 3 is fully isolated — it could run in parallel with Phase 2, but sequencing after Phase 2 means two separate smoke test surfaces rather than one combined one, reducing debugging ambiguity.
+- Phase 4 last because Issue 8 (error handling standardization) is cross-cutting across multiple modules; doing it after all structural fixes are stable prevents merge conflicts and allows the standardized pattern to incorporate lessons from Phase 2 fixes.
 
 ### Research Flags
 
-**Phases with standard patterns (skip research-phase):**
-- **Phase 1:** OpenAlex cursor pagination well-documented with official tutorials, straightforward API parameter addition
-- **Phase 4:** Bootstrap 5 button groups are standard pattern, bslib integration proven in existing codebase (76 icon wrappers)
-- **Phase 5:** bslib tooltips documented with examples, title attribute fallback is standard HTML
-- **Phase 7:** CSS flexbox alignment is standard technique, ggplot2 margin removal already implemented in codebase
+Phases with well-documented patterns (skip research-phase):
+- **Phase 1:** Standard `req()` and `isolate()` patterns verified in Mastering Shiny Chapter 15 and Shiny official reference; no open questions.
+- **Phase 2:** Observer lifecycle patterns are established in codebase; `mod_document_notebook.R` and `mod_research_refiner.R` are the authoritative templates.
+- **Phase 4:** Modal-then-notify error handling pattern is documented in FEATURES.md Pattern D with working code.
 
-**Phases needing extra validation (not research, but testing focus):**
-- **Phase 2:** Reactive invalidation loops are subtle — allocate time for thorough testing with multiple filter changes + Load More clicks
-- **Phase 3:** Cursor state conditional rendering needs cross-browser testing (especially dark mode tooltip rendering)
-- **Phase 6:** Composable filter chain integrity requires end-to-end testing with all filter combinations (keyword + type + journal quality)
+Phases that benefit from targeted investigation before planning:
+- **Phase 3 (migrations):** Fresh-install bootstrap ordering needs a hands-on read of all 9 migration SQL files and `init_schema()` to identify any table conflicts. Low risk if all migrations already use `CREATE TABLE IF NOT EXISTS`, but this needs verification rather than assumption.
+- **Phase 3 (ragnar):** The `ensure_ragnar_store()` error path and S7 object serialization behavior may have edge cases not covered by existing tests. Recommend reproducing the error path with an intentionally broken embed function before writing the fix.
 
-**No phases require deeper research** — all patterns have HIGH confidence from official documentation (OpenAlex API docs, Bootstrap 5 reference, bslib package docs, Shiny reactive programming guides).
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies verified with official docs (bslib CRAN, OpenAlex API, Bootstrap 5.3), no version upgrades needed |
-| Features | HIGH | UX patterns sourced from NN/G research, WCAG 2.2 spec, design system documentation (PatternFly, Cloudscape) |
-| Architecture | HIGH | Composable filter chain exists in codebase (lines 794-798), pagination state pattern proven in Shiny apps, cursor lifecycle documented by OpenAlex |
-| Pitfalls | HIGH | Reactive loops documented in Mastering Shiny Ch16, cursor invalidation confirmed in OpenAlex tutorials, tooltip dynamic UI issue verified in bslib docs |
+| Stack | HIGH | No new dependencies; all primitives verified in Shiny 1.11.1 official docs and CRAN NEWS |
+| Features | HIGH | All 10 issues mapped to specific code locations with exact line numbers from direct codebase inspection |
+| Architecture | HIGH | Based on direct code inspection of all 6 affected modules; patterns cross-referenced with CLAUDE.md project docs |
+| Pitfalls | HIGH | Grounded in documented prior incidents (v3.0 UAT), Mastering Shiny, Appsilon production engineering blog, and GitHub issue thread |
 
 **Overall confidence:** HIGH
 
-Research is verified with authoritative sources (OpenAlex official docs, Bootstrap 5 reference, bslib package documentation, Shiny reactive programming guides). Architecture leverages existing codebase patterns (composable filters, semantic colors, icon wrappers). Only LOW confidence area addressed in research was Load More batch size (50 vs 25 vs 100) — defaulted to existing config value of 25 per PROJECT.md line 2214.
-
 ### Gaps to Address
 
-**Load More batch size preference:** Research found community consensus on 50 items per load for general web apps, but no scholarly-specific guidance. **Resolution:** Use existing config value (`abstracts_per_search = 25` from PROJECT.md) for consistency, defer optimization to user feedback in v11.0.
+- **Migration idempotency:** Research identified the risk but not whether the problem actually exists. The 9 migration SQL files have not been read in this research pass. Phase 3 planning should begin with a read of each migration file to confirm `CREATE TABLE IF NOT EXISTS` usage before writing any code.
 
-**Button ordering frequency analysis:** Proposed order (Import → Refresh → Load More → Export → Network → Edit) follows workflow sequence, but lacks usage analytics to confirm Import is more frequent than Edit. **Resolution:** Implement workflow order per FEATURES.md Pattern 5, collect analytics in v11.0 for potential reorder in v12.0.
+- **mod_search_notebook.R type_chip_observers exact context:** Architecture research identifies line 2457 as an always-overwrite pattern without destroy. The exact observer creation context (inside `observe()` or `renderUI()`) needs confirmation during Phase 2 planning to determine whether the fix is a guard, a destroy-before-replace, or both.
 
-**Document type usage distribution:** Expanding from 3 to 16 types assumes users need books/datasets/editorials, but no Serapeum-specific data on which types are requested. **Resolution:** Phase 6 moves distribution panel above checkboxes to show live counts, helping users discover which types are available in their query results. Defer further UI changes (e.g., type grouping) until usage patterns emerge.
+- **reactlog diagnostic results:** The actual reactive dependency graph has not been visualized. The research describes expected behavior based on code reading. Installing `reactlog` and running it in dev mode would confirm whether the identified accumulation bugs are active and reveal any additional undiagnosed ones.
 
-**Year slider debounce value:** 400ms debounce prevents reactive storm but may lose final value on rapid drag (Pitfall #9). **Resolution:** Accept UX trade-off per ARCHITECTURE.md — debounce necessary for performance, alternative is Apply Filter button (deferred to future milestone).
+---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [OpenAlex Cursor Pagination Documentation](https://developers.openalex.org/how-to-use-the-api/get-lists-of-entities/paging) — cursor parameter mechanics, per_page limits, opaque cursor warning
-- [OpenAlex API Tutorials (GitHub)](https://github.com/ourresearch/openalex-api-tutorials/blob/main/notebooks/getting-started/paging.ipynb) — cursor usage examples with Python code
-- [Bootstrap 5.3 Button Group Documentation](https://getbootstrap.com/docs/5.3/components/button-group/) — btn-toolbar, btn-group classes, accessibility (role, aria-label)
-- [bslib::tooltip() Reference](https://rstudio.github.io/bslib/reference/tooltip.html) — function signature, placement, dynamic updates, dark mode compatibility
-- [bslib Tooltips & Popovers Article](https://rstudio.github.io/bslib/articles/tooltips-popovers/index.html) — dynamic UI pattern with renderUI, reinitialization requirements
-- [Mastering Shiny Ch16: Escaping the graph](https://mastering-shiny.org/reactivity-components.html) — isolate(), observeEvent() patterns, reactive invalidation loops
-- [NN/G Icon Usability](https://www.nngroup.com/articles/icon-usability/) — "labels always win" guidance, cognitive load of icon-only
-- [WCAG 2.2 1.4.13 Content on Hover or Focus](https://www.wcag.com/authors/1-4-13-content-on-hover-or-focus/) — tooltip accessibility requirements, keyboard navigation
+- Shiny 1.11.1 CRAN NEWS — https://cran.r-project.org/web/packages/shiny/news/news.html
+- Mastering Shiny Ch.15 Reactive building blocks — https://mastering-shiny.org/reactivity-objects.html
+- Shiny Official Reference — observeEvent, isolate(), req(), ExtendedTask — https://shiny.posit.co/r/reference/shiny/latest/
+- reactlog CRAN and docs — https://rstudio.github.io/reactlog/
+- Serapeum source code — `R/mod_document_notebook.R`, `R/mod_slides.R`, `R/mod_search_notebook.R`, `R/mod_citation_network.R`, `R/mod_query_builder.R`, `R/db_migrations.R`, `R/_ragnar.R`
+- CLAUDE.md project instructions — documented prior infinite loop incident and established `isolate()` pattern
 
 ### Secondary (MEDIUM confidence)
-- [Analysis of Publication and Document Types in OpenAlex (arXiv)](https://arxiv.org/html/2406.15154v1) — 16 work type taxonomy, article consolidation (July 2023)
-- [PatternFly Filter Guidelines](https://www.patternfly.org/patterns/filters/design-guidelines/) — checkbox multi-select for facets, active filter chips with remove buttons
-- [NN/G Tooltip Guidelines](https://www.nngroup.com/articles/tooltip-guidelines/) — under-15-word guideline, describe action not UI
-- [Pagination vs Infinite Scroll vs Load More (Medium)](https://ashishmisal.medium.com/pagination-vs-infinite-scroll-vs-load-more-data-loading-ux-patterns-in-react-53534e23244d) — Load More works well for goal-oriented search
-- [UI Cheat Sheet: Pagination, infinite scroll, and the load more button (UX Collective)](https://uxdesign.cc/ui-cheat-sheet-pagination-infinite-scroll-and-the-load-more-button-e5c452e279a8) — position awareness, user control
+- Appsilon — How to Safely Remove a Dynamic Shiny Module — https://www.appsilon.com/post/how-to-safely-remove-a-dynamic-shiny-module
+- Engineering Production-Grade Shiny Apps Ch.15 — https://engineering-shiny.org/common-app-caveats.html
+- Kyle Husmann: A Shiny Puzzle — Dynamic Observers (2025) — https://www.kylehusmann.com/posts/2025/shiny-dynamic-observers/
 
-### Project-Specific Context
-- `.planning/PROJECT.md` lines 249 (secondary ragnar leak), 2214 (abstracts_per_search config)
-- `R/mod_search_notebook.R` lines 68-102 (button bar), 129-153 (year slider), 794-798 (composable filter chain), 974 (year debounce), 1892-1912 (document type filters), 1997-2006 (work_type column check)
-- `R/theme_catppuccin.R` — 76 icon wrappers (icon_rotate, icon_plus_circle, icon_file_import, etc.)
-- `R/api_openalex.R` lines 293-376 — search_papers() implementation, per_page parameter
+### Tertiary (context only)
+- GitHub: observeEvent stays registered after destroy() — https://github.com/rstudio/shiny/issues/1486
 
 ---
-*Research completed: 2026-03-06*
+*Research completed: 2026-03-26*
 *Ready for roadmap: yes*

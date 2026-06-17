@@ -6,6 +6,10 @@ mod_seed_discovery_ui <- function(id) {
   card(
     card_header("Discover from a Paper"),
     card_body(
+      div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+        icon_circle_info(class = "text-primary"),
+        "Paste a DOI or title to find related papers through citations and references."
+      ),
       # DOI input
       textInput(
         ns("doi_input"),

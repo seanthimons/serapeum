@@ -1,7 +1,6 @@
 # Test icon_angles_down helper (Phase 52)
 
-# Source the theme file to access the icon wrapper
-source("../../R/theme_catppuccin.R", local = TRUE)
+source_app("theme_catppuccin.R")
 
 test_that("icon_angles_down returns a shiny.tag with angles-down icon", {
   icon <- icon_angles_down()

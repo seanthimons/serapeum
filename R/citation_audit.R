@@ -15,6 +15,13 @@ write_audit_progress <- function(progress_file, step, total_steps, detail_messag
   }, error = function(e) {
     # Silently handle errors (file may be deleted)
   })
+  if (exists("async_task_emit_progress", mode = "function")) {
+    async_task_emit_progress(
+      paste0("citation_audit_step_", step),
+      detail_message,
+      metadata = list(step = step, total_steps = total_steps)
+    )
+  }
   invisible(NULL)
 }
 

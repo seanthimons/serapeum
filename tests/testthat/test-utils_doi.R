@@ -1,6 +1,6 @@
 # Tests for parse_doi_list() and helpers in R/utils_doi.R
 
-source(file.path(testthat::test_path("..", "..", "R", "utils_doi.R")))
+source_app("utils_doi.R")
 
 # --- 1. Single bare DOI ---
 test_that("parse_doi_list handles single bare DOI", {

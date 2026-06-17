@@ -113,18 +113,14 @@ Researchers can efficiently discover relevant academic papers through seed paper
 - ✓ Sidebar & button theming with semantic colors (THEM-01..05, DSGN-03, DSGN-04) — v10.0
 - ✓ Methodology Extractor preset with section-targeted RAG (METH-01..05) — v10.0
 - ✓ Gap Analysis Report preset with contradiction detection (GAPS-01..06) — v10.0
+- ✓ req()/isolate() guards and input validation for NULL crash prevention (GARD-01..03) — v20.0
+- ✓ Observer destroy-before-create lifecycle and docs_reactive() caching (LIFE-01..04) — v20.0
+- ✓ Shared show_error_toast() with modal-then-notify pattern (ERRH-01..02) — v20.0
+- ✓ Idempotent SQL migration DDL for fresh installs (INFR-01) — v20.0
 
 ### Active
 
-## Current Milestone: v11.0 Search Notebook UX
-
-**Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency.
-
-**Target features:**
-- Fix year filter slider/histogram alignment (#143)
-- Rework document type filters with expanded types and better UI (#125)
-- Button bar overhaul: labels, reordering, color harmonization, tooltips
-- Split Refresh into Refresh + Load More with distinct semantics
+(No active milestone — ready for next milestone planning)
 
 ### Out of Scope
 
@@ -234,22 +230,41 @@ Known tech debt: section_hint not encoded in PDF ragnar origins (#118), secondar
 | Adaptive citation percentile for trim (v9.0) | Different thresholds for different network sizes | ✓ Good — balanced filtering |
 | Lavender for primary, not blue (v10.0) | Blue too plain in light mode; lavender has more character | ✓ Good — matches existing theme, no breaking change |
 | Info semantic color: blue → sapphire (v10.0) | Better visual distinction from primary lavender | Pending — Phase 47 will apply |
+| Additive-only guards before lifecycle fixes (v20.0) | req()/isolate() catch NULL crashes that would surface during observer testing | ✓ Good — safe ordering |
+| GARD-02 audit: no code changes needed (v20.0) | All fig_refresh reads already in observeEvent/isolate contexts | ✓ Good — avoided unnecessary changes |
+| Shared show_error_toast() utility (v20.0) | Centralized error-handling across 9 preset handlers in both notebook modules | ✓ Good — consistent UX |
+| Modal-then-notify error pattern (v20.0) | removeModal() before toast ensures errors are never hidden behind modal backdrop | ✓ Good — ERRH-01 satisfied |
+| IF NOT EXISTS for all migration DDL (v20.0) | Fresh installs failed on non-idempotent CREATE TABLE/INDEX statements | ✓ Good — INFR-01 satisfied |
 | Semantic icon wrappers in theme_catppuccin.R (v10.0) | Centralized icon-to-action mapping for consistency | ✓ Good — 20 wrappers, color-neutral |
 
 ## Current State
 
-**Latest shipped:** v10.0 Theme Harmonization & AI Synthesis (2026-03-06)
-**Total milestones:** 13 shipped (v1.0–v10.0)
-**Total phases:** 49 complete across 86 plans
-**Current:** v11.0 Search Notebook UX
-
-**v10.0 shipped:** Catppuccin design system with semantic color policy and 76 icon wrappers. Sidebar and button theming harmonized. Citation audit multi-paper import fixed. Two new AI presets: Methodology Extractor (section-targeted RAG into GFM tables) and Gap Analysis Report (cross-paper synthesis with contradiction detection).
+**Latest shipped:** v20.0 Shiny Reactivity Cleanup (2026-03-29)
+**Total milestones:** 16 shipped (v1.0–v20.0)
+**Total phases:** 68 complete across 112 plans
+**Codebase:** ~82,900 R LOC + ~4,400 CSS LOC
 
 **Known tech debt:**
 - Secondary ragnar leak in `ensure_ragnar_store()` (mod_search_notebook.R)
 - 13 pre-existing test fixture failures (missing schema columns)
-- Section_hint not encoded in PDF ragnar origins (#118)
 - Settings page two-column layout rebalancing
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-03-06 after v11.0 milestone start*
+*Last updated: 2026-03-29 after v20.0 milestone*

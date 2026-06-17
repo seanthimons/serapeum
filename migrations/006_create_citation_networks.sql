@@ -9,7 +9,7 @@
 -- in db.R manually deletes nodes and edges before deleting the network.
 
 -- Main networks table
-CREATE TABLE citation_networks (
+CREATE TABLE IF NOT EXISTS citation_networks (
   id VARCHAR PRIMARY KEY,
   name VARCHAR NOT NULL,
   seed_paper_id VARCHAR NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE citation_networks (
 );
 
 -- Network nodes table (papers in the graph)
-CREATE TABLE network_nodes (
+CREATE TABLE IF NOT EXISTS network_nodes (
   network_id VARCHAR NOT NULL,
   paper_id VARCHAR NOT NULL,
   is_seed BOOLEAN DEFAULT FALSE,
@@ -40,7 +40,7 @@ CREATE TABLE network_nodes (
 );
 
 -- Network edges table (citation links)
-CREATE TABLE network_edges (
+CREATE TABLE IF NOT EXISTS network_edges (
   network_id VARCHAR NOT NULL,
   from_paper_id VARCHAR NOT NULL,
   to_paper_id VARCHAR NOT NULL,
@@ -49,5 +49,5 @@ CREATE TABLE network_edges (
 );
 
 -- Indexes for query performance
-CREATE INDEX idx_network_nodes_network_id ON network_nodes(network_id);
-CREATE INDEX idx_network_edges_network_id ON network_edges(network_id);
+CREATE INDEX IF NOT EXISTS idx_network_nodes_network_id ON network_nodes(network_id);
+CREATE INDEX IF NOT EXISTS idx_network_edges_network_id ON network_edges(network_id);

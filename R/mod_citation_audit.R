@@ -17,6 +17,11 @@ mod_citation_audit_ui <- function(id) {
         )
       ),
 
+      div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+        icon_circle_info(class = "text-primary"),
+        "Check your collection for missing seminal papers and citation gaps."
+      ),
+
       # Controls row
       div(
         class = "card mb-3",
@@ -70,6 +75,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
     selected_ids <- reactiveVal(character(0))
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_audit_task_id <- reactiveVal(NULL)
 
     # --- Notebook list ---
     notebooks <- reactive({
@@ -178,18 +184,38 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
 
     # --- ExtendedTask for async audit (API-only — no DB access) ---
     audit_task <- ExtendedTask$new(function(paper_ids, email, api_key,
-                                             interrupt_flag, progress_file, app_dir) {
+                                             interrupt_flag, progress_file, app_dir,
+                                             task_id, async_context) {
       mirai::mirai({
         setwd(app_dir)
-        source("R/utils_doi.R")
-        source("R/api_openalex.R")
-        source("R/interrupt.R")
-        source("R/citation_audit.R")
-        fetch_citation_audit(paper_ids, email, api_key,
-                             interrupt_flag, progress_file)
+        source("R/async_observability.R")
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(paper_count = length(paper_ids)))
+
+        result <- tryCatch({
+          source("R/utils_doi.R")
+          source("R/api_openalex.R")
+          source("R/interrupt.R")
+          source("R/citation_audit.R")
+          fetch_citation_audit(paper_ids, email, api_key,
+                               interrupt_flag, progress_file)
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
+        async_task_completed(
+          task_id,
+          async_task_status_from_result(result),
+          metadata = list(
+            backward_count = result$backward_count,
+            forward_count = result$forward_count,
+            missing_found = result$missing_found
+          )
+        )
+        result
       }, paper_ids = paper_ids, email = email, api_key = api_key,
          interrupt_flag = interrupt_flag, progress_file = progress_file,
-         app_dir = app_dir)
+         app_dir = app_dir, task_id = task_id, async_context = async_context)
     })
 
     # Track the audit's notebook_id and run_id for the result handler
@@ -236,6 +262,26 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       current_interrupt_flag(flag)
       current_progress_file(pf)
 
+      task_id <- async_task_id("citation_audit")
+      current_audit_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "citation_audit",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "citation_audit",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          run_id = run_id,
+          paper_count = length(paper_ids)
+        )
+      )
+      async_task_progress(task_id, "initializing", "Initializing...")
+
       # Show progress modal
       showModal(modalDialog(
         title = tagList(icon_spinner(class = "fa-spin"), "Analyzing Citations"),
@@ -267,7 +313,9 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         api_key = api_key,
         interrupt_flag = flag,
         progress_file = pf,
-        app_dir = getwd()
+        app_dir = getwd(),
+        task_id = task_id,
+        async_context = async_context
       )
     })
 
@@ -336,6 +384,7 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
         removeModal()
         current_progress_file(NULL)
         current_interrupt_flag(NULL)
+        current_audit_task_id(NULL)
 
         run_id <- audit_run_id()
         nb_id <- audit_notebook_id()
@@ -400,6 +449,10 @@ mod_citation_audit_server <- function(id, con, config_r, db_path,
       flag <- current_interrupt_flag()
       if (!is.null(flag)) {
         signal_interrupt(flag)
+      }
+      task_id <- current_audit_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
       }
     })
 

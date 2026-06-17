@@ -6,6 +6,10 @@ mod_topic_explorer_ui <- function(id) {
   card(
     card_header("Explore Topics"),
     card_body(
+      div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+        icon_circle_info(class = "text-primary"),
+        "Browse OpenAlex's topic hierarchy to discover research areas and find papers by field."
+      ),
       # Cache status indicator
       uiOutput(ns("cache_status")),
 

@@ -43,6 +43,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
     # Interrupt and progress state
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_import_task_id <- reactiveVal(NULL)
     progress_poller <- reactiveVal(NULL)
 
     # History refresh trigger
@@ -54,20 +55,40 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
     # ExtendedTask for async import (API-only — no DB access to avoid Windows file locks)
     import_task <- ExtendedTask$new(function(dois, email, api_key,
                                              interrupt_flag, progress_file, app_dir,
-                                             bib_metadata = NULL) {
+                                             bib_metadata = NULL,
+                                             task_id, async_context) {
       mirai::mirai({
         setwd(app_dir)
-        source("R/utils_doi.R")
-        source("R/api_openalex.R")
-        source("R/bulk_import.R")
-        source("R/interrupt.R")
-        fetch_bulk_papers(dois, email, api_key,
-                          interrupt_flag, progress_file,
-                          bib_metadata = bib_metadata)
+        source("R/async_observability.R")
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(doi_count = length(dois)))
+
+        result <- tryCatch({
+          source("R/utils_doi.R")
+          source("R/api_openalex.R")
+          source("R/bulk_import.R")
+          source("R/interrupt.R")
+          fetch_bulk_papers(dois, email, api_key,
+                            interrupt_flag, progress_file,
+                            bib_metadata = bib_metadata)
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
+        async_task_completed(
+          task_id,
+          async_task_status_from_result(result),
+          metadata = list(
+            fetched = length(result$papers),
+            failed = length(result$errors)
+          )
+        )
+        result
       }, dois = dois, email = email, api_key = api_key,
          interrupt_flag = interrupt_flag,
          progress_file = progress_file, app_dir = app_dir,
-         bib_metadata = bib_metadata)
+         bib_metadata = bib_metadata,
+         task_id = task_id, async_context = async_context)
     })
 
     # --- Show Import Modal ---
@@ -462,6 +483,28 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       prog_file <- create_progress_file(session$token)
       current_progress_file(prog_file)
 
+      task_id <- async_task_id("bulk_doi_import")
+      current_import_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "bulk_doi_import",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "bulk_doi_import",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          run_id = run_id,
+          source = import_source,
+          doi_count = length(dois_to_fetch),
+          duplicate_count = length(dups),
+          malformed_count = if (!is.null(invalid)) nrow(invalid) else 0L
+        )
+      )
+
       # Close input modal, show progress modal
       removeModal()
       showModal(modalDialog(
@@ -499,7 +542,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         interrupt_flag = flag_file,
         progress_file = prog_file,
         app_dir = getwd(),
-        bib_metadata = bib_meta
+        bib_metadata = bib_meta,
+        task_id = task_id,
+        async_context = async_context
       )
 
       # Start polling observer
@@ -522,6 +567,10 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       flag_file <- current_interrupt_flag()
       if (!is.null(flag_file)) {
         signal_interrupt(flag_file)
+      }
+      task_id <- current_import_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
       }
 
       # Stop progress poller
@@ -571,6 +620,7 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         current_interrupt_flag(NULL)
         clear_progress_file(current_progress_file())
         current_progress_file(NULL)
+        current_import_task_id(NULL)
 
         # Write fetched papers to DB in main process (avoids DuckDB cross-process file lock)
         nb_id <- notebook_id()
@@ -830,6 +880,26 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
       prog_file <- create_progress_file(session$token)
       current_progress_file(prog_file)
 
+      task_id <- async_task_id("bulk_doi_import")
+      current_import_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "bulk_doi_import",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "bulk_doi_import",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          run_id = new_run_id,
+          source = "doi_bulk_retry",
+          doi_count = length(retry_dois)
+        )
+      )
+
       showModal(modalDialog(
         title = tagList(icon_spinner(class = "fa-spin"), "Retrying Failed DOIs"),
         tags$div(
@@ -852,7 +922,9 @@ mod_bulk_import_server <- function(id, con, notebook_id, config, paper_refresh, 
         interrupt_flag = flag_file,
         progress_file = prog_file,
         app_dir = getwd(),
-        bib_metadata = NULL
+        bib_metadata = NULL,
+        task_id = task_id,
+        async_context = async_context
       )
 
       poller <- observe({

@@ -1,14 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  # Fallback: we may already be in project root
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
+source_app("config.R", "db.R", "db_migrations.R")
 
 test_that("get_applied_migrations creates tracking table and returns empty", {
   # Create a fresh in-memory database
@@ -157,6 +149,35 @@ test_that("bootstrap marks existing database as version 001", {
   expect_match(migration$description[1], "Bootstrap")
 })
 
+test_that("fresh install startup path does not duplicate migration records on rerun", {
+  tmp_dir <- tempfile("migration-rerun-")
+  dir.create(tmp_dir)
+  db_path <- file.path(tmp_dir, "rerun.duckdb")
+
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  con <- get_db_connection(db_path)
+  applied_first <- get_applied_migrations(con)
+  expect_true(length(applied_first) > 0)
+  close_db_connection(con)
+  gc()  # ensure DuckDB releases file lock on Windows
+  Sys.sleep(0.5)
+
+  con_rerun <- get_db_connection(db_path)
+  on.exit(DBI::dbDisconnect(con_rerun, shutdown = TRUE), add = TRUE)
+
+  applied_second <- get_applied_migrations(con_rerun)
+  expect_equal(applied_second, applied_first)
+
+  migration_counts <- DBI::dbGetQuery(con_rerun, "
+    SELECT version, COUNT(*) AS n
+    FROM schema_migrations
+    GROUP BY version
+    HAVING COUNT(*) > 1
+  ")
+  expect_equal(nrow(migration_counts), 0)
+})
+
 test_that("topics table created by migration 002", {
   # Create a temp directory with actual migrations
   tmp_dir <- tempfile()
@@ -164,14 +185,9 @@ test_that("topics table created by migration 002", {
   migrations_dir <- file.path(tmp_dir, "migrations")
   dir.create(migrations_dir)
 
-  # Copy actual migration files
-  project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-  if (!file.exists(file.path(project_root, "migrations"))) {
-    project_root <- getwd()
-  }
 
   # Read and write migration 002
-  mig_002_content <- readLines(file.path(project_root, "migrations", "002_create_topics_table.sql"))
+  mig_002_content <- readLines(file.path(app_root(), "migrations", "002_create_topics_table.sql"))
   writeLines(mig_002_content, file.path(migrations_dir, "002_create_topics_table.sql"))
 
   # Change to temp directory
@@ -213,4 +229,58 @@ test_that("topics table created by migration 002", {
     expect_true(col %in% columns$column_name,
                 info = paste("Column", col, "should exist in topics table"))
   }
+})
+
+test_that("prompt_versions table created by migration 011", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  migrations_dir <- file.path(tmp_dir, "migrations")
+  dir.create(migrations_dir)
+
+
+  mig_011_content <- readLines(file.path(app_root(), "migrations", "018_create_prompt_versions.sql"))
+  writeLines(mig_011_content, file.path(migrations_dir, "018_create_prompt_versions.sql"))
+
+  old_wd <- getwd()
+  setwd(tmp_dir)
+  on.exit({
+    setwd(old_wd)
+    unlink(tmp_dir, recursive = TRUE)
+  }, add = TRUE)
+
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+
+  run_pending_migrations(con)
+
+  tables <- DBI::dbListTables(con)
+  expect_true("prompt_versions" %in% tables)
+
+  columns <- DBI::dbGetQuery(con, "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'prompt_versions'
+  ")
+
+  expected_columns <- c("preset_slug", "version_date", "prompt_text", "created_at")
+  for (col in expected_columns) {
+    expect_true(col %in% columns$column_name,
+                info = paste("Column", col, "should exist in prompt_versions table"))
+  }
+
+  # Verify composite PK via UPSERT: second insert replaces first
+  DBI::dbExecute(con, "
+    INSERT OR REPLACE INTO prompt_versions (preset_slug, version_date, prompt_text)
+    VALUES ('summarize', '2026-03-20', 'Original prompt')
+  ")
+  DBI::dbExecute(con, "
+    INSERT OR REPLACE INTO prompt_versions (preset_slug, version_date, prompt_text)
+    VALUES ('summarize', '2026-03-20', 'Updated prompt')
+  ")
+  result <- DBI::dbGetQuery(con, "
+    SELECT prompt_text FROM prompt_versions
+    WHERE preset_slug = 'summarize' AND version_date = '2026-03-20'
+  ")
+  expect_equal(nrow(result), 1)
+  expect_equal(result$prompt_text[1], "Updated prompt")
 })

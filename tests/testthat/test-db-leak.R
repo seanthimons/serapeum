@@ -4,16 +4,7 @@
 
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "_ragnar.R"))) {
-  # Fallback: we may already be in project root
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
-source(file.path(project_root, "R", "_ragnar.R"))
+source_app("config.R", "db_migrations.R", "db.R", "_ragnar.R")
 
 # Ragnar availability check using safe pattern
 ragnar_loadable <- tryCatch({ library(ragnar); TRUE }, error = function(e) FALSE)
@@ -158,7 +149,7 @@ test_that("search_chunks_hybrid does NOT close caller-provided stores", {
 
 test_that("dead code (with_ragnar_store, register_ragnar_cleanup) is absent from codebase", {
   # Get all R source files in R/ directory
-  r_dir <- file.path(project_root, "R")
+  r_dir <- file.path(app_root(), "R")
   r_files <- list.files(r_dir, pattern = "\\.R$", full.names = TRUE)
 
   # Search for dead function names in all R files
@@ -200,5 +191,62 @@ test_that("dead code (with_ragnar_store, register_ragnar_cleanup) is absent from
     0,
     label = "register_ragnar_cleanup should not exist in R/ directory",
     info = paste("Found matches:", paste(register_ragnar_cleanup_matches, collapse = "\n"))
+  )
+})
+
+# ============================================================================
+# Test 4: search_chunks_hybrid handles NA/empty section_filter (#276)
+# ============================================================================
+
+test_that("search_chunks_hybrid normalizes NA and empty section_filter without error", {
+  skip_if_not(ragnar_loadable, "ragnar not loadable")
+
+  tmp_db <- tempfile(fileext = ".duckdb")
+  con <- get_db_connection(tmp_db)
+  on.exit({
+    close_db_connection(con)
+    gc()
+    unlink(tmp_db)
+  }, add = TRUE)
+
+  init_schema(con)
+  nb_id <- create_notebook(con, "Filter Test", "document")
+
+  tmp_dir <- withr::local_tempdir()
+  store_path <- file.path(tmp_dir, paste0(nb_id, ".duckdb"))
+  store <- ragnar::ragnar_store_create(store_path, embed = mock_embed, embedding_size = 16L, version = 1)
+
+  dummy_chunk <- data.frame(
+    origin = "test.pdf#page=1",
+    hash = rlang::hash("filter test content|1"),
+    text = "filter test content",
+    stringsAsFactors = FALSE
+  )
+  ragnar::ragnar_store_insert(store, dummy_chunk)
+  build_ragnar_index(store)
+  DBI::dbDisconnect(store@con, shutdown = TRUE)
+
+  # NA-only section_filter should be normalized to NULL (no filtering)
+  expect_no_error(
+    search_chunks_hybrid(con, "test", notebook_id = nb_id,
+                         ragnar_store_path = store_path,
+                         section_filter = c(NA_character_),
+                         embed_model = "mock")
+  )
+
+  # Empty string section_filter should be normalized to NULL
+  expect_no_error(
+    search_chunks_hybrid(con, "test", notebook_id = nb_id,
+                         ragnar_store_path = store_path,
+                         section_filter = c(""),
+                         embed_model = "mock")
+  )
+
+  # Mixed NA + empty + valid should keep only the valid value
+  expect_no_error(
+    search_chunks_hybrid(con, "test", notebook_id = nb_id,
+                         ragnar_store_path = store_path,
+                         section_filter = c(NA, "", "introduction"),
+                         embed_model = "mock")
   )
 })

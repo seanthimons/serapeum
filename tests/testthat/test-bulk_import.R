@@ -1,11 +1,6 @@
 library(testthat)
 
-# Source required files from project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "bulk_import.R"))) {
-  project_root <- getwd()
-}
-source(file.path(project_root, "R", "bulk_import.R"))
+source_app("bulk_import.R")
 
 # --- extract_dois_from_bib tests ---
 
@@ -143,13 +138,13 @@ test_that("read_import_progress returns defaults for NULL", {
 # --- get_notebook_dois tests (requires DB) ---
 
 test_that("get_notebook_dois returns existing DOIs from notebook", {
-  source(file.path(project_root, "R", "db_migrations.R"))
-  source(file.path(project_root, "R", "db.R"))
-  source(file.path(project_root, "R", "utils_doi.R"))
+  source_app("db_migrations.R")
+  source_app("db.R")
+  source_app("utils_doi.R")
 
   # Save and restore working directory (migrations need project root)
   old_wd <- getwd()
-  setwd(project_root)
+  setwd(app_root())
   on.exit(setwd(old_wd), add = TRUE)
 
   db_path <- tempfile(fileext = ".duckdb")
@@ -178,12 +173,12 @@ test_that("get_notebook_dois returns existing DOIs from notebook", {
 })
 
 test_that("get_notebook_dois returns empty for notebook with no DOIs", {
-  source(file.path(project_root, "R", "db_migrations.R"))
-  source(file.path(project_root, "R", "db.R"))
-  source(file.path(project_root, "R", "utils_doi.R"))
+  source_app("db_migrations.R")
+  source_app("db.R")
+  source_app("utils_doi.R")
 
   old_wd <- getwd()
-  setwd(project_root)
+  setwd(app_root())
   on.exit(setwd(old_wd), add = TRUE)
 
   db_path <- tempfile(fileext = ".duckdb")
@@ -201,7 +196,7 @@ test_that("get_notebook_dois returns empty for notebook with no DOIs", {
 # --- parse_bibtex_metadata tests (Phase 36) ---
 
 test_that("parse_bibtex_metadata returns tibble with expected columns", {
-  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  fixture_path <- file.path(app_root(), "tests", "testthat", "fixtures", "test.bib")
   result <- parse_bibtex_metadata(fixture_path)
   expect_true(is.data.frame(result$data))
   expect_true("DOI" %in% names(result$data))
@@ -211,19 +206,19 @@ test_that("parse_bibtex_metadata returns tibble with expected columns", {
 })
 
 test_that("parse_bibtex_metadata extracts correct DOI count", {
-  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  fixture_path <- file.path(app_root(), "tests", "testthat", "fixtures", "test.bib")
   result <- parse_bibtex_metadata(fixture_path)
   expect_equal(result$diagnostics$entries_with_doi, 4L)
 })
 
 test_that("parse_bibtex_metadata reports entries without DOIs", {
-  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  fixture_path <- file.path(app_root(), "tests", "testthat", "fixtures", "test.bib")
   result <- parse_bibtex_metadata(fixture_path)
   expect_true(result$diagnostics$entries_without_doi >= 1L)
 })
 
 test_that("parse_bibtex_metadata reports total entry count", {
-  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  fixture_path <- file.path(app_root(), "tests", "testthat", "fixtures", "test.bib")
   result <- parse_bibtex_metadata(fixture_path)
   expect_equal(result$diagnostics$total_entries, 5L)
 })
@@ -236,7 +231,7 @@ test_that("parse_bibtex_metadata handles nonexistent file gracefully", {
 })
 
 test_that("parse_bibtex_metadata filters to entries with DOI only when requested", {
-  fixture_path <- file.path(project_root, "tests", "testthat", "fixtures", "test.bib")
+  fixture_path <- file.path(app_root(), "tests", "testthat", "fixtures", "test.bib")
   result <- parse_bibtex_metadata(fixture_path)
   # Filter to DOI-only entries
   doi_rows <- result$data[!is.na(result$data$DOI), ]
@@ -279,7 +274,7 @@ test_that("merge_bibtex_openalex handles NULL abstract fields", {
 # Load Shiny module for testing (skip if Shiny not available)
 if (requireNamespace("shiny", quietly = TRUE)) {
   library(shiny)
-  source(file.path(project_root, "R", "mod_bulk_import.R"))
+  source_app("mod_bulk_import.R")
 }
 
 test_that("mod_bulk_import_ui with show_history=FALSE outputs only script tag", {

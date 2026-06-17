@@ -19,6 +19,12 @@ config.yml
 
 # Storage
 storage/
+data/figures/
+
+# PDF pipeline dev artifacts
+test-data/
+extracted_figures/
+prototype_*.R
 
 # OS
 .DS_Store
@@ -26,9 +32,17 @@ Thumbs.db
 
 # Dot folders
 .*/
+!.beans/
 
 # Output/ Render files
 output/
+
+# User-uploaded themes (runtime data, not source)
+data/themes/
+
+# Quarto render artifacts
+*.qmd
+*_files/
 
 # Playwright browser scripts
 playwright/
@@ -45,3 +59,4 @@ package.json
 !.gitignore
 !.planning/
 !.github/
+.worktrees

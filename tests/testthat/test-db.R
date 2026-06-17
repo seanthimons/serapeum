@@ -1,15 +1,19 @@
 library(testthat)
 
-# Source required files from project root
-# Navigate up from tests/testthat to project root
-project_root <- normalizePath(file.path(dirname(dirname(getwd())), "."), mustWork = FALSE)
-if (!file.exists(file.path(project_root, "R", "config.R"))) {
-  # Fallback: we may already be in project root (e.g., when run via Rscript from project root)
-  project_root <- getwd()
+source_app("config.R", "db_migrations.R", "db.R", "pdf_images.R", "_ragnar.R")
+
+expect_columns_present <- function(con, table_name, expected_columns) {
+  columns <- DBI::dbGetQuery(con, "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = ?
+  ", list(table_name))
+
+  for (col in expected_columns) {
+    expect_true(col %in% columns$column_name,
+                info = paste("Column", col, "should exist in", table_name))
+  }
 }
-source(file.path(project_root, "R", "config.R"))
-source(file.path(project_root, "R", "db_migrations.R"))
-source(file.path(project_root, "R", "db.R"))
 
 test_that("get_db_connection creates database file", {
   tmp_dir <- tempdir()
@@ -23,6 +27,53 @@ test_that("get_db_connection creates database file", {
 
   close_db_connection(con)
   unlink(db_path)
+})
+
+test_that("get_db_connection applies migrations on fresh install and rerun", {
+  tmp_dir <- tempfile("db-startup-")
+  dir.create(tmp_dir)
+  db_path <- file.path(tmp_dir, "startup.duckdb")
+
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  con <- get_db_connection(db_path)
+
+  expect_true(file.exists(db_path))
+
+  tables <- DBI::dbListTables(con)
+  expect_true("schema_migrations" %in% tables)
+  expect_true("citation_networks" %in% tables)
+  expect_true("network_nodes" %in% tables)
+  expect_true("network_edges" %in% tables)
+  expect_true("prompt_versions" %in% tables)
+  expect_true("refiner_embedding_cache" %in% tables)
+
+  applied <- get_applied_migrations(con)
+  expect_true(max(applied) >= 21)
+  expect_equal(length(unique(applied)), length(applied))
+
+  expect_columns_present(con, "abstracts", c("doi"))
+  expect_columns_present(con, "documents", c("title", "authors", "year", "doi", "abstract_id"))
+  expect_columns_present(con, "cost_log", c("duration_ms"))
+  expect_columns_present(con, "refiner_embedding_cache", c("paper_id", "embed_model", "abstract_hash", "embedding"))
+
+  close_db_connection(con)
+  gc()  # ensure DuckDB releases file lock on Windows
+  Sys.sleep(0.5)
+
+  con_rerun <- get_db_connection(db_path)
+
+  rerun_applied <- get_applied_migrations(con_rerun)
+  expect_equal(rerun_applied, applied)
+
+  rerun_tables <- DBI::dbListTables(con_rerun)
+  expect_true("citation_networks" %in% rerun_tables)
+  expect_true("prompt_versions" %in% rerun_tables)
+
+  expect_columns_present(con_rerun, "documents", c("title", "authors", "year", "doi", "abstract_id"))
+  expect_columns_present(con_rerun, "cost_log", c("duration_ms"))
+
+  close_db_connection(con_rerun)
 })
 
 test_that("init_schema creates required tables", {

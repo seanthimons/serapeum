@@ -267,6 +267,80 @@ init_schema <- function(con) {
     )
   ")
 
+  # Document figures table (Stage 2: PDF Image Pipeline, Epic #44)
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS document_figures (
+      id VARCHAR PRIMARY KEY,
+      document_id VARCHAR NOT NULL,
+      notebook_id VARCHAR NOT NULL,
+      page_number INTEGER NOT NULL,
+      file_path VARCHAR NOT NULL,
+      extracted_caption VARCHAR,
+      llm_description VARCHAR,
+      figure_label VARCHAR,
+      width INTEGER,
+      height INTEGER,
+      file_size INTEGER,
+      image_type VARCHAR,
+      extraction_method VARCHAR,
+      quality_score REAL,
+      presentation_hint VARCHAR,
+      is_excluded BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (document_id) REFERENCES documents(id),
+      FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
+    )
+  ")
+
+  # Research refiner tables
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS refiner_runs (
+      id VARCHAR PRIMARY KEY,
+      anchor_type VARCHAR NOT NULL,
+      anchor_intent VARCHAR,
+      anchor_seed_ids VARCHAR,
+      source_type VARCHAR NOT NULL,
+      source_notebook_id VARCHAR,
+      mode VARCHAR DEFAULT 'discovery',
+      weights VARCHAR,
+      status VARCHAR DEFAULT 'running',
+      total_candidates INTEGER DEFAULT 0,
+      scored_count INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS refiner_results (
+      id VARCHAR PRIMARY KEY,
+      run_id VARCHAR NOT NULL,
+      paper_id VARCHAR NOT NULL,
+      title VARCHAR,
+      authors VARCHAR,
+      abstract VARCHAR,
+      year INTEGER,
+      venue VARCHAR,
+      doi VARCHAR,
+      cited_by_count INTEGER DEFAULT 0,
+      fwci DOUBLE,
+      seed_connectivity DOUBLE DEFAULT 0,
+      bridge_score DOUBLE DEFAULT 0,
+      citation_velocity DOUBLE DEFAULT 0,
+      ubiquity_penalty DOUBLE DEFAULT 0,
+      utility_score DOUBLE DEFAULT 0,
+      embedding_similarity DOUBLE,
+      llm_utility_score DOUBLE,
+      llm_rationale VARCHAR,
+      user_action VARCHAR DEFAULT 'pending',
+      FOREIGN KEY (run_id) REFERENCES refiner_runs(id)
+    )
+  ")
+
+  dbExecute(con, "
+    CREATE INDEX IF NOT EXISTS idx_refiner_results_run_id ON refiner_results(run_id)
+  ")
+
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
   tryCatch({
@@ -358,6 +432,16 @@ delete_notebook <- function(con, id) {
   # Delete citation audit runs
   dbExecute(con, "DELETE FROM citation_audit_runs WHERE notebook_id = ?", list(id))
 
+  # Delete refiner results for runs sourced from this notebook
+  dbExecute(con, "
+    DELETE FROM refiner_results WHERE run_id IN (
+      SELECT id FROM refiner_runs WHERE source_notebook_id = ?
+    )
+  ", list(id))
+
+  # Delete refiner runs sourced from this notebook
+  dbExecute(con, "DELETE FROM refiner_runs WHERE source_notebook_id = ?", list(id))
+
   # Delete chunks for documents in this notebook
   dbExecute(con, "
     DELETE FROM chunks WHERE source_id IN (
@@ -371,6 +455,10 @@ delete_notebook <- function(con, id) {
       SELECT id FROM abstracts WHERE notebook_id = ?
     )
   ", list(id))
+
+  # Delete figures (DB rows + files) for all documents in notebook
+  dbExecute(con, "DELETE FROM document_figures WHERE notebook_id = ?", list(id))
+  cleanup_figure_files(id)
 
   # Delete documents
   dbExecute(con, "DELETE FROM documents WHERE notebook_id = ?", list(id))
@@ -440,6 +528,14 @@ get_document <- function(con, id) {
 #' @param id Document ID
 delete_document <- function(con, id) {
   dbExecute(con, "DELETE FROM chunks WHERE source_id = ?", list(id))
+
+  # Delete figure rows and files (Stage 2: PDF Image Pipeline)
+  doc <- get_document(con, id)
+  if (!is.null(doc)) {
+    dbExecute(con, "DELETE FROM document_figures WHERE document_id = ?", list(id))
+    cleanup_figure_files(doc$notebook_id, id)
+  }
+
   dbExecute(con, "DELETE FROM documents WHERE id = ?", list(id))
 }
 
@@ -507,9 +603,13 @@ create_abstract <- function(con, notebook_id, paper_id, title, authors,
                             fwci = NULL, doi = NULL) {
   id <- uuid::UUIDgenerate()
 
- # Handle edge cases
+ # Handle edge cases — guard against pre-encoded JSON strings to prevent
+  # double-encoding (e.g., when authors arrive already serialized from DB)
   authors_json <- if (is.null(authors) || length(authors) == 0) {
     "[]"
+  } else if (is.character(authors) && length(authors) == 1 &&
+             jsonlite::validate(authors)) {
+    authors
   } else {
     jsonlite::toJSON(authors, auto_unbox = TRUE)
   }
@@ -701,6 +801,207 @@ get_db_setting <- function(con, key) {
   jsonlite::fromJSON(result$value[1])
 }
 
+#' Hash abstract text for refiner embedding cache invalidation
+#' @param abstract_text Character abstract text
+#' @return Stable hash string
+hash_refiner_abstract <- function(abstract_text) {
+  rlang::hash(enc2utf8(abstract_text %||% ""))
+}
+
+#' Serialize an embedding vector for DuckDB storage
+#' @param embedding Numeric vector
+#' @return JSON string
+serialize_embedding <- function(embedding) {
+  jsonlite::toJSON(as.numeric(embedding), auto_unbox = FALSE)
+}
+
+#' Deserialize an embedding vector from DuckDB storage
+#' @param embedding_json JSON string
+#' @return Numeric vector
+deserialize_embedding <- function(embedding_json) {
+  as.numeric(jsonlite::fromJSON(embedding_json))
+}
+
+#' Get cached refiner embeddings for a set of papers
+#'
+#' @param con DuckDB connection
+#' @param paper_ids Character vector of paper IDs
+#' @param embed_model Embedding model ID
+#' @param abstract_hashes Optional named character vector paper_id -> hash
+#' @return Data frame with paper_id, embed_model, abstract_hash, embedding
+get_refiner_embedding_cache <- function(con, paper_ids, embed_model, abstract_hashes = NULL) {
+  if (length(paper_ids) == 0) {
+    return(data.frame(
+      paper_id = character(0),
+      embed_model = character(0),
+      abstract_hash = character(0),
+      embedding = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  has_table <- tryCatch(DBI::dbExistsTable(con, "refiner_embedding_cache"), error = function(e) FALSE)
+  if (!has_table) {
+    return(data.frame(
+      paper_id = character(0),
+      embed_model = character(0),
+      abstract_hash = character(0),
+      embedding = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  placeholders <- paste(rep("?", length(paper_ids)), collapse = ", ")
+  cached <- dbGetQuery(con, sprintf("
+    SELECT paper_id, embed_model, abstract_hash, embedding
+    FROM refiner_embedding_cache
+    WHERE embed_model = ? AND paper_id IN (%s)
+  ", placeholders), c(list(embed_model), as.list(paper_ids)))
+
+  if (!is.null(abstract_hashes) && nrow(cached) > 0) {
+    expected_hashes <- unname(abstract_hashes[cached$paper_id])
+    cached <- cached[!is.na(expected_hashes) & cached$abstract_hash == expected_hashes, , drop = FALSE]
+  }
+
+  cached
+}
+
+#' Save refiner embeddings to cache
+#'
+#' @param con DuckDB connection
+#' @param cache_df Data frame with paper_id, embed_model, abstract_hash, embedding
+#' @return Number of cached rows written
+save_refiner_embedding_cache <- function(con, cache_df) {
+  if (is.null(cache_df) || nrow(cache_df) == 0) return(invisible(0L))
+
+  for (i in seq_len(nrow(cache_df))) {
+    DBI::dbExecute(con, "
+      INSERT INTO refiner_embedding_cache (
+        paper_id, embed_model, abstract_hash, embedding
+      ) VALUES (?, ?, ?, ?)
+      ON CONFLICT (paper_id, embed_model) DO UPDATE SET
+        abstract_hash = EXCLUDED.abstract_hash,
+        embedding = EXCLUDED.embedding
+    ", list(
+      as.character(cache_df$paper_id[i]),
+      as.character(cache_df$embed_model[i]),
+      as.character(cache_df$abstract_hash[i]),
+      as.character(cache_df$embedding[i])
+    ))
+  }
+
+  invisible(nrow(cache_df))
+}
+
+# --- Provider CRUD ---
+
+#' Save or update a provider
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID (e.g., "ollama-local")
+#' @param name Human-readable name
+#' @param base_url Base URL for the OpenAI-compatible API
+#' @param api_key Optional API key (NULL for local providers)
+#' @param provider_type Provider type: "openrouter" or "openai-compatible"
+#' @param timeout_chat Timeout in seconds for chat completions
+#' @param timeout_embed Timeout in seconds for embeddings
+#' @return The provider ID
+save_provider <- function(con, id, name, base_url, api_key = NULL,
+                          provider_type = "openai-compatible",
+                          timeout_chat = 300L, timeout_embed = 600L) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(id)
+
+  # DuckDB can't bind NULL in param lists — use NA_character_ for NULL api_key
+  api_key_val <- if (is.null(api_key)) NA_character_ else api_key
+
+  dbExecute(con, "
+    INSERT INTO providers (id, name, base_url, api_key, provider_type, timeout_chat, timeout_embed)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      base_url = EXCLUDED.base_url,
+      api_key = EXCLUDED.api_key,
+      provider_type = EXCLUDED.provider_type,
+      timeout_chat = EXCLUDED.timeout_chat,
+      timeout_embed = EXCLUDED.timeout_embed
+  ", list(id, name, base_url, api_key_val, provider_type,
+          as.integer(timeout_chat), as.integer(timeout_embed)))
+
+  id
+}
+
+#' Get all providers
+#'
+#' @param con DuckDB connection
+#' @return Data frame of providers (empty if table doesn't exist yet)
+get_providers <- function(con) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) {
+    return(data.frame(
+      id = character(), name = character(), base_url = character(),
+      api_key = character(), provider_type = character(),
+      timeout_chat = integer(), timeout_embed = integer(),
+      is_default = logical(), created_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  dbGetQuery(con, "SELECT * FROM providers ORDER BY is_default DESC, name ASC")
+}
+
+#' Get a single provider by ID
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID
+#' @return Named list of provider fields, or NULL if not found
+get_provider <- function(con, id) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(NULL)
+
+  row <- dbGetQuery(con, "SELECT * FROM providers WHERE id = ?", list(id))
+  if (nrow(row) == 0) return(NULL)
+
+  as.list(row[1, ])
+}
+
+#' Delete a provider
+#'
+#' @param con DuckDB connection
+#' @param id Provider ID to delete
+#' @return logical — TRUE if deleted, FALSE if not found or is default
+delete_provider <- function(con, id) {
+  has_table <- tryCatch(DBI::dbExistsTable(con, "providers"), error = function(e) FALSE)
+  if (!has_table) return(FALSE)
+
+  # Don't allow deleting the default provider
+  provider <- get_provider(con, id)
+  if (is.null(provider)) return(FALSE)
+  if (isTRUE(provider$is_default)) {
+    stop("Cannot delete the default provider '", provider$name, "'")
+  }
+
+  rows_affected <- dbExecute(con, "DELETE FROM providers WHERE id = ?", list(id))
+  rows_affected > 0
+}
+
+#' Build a provider_config from a stored provider row
+#'
+#' @param provider_row Named list or single-row data.frame from get_provider/get_providers
+#' @param api_key_override Optional API key override (e.g., from settings for OpenRouter)
+#' @return provider_config object
+provider_row_to_config <- function(provider_row, api_key_override = NULL) {
+  api_key <- api_key_override %||% provider_row$api_key
+  create_provider_config(
+    name = provider_row$name,
+    base_url = provider_row$base_url,
+    api_key = api_key,
+    provider_type = provider_row$provider_type,
+    timeout_chat = provider_row$timeout_chat %||% 300L,
+    timeout_embed = provider_row$timeout_embed %||% 600L
+  )
+}
+
 #' Update a notebook's search query and filters
 #' @param con DuckDB connection
 #' @param id Notebook ID
@@ -795,8 +1096,10 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
                                   ragnar_store = NULL,
                                   ragnar_store_path = NULL,
                                   section_filter = NULL,
-                                  api_key = NULL,
-                                  embed_model = "openai/text-embedding-3-small") {
+                                  provider = NULL,
+                                  embed_model = "openai/text-embedding-3-small",
+                                  config = NULL,
+                                  session_id = NULL) {
 
   # Derive store path from notebook_id if not provided (Phase 22: per-notebook stores)
   if (is.null(ragnar_store_path) && !is.null(notebook_id)) {
@@ -809,8 +1112,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     store <- ragnar_store %||% connect_ragnar_store(ragnar_store_path)
 
     # Attach embed function for query vectorization (ragnar_retrieve needs it)
-    if (!is.null(store) && !is.null(api_key) && nchar(api_key) > 0) {
-      store@embed <- make_embed_function(api_key, embed_model)
+    has_provider <- !is.null(provider)
+    if (!is.null(store) && has_provider) {
+      store@embed <- make_embed_function(provider, embed_model)
     }
 
     if (!is.null(store) && own_store) {
@@ -825,10 +1129,35 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
       chunk_count <- tryCatch({
         DBI::dbGetQuery(store@con, "SELECT COUNT(*) as n FROM chunks")$n[1]
       }, error = function(e) NA)
-      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, api_key present: ", !is.null(api_key))
+      message("[search_chunks_hybrid] Store has ", chunk_count, " chunks, provider present: ", has_provider)
+
+      # Query reformulation: generate variants if enabled
+      search_queries <- query
+      if (!is.null(config) && has_provider) {
+        reformulation_enabled <- tryCatch(
+          get_db_setting(con, "rag_query_reformulation"),
+          error = function(e) NULL
+        )
+        if (is.null(reformulation_enabled)) {
+          reformulation_enabled <- get_setting(config, "app", "query_reformulation")
+        }
+        # Default to enabled (TRUE) when neither DB nor config specifies a value
+        if (!isFALSE(reformulation_enabled)) {
+          chat_model <- resolve_model_for_operation(config, "query_reformulation")
+          search_queries <- tryCatch({
+            generate_query_variants(query, provider, chat_model, con, session_id)
+          }, error = function(e) {
+            message("[search_chunks_hybrid] Query reformulation failed: ", e$message)
+            query
+          })
+          if (length(search_queries) > 1) {
+            message("[search_chunks_hybrid] Reformulated into ", length(search_queries), " queries")
+          }
+        }
+      }
 
       results <- tryCatch({
-        retrieve_with_ragnar(store, query, top_k = limit * 2)  # Get extra for filtering
+        retrieve_with_ragnar(store, search_queries, top_k = limit * 2, con = con)  # Get extra for filtering
       }, error = function(e) {
         message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
         NULL
@@ -869,6 +1198,12 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
             message("[search_chunks_hybrid] DB filenames: ", paste(notebook_docs$filename, collapse = ", "))
           }
           results <- results[keep_rows, , drop = FALSE]
+        }
+
+        # Normalize section_filter: drop NA and empty strings (defensive guard)
+        if (!is.null(section_filter)) {
+          section_filter <- section_filter[!is.na(section_filter) & nzchar(section_filter)]
+          if (length(section_filter) == 0) section_filter <- NULL
         }
 
         # Filter by section_hint if specified
@@ -923,7 +1258,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
         if (nrow(results) > 0 && "abstract_title" %in% names(results)) {
           abstract_origins <- results$origin[grepl("^abstract:", results$origin)]
           if (length(abstract_origins) > 0) {
-            abstract_ids <- sub("^abstract:", "", abstract_origins)
+            abstract_ids <- sub("\\|.*$", "", sub("^abstract:", "", abstract_origins))
             # Fetch titles from database
             if (length(abstract_ids) > 0) {
               placeholders <- paste(rep("?", length(abstract_ids)), collapse = ", ")
@@ -934,7 +1269,7 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
               # Update abstract_title for matching rows
               for (i in seq_len(nrow(results))) {
                 if (grepl("^abstract:", results$origin[i])) {
-                  abs_id <- sub("^abstract:", "", results$origin[i])
+                  abs_id <- sub("\\|.*$", "", sub("^abstract:", "", results$origin[i]))
                   # Explicit type coercion to ensure string comparison works
                   title_match <- titles_df$title[as.character(titles_df$id) == as.character(abs_id)]
                   if (length(title_match) > 0) {
@@ -1503,7 +1838,8 @@ save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
     INSERT INTO citation_networks (id, name, seed_paper_id, seed_paper_title, direction, depth, node_limit, palette, seed_paper_ids, source_notebook_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ", list(id, name, seed_paper_id, seed_paper_title, direction,
-          as.integer(depth), as.integer(node_limit), palette, seed_ids_json, source_notebook_id))
+          as.integer(depth), as.integer(node_limit), palette, seed_ids_json,
+          source_notebook_id %||% NA_character_))
 
   # Prepare nodes for bulk insert
   if (nrow(nodes_df) > 0) {
@@ -1519,8 +1855,8 @@ save_network <- function(con, id = NULL, name, seed_paper_id, seed_paper_title,
       cited_by_count = as.integer(nodes_df$cited_by_count),
       x_position = as.numeric(nodes_df$x),
       y_position = as.numeric(nodes_df$y),
-      is_overlap = as.logical(nodes_df$is_overlap %||% FALSE),
-      community = as.character(nodes_df$community %||% NA_character_),
+      is_overlap = as.logical(if (!is.null(nodes_df$is_overlap)) nodes_df$is_overlap else rep(FALSE, nrow(nodes_df))),
+      community = as.character(if (!is.null(nodes_df$community)) nodes_df$community else rep(NA_character_, nrow(nodes_df))),
       stringsAsFactors = FALSE
     )
 
@@ -1955,4 +2291,297 @@ check_audit_imports <- function(con, run_id, notebook_id) {
       AND work_id IN (SELECT paper_id FROM abstracts WHERE notebook_id = ?)
   ", list(run_id, notebook_id))
   invisible(TRUE)
+}
+
+# ==============================================================================
+# Document Figures — Stage 2: PDF Image Pipeline (Epic #44)
+# ==============================================================================
+
+#' Insert a single figure record
+#' @param con DuckDB connection
+#' @param figure_data Named list with figure metadata
+#' @return Figure ID
+db_insert_figure <- function(con, figure_data) {
+  id <- if (!is.null(figure_data$id)) figure_data$id else uuid::UUIDgenerate()
+
+  dbExecute(con, "
+    INSERT INTO document_figures
+      (id, document_id, notebook_id, page_number, file_path,
+       extracted_caption, llm_description, figure_label,
+       width, height, file_size, image_type, extraction_method,
+       quality_score, is_excluded)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(
+    id,
+    figure_data$document_id,
+    figure_data$notebook_id,
+    as.integer(figure_data$page_number),
+    figure_data$file_path,
+    if (is.null(figure_data$extracted_caption)) NA_character_ else figure_data$extracted_caption,
+    if (is.null(figure_data$llm_description)) NA_character_ else figure_data$llm_description,
+    if (is.null(figure_data$figure_label)) NA_character_ else figure_data$figure_label,
+    if (is.null(figure_data$width)) NA_integer_ else as.integer(figure_data$width),
+    if (is.null(figure_data$height)) NA_integer_ else as.integer(figure_data$height),
+    if (is.null(figure_data$file_size)) NA_integer_ else as.integer(figure_data$file_size),
+    if (is.null(figure_data$image_type)) NA_character_ else figure_data$image_type,
+    if (is.null(figure_data$extraction_method)) NA_character_ else figure_data$extraction_method,
+    if (is.null(figure_data$quality_score)) NA_real_ else as.numeric(figure_data$quality_score),
+    if (is.null(figure_data$is_excluded)) FALSE else as.logical(figure_data$is_excluded)
+  ))
+
+  id
+}
+
+#' Bulk insert figures from extraction pipeline
+#' @param con DuckDB connection
+#' @param figures_df Data frame with figure metadata (one row per figure)
+#' @return Vector of inserted figure IDs
+db_insert_figures_batch <- function(con, figures_df) {
+  ids <- character(nrow(figures_df))
+
+  for (i in seq_len(nrow(figures_df))) {
+    row <- as.list(figures_df[i, ])
+    ids[i] <- db_insert_figure(con, row)
+  }
+
+  ids
+}
+
+#' Get all figures for a document
+#' @param con DuckDB connection
+#' @param document_id Document ID
+#' @return Data frame of figures
+db_get_figures_for_document <- function(con, document_id) {
+  dbGetQuery(con, "
+    SELECT * FROM document_figures
+    WHERE document_id = ?
+    ORDER BY page_number, figure_label
+  ", list(document_id))
+}
+
+#' Get all figures for a notebook
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @return Data frame of figures
+db_get_figures_for_notebook <- function(con, notebook_id) {
+  dbGetQuery(con, "
+    SELECT df.*, d.filename AS document_filename
+    FROM document_figures df
+    JOIN documents d ON df.document_id = d.id
+    WHERE df.notebook_id = ?
+    ORDER BY d.filename, df.page_number, df.figure_label
+  ", list(notebook_id))
+}
+
+#' Get non-excluded figures for slide generation
+#' @param con DuckDB connection
+#' @param notebook_id Notebook ID
+#' @param document_ids Optional character vector to filter specific documents
+#' @return Data frame of figures eligible for slides
+db_get_slide_figures <- function(con, notebook_id, document_ids = NULL) {
+  if (!is.null(document_ids) && length(document_ids) > 0) {
+    placeholders <- paste(rep("?", length(document_ids)), collapse = ", ")
+    sql <- sprintf("
+      SELECT * FROM document_figures
+      WHERE notebook_id = ?
+        AND document_id IN (%s)
+        AND is_excluded = FALSE
+      ORDER BY page_number, figure_label
+    ", placeholders)
+    dbGetQuery(con, sql, c(list(notebook_id), as.list(document_ids)))
+  } else {
+    dbGetQuery(con, "
+      SELECT * FROM document_figures
+      WHERE notebook_id = ?
+        AND is_excluded = FALSE
+      ORDER BY page_number, figure_label
+    ", list(notebook_id))
+  }
+}
+
+#' Update a figure record
+#' @param con DuckDB connection
+#' @param figure_id Figure ID
+#' @param ... Named fields to update (extracted_caption, llm_description,
+#'   quality_score, is_excluded, etc.)
+#' @return TRUE on success
+db_update_figure <- function(con, figure_id, ...) {
+  updates <- list(...)
+  if (length(updates) == 0) return(invisible(TRUE))
+
+  allowed_fields <- c("extracted_caption", "llm_description", "figure_label",
+                       "quality_score", "is_excluded", "width", "height",
+                       "file_size", "image_type", "extraction_method",
+                       "presentation_hint")
+  fields <- intersect(names(updates), allowed_fields)
+  if (length(fields) == 0) return(invisible(TRUE))
+
+  set_clauses <- paste0(fields, " = ?", collapse = ", ")
+  sql <- sprintf("UPDATE document_figures SET %s WHERE id = ?", set_clauses)
+
+  params <- c(lapply(fields, function(f) updates[[f]]), list(figure_id))
+
+  dbExecute(con, sql, params)
+  invisible(TRUE)
+}
+
+#' Delete all figures for a document (DB rows + files)
+#' @param con DuckDB connection
+#' @param document_id Document ID
+db_delete_figures_for_document <- function(con, document_id) {
+  doc <- get_document(con, document_id)
+  if (!is.null(doc)) {
+    cleanup_figure_files(doc$notebook_id, document_id)
+  }
+
+  dbExecute(con, "DELETE FROM document_figures WHERE document_id = ?", list(document_id))
+}
+
+# ---- Research Refiner DB Helpers ----
+
+#' Delete a refiner run and its results
+#' @param con DuckDB connection
+#' @param run_id Refiner run ID
+delete_refiner_run <- function(con, run_id) {
+  DBI::dbExecute(con, "DELETE FROM refiner_results WHERE run_id = ?", list(run_id))
+  DBI::dbExecute(con, "DELETE FROM refiner_runs WHERE id = ?", list(run_id))
+}
+
+#' Create a new refiner run
+#' @param con DuckDB connection
+#' @param anchor_type Character: "seeds", "intent", or "both"
+#' @param source_type Character: "notebook" or "fetch"
+#' @param anchor_intent Optional natural language intent
+#' @param anchor_seed_ids Optional JSON array of seed paper IDs
+#' @param source_notebook_id Optional source notebook ID
+#' @param mode Scoring mode: "discovery", "comprehensive", "emerging", "custom"
+#' @param weights JSON string of weight configuration
+#' @return Run ID
+create_refiner_run <- function(con, anchor_type, source_type,
+                                anchor_intent = NULL, anchor_seed_ids = NULL,
+                                source_notebook_id = NULL, mode = "discovery",
+                                weights = NULL) {
+  id <- uuid::UUIDgenerate()
+  dbExecute(con, "
+    INSERT INTO refiner_runs (id, anchor_type, anchor_intent, anchor_seed_ids,
+                               source_type, source_notebook_id, mode, weights)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, anchor_type,
+          anchor_intent %||% NA_character_,
+          anchor_seed_ids %||% NA_character_,
+          source_type,
+          source_notebook_id %||% NA_character_,
+          mode,
+          weights %||% NA_character_))
+  id
+}
+
+#' Update a refiner run status
+#' @param con DuckDB connection
+#' @param run_id Run ID
+#' @param status New status
+#' @param total_candidates Total candidates (optional)
+#' @param scored_count Scored count (optional)
+update_refiner_run <- function(con, run_id, status = NULL,
+                                total_candidates = NULL, scored_count = NULL) {
+  updates <- c()
+  params <- list()
+
+  if (!is.null(status)) {
+    updates <- c(updates, "status = ?")
+    params <- c(params, list(status))
+  }
+  if (!is.null(total_candidates)) {
+    updates <- c(updates, "total_candidates = ?")
+    params <- c(params, list(as.integer(total_candidates)))
+  }
+  if (!is.null(scored_count)) {
+    updates <- c(updates, "scored_count = ?")
+    params <- c(params, list(as.integer(scored_count)))
+  }
+
+  if (!is.null(status) && status %in% c("completed", "failed", "cancelled")) {
+    updates <- c(updates, "completed_at = CURRENT_TIMESTAMP")
+  }
+
+  if (length(updates) == 0) return(invisible(NULL))
+
+  sql <- paste0("UPDATE refiner_runs SET ", paste(updates, collapse = ", "), " WHERE id = ?")
+  params <- c(params, list(run_id))
+  dbExecute(con, sql, params)
+  invisible(NULL)
+}
+
+#' Save refiner results (bulk insert)
+#' @param con DuckDB connection
+#' @param run_id Refiner run ID
+#' @param results_df Data frame with scored candidates
+#' @return Number of rows inserted
+save_refiner_results <- function(con, run_id, results_df) {
+  if (is.null(results_df) || nrow(results_df) == 0) return(invisible(0L))
+
+  ids <- vapply(seq_len(nrow(results_df)), function(i) uuid::UUIDgenerate(), character(1))
+
+  insert_df <- data.frame(
+    id = ids,
+    run_id = run_id,
+    paper_id = as.character(results_df$paper_id),
+    title = as.character(results_df$title %||% NA_character_),
+    authors = as.character(results_df$authors %||% NA_character_),
+    abstract = as.character(results_df$abstract %||% NA_character_),
+    year = as.integer(results_df$year %||% NA_integer_),
+    venue = as.character(results_df$venue %||% NA_character_),
+    doi = as.character(results_df$doi %||% NA_character_),
+    cited_by_count = as.integer(results_df$cited_by_count %||% 0L),
+    fwci = as.numeric(results_df$fwci %||% NA_real_),
+    seed_connectivity = as.numeric(results_df$seed_connectivity %||% 0),
+    bridge_score = as.numeric(results_df$bridge_score %||% 0),
+    citation_velocity = as.numeric(results_df$citation_velocity %||% 0),
+    ubiquity_penalty = as.numeric(results_df$ubiquity_penalty %||% 0),
+    utility_score = as.numeric(results_df$utility_score %||% 0),
+    embedding_similarity = as.numeric(results_df$embedding_similarity %||% NA_real_),
+    llm_utility_score = NA_real_,
+    llm_rationale = NA_character_,
+    user_action = "pending",
+    stringsAsFactors = FALSE
+  )
+
+  dbWriteTable(con, "refiner_results", insert_df, append = TRUE)
+  invisible(nrow(insert_df))
+}
+
+#' Get refiner results for a run
+#' @param con DuckDB connection
+#' @param run_id Refiner run ID
+#' @return Data frame ordered by utility_score DESC
+get_refiner_results <- function(con, run_id) {
+  dbGetQuery(con, "
+    SELECT * FROM refiner_results
+    WHERE run_id = ?
+    ORDER BY utility_score DESC
+  ", list(run_id))
+}
+
+#' Update user action on a refiner result
+#' @param con DuckDB connection
+#' @param result_id Result row ID
+#' @param action "accepted", "rejected", or "pending"
+update_refiner_result_action <- function(con, result_id, action) {
+  dbExecute(con, "
+    UPDATE refiner_results SET user_action = ? WHERE id = ?
+  ", list(action, result_id))
+  invisible(TRUE)
+}
+
+#' Get the latest refiner run
+#' @param con DuckDB connection
+#' @return Single-row data frame or NULL
+get_latest_refiner_run <- function(con) {
+  result <- dbGetQuery(con, "
+    SELECT * FROM refiner_runs
+    ORDER BY created_at DESC
+    LIMIT 1
+  ")
+  if (nrow(result) == 0) return(NULL)
+  result
 }

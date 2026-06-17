@@ -52,33 +52,6 @@ is_safe_url <- function(url) {
   grepl("^https?://", url, ignore.case = TRUE)
 }
 
-#' Show a user-friendly error toast notification
-#' @param message Plain language error message
-#' @param details Technical details (HTTP status, raw error)
-#' @param severity "error" or "warning"
-#' @param duration Auto-dismiss seconds (default 8 for errors, 5 for warnings)
-show_error_toast <- function(message, details = NULL, severity = "error", duration = NULL) {
-  if (is.null(duration)) {
-    duration <- if (severity == "warning") 5 else 8
-  }
-
-  # Build notification content with optional expandable details
-  content <- if (!is.null(details) && nchar(details) > 0) {
-    HTML(paste0(
-      '<div>', htmltools::htmlEscape(message), '</div>',
-      '<details class="mt-1"><summary class="small text-muted" style="cursor:pointer;">Show details</summary>',
-      '<div class="small text-muted mt-1 font-monospace" style="word-break:break-all;">',
-      htmltools::htmlEscape(details),
-      '</div></details>'
-    ))
-  } else {
-    message
-  }
-
-  type <- if (severity == "warning") "warning" else "error"
-  showNotification(content, type = type, duration = duration)
-}
-
 #' Format result count for display (Phase 51)
 #' @param fetched Total papers in notebook
 #' @param total Total matching results from API
@@ -126,6 +99,11 @@ mod_search_notebook_ui <- function(id) {
         });
       }
     ", ns("send")))),
+
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Search OpenAlex for academic papers, filter results, and import papers for analysis."
+    ),
 
     layout_columns(
       col_widths = c(5, 7),
@@ -272,6 +250,11 @@ mod_search_notebook_ui <- function(id) {
               class = "form-check-label small text-muted",
               "Select all"
             )
+          ),
+          # Paper count status line
+          div(
+            class = "text-muted small mb-2",
+            textOutput(ns("paper_count_status"), inline = TRUE)
           ),
           div(
             id = ns("paper_list_container"),
@@ -462,6 +445,30 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     select_all_state <- reactiveVal(list(all_selected = FALSE, exceptions = character()))
     paper_refresh <- reactiveVal(0)
     is_processing <- reactiveVal(FALSE)
+
+    # Synthesis progress modal helpers
+    show_synthesis_modal <- function(label) {
+      showModal(modalDialog(
+        title = tagList(icon_spinner(class = "fa-spin"), paste(" Generating:", label)),
+        div(
+          class = "text-center py-3",
+          div(class = "spinner-border text-primary mb-3", role = "status",
+              style = "width: 3rem; height: 3rem;"),
+          div(id = ns("synthesis_status"), class = "text-muted", "Preparing context...")
+        ),
+        footer = NULL,
+        easyClose = FALSE,
+        size = "m"
+      ))
+    }
+
+    update_synthesis_status <- function(message) {
+      session$sendCustomMessage("updateSynthesisStatus", list(
+        msg_id = ns("synthesis_status"),
+        message = message
+      ))
+    }
+
     seed_request <- reactiveVal(NULL)
     network_seed_request <- reactiveVal(NULL)
     # Track which paper IDs already have delete observers to prevent duplicates
@@ -485,6 +492,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 38: Batch import state
     batch_import_interrupt <- reactiveVal(NULL)
     batch_import_progress <- reactiveVal(NULL)
+    batch_import_task_id <- reactiveVal(NULL)
     batch_import_poller <- reactiveVal(NULL)
 
     # Phase 22: Per-notebook store migration state
@@ -492,6 +500,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     store_healthy <- reactiveVal(NULL)
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_reindex_task_id <- reactiveVal(NULL)
     reindex_poller <- reactiveVal(NULL)
 
     # Phase 35: Bulk DOI import module
@@ -512,38 +521,75 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 22: Async re-index task (mirai worker)
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir, db_path, task_id, async_context) {
       mirai::mirai({
-        source(file.path(app_dir, "R", "interrupt.R"))
-        source(file.path(app_dir, "R", "api_openalex.R"))
-        source(file.path(app_dir, "R", "api_openrouter.R"))
-        source(file.path(app_dir, "R", "_ragnar.R"))
+        source(file.path(app_dir, "R", "async_observability.R"))
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        ))
 
-        result <- rebuild_notebook_store(
-          notebook_id = notebook_id,
-          api_key = api_key,
-          embed_model = embed_model,
-          documents = documents,
-          abstracts = abstracts,
-          interrupt_flag = interrupt_flag,
-          progress_file = progress_file,
-          progress_callback = NULL
-        )
-        result
+        tryCatch({
+          source(file.path(app_dir, "R", "interrupt.R"))
+          source(file.path(app_dir, "R", "config.R"))
+          source(file.path(app_dir, "R", "api_openalex.R"))
+          source(file.path(app_dir, "R", "api_openrouter.R"))
+          source(file.path(app_dir, "R", "api_provider.R"))
+          source(file.path(app_dir, "R", "_ragnar.R"))
+
+          result <- rebuild_notebook_store(
+            notebook_id = notebook_id,
+            provider = provider,
+            embed_model = embed_model,
+            documents = documents,
+            abstracts = abstracts,
+            interrupt_flag = interrupt_flag,
+            progress_file = progress_file,
+            db_path = db_path,
+            progress_callback = NULL
+          )
+          async_task_completed(
+            task_id,
+            async_task_status_from_result(result),
+            metadata = list(count = result$count, success = result$success)
+          )
+          result
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
-         api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
+         progress_file = progress_file, app_dir = app_dir, db_path = db_path,
+         task_id = task_id, async_context = async_context)
     })
 
     # Phase 38: ExtendedTask for batch abstract import (50+ papers)
     batch_import_task <- ExtendedTask$new(function(abstract_ids, target_notebook_id,
-                                                    db_path, interrupt_flag, progress_file, app_dir) {
+                                                    db_path, interrupt_flag, progress_file,
+                                                    app_dir, download_pdfs = FALSE,
+                                                    openalex_api_key = NULL,
+                                                    task_id, async_context) {
       mirai::mirai({
         setwd(app_dir)
-        source("R/db_migrations.R")
-        source("R/db.R")
-        source("R/interrupt.R")
-        source("R/bulk_import.R")  # For write_import_progress / read_import_progress
+        source("R/async_observability.R")
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          total_requested = length(abstract_ids),
+          download_pdfs = download_pdfs
+        ))
+
+        result <- tryCatch({
+          source("R/db_migrations.R")
+          source("R/db.R")
+          source("R/interrupt.R")
+          source("R/config.R")       # For DEFAULT_CONFIG (used by import_single_paper)
+          source("R/bulk_import.R")  # For write_import_progress / read_import_progress
+          source("R/_ragnar.R")      # For chunk_with_ragnar()
+          source("R/pdf.R")          # For download_pdf_from_url(), process_pdf(), sanitize_filename()
+          source("R/api_openalex.R") # For log_oa_usage() (content API cost tracking)
+          source("R/import_paper.R") # For import_single_paper()
 
         # Open own DB connection (mirai workers can't share)
         con <- get_connection(db_path)
@@ -560,6 +606,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         duplicates <- intersect(abstract_ids, existing_abstract_ids)
 
         imported <- 0L
+        pdf_imported <- 0L
+        abstract_imported <- 0L
         failed <- 0L
         failed_details <- list()
         total <- length(to_import)
@@ -581,55 +629,82 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             }
             abs <- abs[1, ]
 
-            if (is.na(abs$abstract) || nchar(abs$abstract) == 0) {
-              failed <- failed + 1L
-              failed_details[[length(failed_details) + 1]] <- list(id = aid, reason = "No abstract text")
-              next
+            has_pdf <- download_pdfs && is_safe_url(abs$pdf_url)
+            pct_msg <- if (has_pdf) {
+              sprintf("Downloading PDF %d of %d...", i, total)
+            } else {
+              sprintf("Importing abstract %d of %d...", i, total)
             }
+            write_import_progress(progress_file, i, total, imported, failed, pct_msg)
 
-            doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
-            doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
-            doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
-
-            doc_id <- create_document(
-              con, target_notebook_id,
-              paste0(abs$title, ".txt"),
-              "",
-              abs$abstract,
-              1,
-              title = abs$title,
-              authors = doc_authors,
-              year = doc_year,
-              doi = doc_doi,
-              abstract_id = abs$id
+            result <- import_single_paper(
+              con, target_notebook_id, abs,
+              download_pdfs = download_pdfs,
+              openalex_api_key = openalex_api_key,
+              chunk_size = 2500, chunk_overlap = 0.1
             )
 
-            create_chunk(con, doc_id, "document", 0, abs$abstract, page_number = 1)
-            imported <- imported + 1L
+            if (isTRUE(result$success)) {
+              imported <- imported + 1L
+              if (identical(result$method, "pdf")) {
+                pdf_imported <- pdf_imported + 1L
+              } else {
+                abstract_imported <- abstract_imported + 1L
+              }
+            } else {
+              failed <- failed + 1L
+              failed_details[[length(failed_details) + 1]] <- list(
+                id = aid, reason = if (!is.null(result$reason)) result$reason else "Unknown"
+              )
+            }
           }, error = function(e) {
             failed <<- failed + 1L
             failed_details[[length(failed_details) + 1]] <<- list(id = aid, reason = conditionMessage(e))
           })
 
+          # Rate-limit PDF downloads
+          if (download_pdfs && i < total) {
+            Sys.sleep(0.5)
+          }
+
           # Write progress
-          pct_msg <- sprintf("Importing paper %d of %d...", i, total)
+          pct_msg <- sprintf("Imported %d of %d papers...", i, total)
           write_import_progress(progress_file, i, total, imported, failed, pct_msg)
         }
 
         cancelled <- check_interrupt(interrupt_flag)
 
-        list(
-          imported = imported,
-          failed = failed,
-          duplicates = length(duplicates),
-          duplicate_ids = duplicates,
-          failed_details = failed_details,
-          cancelled = cancelled,
-          total_requested = length(abstract_ids)
+          list(
+            imported = imported,
+            pdf_imported = pdf_imported,
+            abstract_imported = abstract_imported,
+            failed = failed,
+            duplicates = length(duplicates),
+            duplicate_ids = duplicates,
+            failed_details = failed_details,
+            cancelled = cancelled,
+            total_requested = length(abstract_ids)
+          )
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
+        async_task_completed(
+          task_id,
+          async_task_status_from_result(result),
+          metadata = list(
+            imported = result$imported,
+            failed = result$failed,
+            duplicates = result$duplicates
+          )
         )
+        result
       }, abstract_ids = abstract_ids, target_notebook_id = target_notebook_id,
          db_path = db_path, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         progress_file = progress_file, app_dir = app_dir,
+         download_pdfs = download_pdfs,
+         openalex_api_key = openalex_api_key,
+         task_id = task_id, async_context = async_context)
     })
 
     # Phase 22: Check for per-notebook store migration on notebook open
@@ -698,8 +773,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      provider <- provider_from_config(cfg, con())
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -713,6 +788,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       progress_file <- create_progress_file(session$token)
       current_interrupt_flag(flag_file)
       current_progress_file(progress_file)
+
+      task_id <- async_task_id("search_reindex")
+      current_reindex_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "search_reindex",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "search_reindex",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          action = "build",
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        )
+      )
 
       # Show progress modal with Stop button
       showModal(modalDialog(
@@ -744,7 +839,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r(), task_id, async_context)
     })
 
     # Phase 22: Rebuild handler (corruption recovery — same async pattern)
@@ -754,8 +849,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      provider <- provider_from_config(cfg, con())
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -768,6 +863,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       progress_file <- create_progress_file(session$token)
       current_interrupt_flag(flag_file)
       current_progress_file(progress_file)
+
+      task_id <- async_task_id("search_reindex")
+      current_reindex_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "search_reindex",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "search_reindex",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          action = "rebuild",
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        )
+      )
 
       showModal(modalDialog(
         title = "Rebuilding Search Index",
@@ -793,13 +908,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       })
       reindex_poller(poller)
 
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), db_path_r(), task_id, async_context)
     })
 
     # Phase 22: Cancel re-index handler
     observeEvent(input$cancel_reindex, {
       flag <- current_interrupt_flag()
       if (!is.null(flag)) signal_interrupt(flag)
+      task_id <- current_reindex_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
+      }
 
       poller <- reindex_poller()
       if (!is.null(poller)) poller$destroy()
@@ -817,37 +936,40 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observe({
       result <- reindex_task$result()
 
-      poller <- reindex_poller()
-      if (!is.null(poller)) poller$destroy()
-      reindex_poller(NULL)
+      isolate({
+        poller <- reindex_poller()
+        if (!is.null(poller)) poller$destroy()
+        reindex_poller(NULL)
 
-      clear_interrupt_flag(current_interrupt_flag())
-      clear_progress_file(current_progress_file())
-      current_interrupt_flag(NULL)
-      current_progress_file(NULL)
+        clear_interrupt_flag(current_interrupt_flag())
+        clear_progress_file(current_progress_file())
+        current_interrupt_flag(NULL)
+        current_progress_file(NULL)
+        current_reindex_task_id(NULL)
 
-      removeModal()
+        removeModal()
 
-      if (isTRUE(result$partial)) {
-        # Cancelled — delete partial store
-        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
-        rag_ready(FALSE)
-        store_healthy(FALSE)
-        showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
-      } else if (isTRUE(result$success)) {
-        rag_ready(TRUE)
-        store_healthy(TRUE)
-        tryCatch({
-          abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
-          mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
-        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
-        paper_refresh(paper_refresh() + 1)
-        showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
-      } else {
-        rag_ready(FALSE)
-        store_healthy(FALSE)
-        showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
-      }
+        if (isTRUE(result$partial)) {
+          # Cancelled — delete partial store
+          tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
+        } else if (isTRUE(result$success)) {
+          rag_ready(TRUE)
+          store_healthy(TRUE)
+          tryCatch({
+            abstract_ids <- DBI::dbGetQuery(con(), "SELECT id FROM abstracts WHERE notebook_id = ?", list(notebook_id()))$id
+            mark_as_ragnar_indexed(con(), abstract_ids, source_type = "abstract")
+          }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
+          paper_refresh(paper_refresh() + 1)
+          showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
+        } else {
+          rag_ready(FALSE)
+          store_healthy(FALSE)
+          showNotification(paste("Re-indexing failed:", result$error), type = "error", duration = NULL)
+        }
+      })
     })
 
     # Phase 22: Render send button (disabled when rag_available is FALSE)
@@ -943,8 +1065,24 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       remaining
     })
 
-    # Keyword filter module - returns filtered papers reactive
-    keyword_filtered_papers <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
+    # Keyword filter module - returns list with filtered_papers + state accessors
+    keyword_filter_result <- mod_keyword_filter_server("keyword_filter", papers_data, remaining_count)
+    keyword_filtered_papers <- keyword_filter_result$filtered_papers
+
+    # Delegated click handler for per-abstract keyword toggles (#151)
+    observeEvent(input$abstract_kw_click, {
+      kw <- input$abstract_kw_click$keyword
+      if (is.null(kw) || !nzchar(kw)) return()
+
+      current_state <- keyword_filter_result$get_keyword_state(kw)
+      new_state <- switch(current_state,
+        "neutral" = "include",
+        "include" = "exclude",
+        "exclude" = "neutral",
+        "include"
+      )
+      keyword_filter_result$set_keyword_state(kw, new_state)
+    }, ignoreInit = TRUE)
 
     # Phase 55: Type filter - client-side filtering between keyword and journal
     type_filtered_papers <- reactive({
@@ -1025,8 +1163,8 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Reactive: check if API key is configured
     has_api_key <- reactive({
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      !is.null(api_key) && nchar(api_key) > 0
+      provider <- provider_from_config(cfg, con())
+      (!is.null(provider$api_key) && nchar(provider$api_key) > 0) || is_local_provider(provider)
     })
 
     # Restore filter state when notebook changes
@@ -1213,6 +1351,26 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       count <- get_unknown_year_count(con(), nb_id)
       if (count > 0) {
         paste0("(", count, " unknown)")
+      } else {
+        ""
+      }
+    })
+
+    # Paper count status line (visible / loaded / total)
+    output$paper_count_status <- renderText({
+      visible <- nrow(filtered_papers())
+      loaded <- nrow(papers_data())
+      total <- pagination_state$api_total
+
+      if (total > 0) {
+        sprintf("%s visible / %s loaded / %s total",
+                format_large_number(visible),
+                format_large_number(loaded),
+                format_large_number(total))
+      } else if (loaded > 0) {
+        sprintf("%s visible / %s loaded",
+                format_large_number(visible),
+                format_large_number(loaded))
       } else {
         ""
       }
@@ -1772,7 +1930,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         paste(authors, collapse = ", ")
       }
 
-      # Parse keywords
+      # Parse keywords — interactive badges with ban/keep toggle
       keywords_ui <- NULL
       if (!is.null(paper$keywords) && !is.na(paper$keywords) && nchar(paper$keywords) > 0) {
         keywords <- tryCatch({
@@ -1784,7 +1942,46 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             class = "mt-2",
             tags$small(class = "text-muted", "Keywords: "),
             lapply(keywords, function(k) {
-              span(class = "badge bg-secondary me-1", k)
+              # Look up current state from global keyword filter
+              k_lower <- tolower(k)
+              state <- keyword_filter_result$get_keyword_state(k_lower)
+
+              badge_class <- switch(state,
+                "include" = "badge bg-success me-1",
+                "exclude" = "badge bg-danger me-1",
+                "badge bg-secondary me-1"
+              )
+
+              badge_icon <- switch(state,
+                "include" = icon_add(class = "me-1"),
+                "exclude" = icon_minus(class = "me-1"),
+                NULL
+              )
+
+              badge_title <- switch(state,
+                "neutral" = paste0("Click to include '", k, "' in filter"),
+                "include" = paste0("Click to exclude '", k, "'"),
+                "exclude" = paste0("Click to clear '", k, "' filter"),
+                ""
+              )
+
+              # Escape keyword for safe JS embedding (JSON produces a quoted string)
+              k_js <- jsonlite::toJSON(k_lower, auto_unbox = TRUE)
+
+              onclick_js <- sprintf(
+                "Shiny.setInputValue('%s', {keyword: %s, nonce: Math.random()})",
+                ns("abstract_kw_click"),
+                k_js
+              )
+
+              tags$span(
+                class = badge_class,
+                style = "cursor: pointer;",
+                onclick = onclick_js,
+                title = badge_title,
+                badge_icon,
+                k
+              )
             })
           )
         }
@@ -2762,11 +2959,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       withProgress(message = "Embedding papers...", value = 0, {
         cfg <- config()
-        api_key_or <- get_setting(cfg, "openrouter", "api_key")
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+        provider_or <- provider_from_config(cfg, con())
+        embed_model <- resolve_model_for_operation(cfg, "embedding")
 
-        if (is.null(api_key_or) || nchar(api_key_or) == 0) {
-          showNotification("OpenRouter API key required for embedding", type = "error")
+        if ((is.null(provider_or$api_key) || is.na(provider_or$api_key) || !nzchar(provider_or$api_key)) && !is_local_provider(provider_or)) {
+          showNotification("API key required for embedding (unless using a local provider)", type = "error")
           return()
         }
 
@@ -2802,7 +2999,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
             # Phase 22: Use per-notebook ragnar store
             store <- tryCatch(
-              ensure_ragnar_store(nb_id, session, api_key_or, embed_model),
+              ensure_ragnar_store(nb_id, session, provider_or, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
                 store_healthy(FALSE)
@@ -2887,6 +3084,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     # Phase 38: Helper to show the notebook selector modal
     show_import_notebook_modal <- function() {
       selected <- selected_papers()
+
+      # Count how many selected papers have PDF URLs
+      pdf_count <- tryCatch({
+        pdf_rows <- dbGetQuery(con(), sprintf(
+          "SELECT COUNT(*) AS n FROM abstracts WHERE id IN (%s) AND pdf_url IS NOT NULL AND pdf_url != ''",
+          paste(sprintf("'%s'", selected), collapse = ",")
+        ))
+        pdf_rows$n
+      }, error = function(e) 0)
+
+      pdf_label <- sprintf(
+        "Download full PDFs when available (%d of %d papers)",
+        pdf_count, length(selected)
+      )
+
       showModal(modalDialog(
         title = "Import Papers",
         p(paste("Import", length(selected), "paper(s) to a document notebook.")),
@@ -2896,8 +3108,28 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           condition = sprintf("input['%s'] == '__new__'", ns("target_notebook")),
           textInput(ns("new_nb_name"), "New Notebook Name")
         ),
-        p(class = "text-muted small",
-          "Note: Only papers with open access PDFs can be fully imported."),
+        if (pdf_count > 0) {
+          # Check if OpenAlex API key is configured for content proxy
+          has_oa_key <- tryCatch({
+            cfg <- config()
+            key <- get_setting(cfg, "openalex", "api_key")
+            !is.null(key) && nchar(key) > 0 && !grepl("^your-", key)
+          }, error = function(e) FALSE)
+
+          hint_text <- if (has_oa_key) {
+            "Full-text PDFs downloaded via OpenAlex (~100 free/day). Papers without content will fall back to abstract-only."
+          } else {
+            "PDFs sourced from open repositories. Add an OpenAlex API key in Settings for broader PDF access."
+          }
+
+          tagList(
+            checkboxInput(ns("download_pdfs"), pdf_label, value = TRUE),
+            p(class = "text-muted small", hint_text)
+          )
+        } else {
+          p(class = "text-muted small",
+            "No open-access PDFs available. Papers will be imported with abstracts only.")
+        },
         footer = tagList(
           modalButton("Cancel"),
           actionButton(ns("do_import"), "Import", class = "btn-primary")
@@ -2916,11 +3148,21 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     }
 
     # Phase 38: Results modal helper
-    show_import_results <- function(imported, duplicates, failed, cancelled = FALSE) {
+    show_import_results <- function(imported, duplicates, failed,
+                                     pdf_count = 0, abstract_count = 0,
+                                     cancelled = FALSE) {
       title <- if (cancelled) {
         tagList(icon_circle_pause(class = "text-warning"), "Import Cancelled")
       } else {
         tagList(icon_check_circle(class = "text-success"), "Import Complete")
+      }
+
+      # Build breakdown text
+      breakdown <- if (pdf_count > 0 || abstract_count > 0) {
+        parts <- character(0)
+        if (pdf_count > 0) parts <- c(parts, sprintf("%d with full PDF", pdf_count))
+        if (abstract_count > 0) parts <- c(parts, sprintf("%d abstract-only", abstract_count))
+        p(class = "text-muted small", paste("Breakdown:", paste(parts, collapse = ", ")))
       }
 
       showModal(modalDialog(
@@ -2943,6 +3185,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
             tags$small(class = "text-muted", "failed")
           )
         ),
+        breakdown,
         if (cancelled) {
           p(class = "text-muted small", "Import was cancelled. Papers already imported have been kept.")
         },
@@ -2970,6 +3213,14 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       removeModal()
 
+      download_pdfs <- isTRUE(input$download_pdfs)
+
+      # Get OpenAlex API key for content proxy downloads
+      oa_api_key <- tryCatch({
+        cfg <- config()
+        get_setting(cfg, "openalex", "api_key")
+      }, error = function(e) NULL)
+
       if (length(selected) < 50) {
         # Synchronous import for small batches
         abstracts <- dbGetQuery(con(), sprintf("
@@ -2988,27 +3239,48 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         abstracts <- abstracts[!abstracts$id %in% dup_ids, ]
 
         imported <- 0
-        for (i in seq_len(nrow(abstracts))) {
-          abs <- abstracts[i, ]
-          if (!is.na(abs$abstract) && nchar(abs$abstract) > 0) {
-            doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
-            doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
-            doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
+        pdf_imported <- 0
+        abstract_imported <- 0
+        failed_count <- 0
 
-            doc_id <- create_document(
-              con(), target, paste0(abs$title, ".txt"), "",
-              abs$abstract, 1,
-              title = abs$title, authors = doc_authors,
-              year = doc_year, doi = doc_doi, abstract_id = abs$id
+        withProgress(message = "Importing papers...", value = 0, {
+          for (i in seq_len(nrow(abstracts))) {
+            abs <- abstracts[i, ]
+            setProgress(
+              value = i / nrow(abstracts),
+              detail = sprintf("Paper %d of %d", i, nrow(abstracts))
             )
-            create_chunk(con(), doc_id, "document", 0, abs$abstract, page_number = 1)
-            imported <- imported + 1
+
+            result <- import_single_paper(
+              con(), target, abs,
+              download_pdfs = download_pdfs,
+              openalex_api_key = oa_api_key,
+              chunk_size = 2500, chunk_overlap = 0.1
+            )
+
+            if (isTRUE(result$success)) {
+              imported <- imported + 1
+              if (identical(result$method, "pdf")) {
+                pdf_imported <- pdf_imported + 1
+              } else {
+                abstract_imported <- abstract_imported + 1
+              }
+            } else {
+              failed_count <- failed_count + 1
+            }
+
+            # Rate-limit PDF downloads
+            if (download_pdfs && i < nrow(abstracts)) {
+              Sys.sleep(0.5)
+            }
           }
-        }
+        })
 
         dups <- length(dup_ids)
-        failed <- length(selected) - imported - dups
-        show_import_results(imported, dups, failed, cancelled = FALSE)
+        show_import_results(imported, dups, failed_count,
+                            pdf_count = pdf_imported,
+                            abstract_count = abstract_imported,
+                            cancelled = FALSE)
         paper_refresh(paper_refresh() + 1)
       } else {
         # Async import for large batches (50+ papers)
@@ -3018,6 +3290,25 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         batch_import_progress(prog_file)
 
         db_path_val <- if (is.function(db_path)) db_path() else db_path
+
+        task_id <- async_task_id("search_batch_import")
+        batch_import_task_id(task_id)
+        async_context <- async_task_context(
+          task_id = task_id,
+          task_type = "search_batch_import",
+          session_id = session$token,
+          notebook_id = target
+        )
+        async_task_submitted(
+          "search_batch_import",
+          task_id,
+          metadata = list(
+            session_id = session$token,
+            notebook_id = target,
+            abstract_count = length(selected),
+            download_pdfs = download_pdfs
+          )
+        )
 
         # Show progress modal (matches bulk import modal pattern)
         showModal(modalDialog(
@@ -3053,7 +3344,11 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           db_path = db_path_val,
           interrupt_flag = flag_file,
           progress_file = prog_file,
-          app_dir = getwd()
+          app_dir = getwd(),
+          download_pdfs = download_pdfs,
+          openalex_api_key = oa_api_key,
+          task_id = task_id,
+          async_context = async_context
         )
 
         # Start progress polling
@@ -3077,6 +3372,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       flag_file <- batch_import_interrupt()
       if (!is.null(flag_file)) {
         signal_interrupt(flag_file)
+      }
+      task_id <- batch_import_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
       }
       poller <- batch_import_poller()
       if (!is.null(poller)) {
@@ -3110,10 +3409,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       batch_import_interrupt(NULL)
       clear_progress_file(batch_import_progress())
       batch_import_progress(NULL)
+      batch_import_task_id(NULL)
 
       # Show results
-      show_import_results(result$imported, result$duplicates, result$failed,
-                          cancelled = isTRUE(result$cancelled))
+      show_import_results(
+        result$imported, result$duplicates, result$failed,
+        pdf_count = if (!is.null(result$pdf_imported)) result$pdf_imported else 0,
+        abstract_count = if (!is.null(result$abstract_imported)) result$abstract_imported else 0,
+        cancelled = isTRUE(result$cancelled)
+      )
 
       # Refresh paper list
       paper_refresh(paper_refresh() + 1)
@@ -3181,13 +3485,19 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
       # Add loading spinner if processing
       if (is_processing()) {
+        paper_count <- pagination_state$total_fetched
+        status_text <- if (paper_count > 0) {
+          sprintf("Analyzing %d paper%s...", paper_count, if (paper_count == 1) "" else "s")
+        } else {
+          "Thinking..."
+        }
         msg_list <- c(msg_list, list(
           div(
             class = "d-flex justify-content-start mb-2",
             div(
               class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
               div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
-              span(class = "text-muted", "Thinking...")
+              span(class = "text-muted", status_text)
             )
           )
         ))
@@ -3229,13 +3539,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        paste("Sorry, I encountered an error processing your question.")
+        is_processing(FALSE)
+        session$sendCustomMessage("searchChatReady", ns(""))
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      session$sendCustomMessage("searchChatReady", ns(""))
+      if (!is.null(response)) {
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        session$sendCustomMessage("searchChatReady", ns(""))
+      }
     })
 
     # Reset Overview popover to defaults each time it opens
@@ -3248,6 +3562,16 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        toggle_popover(id = ns("overview_popover"))
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
 
       depth <- input$overview_depth %||% "concise"
@@ -3257,6 +3581,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
       toggle_popover(id = ns("overview_popover"))
+      show_synthesis_modal(paste0("Overview (", depth_label, ", ", mode_label, ")"))
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -3270,27 +3595,34 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "search",
                                  depth = depth, mode = mode, session_id = session$token)
       }, error = function(e) {
+        removeModal()
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        "Sorry, I encountered an error generating the overview."
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "overview"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "overview"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Conclusions preset handler
@@ -3302,7 +3634,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Conclusion Synthesis")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
@@ -3311,21 +3653,28 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
+        removeModal()
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        "Sorry, I encountered an error generating the synthesis."
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Phase 27: Research Questions preset handler
@@ -3336,7 +3685,17 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      paper_count <- tryCatch(nrow(list_abstracts(con(), notebook_id())), error = function(e) 0L)
+      if (paper_count == 0L) {
+        showNotification("This notebook has no papers yet. Run a search first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       is_processing(TRUE)
+      show_synthesis_modal("Research Questions")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -3350,26 +3709,33 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_research_questions(con(), cfg, nb_id, notebook_type = "search", session_id = session$token)
       }, error = function(e) {
+        removeModal()
         if (inherits(e, "api_error")) {
           show_error_toast(e$message, e$details, e$severity)
         } else {
           err <- classify_api_error(e, "OpenRouter")
           show_error_toast(err$message, err$details, err$severity)
         }
-        "Sorry, I encountered an error generating research questions."
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "research_questions"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "research_questions"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Return reactives for app.R to consume

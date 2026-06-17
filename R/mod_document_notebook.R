@@ -36,6 +36,24 @@ mod_document_notebook_ui <- function(id) {
       });
     ")),
 
+    # JavaScript handler for figure extraction progress updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('updateExtractProgress', function(data) {
+        var bar = document.getElementById('extract-bar');
+        var msg = document.getElementById('extract-status');
+        if (bar) {
+          bar.style.width = data.pct + '%';
+          bar.setAttribute('aria-valuenow', data.pct);
+        }
+        if (msg) msg.textContent = data.message;
+      });
+    ")),
+
+    div(class = "text-muted mb-3 d-flex align-items-center gap-2",
+      icon_circle_info(class = "text-primary"),
+      "Upload PDFs and use AI to chat with your documents, generate summaries, and extract insights."
+    ),
+
     layout_columns(
       col_widths = c(4, 8),
       # Left: Document list
@@ -52,7 +70,9 @@ mod_document_notebook_ui <- function(id) {
             id = ns("doc_list_container"),
             style = "max-height: 400px; overflow-y: auto;",
             uiOutput(ns("document_list"))
-          )
+          ),
+          # Figure gallery (shown when a document with figures is selected)
+          uiOutput(ns("figure_gallery"))
         )
       ),
       # Right: Chat
@@ -178,8 +198,25 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # Track which document IDs already have delete observers to prevent duplicates
     delete_doc_observers <- reactiveValues()
 
+    # Figure gallery state
+    selected_fig_doc <- reactiveVal(NULL)  # Document ID whose figures are shown
+    fig_refresh <- reactiveVal(0)          # Trigger gallery re-render
+    gallery_view <- reactiveVal("list")    # "list" or "grid"
+    extract_observers <- reactiveValues()  # Track extract button observers
+    fig_action_observers <- reactiveValues()  # Track per-figure action observers
+
+    # LIFE-03: Cache list_documents() result — runs once per invalidation cycle
+    # regardless of how many renderUI blocks depend on it.
+    docs_reactive <- reactive({
+      doc_refresh()        # Invalidate on refresh counter
+      nb_id <- notebook_id()
+      req(nb_id)
+      list_documents(con(), nb_id)
+    })
+
     # Reactive: processing state
     is_processing <- reactiveVal(FALSE)
+    processing_doc_count <- reactiveVal(0L)
 
     # Reactive: slides trigger
     slides_trigger <- reactiveVal(0)
@@ -200,31 +237,52 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     # Async re-index state (Phase 22)
     current_interrupt_flag <- reactiveVal(NULL)
     current_progress_file <- reactiveVal(NULL)
+    current_reindex_task_id <- reactiveVal(NULL)
     reindex_poller <- reactiveVal(NULL)
 
     # Async re-index task (Phase 22) — follows mod_citation_network.R ExtendedTask pattern
     # Data (documents/abstracts) is pre-fetched in main process to avoid cross-process DuckDB locks
-    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, api_key, embed_model, interrupt_flag, progress_file, app_dir) {
+    reindex_task <- ExtendedTask$new(function(notebook_id, documents, abstracts, provider, embed_model, interrupt_flag, progress_file, app_dir, task_id, async_context) {
       mirai::mirai({
-        source(file.path(app_dir, "R", "interrupt.R"))
-        source(file.path(app_dir, "R", "api_openalex.R"))
-        source(file.path(app_dir, "R", "api_openrouter.R"))
-        source(file.path(app_dir, "R", "_ragnar.R"))
+        source(file.path(app_dir, "R", "async_observability.R"))
+        async_task_set_context(async_context)
+        async_task_worker_started(task_id, metadata = list(
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        ))
 
-        result <- rebuild_notebook_store(
-          notebook_id = notebook_id,
-          api_key = api_key,
-          embed_model = embed_model,
-          documents = documents,
-          abstracts = abstracts,
-          interrupt_flag = interrupt_flag,
-          progress_file = progress_file,
-          progress_callback = NULL
-        )
-        result
+        tryCatch({
+          source(file.path(app_dir, "R", "interrupt.R"))
+          source(file.path(app_dir, "R", "config.R"))
+          source(file.path(app_dir, "R", "api_openalex.R"))
+          source(file.path(app_dir, "R", "api_openrouter.R"))
+          source(file.path(app_dir, "R", "api_provider.R"))
+          source(file.path(app_dir, "R", "_ragnar.R"))
+
+          result <- rebuild_notebook_store(
+            notebook_id = notebook_id,
+            provider = provider,
+            embed_model = embed_model,
+            documents = documents,
+            abstracts = abstracts,
+            interrupt_flag = interrupt_flag,
+            progress_file = progress_file,
+            progress_callback = NULL
+          )
+          async_task_completed(
+            task_id,
+            async_task_status_from_result(result),
+            metadata = list(count = result$count, success = result$success)
+          )
+          result
+        }, error = function(e) {
+          async_task_completed(task_id, "failed", error = e)
+          stop(e)
+        })
       }, notebook_id = notebook_id, documents = documents, abstracts = abstracts,
-         api_key = api_key, embed_model = embed_model, interrupt_flag = interrupt_flag,
-         progress_file = progress_file, app_dir = app_dir)
+         provider = provider, embed_model = embed_model, interrupt_flag = interrupt_flag,
+         progress_file = progress_file, app_dir = app_dir,
+         task_id = task_id, async_context = async_context)
     })
 
     # Phase 22: RAG operations check both store_healthy and rag_ready
@@ -249,10 +307,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     output$index_action_ui <- renderUI({
+      docs <- docs_reactive()
       nb_id <- notebook_id()
-      req(nb_id)
 
-      docs <- list_documents(con(), nb_id)
       if (nrow(docs) == 0) {
         return(NULL)
       }
@@ -397,6 +454,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           ),
           easyClose = FALSE
         ))
+      } else if (has_content) {
+        # Store is healthy — sync brain icon markers and check for unembedded docs
+        sync <- tryCatch(
+          sync_document_ragnar_statuses(con(), nb_id),
+          error = function(e) NULL
+        )
+        if (!is.null(sync) && sync$documents > sync$marked) {
+          missing <- sync$documents - sync$marked
+          # Surface rebuild button by marking index as incomplete
+          rag_ready(FALSE)
+          showNotification(
+            paste0(missing, " of ", sync$documents,
+                   " document(s) not in the search index. Use Rebuild Search Index to embed them."),
+            type = "warning", duration = 8
+          )
+        }
+        doc_refresh(doc_refresh() + 1)
       }
     })
 
@@ -408,15 +482,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      provider <- provider_from_config(cfg, con())
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Rebuild with progress (per user decision: withProgress with document count)
       withProgress(message = "Rebuilding search index...", value = 0, {
         result <- rebuild_notebook_store(
           notebook_id = nb_id,
           con = con(),
-          api_key = api_key,
+          provider = provider,
           embed_model = embed_model,
           progress_callback = function(count, total) {
             incProgress(
@@ -430,6 +504,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       if (result$success) {
         store_healthy(TRUE)
         rag_ready(TRUE)
+        # Mark all documents as ragnar-indexed so brain icons show
+        tryCatch({
+          mark_as_ragnar_indexed(con(),
+            DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(nb_id))$id,
+            source_type = "document")
+        }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
         doc_refresh(doc_refresh() + 1)
         showNotification(
           paste("Search index rebuilt successfully.", result$count, "items re-embedded."),
@@ -453,8 +533,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       req(nb_id)
 
       cfg <- config()
-      api_key <- get_setting(cfg, "openrouter", "api_key")
-      embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+      provider <- provider_from_config(cfg, con())
+      embed_model <- resolve_model_for_operation(cfg, "embedding")
 
       # Pre-fetch data in main process (avoids cross-process DuckDB lock)
       documents <- list_documents(con(), nb_id)
@@ -468,6 +548,25 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       progress_file <- create_progress_file(session$token)
       current_interrupt_flag(flag_file)
       current_progress_file(progress_file)
+
+      task_id <- async_task_id("document_reindex")
+      current_reindex_task_id(task_id)
+      async_context <- async_task_context(
+        task_id = task_id,
+        task_type = "document_reindex",
+        session_id = session$token,
+        notebook_id = nb_id
+      )
+      async_task_submitted(
+        "document_reindex",
+        task_id,
+        metadata = list(
+          session_id = session$token,
+          notebook_id = nb_id,
+          documents = nrow(documents),
+          abstracts = nrow(abstracts)
+        )
+      )
 
       # Show progress modal with Stop button
       showModal(modalDialog(
@@ -499,13 +598,17 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       reindex_poller(poller)
 
       # Launch async task
-      reindex_task$invoke(nb_id, documents, abstracts, api_key, embed_model, flag_file, progress_file, getwd())
+      reindex_task$invoke(nb_id, documents, abstracts, provider, embed_model, flag_file, progress_file, getwd(), task_id, async_context)
     })
 
     # Cancel re-index handler (Phase 22)
     observeEvent(input$cancel_reindex, {
       flag <- current_interrupt_flag()
       if (!is.null(flag)) signal_interrupt(flag)
+      task_id <- current_reindex_task_id()
+      if (!is.null(task_id)) {
+        async_task_progress(task_id, "cancel_requested", "Cancel requested")
+      }
 
       # Stop polling
       poller <- reindex_poller()
@@ -522,25 +625,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     # Task result handler (Phase 22)
+    # NOTE: isolate() all reactive reads except reindex_task$result() to prevent
+    # reactive loops — doc_refresh(doc_refresh() + 1) inside observe() creates
+    # a self-triggering cycle without isolate (UAT finding)
     observe({
       result <- reindex_task$result()
 
       # Clean up poller
-      poller <- reindex_poller()
+      poller <- isolate(reindex_poller())
       if (!is.null(poller)) poller$destroy()
       reindex_poller(NULL)
 
       # Clean up flag/progress files
-      clear_interrupt_flag(current_interrupt_flag())
-      clear_progress_file(current_progress_file())
+      clear_interrupt_flag(isolate(current_interrupt_flag()))
+      clear_progress_file(isolate(current_progress_file()))
       current_interrupt_flag(NULL)
       current_progress_file(NULL)
+      current_reindex_task_id(NULL)
 
       removeModal()
 
       if (isTRUE(result$partial)) {
         # Cancelled mid-way — delete partial store, set rag_ready FALSE
-        tryCatch(delete_notebook_store(notebook_id()), error = function(e) NULL)
+        tryCatch(delete_notebook_store(isolate(notebook_id())), error = function(e) NULL)
         rag_ready(FALSE)
         store_healthy(FALSE)
         showNotification("Re-indexing cancelled. Partial index removed.", type = "warning", duration = 5)
@@ -549,11 +656,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         store_healthy(TRUE)
         # Mark chunks as ragnar-indexed
         tryCatch({
-          mark_as_ragnar_indexed(con(),
-            DBI::dbGetQuery(con(), "SELECT id FROM documents WHERE notebook_id = ?", list(notebook_id()))$id,
+          mark_as_ragnar_indexed(isolate(con()),
+            DBI::dbGetQuery(isolate(con()), "SELECT id FROM documents WHERE notebook_id = ?", list(isolate(notebook_id())))$id,
             source_type = "document")
         }, error = function(e) message("[ragnar] Sentinel update failed: ", e$message))
-        doc_refresh(doc_refresh() + 1)
+        doc_refresh(isolate(doc_refresh()) + 1)
         showNotification(paste("Re-indexed", result$count, "items successfully."), type = "message", duration = 5)
       } else {
         rag_ready(FALSE)
@@ -581,11 +688,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     })
 
     output$document_list <- renderUI({
-      doc_refresh()
+      docs <- docs_reactive()
       nb_id <- notebook_id()
-      req(nb_id)
-
-      docs <- list_documents(con(), nb_id)
 
       if (nrow(docs) == 0) {
         return(
@@ -598,8 +702,37 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
-      # Register resource path for PDF downloads
+      # Write text files for abstract-imported documents (no PDF on disk)
       pdf_dir <- file.path(".temp", "pdfs", nb_id)
+      # sanitize_filename() is defined in R/pdf.R (shared utility)
+      text_docs <- which(
+        (is.na(docs$filepath) | nchar(docs$filepath) == 0) &
+        !is.na(docs$full_text) & nchar(docs$full_text) > 0
+      )
+      if (length(text_docs) > 0) {
+        dir.create(pdf_dir, recursive = TRUE, showWarnings = FALSE)
+        for (j in text_docs) {
+          safe_name <- sanitize_filename(docs$filename[j])
+          txt_path <- file.path(pdf_dir, safe_name)
+          if (!file.exists(txt_path)) {
+            header <- docs$filename[j]
+            if (!is.na(docs$title[j])) header <- docs$title[j]
+            meta <- character(0)
+            if (!is.na(docs$authors[j])) meta <- c(meta, paste("Authors:", docs$authors[j]))
+            if (!is.na(docs$year[j])) meta <- c(meta, paste("Year:", docs$year[j]))
+            if (!is.na(docs$doi[j])) meta <- c(meta, paste("DOI:", docs$doi[j]))
+            content <- paste0(
+              header, "\n",
+              paste(rep("=", nchar(header)), collapse = ""), "\n",
+              if (length(meta) > 0) paste0(paste(meta, collapse = "\n"), "\n\n") else "\n",
+              docs$full_text[j]
+            )
+            writeLines(content, txt_path)
+          }
+        }
+      }
+
+      # Register resource path for PDF/text downloads
       if (dir.exists(pdf_dir)) {
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
         addResourcePath(resource_name, normalizePath(pdf_dir))
@@ -607,27 +740,105 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       embedded <- embedded_doc_ids()
 
+      # Register resource path for figure images
+      figures_dir <- file.path("data", "figures", nb_id)
+      if (dir.exists(figures_dir)) {
+        fig_resource <- paste0("figures_", gsub("-", "", nb_id))
+        addResourcePath(fig_resource, normalizePath(figures_dir))
+      }
+
       lapply(seq_len(nrow(docs)), function(i) {
         doc <- docs[i, ]
         is_embedded <- doc$id %in% embedded
+        is_pdf <- grepl("\\.pdf$", doc$filename, ignore.case = TRUE)
         delete_id <- paste0("delete_doc_", doc$id)
+        extract_id <- paste0("extract_figs_", doc$id)
+        view_figs_id <- paste0("view_figs_", doc$id)
 
-        # Build download URL
+        # Check for existing figures
+        fig_count <- tryCatch(
+          nrow(db_get_figures_for_document(con(), doc$id)),
+          error = function(e) 0L
+        )
+
+        # Build download URL (sanitize filename for non-PDF docs)
         resource_name <- paste0("pdfs_", gsub("-", "", nb_id))
-        download_url <- file.path(resource_name, doc$filename)
+        disk_filename <- if (is_pdf) doc$filename else sanitize_filename(doc$filename)
+        download_url <- file.path(resource_name, disk_filename)
 
         # Register delete observer (once per document ID)
         if (is.null(delete_doc_observers[[doc$id]])) {
           delete_doc_observers[[doc$id]] <- observeEvent(input[[delete_id]], {
             delete_document(con(), doc$id)
-            # Clean ragnar store chunks for this document
             delete_document_chunks_from_ragnar(nb_id, doc$filename)
-            # Also remove the PDF file
-            pdf_path <- file.path(".temp", "pdfs", nb_id, doc$filename)
+            disk_name <- if (grepl("\\.pdf$", doc$filename, ignore.case = TRUE)) {
+              doc$filename
+            } else {
+              sanitize_filename(doc$filename)
+            }
+            pdf_path <- file.path(".temp", "pdfs", nb_id, disk_name)
             if (file.exists(pdf_path)) file.remove(pdf_path)
+            # Clear figure gallery if showing this doc
+            if (identical(selected_fig_doc(), doc$id)) selected_fig_doc(NULL)
             doc_refresh(doc_refresh() + 1)
             showNotification(paste("Removed", doc$filename), type = "message")
           }, ignoreInit = TRUE, once = TRUE)
+        }
+
+        # Register extract figures observer (once per document ID)
+        if (is_pdf && is.null(extract_observers[[doc$id]])) {
+          local({
+            d_id <- doc$id
+            d_filename <- doc$filename
+            d_filepath <- doc$filepath
+
+            extract_observers[[d_id]] <- observeEvent(input[[extract_id]], {
+              # Check for existing figures -> confirmation
+              existing <- tryCatch(
+                nrow(db_get_figures_for_document(con(), d_id)),
+                error = function(e) 0L
+              )
+              if (existing > 0) {
+                showModal(modalDialog(
+                  title = "Replace existing figures?",
+                  tags$p(sprintf("This will replace %d existing figures for %s.",
+                                 existing, d_filename)),
+                  footer = tagList(
+                    actionButton(ns(paste0("confirm_reextract_", d_id)),
+                                 "Replace", class = "btn-warning"),
+                    modalButton("Cancel")
+                  ),
+                  easyClose = TRUE
+                ))
+                # Register one-time confirm observer (guarded to prevent accumulation)
+                confirm_key <- paste0("confirm_reextract_", d_id)
+                if (is.null(extract_observers[[confirm_key]])) {
+                  extract_observers[[confirm_key]] <- observeEvent(input[[confirm_key]], {
+                    removeModal()
+                    extract_observers[[confirm_key]] <- NULL
+                    run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
+                  }, ignoreInit = TRUE, once = TRUE)
+                }
+                return()
+              }
+              run_figure_extraction(d_id, nb_id, d_filepath, d_filename)
+            }, ignoreInit = TRUE)
+          })
+        }
+
+        # Register view-figures observer
+        if (fig_count > 0 && is.null(extract_observers[[paste0("view_", doc$id)]])) {
+          local({
+            d_id <- doc$id
+            extract_observers[[paste0("view_", d_id)]] <- observeEvent(input[[view_figs_id]], {
+              if (identical(selected_fig_doc(), d_id)) {
+                selected_fig_doc(NULL)  # Toggle off
+              } else {
+                selected_fig_doc(d_id)  # Toggle on
+                fig_refresh(fig_refresh() + 1)
+              }
+            }, ignoreInit = TRUE)
+          })
         }
 
         div(
@@ -649,11 +860,28 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           div(
             class = "d-flex align-items-center gap-2",
             span(paste(doc$page_count, "pg"), class = "text-muted small"),
+            # Figures: single button — badge toggles gallery, icon extracts
+            if (is_pdf && fig_count > 0) {
+              actionLink(
+                ns(view_figs_id),
+                span(paste0(fig_count, " fig", if (fig_count != 1) "s"),
+                     class = "badge bg-success"),
+                title = "View/hide figures"
+              )
+            } else if (is_pdf) {
+              actionLink(
+                ns(extract_id),
+                icon_image(),
+                class = "text-muted",
+                style = "cursor: pointer; opacity: 0.7;",
+                title = "Extract figures"
+              )
+            },
             tags$a(
               href = download_url,
               download = doc$filename,
               class = "btn btn-sm btn-outline-secondary py-0 px-1",
-              title = "Download PDF",
+              title = if (is_pdf) "Download PDF" else "Download text",
               icon_download()
             ),
             actionLink(
@@ -666,6 +894,303 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
           )
         )
       })
+    })
+
+    # =========================================================================
+    # Figure extraction + gallery
+    # =========================================================================
+
+    # Helper: run figure extraction with blocking progress modal
+    run_figure_extraction <- function(doc_id, nb_id, pdf_path, filename) {
+      # Verify PDF exists
+      if (!file.exists(pdf_path)) {
+        showNotification(
+          paste0("PDF file not found: ", filename,
+                 ". Re-upload the document to extract figures."),
+          type = "error", duration = NULL
+        )
+        return()
+      }
+
+      showModal(modalDialog(
+        title = "Extracting Figures",
+        tags$div(
+          tags$p(id = "extract-status", "Starting extraction..."),
+          tags$div(class = "progress",
+            tags$div(id = "extract-bar", class = "progress-bar progress-bar-striped progress-bar-animated",
+                     role = "progressbar", style = "width: 0%",
+                     `aria-valuenow` = "0", `aria-valuemin` = "0", `aria-valuemax` = "100")
+          )
+        ),
+        footer = NULL, easyClose = FALSE
+      ))
+
+      cfg <- config()
+      api_key <- cfg$openrouter$api_key
+
+      result <- tryCatch(
+        extract_and_describe_figures(
+          con = con(), api_key = api_key,
+          document_id = doc_id, notebook_id = nb_id,
+          pdf_path = pdf_path, session_id = session$token,
+          progress = function(value, detail) {
+            session$sendCustomMessage("updateExtractProgress", list(
+              pct = round(value * 100),
+              message = detail
+            ))
+          }
+        ),
+        error = function(e) {
+          message(sprintf("[figure-ui] Extraction error: %s", conditionMessage(e)))
+          list(n_extracted = 0L, n_described = 0L, n_failed = 0L,
+               error = conditionMessage(e))
+        }
+      )
+
+      removeModal()
+
+      if (!is.null(result$error)) {
+        showNotification(
+          paste0("Extraction failed: ", result$error),
+          type = "error", duration = NULL
+        )
+        return()
+      }
+
+      if (result$n_extracted == 0) {
+        showNotification(
+          paste0("No figures found in ", filename,
+                 ". This may be a text-only document."),
+          type = "warning", duration = 6
+        )
+      } else {
+        desc_msg <- if (result$n_described > 0) {
+          sprintf(" (%d described)", result$n_described)
+        } else if (is.null(api_key) || nchar(api_key) == 0) {
+          " (no API key — descriptions skipped)"
+        } else {
+          ""
+        }
+        showNotification(
+          sprintf("Extracted %d figures%s from %s",
+                  result$n_extracted, desc_msg, filename),
+          type = "message"
+        )
+        # LIFE-02: Destroy all figure action observers before re-extraction.
+        # fig_refresh() increment (below) triggers gallery renderUI to re-register fresh observers.
+        # Sequential invalidation guarantees destroy completes before re-registration.
+        for (old_id in names(fig_action_observers)) {
+          obs_list <- fig_action_observers[[old_id]]
+          if (is.list(obs_list)) {
+            for (obs in obs_list) {
+              if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+            }
+          }
+          fig_action_observers[[old_id]] <- NULL
+        }
+        selected_fig_doc(doc_id)
+        fig_refresh(fig_refresh() + 1)
+      }
+      doc_refresh(doc_refresh() + 1)  # Refresh doc list to show figure count badge
+    }
+
+    # Gallery view toggle
+    observeEvent(input$gallery_view_list, {
+      gallery_view("list")
+      fig_refresh(fig_refresh() + 1)
+    })
+    observeEvent(input$gallery_view_grid, {
+      gallery_view("grid")
+      fig_refresh(fig_refresh() + 1)
+    })
+
+    # Re-extract from gallery header
+    observeEvent(input$gallery_reextract, {
+      doc_id <- selected_fig_doc()
+      req(doc_id)
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      doc <- get_document(con(), doc_id)
+      req(doc)
+
+      existing <- tryCatch(
+        nrow(db_get_figures_for_document(con(), doc_id)),
+        error = function(e) 0L
+      )
+
+      showModal(modalDialog(
+        title = "Re-extract figures?",
+        tags$p(sprintf("This will replace %d existing figures for %s.",
+                       existing, doc$filename)),
+        footer = tagList(
+          actionButton(ns("confirm_gallery_reextract"), "Replace", class = "btn-warning"),
+          modalButton("Cancel")
+        ),
+        easyClose = TRUE
+      ))
+    })
+
+    observeEvent(input$confirm_gallery_reextract, {
+      removeModal()
+      doc_id <- selected_fig_doc()
+      nb_id <- notebook_id()
+      doc <- get_document(con(), doc_id)
+      run_figure_extraction(doc_id, nb_id, doc$filepath, doc$filename)
+    }, ignoreInit = TRUE)
+
+    # Figure gallery renderUI
+    output$figure_gallery <- renderUI({
+      fig_refresh()
+      doc_id <- selected_fig_doc()
+      if (is.null(doc_id)) return(NULL)
+
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      figures <- tryCatch(
+        db_get_figures_for_document(con(), doc_id),
+        error = function(e) data.frame()
+      )
+      if (nrow(figures) == 0) return(NULL)
+
+      fig_resource <- paste0("figures_", gsub("-", "", nb_id))
+      view <- gallery_view()
+
+      # Build figure cards
+      fig_cards <- lapply(seq_len(nrow(figures)), function(i) {
+        fig <- figures[i, ]
+        is_excluded <- isTRUE(fig$is_excluded)
+        has_desc <- !is.na(fig$llm_description) && nchar(fig$llm_description) > 0
+        img_src <- file.path(fig_resource, doc_id, basename(fig$file_path))
+
+        # Figure label
+        label_text <- if (!is.na(fig$figure_label) && nchar(fig$figure_label) > 0) {
+          fig$figure_label
+        } else {
+          paste("Page", fig$page_number)
+        }
+
+        # Register per-figure action observers
+        if (is.null(fig_action_observers[[fig$id]])) {
+          local({
+            f_id <- fig$id
+            f_path <- fig$file_path
+            f_label <- fig$figure_label
+            f_caption <- fig$extracted_caption
+
+            # Keep
+            obs_keep <- observeEvent(input[[paste0("keep_", f_id)]], {
+              db_update_figure(con(), f_id, is_excluded = FALSE)
+              fig_refresh(isolate(fig_refresh()) + 1)
+            }, ignoreInit = TRUE)
+
+            # Ban
+            obs_ban <- observeEvent(input[[paste0("ban_", f_id)]], {
+              db_update_figure(con(), f_id, is_excluded = TRUE)
+              fig_refresh(isolate(fig_refresh()) + 1)
+            }, ignoreInit = TRUE)
+
+            # Retry vision description
+            obs_retry <- observeEvent(input[[paste0("retry_", f_id)]], {
+              cfg <- config()
+              api_key <- cfg$openrouter$api_key
+              if (is.null(api_key) || nchar(api_key) == 0) {
+                showNotification(
+                  "Configure an API key in Settings to describe figures.",
+                  type = "warning"
+                )
+                return()
+              }
+
+              showNotification("Describing figure...", id = "retry_progress",
+                               duration = NULL, type = "message")
+
+              desc <- tryCatch(
+                describe_figure(
+                  api_key = api_key,
+                  image_data = f_path,
+                  figure_label = f_label,
+                  extracted_caption = f_caption
+                ),
+                error = function(e) {
+                  list(success = FALSE, error = conditionMessage(e))
+                }
+              )
+
+              removeNotification("retry_progress")
+
+              if (desc$success) {
+                description_text <- desc$summary
+                if (!is.na(desc$details) && nchar(desc$details) > 0) {
+                  description_text <- paste0(description_text, "\n\n", desc$details)
+                }
+                db_update_figure(con(), f_id,
+                  llm_description = description_text,
+                  image_type = desc$type,
+                  presentation_hint = desc$presentation_hint
+                )
+                # Log cost
+                if (desc$prompt_tokens > 0 || desc$completion_tokens > 0) {
+                  cost <- estimate_cost(desc$model_used,
+                                        desc$prompt_tokens, desc$completion_tokens)
+                  log_cost(con(), "figure_description", desc$model_used,
+                           desc$prompt_tokens, desc$completion_tokens,
+                           desc$prompt_tokens + desc$completion_tokens,
+                           cost, session$token)
+                }
+                showNotification("Description updated", type = "message", duration = 3)
+              } else {
+                showNotification("Failed to describe figure", type = "error", duration = 5)
+              }
+              fig_refresh(isolate(fig_refresh()) + 1)
+            }, ignoreInit = TRUE)
+            fig_action_observers[[f_id]] <- list(obs_keep, obs_ban, obs_retry)
+          })
+        }
+
+        # Build card based on view mode
+        if (view == "list") {
+          figure_card_list(fig, ns, img_src, label_text, is_excluded, has_desc)
+        } else {
+          figure_card_grid(fig, ns, img_src, label_text, is_excluded)
+        }
+      })
+
+      # Gallery header with view toggle and re-extract
+      header <- div(
+        class = "d-flex justify-content-between align-items-center py-2 px-2 border-bottom",
+        tags$strong(
+          sprintf("Figures (%d)", nrow(figures))
+        ),
+        div(
+          class = "d-flex gap-2",
+          div(
+            class = "btn-group btn-group-sm",
+            actionButton(ns("gallery_view_list"), icon_list(),
+              class = if (view == "list") "btn-primary" else "btn-outline-secondary",
+              title = "List view"
+            ),
+            actionButton(ns("gallery_view_grid"), icon_grid(),
+              class = if (view == "grid") "btn-primary" else "btn-outline-secondary",
+              title = "Grid view"
+            )
+          ),
+          actionButton(ns("gallery_reextract"), icon_refresh(),
+            class = "btn-outline-warning btn-sm",
+            title = "Re-extract figures"
+          )
+        )
+      )
+
+      tagList(
+        hr(),
+        header,
+        div(
+          style = "max-height: 500px; overflow-y: auto; padding: 4px;",
+          fig_cards
+        )
+      )
     })
 
     # Handle PDF upload
@@ -724,19 +1249,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
         incProgress(0.5, detail = "Generating embeddings")
 
-        api_key <- get_setting(cfg, "openrouter", "api_key")
-        embed_model <- get_setting(cfg, "defaults", "embedding_model") %||% "openai/text-embedding-3-small"
+        provider <- provider_from_config(cfg, con())
+        embed_model <- resolve_model_for_operation(cfg, "embedding")
 
         # Insert into per-notebook ragnar store (Phase 22: per-notebook store)
-        # Uses same OpenRouter API key for embeddings
-        if (nrow(result$chunks) > 0 && !is.null(api_key) && nchar(api_key) > 0) {
+        if (nrow(result$chunks) > 0 && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {
           incProgress(0.55, detail = "Building search index")
           tryCatch({
             # Phase 22: Use per-notebook ragnar store
             store <- tryCatch(
-              ensure_ragnar_store(nb_id, session, api_key, embed_model),
+              ensure_ragnar_store(nb_id, session, provider, embed_model),
               error = function(e) {
                 message("[ragnar] Failed to open per-notebook store: ", e$message)
+                showNotification(
+                  paste("PDF saved but search index unavailable:", e$message,
+                        "— use Rebuild Search Index to retry."),
+                  type = "warning", duration = 8
+                )
                 NULL
               }
             )
@@ -757,7 +1286,12 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
               message("Ragnar store updated for document: ", file$name)
             }
           }, error = function(e) {
-            message("Ragnar indexing skipped: ", e$message)
+            message("Ragnar indexing failed: ", e$message)
+            showNotification(
+              paste("PDF saved but embedding failed:", e$message,
+                    "— use Rebuild Search Index to retry."),
+              type = "warning", duration = 8
+            )
           })
         }
 
@@ -847,13 +1381,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       # Add loading spinner if processing
       if (is_processing()) {
+        doc_count <- processing_doc_count()
+        status_text <- if (doc_count > 0) {
+          sprintf("Analyzing %d document%s...", doc_count, if (doc_count == 1) "" else "s")
+        } else {
+          "Thinking..."
+        }
         msg_list <- c(msg_list, list(
           div(
             class = "d-flex justify-content-start mb-2",
             div(
               class = "bg-white border p-2 rounded d-flex align-items-center gap-2",
               div(class = "spinner-border spinner-border-sm text-primary", role = "status"),
-              span(class = "text-muted", "Thinking...")
+              span(class = "text-muted", status_text)
             )
           )
         ))
@@ -902,6 +1442,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       if (nchar(user_msg) == 0) return()
 
       updateTextInput(session, "user_input", value = "")
+      processing_doc_count(tryCatch(nrow(list_documents(con(), notebook_id())), error = function(e) 0L))
       is_processing(TRUE)
 
       # Add user message
@@ -916,13 +1457,23 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       response <- tryCatch({
         rag_query(con(), cfg, user_msg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        session$sendCustomMessage("docChatReady", ns(""))
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
-      session$sendCustomMessage("docChatReady", ns(""))
+      if (!is.null(response)) {
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        session$sendCustomMessage("docChatReady", ns(""))
+      }
     })
 
     # Also send on Enter key
@@ -930,11 +1481,49 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       # This won't work directly - need JS for Enter key
     }, ignoreInit = TRUE)
 
+    # Synthesis progress modal helpers
+    show_synthesis_modal <- function(label) {
+      showModal(modalDialog(
+        title = tagList(icon_spinner(class = "fa-spin"), paste(" Generating:", label)),
+        div(
+          class = "text-center py-3",
+          div(class = "spinner-border text-primary mb-3", role = "status",
+              style = "width: 3rem; height: 3rem;"),
+          div(id = ns("synthesis_status"), class = "text-muted", "Preparing context...")
+        ),
+        footer = NULL,
+        easyClose = FALSE,
+        size = "m"
+      ))
+    }
+
+    update_synthesis_status <- function(message) {
+      session$sendCustomMessage("updateSynthesisStatus", list(
+        msg_id = ns("synthesis_status"),
+        message = message
+      ))
+    }
+
     # Preset buttons
     handle_preset <- function(preset_type, label) {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard: skip modal and show inline warning if no content
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification(
+          "This notebook has no documents yet. Upload a PDF first, then try again.",
+          type = "warning", duration = 5
+        )
+        return()
+      }
+
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+
+      show_synthesis_modal(label)
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = paste("Generate:", label), timestamp = Sys.time())))
@@ -943,15 +1532,29 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
-        generate_preset(con(), cfg, nb_id, preset_type, session_id = session$token)
+        generate_preset(con(), cfg, nb_id, preset_type,
+                        session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time())))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     }
 
     # Reset Overview popover to defaults each time it opens
@@ -964,7 +1567,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_overview_generate, {
       req(!is_processing())
       req(has_api_key())
-      is_processing(TRUE)
+
+      # Empty notebook guard
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        toggle_popover(id = ns("overview_popover"))
+        return()
+      }
 
       depth <- input$overview_depth %||% "concise"
       mode <- input$overview_mode %||% "quick"
@@ -972,7 +1584,11 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       depth_label <- if (identical(depth, "detailed")) "Detailed" else "Concise"
       mode_label <- if (identical(mode, "thorough")) "Thorough" else "Quick"
 
+      processing_doc_count(doc_count)
+      is_processing(TRUE)
+
       toggle_popover(id = ns("overview_popover"))
+      show_synthesis_modal(paste0("Overview (", depth_label, ", ", mode_label, ")"))
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -986,21 +1602,34 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_overview_preset(con(), cfg, nb_id, notebook_type = "document",
                                  depth = depth, mode = mode, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "overview"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "overview"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     observeEvent(input$btn_studyguide, handle_preset("studyguide", "Study Guide"))
@@ -1010,7 +1639,19 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_conclusions, {
       req(!is_processing())
       req(has_api_key())
+
+      # Empty notebook guard
+      nb_id <- notebook_id()
+      doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Conclusion Synthesis")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(role = "user", content = "Generate: Conclusion Synthesis", timestamp = Sys.time(), preset_type = "conclusions")))
@@ -1019,15 +1660,28 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       nb_id <- notebook_id()
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_conclusions_preset(con(), cfg, nb_id, notebook_type = "document", session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(role = "assistant", content = response, timestamp = Sys.time(), preset_type = "conclusions")))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Literature Review Table preset handler
@@ -1041,9 +1695,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Warning toast for large notebooks (20+ papers)
+      # Empty notebook guard
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
           sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
@@ -1051,7 +1712,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Literature Review Table")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1064,20 +1727,33 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_lit_review_table(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "lit_review"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "lit_review"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Methodology Extractor preset handler
@@ -1091,9 +1767,16 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Warning toast for large notebooks (20+ papers)
+      # Empty notebook guard
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
+      if (doc_count == 0L) {
+        showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                         type = "warning", duration = 5)
+        return()
+      }
+
+      # Warning toast for large notebooks (20+ papers)
       if (doc_count >= 20L) {
         showNotification(
           sprintf("Analyzing %d papers - output quality may degrade with large collections.", doc_count),
@@ -1101,7 +1784,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Methodology Extractor")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1114,20 +1799,33 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_methodology_extractor(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "methodology_extractor"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "methodology_extractor"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Gap Analysis preset handler
@@ -1141,10 +1839,15 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         return()
       }
 
-      # Minimum 3 papers required for gap analysis
+      # Minimum 3 papers required for gap analysis (also serves as empty guard)
       nb_id <- notebook_id()
       doc_count <- tryCatch(nrow(list_documents(con(), nb_id)), error = function(e) 0L)
       if (doc_count < 3L) {
+        if (doc_count == 0L) {
+          showNotification("This notebook has no documents yet. Upload a PDF first, then try again.",
+                           type = "warning", duration = 5)
+          return()
+        }
         showNotification(
           "Gap analysis requires at least 3 papers. Add more papers to this notebook.",
           type = "error", duration = 8
@@ -1160,7 +1863,9 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         )
       }
 
+      processing_doc_count(doc_count)
       is_processing(TRUE)
+      show_synthesis_modal("Research Gaps")
 
       msgs <- messages()
       msgs <- c(msgs, list(list(
@@ -1173,20 +1878,33 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
 
       cfg <- config()
 
+      update_synthesis_status("Sending to LLM...")
       response <- tryCatch({
         generate_gap_analysis(con(), cfg, nb_id, session_id = session$token)
       }, error = function(e) {
-        sprintf("Error: %s", e$message)
+        removeModal()
+        if (inherits(e, "api_error")) {
+          show_error_toast(e$message, e$details, e$severity)
+        } else {
+          err <- classify_api_error(e, "OpenRouter")
+          show_error_toast(err$message, err$details, err$severity)
+        }
+        is_processing(FALSE)
+        NULL
       })
 
-      msgs <- c(msgs, list(list(
-        role = "assistant",
-        content = response,
-        timestamp = Sys.time(),
-        preset_type = "gap_analysis"
-      )))
-      messages(msgs)
-      is_processing(FALSE)
+      if (!is.null(response)) {
+        update_synthesis_status("Processing response...")
+        msgs <- c(msgs, list(list(
+          role = "assistant",
+          content = response,
+          timestamp = Sys.time(),
+          preset_type = "gap_analysis"
+        )))
+        messages(msgs)
+        is_processing(FALSE)
+        removeModal()
+      }
     })
 
     # Slides module
@@ -1196,5 +1914,147 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
     observeEvent(input$btn_slides, {
       slides_trigger(slides_trigger() + 1)
     })
+
+    # LIFE-04: Clean up observer handles on session end to prevent orphaned references.
+    # Follows mod_citation_network.R cleanup pattern.
+    session$onSessionEnded(function() {
+      # isolate() required: onSessionEnded runs outside reactive context,
+      # but names() on reactiveValues needs one.
+      isolate({
+        # Destroy figure action observers
+        for (id in names(fig_action_observers)) {
+          obs_list <- fig_action_observers[[id]]
+          if (is.list(obs_list)) {
+            for (obs in obs_list) {
+              if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+            }
+          }
+          fig_action_observers[[id]] <- NULL
+        }
+        # Destroy extract button observers
+        for (id in names(extract_observers)) {
+          obs <- extract_observers[[id]]
+          if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+          extract_observers[[id]] <- NULL
+        }
+        # Destroy delete document observers
+        for (id in names(delete_doc_observers)) {
+          obs <- delete_doc_observers[[id]]
+          if (!is.null(obs)) tryCatch(obs$destroy(), error = function(e) NULL)
+          delete_doc_observers[[id]] <- NULL
+        }
+      })
+    })
   })
+}
+
+
+# =============================================================================
+# Figure card helpers (used by gallery renderUI)
+# =============================================================================
+
+#' Render a figure card in list view (large image + full metadata)
+#' @keywords internal
+figure_card_list <- function(fig, ns, img_src, label_text, is_excluded, has_desc) {
+  card(
+    class = if (is_excluded) "mb-2 opacity-50 border-danger" else "mb-2",
+    card_body(
+      class = "p-2",
+      layout_columns(
+        col_widths = c(5, 7),
+        tags$img(
+          src = img_src,
+          class = "img-fluid rounded",
+          style = "max-height: 200px; object-fit: contain; width: 100%;",
+          alt = label_text
+        ),
+        tags$div(
+          tags$div(
+            class = "d-flex justify-content-between align-items-start mb-1",
+            tags$strong(label_text),
+            if (is_excluded) {
+              span(class = "badge bg-danger", "Excluded")
+            }
+          ),
+          if (!is.na(fig$extracted_caption) && nchar(fig$extracted_caption) > 0) {
+            tags$p(class = "text-muted small mb-1",
+                   style = "line-height: 1.3;",
+                   substr(fig$extracted_caption, 1, 200),
+                   if (nchar(fig$extracted_caption) > 200) "...")
+          },
+          if (has_desc) {
+            tags$p(class = "small mb-1",
+                   style = "line-height: 1.3;",
+                   icon_brain(class = "text-primary me-1"),
+                   substr(fig$llm_description, 1, 150),
+                   if (nchar(fig$llm_description) > 150) "...")
+          } else {
+            tags$p(class = "text-warning small mb-1",
+                   icon_warning(), " No description")
+          },
+          tags$div(
+            class = "btn-group btn-group-sm mt-1",
+            actionButton(
+              ns(paste0("keep_", fig$id)),
+              label = tagList(icon_check(), "Keep"),
+              class = if (!is_excluded) "btn-success" else "btn-outline-success"
+            ),
+            actionButton(
+              ns(paste0("retry_", fig$id)),
+              label = tagList(icon_refresh(), "Retry"),
+              class = "btn-outline-primary"
+            ),
+            actionButton(
+              ns(paste0("ban_", fig$id)),
+              label = tagList(icon_ban(), "Ban"),
+              class = if (is_excluded) "btn-danger" else "btn-outline-danger"
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+#' Render a figure card in grid/thumbnail view
+#' @keywords internal
+figure_card_grid <- function(fig, ns, img_src, label_text, is_excluded) {
+  tags$div(
+    class = "d-inline-block p-1 align-top",
+    style = "width: 180px;",
+    card(
+      class = if (is_excluded) "opacity-50 border-danger" else "",
+      card_body(
+        class = "p-1 text-center",
+        tags$img(
+          src = img_src,
+          class = "img-fluid rounded",
+          style = "max-height: 120px; object-fit: contain;",
+          alt = label_text
+        ),
+        tags$small(class = "d-block text-muted mt-1", label_text),
+        tags$div(
+          class = "btn-group btn-group-sm mt-1",
+          actionButton(
+            ns(paste0("keep_", fig$id)),
+            icon_check(),
+            class = if (!is_excluded) "btn-success" else "btn-outline-success",
+            title = "Keep"
+          ),
+          actionButton(
+            ns(paste0("retry_", fig$id)),
+            icon_refresh(),
+            class = "btn-outline-primary",
+            title = "Retry description"
+          ),
+          actionButton(
+            ns(paste0("ban_", fig$id)),
+            icon_ban(),
+            class = if (is_excluded) "btn-danger" else "btn-outline-danger",
+            title = "Exclude"
+          )
+        )
+      )
+    )
+  )
 }

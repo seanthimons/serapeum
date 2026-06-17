@@ -10,6 +10,7 @@ if (length(args) < 1) {
 api_key <- args[1]
 model_id <- if (length(args) >= 2) args[2] else "anthropic/claude-sonnet-4"
 
+source("R/prompt_helpers.R")
 source("R/slides.R")
 source("R/api_openrouter.R")
 

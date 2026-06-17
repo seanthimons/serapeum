@@ -122,6 +122,43 @@
 
 ---
 
+## Milestone: v20.0 — Shiny Reactivity Cleanup
+
+**Shipped:** 2026-03-29
+**Phases:** 4 | **Plans:** 6
+
+### What Was Built
+- req()/isolate() guards and input validation across query builder, match_aa_model, section_filter
+- Observer destroy-before-create lifecycle for chip handlers, figure action observers
+- Cached docs_reactive() eliminating redundant list_documents() DB calls in renderUI
+- Session$onSessionEnded cleanup hooks for document notebook and slides modules
+- Shared show_error_toast() with modal-then-notify pattern across all 9 preset handlers
+- Idempotent SQL migration DDL (IF NOT EXISTS) for fresh installs with regression tests
+
+### What Worked
+- Phase ordering by regression risk (additive guards → lifecycle → error handling → infrastructure) — no regressions during incremental changes
+- Audit-before-fix approach: GARD-02 audit confirmed no code changes needed, avoiding unnecessary modifications
+- Small milestone (4 phases, 6 plans) completed in 3 days with clean scope
+- TDD for Phase 64 (39 assertions) caught edge cases (nzchar(NA_character_) returns TRUE, not NA)
+
+### What Was Inefficient
+- SUMMARY.md frontmatter missing `one_liner` fields in Phases 64-66 — milestone completion automation couldn't extract accomplishments
+- STATE.md progress counters showed 0/4 despite all phases being complete — stale from initial creation
+- Phase 67 "Plans: TBD" never updated in ROADMAP.md after plans were created
+
+### Patterns Established
+- modal-then-notify: removeModal() → show_error_toast() → is_processing(FALSE) → NULL for all preset error handlers
+- Observer lifecycle: destroy-before-create with tryCatch-wrapped destroy() in loops
+- Session cleanup: onSessionEnded hook with defensive tryCatch for each observer store
+
+### Key Lessons
+1. Additive-only changes (req(), isolate()) are safe first steps — they catch NULLs before structural changes add complexity
+2. R's nzchar(NA_character_) returns TRUE, not NA — explicit is.na() check required in guards
+3. Fresh-install regression tests are essential — idempotent DDL issues only surface on clean databases
+4. Stability milestones complete faster than feature milestones — fewer design decisions, clearer scope
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -131,12 +168,14 @@
 | v6.0 | 3 | 8 | UAT-driven gap closure loop for UI milestones |
 | v9.0 | 3 | 3 | Small focused phases (1 plan each) for fast iteration |
 | v10.0 | 6 | 10 | Policy-first design system + replicable RAG preset pattern |
+| v20.0 | 4 | 6 | Regression-risk-ordered stability phases + additive-first approach |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Validation phases catch nothing when earlier phases are thorough — Phase 32 was clean
 2. Centralized CSS/theming prevents scatter and makes iteration fast
 3. User screenshot testing catches UI issues that planning and code review miss (v6.0 UAT, v9.0 tooltips)
-4. Small milestones (3 phases) ship faster with cleaner scope than large ones
+4. Small milestones (3-4 phases) ship faster with cleaner scope than large ones — confirmed v9.0 (2 days), v20.0 (3 days)
 5. Policy-first design (document → validate → code) prevents bike-shedding — confirmed across v6.0 (Catppuccin) and v10.0 (design system)
 6. RAG preset development is now a replicable pattern (~200 LOC per preset) — backend + UI + handler + is_synthesis
+7. Stability milestones benefit from regression-risk ordering — additive guards before structural changes prevents cascading failures

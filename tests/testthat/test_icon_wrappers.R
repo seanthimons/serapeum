@@ -1,10 +1,9 @@
 test_that("no raw icon() calls remain outside wrapper definitions", {
-  # Get project root (testthat runs from tests/testthat/, go up 2 levels)
-  project_root <- file.path(getwd(), "..", "..")
+  # Use app_root() from helper-source.R
 
   r_files <- c(
-    list.files(file.path(project_root, "R"), pattern = "\\.R$", full.names = TRUE),
-    file.path(project_root, "app.R")
+    list.files(file.path(app_root(), "R"), pattern = "\\.R$", full.names = TRUE),
+    file.path(app_root(), "app.R")
   )
   raw_calls <- character(0)
 
@@ -27,9 +26,8 @@ test_that("no raw icon() calls remain outside wrapper definitions", {
 })
 
 test_that("all icon wrapper functions exist and are callable", {
-  # Get project root (testthat runs from tests/testthat/, go up 2 levels)
-  project_root <- file.path(getwd(), "..", "..")
-  source(file.path(project_root, "R", "theme_catppuccin.R"))
+  # Use app_root() from helper-source.R
+  source_app("theme_catppuccin.R")
 
   # Test a sample of wrapper functions
   expect_true(is.function(icon_save))

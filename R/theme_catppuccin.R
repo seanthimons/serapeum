@@ -271,6 +271,11 @@ icon_diagram <- function(...) shiny::icon("diagram-project", ...)
 #' @return Icon tag
 icon_audit <- function(...) shiny::icon("magnifying-glass-chart", ...)
 
+#' Filter/funnel icon (research refiner)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_funnel <- function(...) shiny::icon("filter", ...)
+
 #' File import icon (import papers)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
@@ -461,6 +466,21 @@ icon_check_double <- function(...) shiny::icon("check-double", ...)
 #' @return Icon tag
 icon_ban <- function(...) shiny::icon("ban", ...)
 
+#' Image icon (figures/photos)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_image <- function(...) shiny::icon("image", ...)
+
+#' List icon (list view toggle)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_list <- function(...) shiny::icon("list", ...)
+
+#' Grid/table-cells icon (grid view toggle)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_grid <- function(...) shiny::icon("table-cells", ...)
+
 #' Rotate icon (refresh/reload)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
@@ -575,6 +595,21 @@ icon_sliders <- function(...) shiny::icon("sliders", ...)
 #' @param ... Additional arguments passed to shiny::icon()
 #' @return Icon tag
 icon_wallet <- function(...) shiny::icon("wallet", ...)
+
+#' Clock icon (latency/timing)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_clock <- function(...) shiny::icon("clock", ...)
+
+#' Server icon (providers)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_server <- function(...) shiny::icon("server", ...)
+
+#' Plus icon (add actions)
+#' @param ... Additional arguments passed to shiny::icon()
+#' @return Icon tag
+icon_plus <- function(...) shiny::icon("plus", ...)
 
 #' Save icon (alternative name)
 #' @param ... Additional arguments passed to shiny::icon()
@@ -780,6 +815,29 @@ catppuccin_dark_css <- function() {
 
 [data-bs-theme="dark"] .shiny-progress-notification .progress-text {
   color: ', MOCHA$text, ';
+}
+
+/* V12: Modal dark mode — synthesis progress and welcome wizard */
+[data-bs-theme="dark"] .modal-content {
+  background-color: ', MOCHA$base, ' !important;
+  color: ', MOCHA$text, ' !important;
+  border-color: ', MOCHA$surface1, ' !important;
+}
+
+[data-bs-theme="dark"] .modal-header {
+  border-bottom-color: ', MOCHA$surface1, ' !important;
+}
+
+/* V12: Prompt editor details/summary dark mode */
+[data-bs-theme="dark"] details.mb-2 > .border {
+  border-color: ', MOCHA$surface1, ' !important;
+  background-color: ', MOCHA$surface0, ';
+}
+
+/* V12: Version badge dark mode — use subtle surface color */
+[data-bs-theme="dark"] .badge.bg-secondary {
+  background-color: ', MOCHA$surface1, ' !important;
+  color: ', MOCHA$subtext1, ' !important;
 }
 ')
 }

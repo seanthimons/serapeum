@@ -15,7 +15,9 @@
 - ✅ **v8.0 Multi-Seeded Citation Network** - Phases 40, 40.1 (shipped 2026-03-02)
 - ✅ **v9.0 Network Graph Polish** - Phases 41-43 (shipped 2026-03-04)
 - ✅ **v10.0 Theme Harmonization & AI Synthesis** - Phases 44-49 (shipped 2026-03-06)
-- 🚧 **v11.0 Search Notebook UX** - Phases 50-56 (in progress)
+- ✅ **v11.0 Search Notebook UX** - Phases 50-56 (shipped 2026-03-12)
+- ✅ **v16.0 Content & Output Quality** - Phases 57-63 (shipped 2026-03-21)
+- ✅ **v20.0 Shiny Reactivity Cleanup** - Phases 64-67 (shipped 2026-03-29)
 
 ## Phases
 
@@ -149,167 +151,61 @@ See [v9.0-ROADMAP.md](milestones/v9.0-ROADMAP.md) for full details.
 </details>
 
 <details>
-<summary>✅ v10.0 Theme Harmonization & AI Synthesis (Phases 44-49) — SHIPPED 2026-03-06</summary>
+<summary>✅ v10.0 Theme Harmonization & AI Synthesis (Phases 44-49) - SHIPPED 2026-03-06</summary>
 
-- [x] Phase 44: Tech Debt Cleanup (1/1 plans) — completed 2026-03-04
-- [x] Phase 45: Design System Foundation (1/1 plans) — completed 2026-03-05
-- [x] Phase 46: Citation Audit Bug Fixes (1/1 plans) — completed 2026-03-05
-- [x] Phase 47: Sidebar & Button Theming (3/3 plans) — completed 2026-03-05
-- [x] Phase 48: Methodology Extractor Preset (2/2 plans) — completed 2026-03-06
-- [x] Phase 49: Gap Analysis Report Preset (2/2 plans) — completed 2026-03-06
+- [x] Phase 44: Tech Debt Cleanup (1/1 plans) - completed 2026-03-04
+- [x] Phase 45: Design System Foundation (1/1 plans) - completed 2026-03-05
+- [x] Phase 46: Citation Audit Bug Fixes (1/1 plans) - completed 2026-03-05
+- [x] Phase 47: Sidebar & Button Theming (3/3 plans) - completed 2026-03-05
+- [x] Phase 48: Methodology Extractor Preset (2/2 plans) - completed 2026-03-06
+- [x] Phase 49: Gap Analysis Report Preset (2/2 plans) - completed 2026-03-06
 
 See [v10.0-ROADMAP.md](milestones/v10.0-ROADMAP.md) for full details.
 
 </details>
 
-### v11.0 Search Notebook UX (In Progress)
+<details>
+<summary>✅ v11.0 Search Notebook UX (Phases 50-56) - SHIPPED 2026-03-12</summary>
 
-**Milestone Goal:** Refine the search notebook toolbar, filtering, and document type controls for clarity and consistency
+- [x] Phase 50: API Pagination Foundation (1/1 plans) - completed 2026-03-07
+- [x] Phase 51: Pagination State Management (1/1 plans) - completed 2026-03-09
+- [x] Phase 52: Load More Button (1/1 plans) - completed 2026-03-09
+- [x] Phase 52.1: Fix Search Refresh + Load More (1/1 plans) - completed 2026-03-09
+- [x] Phase 53: Toolbar Restructuring (1/1 plans) - completed 2026-03-10
+- [x] Phase 53.1: Import History Bug Fix (1/1 plans) - completed 2026-03-11
+- [x] Phase 54: Tooltip Layer (1/1 plans) - completed 2026-03-11
+- [x] Phase 55: Document Type Filter UX (1/1 plans) - completed 2026-03-11
+- [x] Phase 56: Year Slider Alignment Fix (1/1 plans) - completed 2026-03-12
 
-- [x] **Phase 50: API Pagination Foundation** - Cursor-based pagination in OpenAlex API client (completed 2026-03-07)
-- [x] **Phase 51: Pagination State Management** - Server-side state for Refresh vs Load More semantics (completed 2026-03-09)
-- [x] **Phase 52: Load More Button** - Append-mode pagination UI with conditional rendering (completed 2026-03-09)
-- [x] **Phase 53: Toolbar Restructuring** - Button reordering with semantic color harmonization (completed 2026-03-10)
-- [x] **Phase 54: Tooltip Layer** - Comprehensive tooltip coverage for accessibility (completed 2026-03-11)
-- [x] **Phase 55: Document Type Filter UX** - Expanded type taxonomy with improved layout (completed 2026-03-11)
-- [x] **Phase 56: Year Slider Alignment Fix** - CSS alignment for histogram and slider (completed 2026-03-12)
+</details>
 
-## Phase Details
+<details>
+<summary>✅ v16.0 Content & Output Quality (Phases 57-63) - SHIPPED 2026-03-21</summary>
 
-### Phase 50: API Pagination Foundation
-**Goal**: OpenAlex API client supports cursor-based pagination for both Refresh and Load More workflows
-**Depends on**: Nothing (first phase)
-**Requirements**: PAGE-06
-**Success Criteria** (what must be TRUE):
-  1. `search_papers()` accepts cursor parameter (default NULL) and sort parameter (default "relevance_score") and returns `list(papers, next_cursor, count)`
-  2. Cursor is treated as opaque string (never parsed or decoded)
-  3. API client extracts `meta.next_cursor` from OpenAlex response for pagination continuation
-  4. First search (cursor=NULL) and paginated search (cursor provided) both return valid paper lists
-**Plans:** 1/1 plans complete
+- [x] **Phase 57: Citation Traceability** - completed 2026-03-18
+- [x] **Phase 58: Theme Infrastructure** - completed 2026-03-19
+- [x] **Phase 59: Theme Swatches, Upload, and Management** - completed 2026-03-19
+- [x] **Phase 60: Color Picker and Font Selector** - completed 2026-03-20
+- [x] **Phase 61: AI Theme Generation** - completed 2026-03-20
+- [x] **Phase 62: Prompt Storage Schema** - completed 2026-03-21
+- [x] **Phase 63: Prompt Editing UI** - completed 2026-03-21
 
-Plans:
-- [ ] 50-01-PLAN.md — Add cursor pagination, retry logic, and update caller
+See [v16.0-ROADMAP.md](milestones/v16.0-ROADMAP.md) for full details.
 
-### Phase 51: Pagination State Management
-**Goal**: Server-side state layer tracks pagination cursor and enables distinct Refresh vs Load More behaviors
-**Depends on**: Phase 50
-**Requirements**: PAGE-01, PAGE-05
-**Success Criteria** (what must be TRUE):
-  1. Refresh button replaces results and resets cursor to NULL
-  2. Cursor state resets when user changes search query, year filter, or document type filters
-  3. `pagination_state` reactiveValues tracks cursor, has_more, and total_fetched without reactive loops
-  4. All filter change observers (year, type, Edit Search) include cursor reset logic
-**Plans**: 1/1 plans complete
-**Status**: COMPLETED 2026-03-09
+</details>
 
-Plans:
-- [x] 51-01-PLAN.md — Pagination state, cursor reset, client-side sort, result count display (2 tasks, 282s)
+<details>
+<summary>✅ v20.0 Shiny Reactivity Cleanup (Phases 64-67) - SHIPPED 2026-03-29</summary>
 
-### Phase 52: Load More Button
-**Goal**: Users can append additional search results without replacing existing papers
-**Depends on**: Phase 51
-**Requirements**: PAGE-02, PAGE-03, PAGE-04
-**Success Criteria** (what must be TRUE):
-  1. Load More button appears in toolbar with icon+text+sapphire color (matches Topics button style)
-  2. Clicking Load More appends next page of results to existing paper list
-  3. Load More button disappears when `pagination_state$has_more` is FALSE
-  4. Papers fetched via Load More persist until Refresh is clicked or filters change
-**Plans**: 1 plan
+- [x] **Phase 64: Additive Guards** (1/1 plans) - completed 2026-03-27
+- [x] **Phase 65: Observer Lifecycle** (2/2 plans) - completed 2026-03-27
+- [x] **Phase 66: Error Handling** (1/1 plans) - completed 2026-03-27
+- [x] **Phase 67: Infrastructure** (2/2 plans) - completed 2026-03-27
 
-Plans:
-- [ ] 52-01-PLAN.md — Load More button UI, server logic, icon wrapper, and unit tests
+See [v20.0-ROADMAP.md](milestones/v20.0-ROADMAP.md) for full details.
 
-### Phase 52.1: Fix search refresh and load more (INSERTED)
-
-**Goal:** Fix Refresh triple-toast bug and Load More silent failure by consolidating duplicate search functions into unified do_search(mode)
-**Requirements**: BUG-01, BUG-02, CONSOL-01, CONSOL-02
-**Depends on:** Phase 52
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 52.1-01-PLAN.md — Consolidate search functions, fix error handling, add tests
-
-### Phase 53: Toolbar Restructuring
-**Goal**: Toolbar buttons follow intuitive workflow order with semantic color harmony
-**Depends on**: Phase 52
-**Requirements**: TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-06
-**Success Criteria** (what must be TRUE):
-  1. All toolbar buttons display icon+text labels (no icon-only buttons remain)
-  2. Buttons ordered by workflow: Import → Edit → Seed Network → Export → Refresh → Load More
-  3. Button colors harmonized with Catppuccin semantic system (primary=lavender, secondary=gray)
-  4. Visual separators group related actions (row 1: input/discovery, row 2: output/data)
-  5. "Papers" label removed from toolbar area
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 53-01-PLAN.md — Restructure toolbar to 3x2 grid, relocate result count, widen paper panel
-
-### Phase 53.1: Import run dialog appearing at bottom of abstract notebook (INSERTED)
-
-**Goal:** Fix import history rendering as unstyled page content by moving it into the import modal as a collapsible section with show_history parameterization
-**Requirements**: HIST-01, HIST-02, HIST-03, HIST-04, HIST-05, HIST-06
-**Depends on:** Phase 53
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 53.1-01-PLAN.md — Parameterize bulk import module, relocate history into modal footer, remove delete handlers
-
-### Phase 54: Tooltip Layer
-**Goal**: Every toolbar button has accessible, keyboard-navigable tooltips describing its action
-**Depends on**: Phase 53
-**Requirements**: TOOL-05
-**Success Criteria** (what must be TRUE):
-  1. Static toolbar buttons wrapped with `bslib::tooltip()` (max 15 words per tooltip)
-  2. Dynamic buttons (keyword/journal filters) use `title` attributes for tooltip fallback
-  3. Tooltips remain visible and readable in both light and dark modes
-  4. Tooltips accessible via keyboard navigation (WCAG 2.2 compliant)
-**Plans**: 1 plan
-
-Plans:
-- [ ] 54-01-PLAN.md — Wrap 12 static buttons with bslib::tooltip(), add title attributes to keyword badges
-
-### Phase 55: Document Type Filter UX
-**Goal**: Users can filter by full OpenAlex 16-type taxonomy with clear distribution preview
-**Depends on**: Phase 50
-**Requirements**: DTYPE-01, DTYPE-02, DTYPE-03
-**Success Criteria** (what must be TRUE):
-  1. Edit Search modal exposes all 16 OpenAlex work types as chip toggles
-  2. Type distribution panel (showing counts) appears above chip toggles for discoverability
-  3. Each document type has distinctive badge styling in search results
-  4. Document type filtering happens in reactive chain between keyword and journal filters
-**Plans**: 1 plan
-
-Plans:
-- [ ] 55-01-PLAN.md — Expand type taxonomy to 16 chip toggles, distribution panel, client-side filter, page size increase
-
-### Phase 56: Year Slider Alignment Fix
-**Goal**: Year range slider and histogram are visually aligned without layout gaps
-**Depends on**: Nothing (independent cosmetic fix)
-**Requirements**: YEAR-01
-**Success Criteria** (what must be TRUE):
-  1. HTML div histogram bars align edge-to-edge with slider track (ggplot2 replaced with renderUI)
-  2. Histogram uses Bootstrap CSS variable `var(--bs-primary)` for automatic dark mode color switching
-  3. Year filter panel hidden when no papers exist in notebook
-  4. No misalignment visible in both light and dark modes
-**Plans:** 1/1 plans complete
-
-Plans:
-- [ ] 56-01-PLAN.md — Replace ggplot2 histogram with HTML div bars, add conditional panel visibility
-
-## Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 50. API Pagination Foundation | 1/1 | Complete    | 2026-03-07 |
-| 51. Pagination State Management | 1/1 | Complete    | 2026-03-09 |
-| 52. Load More Button | 1/1 | Complete    | 2026-03-09 |
-| 52.1. Fix Search Refresh + Load More | 1/1 | Complete    | 2026-03-09 |
-| 53. Toolbar Restructuring | 1/1 | Complete    | 2026-03-10 |
-| 53.1. Import History Bug Fix | 1/1 | Complete    | 2026-03-11 |
-| 54. Tooltip Layer | 1/1 | Complete    | 2026-03-11 |
-| 55. Document Type Filter UX | 1/1 | Complete    | 2026-03-11 |
-| 56. Year Slider Alignment Fix | 1/1 | Complete    | 2026-03-12 |
+</details>
 
 ---
 *Roadmap created: 2026-02-10*
-*Last updated: 2026-03-11 — Phase 56 planned (1 plan)*
+*Last updated: 2026-03-29 — v20.0 milestone shipped*
