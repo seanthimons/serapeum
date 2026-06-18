@@ -84,7 +84,8 @@ init_schema <- function(con) {
       chunk_index INTEGER NOT NULL,
       content VARCHAR NOT NULL,
       embedding VARCHAR,
-      page_number INTEGER
+      page_number INTEGER,
+      page_range VARCHAR
     )
   ")
 
@@ -548,19 +549,26 @@ delete_document <- function(con, id) {
 #' @param embedding Vector embedding (optional)
 #' @param page_number Page number (optional)
 #' @param section_hint Section classification hint (optional, default "general")
+#' @param page_range Full page range label for citations (optional)
 #' @return Chunk ID
 create_chunk <- function(con, source_id, source_type, chunk_index, content,
-                         embedding = NULL, page_number = NULL, section_hint = "general") {
+                         embedding = NULL, page_number = NULL, section_hint = "general",
+                         page_range = NULL) {
   id <- uuid::UUIDgenerate()
 
   # Convert NULL to NA for proper DBI binding
   page_num <- if (is.null(page_number)) NA_integer_ else as.integer(page_number)
   section_hint_val <- if (is.null(section_hint)) "general" else as.character(section_hint)
+  page_range_val <- if (is.null(page_range)) {
+    if (is.na(page_num)) NA_character_ else as.character(page_num)
+  } else {
+    as.character(page_range)
+  }
 
   dbExecute(con, "
-    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number, section_hint)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  ", list(id, source_id, source_type, as.integer(chunk_index), content, page_num, section_hint_val))
+    INSERT INTO chunks (id, source_id, source_type, chunk_index, content, page_number, section_hint, page_range)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ", list(id, source_id, source_type, as.integer(chunk_index), content, page_num, section_hint_val, page_range_val))
 
   id
 }
@@ -1055,6 +1063,7 @@ get_chunks_for_documents <- function(con, document_ids) {
       chunk_index = integer(),
       content = character(),
       page_number = integer(),
+      page_range = character(),
       doc_name = character(),
       stringsAsFactors = FALSE
     ))
@@ -1069,6 +1078,7 @@ get_chunks_for_documents <- function(con, document_ids) {
       c.chunk_index,
       c.content,
       c.page_number,
+      c.page_range,
       d.filename as doc_name
     FROM chunks c
     JOIN documents d ON c.source_id = d.id
@@ -1087,19 +1097,107 @@ get_chunks_for_documents <- function(con, document_ids) {
 #' @param con DuckDB connection (for metadata lookup)
 #' @param query Text query to search for
 #' @param notebook_id Limit to specific notebook
-#' @param limit Number of results
+#' @param limit Number of final results
+#' @param candidate_limit Number of post-filter candidates to expose to rerank
 #' @param ragnar_store Optional RagnarStore object (created if NULL)
 #' @param ragnar_store_path Path to ragnar store database (NULL to derive from notebook_id)
 #' @param section_filter Optional character vector of section hints to filter by (e.g., c("conclusion", "future_work"))
 #' @return Data frame of matching chunks with source info
-search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
+rerank_retrieval_candidates <- function(results, query, limit, provider = NULL,
+                                        config = NULL, rerank_context = "background") {
+  if (!is.data.frame(results) || nrow(results) == 0) return(results)
+  if (is.null(provider) || is.null(provider$api_key) ||
+      isTRUE(is.na(provider$api_key)) || !nzchar(provider$api_key)) {
+    return(head(results, limit))
+  }
+  if (exists("get_setting", mode = "function") &&
+      isFALSE(get_setting(config, "app", "rerank"))) {
+    return(head(results, limit))
+  }
+  if (!exists("rerank", mode = "function")) {
+    message("[search_chunks_hybrid] rerank() unavailable; using RRF order")
+    return(head(results, limit))
+  }
+
+  coalesce <- function(x, y) {
+    if (is.null(x) || length(x) == 0 || is.na(x) || !nzchar(x)) y else x
+  }
+  rerank_model <- tryCatch({
+    if (exists("resolve_model_for_operation", mode = "function")) {
+      resolve_model_for_operation(config, "rerank")
+    } else {
+      if (exists("get_setting", mode = "function")) {
+        coalesce(get_setting(config, "defaults", "rerank_model"), "cohere/rerank-4-fast")
+      } else {
+        "cohere/rerank-4-fast"
+      }
+    }
+  }, error = function(e) {
+    if (exists("get_setting", mode = "function")) {
+      coalesce(get_setting(config, "defaults", "rerank_model"), "cohere/rerank-4-fast")
+    } else {
+      "cohere/rerank-4-fast"
+    }
+  })
+
+  documents <- vapply(seq_len(nrow(results)), function(i) {
+    source_type <- if ("source_type" %in% names(results)) results$source_type[i] else NA_character_
+    source_id <- if ("source_id" %in% names(results)) results$source_id[i] else NA_character_
+    source_bits <- c(
+      source_type,
+      source_id,
+      if ("page_range" %in% names(results) && !is.na(results$page_range[i])) {
+        paste0("pages ", results$page_range[i])
+      } else {
+        NA_character_
+      },
+      if ("section_hint" %in% names(results) && !is.na(results$section_hint[i])) {
+        paste0("section ", results$section_hint[i])
+      } else {
+        NA_character_
+      }
+    )
+    source_bits <- source_bits[!is.na(source_bits) & nzchar(source_bits)]
+    paste0("[", paste(source_bits, collapse = " | "), "]\n", results$content[i])
+  }, character(1))
+
+  ranked <- rerank(provider$api_key, rerank_model, query, documents, top_n = limit)
+  fallback <- isTRUE(attr(ranked, "rerank_fallback"))
+  error_message <- attr(ranked, "rerank_error")
+
+  valid_rows <- which(!is.na(ranked$index) & ranked$index >= 1L & ranked$index <= nrow(results))
+  valid_idx <- ranked$index[valid_rows]
+  if (length(valid_idx) == 0) {
+    out <- head(results, limit)
+    attr(out, "rerank_fallback") <- TRUE
+    attr(out, "rerank_error") <- coalesce(error_message, "Rerank returned no valid indices")
+    return(out)
+  }
+
+  out <- results[valid_idx, , drop = FALSE]
+  out$rerank_score <- ranked$relevance_score[valid_rows]
+  rownames(out) <- NULL
+  attr(out, "rerank_fallback") <- fallback
+  attr(out, "rerank_error") <- error_message
+
+  if (fallback) {
+    msg <- coalesce(error_message, "unknown rerank error")
+    message("[search_chunks_hybrid] Rerank failed in ", rerank_context, "; using RRF order: ", msg)
+  }
+
+  out
+}
+
+search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 12,
+                                  candidate_limit = 40,
                                   ragnar_store = NULL,
                                   ragnar_store_path = NULL,
                                   section_filter = NULL,
                                   provider = NULL,
                                   embed_model = "openai/text-embedding-3-small",
                                   config = NULL,
-                                  session_id = NULL) {
+                                  session_id = NULL,
+                                  rerank_context = "background") {
 
   # Derive store path from notebook_id if not provided (Phase 22: per-notebook stores)
   if (is.null(ragnar_store_path) && !is.null(notebook_id)) {
@@ -1156,8 +1254,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
         }
       }
 
+      raw_top_k <- max(as.integer(candidate_limit) * 2L, as.integer(limit) * 2L)
       results <- tryCatch({
-        retrieve_with_ragnar(store, search_queries, top_k = limit * 2, con = con)  # Get extra for filtering
+        retrieve_with_ragnar(store, search_queries, top_k = raw_top_k, con = con)
       }, error = function(e) {
         message("[search_chunks_hybrid] ragnar retrieve failed: ", e$message)
         NULL
@@ -1167,9 +1266,9 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
       if (!is.null(results) && nrow(results) > 0) {
         # Filter by notebook if specified
         if (!is.null(notebook_id)) {
-          # Get document filenames for this notebook
+          # Get stable document IDs and legacy filenames for this notebook
           notebook_docs <- dbGetQuery(con, "
-            SELECT filename FROM documents WHERE notebook_id = ?
+            SELECT id, filename FROM documents WHERE notebook_id = ?
           ", list(notebook_id))
 
           # Get abstract IDs for this notebook
@@ -1180,12 +1279,21 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           # Filter results to only include items from this notebook
           keep_rows <- vapply(seq_len(nrow(results)), function(i) {
             origin <- results$origin[i]
-            if (grepl("^abstract:", origin)) {
+            source_type <- if ("source_type" %in% names(results)) results$source_type[i] else NA_character_
+            source_id <- if ("source_id" %in% names(results)) results$source_id[i] else NA_character_
+            if (identical(source_type, "abstract") || grepl("^abstract:", origin)) {
               # Extract abstract ID (strip prefix and any pipe-delimited metadata)
-              abstract_id <- sub("\\|.*$", "", sub("^abstract:", "", origin))
+              abstract_id <- if (!is.na(source_id) && nzchar(source_id)) {
+                source_id
+              } else {
+                sub("\\|.*$", "", sub("^abstract:", "", origin))
+              }
               as.character(abstract_id) %in% as.character(notebook_abstracts$id)
             } else {
-              # Check if document filename belongs to this notebook
+              if (!is.na(source_id) && nzchar(source_id)) {
+                return(as.character(source_id) %in% as.character(notebook_docs$id))
+              }
+              # Legacy fallback: check if document filename belongs to this notebook
               doc_name <- results$doc_name[i]
               !is.na(doc_name) && doc_name %in% notebook_docs$filename
             }
@@ -1281,13 +1389,22 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
           }
         }
 
-        # Limit and return
-        results <- head(results, limit)
-
         # Ensure consistent column names
         if (!"content" %in% names(results) && "text" %in% names(results)) {
           results$content <- results$text
         }
+
+        # Candidate semantics: notebook and section filters apply before the
+        # 40-candidate pool is finalized, then rerank chooses the final context.
+        results <- head(results, candidate_limit)
+        results <- rerank_retrieval_candidates(
+          results,
+          query = query,
+          limit = limit,
+          provider = provider,
+          config = config,
+          rerank_context = rerank_context
+        )
 
         return(results)
       }
@@ -1302,6 +1419,8 @@ search_chunks_hybrid <- function(con, query, notebook_id = NULL, limit = 5,
     chunk_index = integer(),
     content = character(),
     page_number = integer(),
+    page_range = character(),
+    section_hint = character(),
     doc_name = character(),
     abstract_title = character(),
     stringsAsFactors = FALSE

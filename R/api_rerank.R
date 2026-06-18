@@ -163,7 +163,8 @@ rerank <- function(api_key, model, query, documents, top_n = NULL) {
           }
         }),
         stringsAsFactors = FALSE
-      )
+      ) |>
+        structure(rerank_fallback = FALSE, rerank_error = NULL)
     },
     error = function(e) {
       err <- classify_api_error(e, "OpenRouter")
@@ -175,17 +176,25 @@ rerank <- function(api_key, model, query, documents, top_n = NULL) {
       } else {
         length(documents)
       }
-      data.frame(
+      fallback <- data.frame(
         index = seq_len(n),
         relevance_score = rep(0, n),
         document = documents[seq_len(n)],
         stringsAsFactors = FALSE
       )
+      attr(fallback, "rerank_fallback") <- TRUE
+      attr(fallback, "rerank_error") <- err$message
+      fallback
     }
   )
 
+  rerank_fallback <- isTRUE(attr(result, "rerank_fallback"))
+  rerank_error <- attr(result, "rerank_error")
+
   # Sort by relevance score descending
   result <- result[order(result$relevance_score, decreasing = TRUE), ]
+  attr(result, "rerank_fallback") <- rerank_fallback
+  attr(result, "rerank_error") <- rerank_error
 
   # Verbose logging: show rank changes when enabled
   if (isTRUE(getOption("serapeum.verbose_api", FALSE))) {

@@ -12,6 +12,7 @@ defaults:
   # Optional. Leave blank or omit to fall back to quality_model.
   fast_model: "google/gemini-3.1-flash-lite-preview"
   embedding_model: "openai/text-embedding-3-small"
+  rerank_model: "cohere/rerank-4-fast"
 
 # App Settings
 app:
@@ -21,6 +22,8 @@ app:
   # RAG options
   # Boolean: true or false
   query_reformulation: true
+  # Boolean: true or false
+  rerank: true
   chunk_size: 500
   chunk_overlap: 50
   # Boolean: true or false

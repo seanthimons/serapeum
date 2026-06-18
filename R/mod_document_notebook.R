@@ -770,7 +770,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
         if (is.null(delete_doc_observers[[doc$id]])) {
           delete_doc_observers[[doc$id]] <- observeEvent(input[[delete_id]], {
             delete_document(con(), doc$id)
-            delete_document_chunks_from_ragnar(nb_id, doc$filename)
+            delete_document_chunks_from_ragnar(nb_id, filename = doc$filename, document_id = doc$id)
             disk_name <- if (grepl("\\.pdf$", doc$filename, ignore.case = TRUE)) {
               doc$filename
             } else {
@@ -1243,7 +1243,8 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
             create_chunk(con(), doc_id, "document",
                          chunk$chunk_index, chunk$content,
                          page_number = chunk$page_number,
-                         section_hint = section_hint_val)
+                         section_hint = section_hint_val,
+                         page_range = if ("page_range" %in% names(chunk)) chunk$page_range else NULL)
           }
         }
 

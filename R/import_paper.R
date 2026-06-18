@@ -158,7 +158,8 @@ process_and_store_pdf <- function(con, notebook_id, abs, pdf_path, safe_name,
         con, doc_id, "document", ci - 1,
         chunk$content,
         page_number = chunk$page_number,
-        section_hint = if ("section_hint" %in% names(chunk)) chunk$section_hint else "general"
+        section_hint = if ("section_hint" %in% names(chunk)) chunk$section_hint else "general",
+        page_range = if ("page_range" %in% names(chunk)) chunk$page_range else NULL
       )
     }
 

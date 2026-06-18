@@ -40,12 +40,16 @@ get_notebook_ragnar_path <- function(notebook_id) {
 encode_origin_metadata <- function(base_origin,
                                     section_hint = "general",
                                     doi = NULL,
-                                    source_type = "pdf") {
+                                    source_type = "pdf",
+                                    source_id = NULL,
+                                    chunk_index = NULL,
+                                    page_number = NULL,
+                                    page_range = NULL) {
   # Validate required fields
-  if (is.null(section_hint) || nchar(trimws(section_hint)) == 0) {
+  if (is.null(section_hint) || is.na(section_hint) || nchar(trimws(section_hint)) == 0) {
     stop("section_hint must be a non-empty string")
   }
-  if (is.null(source_type) || nchar(trimws(source_type)) == 0) {
+  if (is.null(source_type) || is.na(source_type) || nchar(trimws(source_type)) == 0) {
     stop("source_type must be a non-empty string")
   }
 
@@ -53,8 +57,12 @@ encode_origin_metadata <- function(base_origin,
   parts <- c(
     base_origin,
     paste0("section=", section_hint),
-    if (!is.null(doi) && nchar(trimws(doi)) > 0) paste0("doi=", doi),
-    paste0("type=", source_type)
+    if (!is.null(doi) && !is.na(doi) && nchar(trimws(doi)) > 0) paste0("doi=", doi),
+    paste0("type=", source_type),
+    if (!is.null(source_id) && !is.na(source_id) && nchar(trimws(source_id)) > 0) paste0("source_id=", source_id),
+    if (!is.null(chunk_index) && !is.na(chunk_index)) paste0("chunk=", as.integer(chunk_index)),
+    if (!is.null(page_number) && !is.na(page_number)) paste0("page=", as.integer(page_number)),
+    if (!is.null(page_range) && !is.na(page_range) && nchar(trimws(page_range)) > 0) paste0("page_range=", page_range)
   )
 
   paste(parts, collapse = "|")
@@ -83,7 +91,11 @@ decode_origin_metadata <- function(origin) {
         base_origin = "",
         section_hint = "general",
         doi = NA_character_,
-        source_type = NA_character_
+        source_type = NA_character_,
+        source_id = NA_character_,
+        chunk_index = NA_integer_,
+        page_number = NA_integer_,
+        page_range = NA_character_
       ))
     }
 
@@ -94,7 +106,11 @@ decode_origin_metadata <- function(origin) {
     metadata <- list(
       section_hint = "general",  # Default fallback
       doi = NA_character_,
-      source_type = NA_character_
+      source_type = NA_character_,
+      source_id = NA_character_,
+      chunk_index = NA_integer_,
+      page_number = NA_integer_,
+      page_range = NA_character_
     )
 
     if (length(parts) > 1) {
@@ -110,16 +126,48 @@ decode_origin_metadata <- function(origin) {
             metadata$doi <- value
           } else if (key == "type") {
             metadata$source_type <- value
+          } else if (key == "source_id") {
+            metadata$source_id <- value
+          } else if (key == "chunk") {
+            metadata$chunk_index <- suppressWarnings(as.integer(value))
+          } else if (key == "page") {
+            metadata$page_number <- suppressWarnings(as.integer(value))
+          } else if (key == "page_range") {
+            metadata$page_range <- value
           }
         }
       }
+    }
+
+    if (is.na(metadata$source_id) || !nzchar(metadata$source_id)) {
+      if (grepl("^abstract:", base_origin)) {
+        metadata$source_id <- sub("#.*$", "", sub("^abstract:", "", base_origin))
+      } else if (grepl("^document:", base_origin)) {
+        metadata$source_id <- sub("#.*$", "", sub("^document:", "", base_origin))
+      }
+    }
+
+    if (is.na(metadata$page_number)) {
+      page_match <- regmatches(base_origin, regexec("#page=(\\d+)", base_origin))[[1]]
+      if (length(page_match) >= 2) {
+        metadata$page_number <- as.integer(page_match[2])
+      }
+    }
+
+    if ((is.na(metadata$page_range) || !nzchar(metadata$page_range)) &&
+        !is.na(metadata$page_number)) {
+      metadata$page_range <- as.character(metadata$page_number)
     }
 
     list(
       base_origin = base_origin,
       section_hint = metadata$section_hint,
       doi = metadata$doi,
-      source_type = metadata$source_type
+      source_type = metadata$source_type,
+      source_id = metadata$source_id,
+      chunk_index = metadata$chunk_index,
+      page_number = metadata$page_number,
+      page_range = metadata$page_range
     )
   }, error = function(e) {
     # Graceful fallback on any parsing error
@@ -127,7 +175,11 @@ decode_origin_metadata <- function(origin) {
       base_origin = origin,
       section_hint = "general",
       doi = NA_character_,
-      source_type = NA_character_
+      source_type = NA_character_,
+      source_id = NA_character_,
+      chunk_index = NA_integer_,
+      page_number = NA_integer_,
+      page_range = NA_character_
     )
   })
 }
@@ -264,7 +316,7 @@ disconnect_ragnar_store <- function(store) {
 #'
 #' Bumped when chunk format changes (e.g., adding contextual headers).
 #' Used to detect stale ragnar stores that need re-indexing.
-RAGNAR_INDEX_SCHEMA_VERSION <- 2L
+RAGNAR_INDEX_SCHEMA_VERSION <- 3L
 
 #' Prepend a contextual header to chunk content
 #'
@@ -340,81 +392,195 @@ mark_ragnar_store_current <- function(con, notebook_id, embed_model = NULL) {
   }
 }
 
+format_page_range <- function(first_page, last_page = first_page) {
+  if (is.null(first_page) || length(first_page) == 0 || is.na(first_page)) {
+    return(NA_character_)
+  }
+  last_page <- if (is.null(last_page) || length(last_page) == 0 || is.na(last_page)) {
+    first_page
+  } else {
+    last_page
+  }
+  if (identical(as.integer(first_page), as.integer(last_page))) {
+    as.character(as.integer(first_page))
+  } else {
+    paste0(as.integer(first_page), "-", as.integer(last_page))
+  }
+}
+
+strip_serapeum_page_markers <- function(text) {
+  if (is.null(text) || length(text) == 0 || is.na(text)) {
+    return("")
+  }
+  cleaned <- gsub("\\[\\[SERAPEUM_PAGE_START:[0-9]+\\]\\]", "", text, perl = TRUE)
+  cleaned <- gsub("\n{3,}", "\n\n", cleaned)
+  trimws(cleaned)
+}
+
+build_marked_document <- function(pages) {
+  page_count <- length(pages)
+  marked_pages <- vapply(seq_along(pages), function(page_num) {
+    page_text <- pages[[page_num]]
+    if (is.null(page_text) || is.na(page_text)) page_text <- ""
+    sprintf("[[SERAPEUM_PAGE_START:%d]]\n%s", page_num, page_text)
+  }, character(1))
+
+  text <- paste(marked_pages, collapse = "\n\n")
+  marker_matches <- gregexpr("\\[\\[SERAPEUM_PAGE_START:([0-9]+)\\]\\]", text, perl = TRUE)[[1]]
+
+  if (identical(marker_matches[1], -1L)) {
+    markers <- data.frame(position = integer(), page = integer())
+  } else {
+    marker_text <- regmatches(text, gregexpr("\\[\\[SERAPEUM_PAGE_START:([0-9]+)\\]\\]", text, perl = TRUE))[[1]]
+    markers <- data.frame(
+      position = as.integer(marker_matches),
+      page = as.integer(sub(".*:([0-9]+)\\]\\]", "\\1", marker_text)),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  list(text = text, markers = markers, page_count = page_count)
+}
+
+page_span_for_offsets <- function(markers, start_offset, end_offset, fallback_page = 1L) {
+  if (!is.data.frame(markers) || nrow(markers) == 0) {
+    return(list(first = as.integer(fallback_page), last = as.integer(fallback_page)))
+  }
+
+  start_candidates <- markers$page[markers$position <= start_offset]
+  end_candidates <- markers$page[markers$position <= end_offset]
+
+  first_page <- if (length(start_candidates) > 0) tail(start_candidates, 1) else markers$page[1]
+  last_page <- if (length(end_candidates) > 0) tail(end_candidates, 1) else first_page
+
+  list(first = as.integer(first_page), last = as.integer(max(first_page, last_page)))
+}
+
+page_span_for_chunk <- function(raw_chunk, marked_doc, markers, search_start = 1L,
+                                fallback_page = 1L) {
+  if (!is.null(raw_chunk) && length(raw_chunk) > 0 && !is.na(raw_chunk) && nzchar(raw_chunk)) {
+    search_region <- substring(marked_doc, search_start)
+    loc <- regexpr(raw_chunk, search_region, fixed = TRUE)[[1]]
+    if (!identical(loc, -1L)) {
+      start_offset <- as.integer(search_start + loc - 1L)
+      end_offset <- as.integer(start_offset + nchar(raw_chunk) - 1L)
+      span <- page_span_for_offsets(markers, start_offset, end_offset, fallback_page)
+      span$next_start <- end_offset + 1L
+      return(span)
+    }
+  }
+
+  marker_text <- regmatches(
+    raw_chunk,
+    gregexpr("\\[\\[SERAPEUM_PAGE_START:([0-9]+)\\]\\]", raw_chunk, perl = TRUE)
+  )[[1]]
+  if (length(marker_text) > 0 && !identical(marker_text[1], -1L)) {
+    marker_pages <- as.integer(sub(".*:([0-9]+)\\]\\]", "\\1", marker_text))
+    leading <- sub("\\[\\[SERAPEUM_PAGE_START:[0-9]+\\]\\].*$", "", raw_chunk, perl = TRUE)
+    first_page <- min(marker_pages)
+    if (nzchar(trimws(strip_serapeum_page_markers(leading)))) {
+      first_page <- max(1L, first_page - 1L)
+    }
+    return(list(first = first_page, last = max(marker_pages), next_start = search_start))
+  }
+
+  list(first = as.integer(fallback_page), last = as.integer(fallback_page), next_start = search_start)
+}
+
 chunk_with_ragnar <- function(pages, origin, target_size = 1600, target_overlap = 0.5,
                                paper_title = NULL) {
   all_chunks <- data.frame(
     content = character(),
     page_number = integer(),
+    page_range = character(),
     chunk_index = integer(),
     context = character(),
     origin = character(),
+    section_hint = character(),
     stringsAsFactors = FALSE
   )
 
-  global_index <- 0
+  if (length(pages) == 0) {
+    return(all_chunks)
+  }
 
-  for (page_num in seq_along(pages)) {
-    page_text <- pages[page_num]
+  marked <- build_marked_document(pages)
+  if (!nzchar(trimws(strip_serapeum_page_markers(marked$text)))) {
+    return(all_chunks)
+  }
 
-    # Skip empty pages
-    if (is.null(page_text) || nchar(trimws(page_text)) == 0) next
+  md_doc <- ragnar::MarkdownDocument(marked$text, origin = origin)
 
-    # Create markdown document for this page
-    # Use page-specific origin for deduplication
-    page_origin <- sprintf("%s#page=%d", origin, page_num)
-    md_doc <- ragnar::MarkdownDocument(page_text, origin = page_origin)
+  doc_chunks <- tryCatch({
+    ragnar::markdown_chunk(
+      md_doc,
+      target_size = target_size,
+      target_overlap = target_overlap,
+      context = TRUE
+    )
+  }, error = function(e) {
+    data.frame(
+      text = marked$text,
+      context = "",
+      stringsAsFactors = FALSE
+    )
+  })
 
-    # Chunk the page
-    page_chunks <- tryCatch({
-      ragnar::markdown_chunk(
-        md_doc,
-        target_size = target_size,
-        target_overlap = target_overlap,
-        context = TRUE
-      )
-    }, error = function(e) {
-      # Fallback: treat entire page as one chunk
-      data.frame(
-        text = page_text,
-        context = "",
-        stringsAsFactors = FALSE
-      )
-    })
+  if (nrow(doc_chunks) == 0) {
+    return(all_chunks)
+  }
 
-    # Extract chunks from result
-    if (nrow(page_chunks) == 0) next
+  search_start <- 1L
+  fallback_page <- 1L
 
-    for (i in seq_len(nrow(page_chunks))) {
-      chunk_text <- if ("text" %in% names(page_chunks)) {
-        page_chunks$text[i]
-      } else {
-        page_text
-      }
+  for (i in seq_len(nrow(doc_chunks))) {
+    raw_text <- if ("text" %in% names(doc_chunks)) doc_chunks$text[i] else marked$text
+    raw_context <- if ("context" %in% names(doc_chunks)) doc_chunks$context[i] else ""
 
-      chunk_context <- if ("context" %in% names(page_chunks)) {
-        page_chunks$context[i]
-      } else {
-        ""
-      }
-
-      if (is.null(chunk_text) || nchar(trimws(chunk_text)) == 0) next
-
-      # Prepend contextual header if paper_title provided
-      if (!is.null(paper_title)) {
-        chunk_text <- prepend_contextual_header(chunk_text, paper_title)
-      }
-
-      all_chunks <- rbind(all_chunks, data.frame(
-        content = chunk_text,
-        page_number = page_num,
-        chunk_index = global_index,
-        context = chunk_context %||% "",
-        origin = page_origin,
-        stringsAsFactors = FALSE
-      ))
-
-      global_index <- global_index + 1
+    if (is.null(raw_text) || length(raw_text) == 0 || is.na(raw_text) ||
+        nchar(trimws(raw_text)) == 0) {
+      next
     }
+
+    span <- page_span_for_chunk(
+      raw_text,
+      marked$text,
+      marked$markers,
+      search_start = search_start,
+      fallback_page = fallback_page
+    )
+    search_start <- if (is.null(span$next_start)) search_start else span$next_start
+    fallback_page <- span$last
+
+    chunk_text <- strip_serapeum_page_markers(raw_text)
+    chunk_context <- strip_serapeum_page_markers(if (is.null(raw_context)) "" else raw_context)
+    if (nchar(trimws(chunk_text)) == 0) next
+
+    section_hint <- "general"
+    if (exists("detect_section_hint", mode = "function")) {
+      section_hint <- tryCatch(
+        detect_section_hint(chunk_text, span$first, marked$page_count),
+        error = function(e) "general"
+      )
+    }
+
+    if (!is.null(paper_title)) {
+      chunk_text <- prepend_contextual_header(chunk_text, paper_title, section_hint)
+    }
+
+    page_range <- format_page_range(span$first, span$last)
+    page_origin <- sprintf("%s#page=%d", origin, span$first)
+
+    all_chunks <- rbind(all_chunks, data.frame(
+      content = chunk_text,
+      page_number = span$first,
+      page_range = page_range,
+      chunk_index = nrow(all_chunks),
+      context = chunk_context,
+      origin = page_origin,
+      section_hint = section_hint,
+      stringsAsFactors = FALSE
+    ))
   }
 
   all_chunks
@@ -622,11 +788,17 @@ sync_document_ragnar_statuses <- function(con, notebook_id) {
   on.exit(DBI::dbDisconnect(store_con, shutdown = TRUE), add = TRUE)
 
   origins <- DBI::dbGetQuery(store_con, "SELECT DISTINCT origin FROM chunks")$origin
-  present_mask <- vapply(
-    docs$filename,
-    function(filename) any(startsWith(origins, paste0(filename, "#"))),
-    logical(1)
-  )
+  decoded <- lapply(origins, decode_origin_metadata)
+  origin_source_ids <- vapply(decoded, function(d) {
+    if (!is.na(d$source_id) && nzchar(d$source_id)) d$source_id else NA_character_
+  }, character(1))
+  origin_bases <- vapply(decoded, function(d) d$base_origin, character(1))
+  present_mask <- vapply(seq_len(nrow(docs)), function(i) {
+    doc_id <- docs$id[i]
+    filename <- docs$filename[i]
+    doc_id %in% origin_source_ids ||
+      any(startsWith(origin_bases, paste0(filename, "#")))
+  }, logical(1))
 
   present_ids <- docs$id[present_mask]
   missing_ids <- docs$id[!present_mask]
@@ -897,9 +1069,33 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, provider, embed_mode
         item_name <- substr(doc$filename, 1, 60)
 
         # Chunk the document (with contextual header using filename as title)
-        pages <- strsplit(doc$full_text, "\f")[[1]]
+        full_text <- if (!is.null(doc$full_text) && !is.na(doc$full_text)) doc$full_text else ""
+        pages <- strsplit(full_text, "\f", fixed = TRUE)[[1]]
         doc_title <- sub("\\.[^.]+$", "", doc$filename)  # Strip file extension for cleaner header
         chunks <- chunk_with_ragnar(pages, doc$filename, paper_title = doc_title)
+
+        if (!is.null(con)) {
+          DBI::dbExecute(
+            con,
+            "DELETE FROM chunks WHERE source_id = ? AND source_type = 'document'",
+            list(doc$id)
+          )
+          if (nrow(chunks) > 0) {
+            for (chunk_i in seq_len(nrow(chunks))) {
+              chunk <- chunks[chunk_i, ]
+              create_chunk(
+                con,
+                doc$id,
+                "document",
+                chunk$chunk_index,
+                chunk$content,
+                page_number = chunk$page_number,
+                section_hint = if ("section_hint" %in% names(chunk)) chunk$section_hint else "general",
+                page_range = if ("page_range" %in% names(chunk)) chunk$page_range else NULL
+              )
+            }
+          }
+        }
 
         # Insert chunks to store
         insert_chunks_to_ragnar(store, chunks, doc$id, "document")
@@ -1008,9 +1204,10 @@ rebuild_notebook_store <- function(notebook_id, con = NULL, provider, embed_mode
 #' Matches by filename prefix in the origin field (format: filename#page=N|...).
 #'
 #' @param notebook_id Notebook ID (UUID)
-#' @param filename Document filename whose chunks should be deleted
+#' @param filename Legacy document filename whose chunks should be deleted
+#' @param document_id Stable document ID whose chunks should be deleted
 #' @return Invisibly NULL
-delete_document_chunks_from_ragnar <- function(notebook_id, filename) {
+delete_document_chunks_from_ragnar <- function(notebook_id, filename = NULL, document_id = NULL) {
   tryCatch({
     store_path <- get_notebook_ragnar_path(notebook_id)
 
@@ -1021,14 +1218,42 @@ delete_document_chunks_from_ragnar <- function(notebook_id, filename) {
     con <- DBI::dbConnect(duckdb::duckdb(), dbdir = store_path)
     on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
-    # Match origin starting with filename (covers filename#page=N|... format)
-    deleted <- DBI::dbExecute(con, "DELETE FROM chunks WHERE origin LIKE ?",
-                               list(paste0(filename, "#%")))
-    message("[ragnar] Deleted ", deleted, " chunks for document: ", filename)
+    deleted <- 0L
+    if (!is.null(document_id) && !is.na(document_id) && nzchar(document_id)) {
+      deleted <- deleted + DBI::dbExecute(
+        con,
+        "DELETE FROM chunks WHERE origin LIKE ? OR origin LIKE ?",
+        list(paste0("document:", document_id, "%"), paste0("%source_id=", document_id, "%"))
+      )
+    }
+
+    if (!is.null(filename) && !is.na(filename) && nzchar(filename)) {
+      deleted <- deleted + DBI::dbExecute(
+        con,
+        "DELETE FROM chunks WHERE origin LIKE ?",
+        list(paste0(filename, "#%"))
+      )
+    }
+
+    label <- if (!is.null(document_id) && !is.na(document_id) && nzchar(document_id)) {
+      document_id
+    } else if (!is.null(filename) && !is.na(filename) && nzchar(filename)) {
+      filename
+    } else {
+      "<unknown>"
+    }
+    message("[ragnar] Deleted ", deleted, " chunks for document: ", label)
     invisible(NULL)
 
   }, error = function(e) {
-    message("[ragnar] Document chunk deletion failed for ", filename, ": ", e$message)
+    label <- if (!is.null(document_id) && !is.na(document_id) && nzchar(document_id)) {
+      document_id
+    } else if (!is.null(filename) && !is.na(filename) && nzchar(filename)) {
+      filename
+    } else {
+      "<unknown>"
+    }
+    message("[ragnar] Document chunk deletion failed for ", label, ": ", e$message)
     invisible(NULL)
   })
 }
@@ -1113,24 +1338,57 @@ insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
     return(invisible(store))
   }
 
-  # DEBT-02: Encode section_hint into origin metadata for new PDFs
-  # Guard: only encode when section_hint column is present (abstract paths don't have it)
-  if ("section_hint" %in% names(chunks)) {
-    chunks$origin <- vapply(seq_len(nrow(chunks)), function(i) {
-      encode_origin_metadata(
-        chunks$origin[i],
-        section_hint = chunks$section_hint[i],
-        doi = NULL,
-        source_type = "pdf"
-      )
-    }, character(1))
-  }
+  chunks$origin <- vapply(seq_len(nrow(chunks)), function(i) {
+    page_number <- if ("page_number" %in% names(chunks)) chunks$page_number[i] else NA_integer_
+    page_range <- if ("page_range" %in% names(chunks)) chunks$page_range[i] else NA_character_
+    chunk_index <- if ("chunk_index" %in% names(chunks)) chunks$chunk_index[i] else i - 1L
+    existing <- if ("origin" %in% names(chunks)) decode_origin_metadata(chunks$origin[i]) else NULL
+    section_hint <- if ("section_hint" %in% names(chunks)) {
+      chunks$section_hint[i]
+    } else if (!is.null(existing) && !is.na(existing$section_hint) && nzchar(existing$section_hint)) {
+      existing$section_hint
+    } else {
+      "general"
+    }
+    if (is.na(section_hint) || !nzchar(section_hint)) section_hint <- "general"
+    row_source_id <- if (!is.null(existing) &&
+                         !is.na(existing$source_id) &&
+                         nzchar(existing$source_id)) {
+      existing$source_id
+    } else {
+      source_id
+    }
+
+    base_origin <- if (identical(source_type, "abstract")) {
+      paste0("abstract:", row_source_id)
+    } else {
+      if (is.na(page_number)) {
+        paste0("document:", row_source_id)
+      } else {
+        paste0("document:", row_source_id, "#page=", as.integer(page_number))
+      }
+    }
+
+    encode_origin_metadata(
+      base_origin,
+      section_hint = section_hint,
+      doi = NULL,
+      source_type = source_type,
+      source_id = row_source_id,
+      chunk_index = chunk_index,
+      page_number = page_number,
+      page_range = page_range
+    )
+  }, character(1))
 
   # Prepare chunks for ragnar (version 1 format: origin, hash, text)
   ragnar_chunks <- data.frame(
     origin = chunks$origin,
     hash = vapply(seq_len(nrow(chunks)), function(i) {
-      rlang::hash(paste(chunks$content[i], chunks$page_number[i], sep = "|"))
+      page_number <- if ("page_number" %in% names(chunks)) chunks$page_number[i] else NA_integer_
+      page_range <- if ("page_range" %in% names(chunks)) chunks$page_range[i] else NA_character_
+      chunk_index <- if ("chunk_index" %in% names(chunks)) chunks$chunk_index[i] else i - 1L
+      rlang::hash(paste(chunks$content[i], page_number, page_range, chunk_index, sep = "|"))
     }, character(1)),
     text = chunks$content,
     stringsAsFactors = FALSE
@@ -1141,8 +1399,10 @@ insert_chunks_to_ragnar <- function(store, chunks, source_id, source_type) {
   attr(ragnar_chunks, "serapeum_metadata") <- list(
     source_id = source_id,
     source_type = source_type,
-    page_numbers = chunks$page_number,
-    contexts = chunks$context
+    page_numbers = if ("page_number" %in% names(chunks)) chunks$page_number else rep(NA_integer_, nrow(chunks)),
+    page_ranges = if ("page_range" %in% names(chunks)) chunks$page_range else rep(NA_character_, nrow(chunks)),
+    section_hints = if ("section_hint" %in% names(chunks)) chunks$section_hint else rep("general", nrow(chunks)),
+    contexts = if ("context" %in% names(chunks)) chunks$context else rep("", nrow(chunks))
   )
 
   ragnar::ragnar_store_insert(store, ragnar_chunks)
@@ -1231,6 +1491,128 @@ enrich_retrieval_results <- function(results, con = NULL) {
     }
   } else {
     # No DB connection — set abstract titles to placeholder
+    results$abstract_title[results$source_type == "abstract"] <- "[Abstract]"
+  }
+
+  results
+}
+
+#' Enrich retrieval results with stable source metadata from origin fields
+#'
+#' Later definition intentionally supersedes the legacy filename-first parser
+#' above. Keep this parser ID-first for new stores and filename-based only as a
+#' stale-store fallback.
+enrich_retrieval_results <- function(results, con = NULL) {
+  if (nrow(results) == 0 || !"origin" %in% names(results)) return(results)
+
+  decoded <- lapply(results$origin, decode_origin_metadata)
+
+  normalize_source_type <- function(decoded_origin) {
+    source_type <- decoded_origin$source_type
+    if (!is.na(source_type) && nzchar(source_type)) {
+      if (source_type %in% c("pdf", "document")) return("document")
+      if (identical(source_type, "abstract")) return("abstract")
+    }
+    if (grepl("^abstract:", decoded_origin$base_origin)) "abstract" else "document"
+  }
+
+  results$source_type <- vapply(decoded, normalize_source_type, character(1))
+  results$source_id <- vapply(decoded, function(d) {
+    if (!is.na(d$source_id) && nzchar(d$source_id)) d$source_id else NA_character_
+  }, character(1))
+  results$page_number <- vapply(decoded, function(d) d$page_number, integer(1))
+  results$page_range <- vapply(decoded, function(d) {
+    if (!is.na(d$page_range) && nzchar(d$page_range)) d$page_range else NA_character_
+  }, character(1))
+  results$section_hint <- vapply(decoded, function(d) {
+    if (!is.na(d$section_hint) && nzchar(d$section_hint)) d$section_hint else "general"
+  }, character(1))
+
+  if (!"chunk_index" %in% names(results)) {
+    results$chunk_index <- vapply(decoded, function(d) d$chunk_index, integer(1))
+  }
+
+  results$doc_name <- vapply(seq_along(decoded), function(i) {
+    if (results$source_type[i] == "abstract") {
+      return(NA_character_)
+    }
+    base_origin <- decoded[[i]]$base_origin
+    if (grepl("^document:", base_origin)) {
+      return(NA_character_)
+    }
+    sub("#page=\\d+.*$", "", base_origin)
+  }, character(1))
+
+  results$abstract_title <- NA_character_
+  results$abstract_authors <- NA_character_
+  results$abstract_year <- NA_integer_
+  results$doc_authors <- NA_character_
+  results$doc_year <- NA_integer_
+
+  if (!is.null(con)) {
+    for (i in seq_len(nrow(results))) {
+      if (results$source_type[i] == "abstract") {
+        abstract_id <- results$source_id[i]
+        if (is.na(abstract_id) || !nzchar(abstract_id)) {
+          abstract_id <- sub("#.*$", "", sub("^abstract:", "", decoded[[i]]$base_origin))
+        }
+
+        tryCatch({
+          row <- DBI::dbGetQuery(
+            con,
+            "SELECT title, authors, year FROM abstracts WHERE id = ? LIMIT 1",
+            list(abstract_id)
+          )
+          if (nrow(row) > 0) {
+            results$abstract_title[i] <- if (!is.na(row$title[1]) && nchar(row$title[1]) > 0) {
+              row$title[1]
+            } else {
+              "[Abstract]"
+            }
+            results$abstract_authors[i] <- if (!is.na(row$authors[1])) row$authors[1] else NA_character_
+            results$abstract_year[i] <- if (!is.na(row$year[1])) as.integer(row$year[1]) else NA_integer_
+          } else {
+            results$abstract_title[i] <- "[Abstract]"
+          }
+        }, error = function(e) {
+          results$abstract_title[i] <<- "[Abstract]"
+        })
+      } else {
+        doc_id <- results$source_id[i]
+        if (!is.na(doc_id) && nzchar(doc_id)) {
+          tryCatch({
+            row <- DBI::dbGetQuery(
+              con,
+              "SELECT filename, authors, year FROM documents WHERE id = ? LIMIT 1",
+              list(doc_id)
+            )
+            if (nrow(row) > 0) {
+              results$doc_name[i] <- if (!is.na(row$filename[1])) row$filename[1] else results$doc_name[i]
+              results$doc_authors[i] <- if (!is.na(row$authors[1])) row$authors[1] else NA_character_
+              results$doc_year[i] <- if (!is.na(row$year[1])) as.integer(row$year[1]) else NA_integer_
+            }
+          }, error = function(e) NULL)
+        }
+
+        doc_filename <- results$doc_name[i]
+        if ((is.na(results$doc_authors[i]) && is.na(results$doc_year[i])) &&
+            !is.na(doc_filename) && nchar(doc_filename) > 0) {
+          tryCatch({
+            row <- DBI::dbGetQuery(
+              con,
+              "SELECT filename, authors, year FROM documents WHERE filename = ? LIMIT 1",
+              list(doc_filename)
+            )
+            if (nrow(row) > 0) {
+              results$doc_name[i] <- if (!is.na(row$filename[1])) row$filename[1] else doc_filename
+              results$doc_authors[i] <- if (!is.na(row$authors[1])) row$authors[1] else NA_character_
+              results$doc_year[i] <- if (!is.na(row$year[1])) as.integer(row$year[1]) else NA_integer_
+            }
+          }, error = function(e) NULL)
+        }
+      }
+    }
+  } else {
     results$abstract_title[results$source_type == "abstract"] <- "[Abstract]"
   }
 

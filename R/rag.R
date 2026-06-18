@@ -240,18 +240,26 @@ build_context <- function(chunks) {
     abstract_authors <- safe_chr("abstract_authors")
     doc_authors <- safe_chr("doc_authors")
     page_number <- safe_int("page_number")
+    page_range <- safe_chr("page_range")
+    chunk_index <- safe_int("chunk_index")
     abstract_year <- safe_int("abstract_year")
     doc_year <- safe_int("doc_year")
     content <- safe_chr("content")
     if (is.na(content)) content <- ""
+    if (!is.na(page_range) && !nzchar(trimws(page_range))) page_range <- NA_character_
 
     # Build source label using format_citation_label() when metadata available
     source <- "[Source]"
     if (!is.na(doc_name) && nchar(doc_name) > 0) {
       # Document chunk: try author/year, fall back to filename
       label <- format_citation_label(doc_authors, doc_year, fallback_label = doc_name)
-      if (!is.na(page_number)) {
+      if (!is.na(page_range)) {
+        page_prefix <- if (grepl("-", page_range, fixed = TRUE)) "pp." else "p."
+        source <- sprintf("[%s, %s%s]", label, page_prefix, page_range)
+      } else if (!is.na(page_number)) {
         source <- sprintf("[%s, p.%d]", label, page_number)
+      } else if (!is.na(chunk_index)) {
+        source <- sprintf("[%s, chunk %d]", label, chunk_index)
       } else {
         source <- sprintf("[%s]", label)
       }
@@ -299,9 +307,11 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
   message("[rag_query] Store path: ", store_path, " exists: ", file.exists(store_path))
 
   chunks <- tryCatch({
-    search_chunks_hybrid(con, question, notebook_id, limit = 5,
+    search_chunks_hybrid(con, question, notebook_id, limit = 12,
+                         candidate_limit = 40,
                          provider = provider, embed_model = embed_model,
-                         config = config, session_id = session_id)
+                         config = config, session_id = session_id,
+                         rerank_context = "chat")
   }, error = function(e) {
     message("[rag_query] Ragnar search failed: ", e$message)
     NULL
@@ -314,6 +324,9 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
     }
     return("I couldn't find any relevant information in your documents to answer this question. Make sure your documents have been processed and embedded.")
   }
+
+  rerank_warning <- isTRUE(attr(chunks, "rerank_fallback"))
+  rerank_error <- attr(chunks, "rerank_error")
 
   # Build context
   context <- tryCatch({
@@ -332,7 +345,7 @@ rag_query <- function(con, config, question, notebook_id, session_id = NULL) {
 CITATION RULES:
 - Each source is labeled with its citation in brackets, e.g., [Smith et al. (2023), p.5] or [Jones & Lee (2021)]
 - Cite every substantive claim using the author and year from the source label: (Smith et al., 2023, p.5)
-- When the label includes a page number: (Author, Year, p.X)
+- When the label includes a page number or range: (Author, Year, p.X) or (Author, Year, pp.X-Y)
 - When the source is an abstract with no page: (Author, Year)
 - When multiple sources support a claim, cite all: (Smith et al., 2023, p.5; Jones & Lee, 2021)
 - Use the citation exactly as it appears in the source label — do not invent author names or years
@@ -367,6 +380,14 @@ Wrong: \"Studies show increased resistance rates.\" (missing citation)"
   }, error = function(e) {
     return(sprintf("Error generating response: %s", e$message))
   })
+
+  if (rerank_warning) {
+    warning_text <- "Note: the reranker was unavailable, so this answer used the hybrid retrieval order instead."
+    if (!is.null(rerank_error) && nzchar(rerank_error)) {
+      warning_text <- paste0(warning_text, " Details: ", rerank_error)
+    }
+    response <- paste(warning_text, response, sep = "\n\n")
+  }
 
   response
 }
@@ -427,7 +448,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
   # Select explicit columns to avoid pulling large embedding data
   if (notebook$type == "document") {
     chunks <- dbGetQuery(con, "
-      SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+      SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number, c.page_range,
              d.filename as doc_name, NULL as abstract_title,
              d.authors as doc_authors, d.year as doc_year,
              NULL as abstract_authors, NULL as abstract_year
@@ -439,7 +460,7 @@ generate_preset <- function(con, config, notebook_id, preset_type, session_id = 
     ", list(notebook_id))
   } else {
     chunks <- dbGetQuery(con, "
-      SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+      SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number, c.page_range,
              NULL as doc_name, a.title as abstract_title,
              NULL as doc_authors, NULL as doc_year,
              a.authors as abstract_authors, a.year as abstract_year
@@ -590,7 +611,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
     chunks <- tryCatch({
       if (notebook_type == "document") {
         dbGetQuery(con, "
-          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number, c.page_range,
                  d.filename as doc_name, NULL as abstract_title
           FROM chunks c
           JOIN documents d ON c.source_id = d.id
@@ -600,7 +621,7 @@ generate_conclusions_preset <- function(con, config, notebook_id, notebook_type 
         ", list(notebook_id))
       } else {
         dbGetQuery(con, "
-          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number, c.page_range,
                  NULL as doc_name, a.title as abstract_title
           FROM chunks c
           JOIN abstracts a ON c.source_id = a.id
@@ -1008,7 +1029,7 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
     chunks <- tryCatch({
       if (notebook_type == "document") {
         dbGetQuery(con, "
-          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number, c.page_range,
                  d.filename as doc_name, NULL as abstract_title
           FROM chunks c
           JOIN documents d ON c.source_id = d.id
@@ -1018,7 +1039,7 @@ generate_research_questions <- function(con, config, notebook_id, notebook_type 
         ", list(notebook_id))
       } else {
         dbGetQuery(con, "
-          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number,
+          SELECT c.id, c.source_id, c.source_type, c.chunk_index, c.content, c.page_number, c.page_range,
                  NULL as doc_name, a.title as abstract_title
           FROM chunks c
           JOIN abstracts a ON c.source_id = a.id

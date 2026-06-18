@@ -119,6 +119,42 @@ test_that("build_context uses author/year for document chunks with page", {
   expect_match(result, "\\[Brown \\(2021\\), p\\.5\\]")
 })
 
+test_that("build_context prefers page ranges for document chunks", {
+  chunks <- data.frame(
+    content = "Cross-page evidence.",
+    doc_name = "report.pdf",
+    abstract_title = NA_character_,
+    abstract_authors = NA_character_,
+    abstract_year = NA_integer_,
+    doc_authors = '["Alice Brown"]',
+    doc_year = 2021L,
+    page_number = 5L,
+    page_range = "5-6",
+    stringsAsFactors = FALSE
+  )
+
+  result <- build_context(chunks)
+  expect_match(result, "\\[Brown \\(2021\\), pp\\.5-6\\]")
+})
+
+test_that("build_context falls back to chunk number when document page metadata is missing", {
+  chunks <- data.frame(
+    content = "Chunk-only evidence.",
+    doc_name = "report.pdf",
+    abstract_title = NA_character_,
+    abstract_authors = NA_character_,
+    abstract_year = NA_integer_,
+    doc_authors = NA_character_,
+    doc_year = NA_integer_,
+    page_number = NA_integer_,
+    chunk_index = 7L,
+    stringsAsFactors = FALSE
+  )
+
+  result <- build_context(chunks)
+  expect_match(result, "\\[report\\.pdf, chunk 7\\]")
+})
+
 test_that("build_context falls back to filename when no document metadata", {
   chunks <- data.frame(
     content = "Document content.",

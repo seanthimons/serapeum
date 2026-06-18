@@ -232,18 +232,21 @@ process_pdf <- function(path, chunk_size = 2500, overlap = 0.1, origin = NULL) {
     )
   }
 
-  # Add section_hint column by analyzing each chunk
-  all_chunks$section_hint <- vapply(seq_len(nrow(all_chunks)), function(i) {
-    detect_section_hint(
-      all_chunks$content[i],
-      all_chunks$page_number[i],
-      extracted$page_count
-    )
-  }, FUN.VALUE = character(1))
+  # The shared ragnar chunker assigns section hints when this detector is
+  # available. Keep this fallback for stale or externally supplied chunk frames.
+  if (!"section_hint" %in% names(all_chunks)) {
+    all_chunks$section_hint <- vapply(seq_len(nrow(all_chunks)), function(i) {
+      detect_section_hint(
+        all_chunks$content[i],
+        all_chunks$page_number[i],
+        extracted$page_count
+      )
+    }, FUN.VALUE = character(1))
+  }
 
   list(
     chunks = all_chunks,
-    full_text = paste(extracted$text, collapse = "\n\n"),
+    full_text = paste(extracted$text, collapse = "\f"),
     page_count = extracted$page_count,
     chunking_method = "ragnar"
   )

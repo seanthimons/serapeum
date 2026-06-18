@@ -138,6 +138,42 @@ test_that("decode_origin_metadata handles DOIs with special characters", {
   expect_equal(decoded$doi, doi_with_slash)
 })
 
+test_that("origin metadata round-trip includes stable source identity and page range", {
+  encoded <- encode_origin_metadata(
+    "document:doc-123#page=12",
+    section_hint = "methods",
+    source_type = "document",
+    source_id = "doc-123",
+    chunk_index = 4L,
+    page_number = 12L,
+    page_range = "12-13"
+  )
+
+  decoded <- decode_origin_metadata(encoded)
+
+  expect_equal(decoded$source_type, "document")
+  expect_equal(decoded$source_id, "doc-123")
+  expect_equal(decoded$chunk_index, 4L)
+  expect_equal(decoded$page_number, 12L)
+  expect_equal(decoded$page_range, "12-13")
+})
+
+test_that("decode_origin_metadata infers source_id from legacy abstract and new document bases", {
+  abstract_decoded <- decode_origin_metadata("abstract:W123|section=general|type=abstract")
+  document_decoded <- decode_origin_metadata("document:doc-456#page=2|section=results|type=document")
+
+  expect_equal(abstract_decoded$source_id, "W123")
+  expect_equal(document_decoded$source_id, "doc-456")
+  expect_equal(document_decoded$page_number, 2L)
+  expect_equal(document_decoded$page_range, "2")
+})
+
+test_that("page range helpers format single and cross-page spans", {
+  expect_equal(format_page_range(3L), "3")
+  expect_equal(format_page_range(3L, 4L), "3-4")
+  expect_true(is.na(format_page_range(NA_integer_)))
+})
+
 # ============================================================================
 # Store Lifecycle Tests
 # ============================================================================
