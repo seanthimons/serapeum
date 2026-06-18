@@ -1,23 +1,34 @@
-name: Gitleaks Secret Scanning
+name: Gitleaks Secret Scan
 
 on:
   push:
-    branches: [main]
+    branches: [main, integration]
   pull_request:
-    branches: [main]
+    branches: [main, integration]
   workflow_dispatch:
+  schedule:
+    # Weekly secret-scan sweep; push/PR events still scan changes immediately.
+    - cron: '31 9 * * 1'
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   gitleaks:
-    name: Scan for secrets
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    name: Detect secrets
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        # actions/checkout v5 pinned by commit SHA for supply-chain stability.
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        # gitleaks/gitleaks-action v2 pinned by dereferenced tag commit SHA.
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
