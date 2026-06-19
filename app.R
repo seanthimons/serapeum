@@ -184,6 +184,7 @@ ui <- page_sidebar(
     }
     "
     )),
+    tags$script(src = "js/dropdown-tooltip-fix.js"),
     tags$script(HTML(
       "
     // Startup wizard localStorage support
