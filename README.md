@@ -1,4 +1,4 @@
-# Serapeum
+# Serapeum <img src="www/serapeum-hex-sticker.png" align="right" height="139" alt="Serapeum hex sticker" />
 
 [![GitHub](https://img.shields.io/badge/GitHub-seanthimons%2Fserapeum-181717?logo=github)](https://github.com/seanthimons/serapeum)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
