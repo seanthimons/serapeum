@@ -178,6 +178,71 @@ test_that("fresh install startup path does not duplicate migration records on re
   expect_equal(nrow(migration_counts), 0)
 })
 
+test_that("fresh database has work type columns on refiner results", {
+  tmp_dir <- tempfile("refiner-work-type-fresh-")
+  dir.create(tmp_dir)
+  db_path <- file.path(tmp_dir, "fresh.duckdb")
+
+  con <- get_db_connection(db_path)
+  on.exit({
+    close_db_connection(con)
+    unlink(tmp_dir, recursive = TRUE)
+  }, add = TRUE)
+
+  columns <- DBI::dbGetQuery(con, "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'refiner_results'
+  ")
+
+  expect_true("work_type" %in% columns$column_name)
+  expect_true("work_type_crossref" %in% columns$column_name)
+})
+
+test_that("migration 024 adds work type columns without dropping refiner data", {
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+
+  DBI::dbExecute(con, "
+    CREATE TABLE refiner_results (
+      id VARCHAR PRIMARY KEY,
+      run_id VARCHAR NOT NULL,
+      paper_id VARCHAR NOT NULL,
+      title VARCHAR
+    )
+  ")
+  DBI::dbExecute(con, "
+    INSERT INTO refiner_results (id, run_id, paper_id, title)
+    VALUES ('r1', 'run1', 'W1', 'Existing Paper')
+  ")
+
+  mig_024 <- paste(
+    readLines(file.path(app_root(), "migrations", "024_add_work_type_to_refiner_results.sql"),
+              warn = FALSE),
+    collapse = "\n"
+  )
+  expect_true(apply_migration(con, 24, "add work type to refiner results", mig_024))
+
+  columns <- DBI::dbGetQuery(con, "
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'refiner_results'
+  ")
+  existing <- DBI::dbGetQuery(con, "
+    SELECT paper_id, title, work_type, work_type_crossref
+    FROM refiner_results
+    WHERE id = 'r1'
+  ")
+
+  expect_true("work_type" %in% columns$column_name)
+  expect_true("work_type_crossref" %in% columns$column_name)
+  expect_equal(existing$paper_id, "W1")
+  expect_equal(existing$title, "Existing Paper")
+  expect_true(is.na(existing$work_type))
+  expect_true(is.na(existing$work_type_crossref))
+  expect_false(apply_migration(con, 24, "add work type to refiner results", mig_024))
+})
+
 test_that("topics table created by migration 002", {
   # Create a temp directory with actual migrations
   tmp_dir <- tempfile()

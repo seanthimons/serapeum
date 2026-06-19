@@ -180,6 +180,49 @@ test_that("fetch_candidates_from_seeds returns list with candidates and errors",
   expect_type(result$errors, "character")
   expect_equal(nrow(result$candidates), 0)
   expect_equal(length(result$errors), 0)
+  expect_true("work_type" %in% names(result$candidates))
+  expect_true("work_type_crossref" %in% names(result$candidates))
+})
+
+test_that("fetch_candidates_from_seeds preserves work type fields", {
+  original_citing <- get_citing_papers
+  original_cited <- get_cited_papers
+  original_related <- get_related_papers
+
+  assign("get_citing_papers", function(paper_id, email, api_key = NULL, per_page = 25) {
+    list(list(
+      paper_id = "WCandidate",
+      title = "Typed Candidate",
+      authors = list("Author"),
+      abstract = "Candidate abstract",
+      year = 2026L,
+      venue = "Journal",
+      doi = NA_character_,
+      work_type = "book-chapter",
+      work_type_crossref = "book-chapter",
+      cited_by_count = 1L,
+      fwci = NA_real_,
+      referenced_works_count = 0L
+    ))
+  }, envir = .GlobalEnv)
+  assign("get_cited_papers", function(paper_id, email, api_key = NULL, per_page = 25) {
+    list()
+  }, envir = .GlobalEnv)
+  assign("get_related_papers", function(paper_id, email, api_key = NULL, per_page = 25) {
+    list()
+  }, envir = .GlobalEnv)
+  on.exit({
+    assign("get_citing_papers", original_citing, envir = .GlobalEnv)
+    assign("get_cited_papers", original_cited, envir = .GlobalEnv)
+    assign("get_related_papers", original_related, envir = .GlobalEnv)
+  }, add = TRUE)
+
+  result <- fetch_candidates_from_seeds("WSeed", "test@example.com")
+
+  expect_equal(nrow(result$candidates), 1)
+  expect_equal(result$candidates$paper_id, "WCandidate")
+  expect_equal(result$candidates$work_type, "book-chapter")
+  expect_equal(result$candidates$work_type_crossref, "book-chapter")
 })
 
 test_that("fetch_anchor_refs returns errors field", {
@@ -289,6 +332,20 @@ test_that("create_abstract handles NULL and empty authors", {
   expect_equal(row2$authors, "[]")
 })
 
+test_that("prepare_candidates_from_notebook empty result includes work type columns", {
+  env <- setup_test_db()
+  on.exit(teardown_test_db(env))
+  con <- env$con
+
+  nb_id <- create_notebook(con, "Empty Source Notebook", "search")
+
+  candidates <- prepare_candidates_from_notebook(con, nb_id)
+
+  expect_equal(nrow(candidates), 0)
+  expect_true("work_type" %in% names(candidates))
+  expect_true("work_type_crossref" %in% names(candidates))
+})
+
 test_that("authors survive full refiner round-trip (notebook path)", {
   env <- setup_test_db()
   on.exit(teardown_test_db(env))
@@ -299,13 +356,17 @@ test_that("authors survive full refiner round-trip (notebook path)", {
   # Step 1: Create abstract with vector authors (simulates initial import)
   create_abstract(con, nb_id, "W100", "Original Paper",
                   c("Alice", "Bob"), "Test abstract",
-                  2024L, "Science", NULL)
+                  2024L, "Science", NULL,
+                  work_type = "article",
+                  work_type_crossref = "journal-article")
 
   # Step 2: Read via prepare_candidates_from_notebook (authors come back as JSON string)
   candidates <- prepare_candidates_from_notebook(con, nb_id)
   expect_equal(nrow(candidates), 1)
   # Authors column is a JSON string from DB
   expect_type(candidates$authors, "character")
+  expect_equal(candidates$work_type, "article")
+  expect_equal(candidates$work_type_crossref, "journal-article")
 
   # Step 3: Simulate save to refiner_results
   run_id <- create_refiner_run(con, "seeds", "notebook", source_notebook_id = nb_id)
@@ -321,6 +382,8 @@ test_that("authors survive full refiner round-trip (notebook path)", {
   # Step 4: Read from refiner_results (simulates the import path)
   stored <- get_refiner_results(con, run_id)
   expect_equal(nrow(stored), 1)
+  expect_equal(stored$work_type, "article")
+  expect_equal(stored$work_type_crossref, "journal-article")
 
   # Step 5: Simulate import — fromJSON then create_abstract in target notebook
   target_nb <- create_notebook(con, "Target Notebook", "search")
@@ -328,16 +391,88 @@ test_that("authors survive full refiner round-trip (notebook path)", {
   imported_id <- create_abstract(
     con, target_nb, stored$paper_id, stored$title,
     authors_vec, stored$abstract,
-    stored$year, stored$venue, NULL
+    stored$year, stored$venue, NULL,
+    work_type = stored$work_type,
+    work_type_crossref = stored$work_type_crossref
   )
 
-  # Step 6: Verify no double-encoding
+  # Step 6: Verify no double-encoding and preserved type metadata
   final <- DBI::dbGetQuery(con,
-    "SELECT authors FROM abstracts WHERE id = ?",
+    "SELECT authors, work_type, work_type_crossref FROM abstracts WHERE id = ?",
     list(imported_id))
   final_parsed <- jsonlite::fromJSON(final$authors)
   expect_type(final_parsed, "character")
   expect_equal(final_parsed, c("Alice", "Bob"))
+  expect_equal(final$work_type, "article")
+  expect_equal(final$work_type_crossref, "journal-article")
+})
+
+test_that("refiner results preserve work type fields", {
+  env <- setup_test_db()
+  on.exit(teardown_test_db(env))
+  con <- env$con
+
+  run_id <- create_refiner_run(con, "seeds", "fetch")
+  results_df <- data.frame(
+    paper_id = "WType",
+    title = "Typed Paper",
+    authors = '["Author"]',
+    abstract = "Typed abstract",
+    year = 2026L,
+    venue = "Journal",
+    doi = NA_character_,
+    work_type = "review",
+    work_type_crossref = "journal-article",
+    cited_by_count = 3L,
+    fwci = 1.2,
+    seed_connectivity = 0.1,
+    bridge_score = 0.2,
+    citation_velocity = 0.3,
+    ubiquity_penalty = 0.4,
+    utility_score = 0.5,
+    embedding_similarity = 0.6,
+    stringsAsFactors = FALSE
+  )
+
+  expect_equal(save_refiner_results(con, run_id, results_df), 1L)
+
+  stored <- get_refiner_results(con, run_id)
+  expect_equal(nrow(stored), 1)
+  expect_equal(stored$work_type, "review")
+  expect_equal(stored$work_type_crossref, "journal-article")
+})
+
+test_that("refiner results save old-style frames without work type fields", {
+  env <- setup_test_db()
+  on.exit(teardown_test_db(env))
+  con <- env$con
+
+  run_id <- create_refiner_run(con, "seeds", "fetch")
+  results_df <- data.frame(
+    paper_id = "WOld",
+    title = "Old Paper",
+    authors = '["Author"]',
+    abstract = "Old abstract",
+    year = 2024L,
+    venue = "Journal",
+    doi = NA_character_,
+    cited_by_count = 1L,
+    fwci = NA_real_,
+    seed_connectivity = 0,
+    bridge_score = 0,
+    citation_velocity = 0,
+    ubiquity_penalty = 0,
+    utility_score = 0.1,
+    embedding_similarity = NA_real_,
+    stringsAsFactors = FALSE
+  )
+
+  expect_equal(save_refiner_results(con, run_id, results_df), 1L)
+
+  stored <- get_refiner_results(con, run_id)
+  expect_equal(nrow(stored), 1)
+  expect_true(is.na(stored$work_type))
+  expect_true(is.na(stored$work_type_crossref))
 })
 
 test_that("split_refiner_embedding_batches keeps batches under conservative limits", {

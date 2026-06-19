@@ -323,6 +323,8 @@ init_schema <- function(con) {
       year INTEGER,
       venue VARCHAR,
       doi VARCHAR,
+      work_type VARCHAR,
+      work_type_crossref VARCHAR,
       cited_by_count INTEGER DEFAULT 0,
       fwci DOUBLE,
       seed_connectivity DOUBLE DEFAULT 0,
@@ -341,6 +343,18 @@ init_schema <- function(con) {
   dbExecute(con, "
     CREATE INDEX IF NOT EXISTS idx_refiner_results_run_id ON refiner_results(run_id)
   ")
+
+  # Migration: Add work_type columns to refiner_results table (added 2026-06-19)
+  tryCatch({
+    dbExecute(con, "ALTER TABLE refiner_results ADD COLUMN work_type VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE refiner_results ADD COLUMN work_type_crossref VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
 
   # Migration: Fix retraction_date column type (DATE -> VARCHAR) if needed
   # This handles the case where the table was created with DATE type
@@ -2651,6 +2665,8 @@ save_refiner_results <- function(con, run_id, results_df) {
     year = as.integer(results_df$year %||% NA_integer_),
     venue = as.character(results_df$venue %||% NA_character_),
     doi = as.character(results_df$doi %||% NA_character_),
+    work_type = as.character(results_df$work_type %||% NA_character_),
+    work_type_crossref = as.character(results_df$work_type_crossref %||% NA_character_),
     cited_by_count = as.integer(results_df$cited_by_count %||% 0L),
     fwci = as.numeric(results_df$fwci %||% NA_real_),
     seed_connectivity = as.numeric(results_df$seed_connectivity %||% 0),

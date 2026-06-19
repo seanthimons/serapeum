@@ -64,6 +64,7 @@ prepare_candidates_from_notebook <- function(con, notebook_id, exclude_ids = cha
   # detects pre-encoded JSON to avoid double-encoding.
   papers <- dbGetQuery(con, "
     SELECT paper_id, title, authors, abstract, year, venue, doi,
+           work_type, work_type_crossref,
            cited_by_count, fwci, referenced_works_count
     FROM abstracts
     WHERE notebook_id = ?
@@ -181,7 +182,9 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
       candidates = data.frame(
         paper_id = character(0), title = character(0), authors = character(0),
         abstract = character(0), year = integer(0), venue = character(0),
-        doi = character(0), cited_by_count = integer(0), fwci = double(0),
+        doi = character(0), work_type = character(0),
+        work_type_crossref = character(0),
+        cited_by_count = integer(0), fwci = double(0),
         referenced_works_count = integer(0), seed_connectivity = double(0),
         bridge_score = double(0),
         stringsAsFactors = FALSE
@@ -201,6 +204,8 @@ fetch_candidates_from_seeds <- function(seed_ids, email, api_key = NULL,
     year = vapply(all_papers, function(p) as.integer(p$year %||% NA_integer_), integer(1)),
     venue = vapply(all_papers, function(p) p$venue %||% NA_character_, character(1)),
     doi = vapply(all_papers, function(p) p$doi %||% NA_character_, character(1)),
+    work_type = vapply(all_papers, function(p) p$work_type %||% NA_character_, character(1)),
+    work_type_crossref = vapply(all_papers, function(p) p$work_type_crossref %||% NA_character_, character(1)),
     cited_by_count = vapply(all_papers, function(p) {
       v <- p$cited_by_count %||% 0L
       if (is.na(v)) 0L else as.integer(v)

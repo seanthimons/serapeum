@@ -992,6 +992,8 @@ mod_research_refiner_server <- function(id, con_r, config_r,
             con, target, p$paper_id, p$title,
             authors_vec, p$abstract,
             p$year, p$venue, NULL,
+            work_type = p$work_type,
+            work_type_crossref = p$work_type_crossref,
             cited_by_count = p$cited_by_count,
             fwci = p$fwci,
             doi = p$doi
