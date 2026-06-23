@@ -29,6 +29,8 @@ app:
   # Boolean: true or false
   verbose_mode: false
   async_observability_enabled: false
+  # Optional JSONL path for async diagnostics
+  async_task_log_path: "data/diagnostics/async_tasks.jsonl"
   # Integer: number of background mirai workers for async tasks
   mirai_daemons: 2
 

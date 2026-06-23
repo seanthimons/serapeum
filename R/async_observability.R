@@ -28,6 +28,23 @@ async_task_log_path <- function() {
   getOption("serapeum.async_task_log_path", async_task_default_log_path())
 }
 
+initialize_async_observability_options <- function(config = NULL) {
+  log_path <- get_setting(config, "app", "async_task_log_path") %||%
+    async_task_default_log_path()
+
+  options(
+    serapeum.async_observability_enabled = isTRUE(
+      get_setting(config, "app", "async_observability_enabled")
+    ),
+    serapeum.async_task_log_path = log_path
+  )
+
+  invisible(async_task_context(
+    enabled = async_task_enabled(),
+    log_path = async_task_log_path()
+  ))
+}
+
 async_task_id <- function(task_type) {
   prefix <- gsub("[^A-Za-z0-9_-]+", "-", task_type)
   stamp <- gsub("[^0-9]", "", format(Sys.time(), "%Y%m%d%H%M%OS3"))

@@ -1,4 +1,4 @@
-source_app("async_observability.R")
+source_app("config.R", "async_observability.R")
 
 test_that("async observability module exposes diagnostics controls and outputs", {
   skip_if_not_installed("shiny")
@@ -10,10 +10,99 @@ test_that("async observability module exposes diagnostics controls and outputs",
 
   expect_true(grepl('id="diag-async_diag_refresh"', ui_html, fixed = TRUE))
   expect_true(grepl('id="diag-async_diag_clear"', ui_html, fixed = TRUE))
+  expect_true(grepl(
+    'id="diag-async_observability_status"',
+    ui_html,
+    fixed = TRUE
+  ))
   expect_true(grepl('id="diag-async_mirai_status"', ui_html, fixed = TRUE))
   expect_true(grepl('id="diag-async_task_summary"', ui_html, fixed = TRUE))
   expect_true(grepl('id="diag-async_recent_event_picker"', ui_html, fixed = TRUE))
   expect_true(grepl('id="diag-async_event_detail"', ui_html, fixed = TRUE))
+})
+
+test_that("async observability options initialize from config", {
+  log_file <- tempfile(fileext = ".jsonl")
+  withr::local_options(list(
+    serapeum.async_observability_enabled = FALSE,
+    serapeum.async_task_log_path = "old.jsonl"
+  ))
+
+  context <- initialize_async_observability_options(list(
+    app = list(
+      async_observability_enabled = TRUE,
+      async_task_log_path = log_file
+    )
+  ))
+
+  expect_true(async_task_enabled())
+  expect_equal(async_task_log_path(), log_file)
+  expect_true(context$enabled)
+  expect_equal(context$log_path, log_file)
+})
+
+test_that("async observability module renders diagnostics outputs with no log file", {
+  skip_if_not_installed("shiny")
+  library(shiny)
+  source_app("theme_catppuccin.R", "mod_async_observability.R")
+
+  log_file <- tempfile(fileext = ".jsonl")
+  withr::local_options(list(
+    serapeum.async_observability_enabled = FALSE,
+    serapeum.async_task_log_path = log_file
+  ))
+
+  testServer(mod_async_observability_server, args = list(id = "diag"), {
+    session$flushReact()
+
+    status_html <- as.character(output$async_observability_status$html)
+    mirai_html <- as.character(output$async_mirai_status$html)
+    summary_html <- as.character(output$async_task_summary$html)
+
+    expect_true(grepl("Disabled", status_html, fixed = TRUE))
+    expect_true(grepl(log_file, status_html, fixed = TRUE))
+    expect_match(mirai_html, "awaiting|mirai status unavailable")
+    expect_true(grepl("No async task events.", summary_html, fixed = TRUE))
+    expect_null(output$async_recent_event_picker)
+    expect_equal(output$async_event_detail, "")
+  })
+})
+
+test_that("async observability module renders task table and event picker", {
+  skip_if_not_installed("shiny")
+  library(shiny)
+  source_app("theme_catppuccin.R", "mod_async_observability.R")
+
+  log_file <- tempfile(fileext = ".jsonl")
+  withr::local_options(list(
+    serapeum.async_observability_enabled = TRUE,
+    serapeum.async_task_log_path = log_file
+  ))
+
+  task_id <- "task-render"
+  async_task_submitted("smoke_task", task_id)
+  async_task_worker_started(task_id, metadata = list(task_type = "smoke_task"))
+  async_task_completed(
+    task_id,
+    "completed",
+    metadata = list(task_type = "smoke_task")
+  )
+
+  testServer(mod_async_observability_server, args = list(id = "diag"), {
+    session$flushReact()
+
+    summary_html <- as.character(output$async_task_summary$html)
+    picker_html <- as.character(output$async_recent_event_picker$html)
+
+    expect_true(grepl("<table", summary_html, fixed = TRUE))
+    expect_true(grepl("smoke_task", summary_html, fixed = TRUE))
+    expect_true(grepl("Recent event", picker_html, fixed = TRUE))
+
+    session$setInputs(async_event_index = "1")
+    session$flushReact()
+
+    expect_true(grepl(task_id, output$async_event_detail, fixed = TRUE))
+  })
 })
 
 test_that("async task events append valid JSONL when enabled", {

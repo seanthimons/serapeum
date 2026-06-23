@@ -10,6 +10,7 @@ for (f in list.files("R", pattern = "\\.R$", full.names = TRUE)) {
 
 # Load config from file (if exists)
 config_file <- load_config()
+initialize_async_observability_options(config_file)
 
 # Set up persistent mirai daemons for async tasks (bulk import, embedding, etc.)
 mirai_daemon_count <- resolve_mirai_daemons(config_file)

@@ -22,6 +22,7 @@ mod_async_observability_ui <- function(id) {
         title = "Clear log"
       )
     ),
+    uiOutput(ns("async_observability_status")),
     uiOutput(ns("async_mirai_status")),
     uiOutput(ns("async_task_summary")),
     uiOutput(ns("async_recent_event_picker")),
@@ -33,6 +34,7 @@ mod_async_observability_ui <- function(id) {
 #' @param id Module ID
 mod_async_observability_server <- function(id) {
   moduleServer(id, function(input, output, session) {
+    ns <- session$ns
     async_diag_refresh <- reactiveVal(0)
 
     async_format_ms <- function(ms) {
@@ -66,6 +68,28 @@ mod_async_observability_server <- function(id) {
       clear_async_task_events()
       async_diag_refresh(async_diag_refresh() + 1)
       showNotification("Async diagnostics log cleared.", type = "message")
+    })
+
+    output$async_observability_status <- renderUI({
+      async_diag_refresh()
+      enabled <- async_task_enabled()
+      log_path <- async_task_log_path()
+
+      div(
+        class = "small d-flex flex-wrap align-items-center gap-2 mb-2",
+        span(
+          class = paste(
+            "badge",
+            if (enabled) "bg-success" else "bg-secondary"
+          ),
+          if (enabled) "Enabled" else "Disabled"
+        ),
+        span(
+          class = "text-muted text-break",
+          "Log:",
+          tags$code(log_path)
+        )
+      )
     })
 
     output$async_mirai_status <- renderUI({
@@ -173,5 +197,15 @@ mod_async_observability_server <- function(id) {
         na = "null"
       ))
     })
+
+    for (output_id in c(
+      "async_observability_status",
+      "async_mirai_status",
+      "async_task_summary",
+      "async_recent_event_picker",
+      "async_event_detail"
+    )) {
+      outputOptions(output, output_id, suspendWhenHidden = FALSE)
+    }
   })
 }
