@@ -52,10 +52,24 @@ init_schema <- function(con) {
       filepath VARCHAR NOT NULL,
       full_text VARCHAR,
       page_count INTEGER,
+      work_type VARCHAR,
+      work_type_crossref VARCHAR,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (notebook_id) REFERENCES notebooks(id)
     )
   ")
+
+  # Migration: Add work type columns to documents table
+  tryCatch({
+    dbExecute(con, "ALTER TABLE documents ADD COLUMN work_type VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
+  tryCatch({
+    dbExecute(con, "ALTER TABLE documents ADD COLUMN work_type_crossref VARCHAR")
+  }, error = function(e) {
+    # Column already exists, ignore
+  })
 
   # Abstracts table
   dbExecute(con, "
@@ -501,19 +515,25 @@ delete_notebook <- function(con, id) {
 #' @param year Optional publication year (from OpenAlex)
 #' @param doi Optional DOI bare format e.g. 10.1234/example (from OpenAlex)
 #' @param abstract_id Optional source abstract ID (for papers imported from search notebook)
+#' @param work_type Optional OpenAlex work type slug
+#' @param work_type_crossref Optional Crossref work type slug
 #' @return Document ID
 create_document <- function(con, notebook_id, filename, filepath, full_text, page_count,
                             title = NA_character_, authors = NA_character_,
                             year = NA_integer_, doi = NA_character_,
-                            abstract_id = NA_character_) {
+                            abstract_id = NA_character_, work_type = NA_character_,
+                            work_type_crossref = NA_character_) {
   id <- uuid::UUIDgenerate()
+
+  work_type_val <- if (is.null(work_type) || (is.character(work_type) && is.na(work_type))) NA_character_ else work_type
+  work_type_crossref_val <- if (is.null(work_type_crossref) || (is.character(work_type_crossref) && is.na(work_type_crossref))) NA_character_ else work_type_crossref
 
   dbExecute(con, "
     INSERT INTO documents (id, notebook_id, filename, filepath, full_text, page_count,
-                           title, authors, year, doi, abstract_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           title, authors, year, doi, abstract_id, work_type, work_type_crossref)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ", list(id, notebook_id, filename, filepath, full_text, page_count,
-          title, authors, year, doi, abstract_id))
+          title, authors, year, doi, abstract_id, work_type_val, work_type_crossref_val))
 
   id
 }

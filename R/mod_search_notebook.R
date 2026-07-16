@@ -1,45 +1,32 @@
-#' OpenAlex work type taxonomy (Phase 55)
-#' Full 16-type taxonomy with Catppuccin color families
-OPENALEX_WORK_TYPES <- list(
-  # Primary research (lavender/blue family)
-  list(slug = "article", label = "Article", category = "primary", class = "bg-primary"),
-  list(slug = "book", label = "Book", category = "primary", class = "bg-primary"),
-  list(slug = "book-chapter", label = "Book Chapter", category = "primary", class = "bg-primary-subtle text-primary-emphasis"),
-  list(slug = "dissertation", label = "Dissertation", category = "primary", class = "bg-info-subtle text-info-emphasis"),
-
-  # Reviews/editorials (sapphire/info family)
-  list(slug = "review", label = "Review", category = "review", class = "bg-info"),
-  list(slug = "editorial", label = "Editorial", category = "review", class = "bg-info text-info-emphasis"),
-  list(slug = "letter", label = "Letter", category = "review", class = "bg-info-subtle text-info-emphasis"),
-  list(slug = "peer-review", label = "Peer Review", category = "review", class = "bg-info-subtle text-info-emphasis"),
-
-  # Preprints/reports (yellow/warning family)
-  list(slug = "preprint", label = "Preprint", category = "preprint", class = "bg-warning text-body"),
-  list(slug = "report", label = "Report", category = "preprint", class = "bg-warning-subtle text-warning-emphasis"),
-  list(slug = "standard", label = "Standard", category = "preprint", class = "bg-warning-subtle text-warning-emphasis"),
-
-  # Metadata/other (gray/neutral family)
-  list(slug = "dataset", label = "Dataset", category = "other", class = "bg-body-tertiary text-body"),
-  list(slug = "erratum", label = "Erratum", category = "other", class = "bg-body-tertiary text-body"),
-  list(slug = "paratext", label = "Paratext", category = "other", class = "bg-body-tertiary text-body"),
-  list(slug = "grant", label = "Grant", category = "other", class = "bg-body-tertiary text-body"),
-  list(slug = "supplementary-materials", label = "Supplementary Materials", category = "other", class = "bg-body-tertiary text-body")
-)
-
 #' Default ON types (common scholarly outputs)
 DEFAULT_ON_TYPES <- c("article", "review", "preprint", "book", "book-chapter", "dissertation")
 
-#' Get badge class and label for work type (Phase 55)
+#' Get badge class and label for work type
 #' @param work_type OpenAlex work type slug
+#' @param catalog Optional runtime work type catalog from OpenAlex /types
 #' @return List with class and label
-get_type_badge <- function(work_type) {
+get_type_badge <- function(work_type, catalog = NULL) {
   if (is.null(work_type) || is.na(work_type) || work_type == "") {
     return(list(class = "bg-body-tertiary text-body", label = "Unknown"))
   }
-  match <- Filter(function(t) t$slug == work_type, OPENALEX_WORK_TYPES)
+
+  if (is.null(catalog)) {
+    catalog <- if (exists("build_work_type_catalog", mode = "function")) {
+      build_work_type_catalog(observed_types = work_type)
+    } else {
+      list(list(
+        slug = work_type,
+        label = tools::toTitleCase(gsub("-", " ", work_type)),
+        class = "bg-body-tertiary text-body"
+      ))
+    }
+  }
+
+  match <- Filter(function(t) t$slug == work_type, catalog)
   if (length(match) > 0) {
     return(list(class = match[[1]]$class, label = match[[1]]$label))
   }
+
   # Fallback for unknown types
   list(class = "bg-body-tertiary text-body", label = tools::toTitleCase(gsub("-", " ", work_type)))
 }
@@ -1248,6 +1235,46 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       papers
     })
 
+    # Runtime work type catalog: fetch OpenAlex /types once per R session and
+    # merge any saved/observed legacy or future slugs so chips never silently
+    # discard types OpenAlex has added or retired.
+    saved_work_types <- reactive({
+      nb_id <- notebook_id()
+      req(nb_id)
+
+      nb <- tryCatch(get_notebook(con(), nb_id), error = function(e) NULL)
+      if (is.null(nb) || is.null(nb$search_filters) || is.na(nb$search_filters) || !nzchar(nb$search_filters)) {
+        return(character())
+      }
+
+      filters <- tryCatch(jsonlite::fromJSON(nb$search_filters), error = function(e) list())
+      filters$work_types %||% character()
+    })
+
+    observed_work_types <- reactive({
+      papers <- papers_data()
+      observed <- saved_work_types()
+
+      if (nrow(papers) > 0 && "work_type" %in% names(papers)) {
+        observed <- c(observed, papers$work_type)
+      }
+
+      observed <- unique(stats::na.omit(as.character(observed)))
+      observed[nzchar(observed)]
+    })
+
+    work_type_catalog <- reactive({
+      cfg <- config()
+      email <- get_setting(cfg, "openalex", "email") %||% ""
+      api_key <- get_setting(cfg, "openalex", "api_key")
+
+      get_openalex_work_type_catalog(
+        email = email,
+        api_key = api_key,
+        observed_types = observed_work_types()
+      )
+    })
+
     # Phase 55: Initialize type chip states from saved filters or defaults (runs once)
     observe({
       if (isTRUE(type_states_initialized())) return()
@@ -1265,17 +1292,35 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
 
       saved_types <- filters$work_types
-      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+      all_slugs <- get_work_type_slugs(work_type_catalog())
 
       for (slug in all_slugs) {
         if (!is.null(saved_types)) {
           type_states[[slug]] <- slug %in% saved_types
+        } else if (slug %in% observed_work_types() && !(slug %in% DEFAULT_ON_TYPES)) {
+          # Future/legacy observed types should remain visible until the user
+          # explicitly filters them out.
+          type_states[[slug]] <- TRUE
         } else {
           type_states[[slug]] <- slug %in% DEFAULT_ON_TYPES
         }
       }
 
       type_states_initialized(TRUE)
+    })
+
+    # Initialize any new slugs that arrive after first render (e.g., observed
+    # future types in newly loaded papers). Keep explicit existing states intact.
+    observe({
+      req(isTRUE(type_states_initialized()))
+      all_slugs <- get_work_type_slugs(work_type_catalog())
+      observed <- observed_work_types()
+
+      for (slug in all_slugs) {
+        if (is.null(type_states[[slug]])) {
+          type_states[[slug]] <- slug %in% observed || slug %in% DEFAULT_ON_TYPES
+        }
+      }
     })
 
     # Dynamic slider bounds - updates when papers change
@@ -1685,7 +1730,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         }
 
         # Get type badge info
-        type_badge <- get_type_badge(paper$work_type)
+        type_badge <- get_type_badge(paper$work_type, work_type_catalog())
 
         # Get OA badge info (Phase 2)
         oa_badge <- get_oa_badge(paper$oa_status)
@@ -1988,7 +2033,7 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
 
       # Get type badge info
-      type_badge <- get_type_badge(paper$work_type)
+      type_badge <- get_type_badge(paper$work_type, work_type_catalog())
 
       # Get OA badge info (Phase 2)
       oa_badge <- get_oa_badge(paper$oa_status)
@@ -2369,11 +2414,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 55: Collect selected work types from chip toggle states
     get_selected_work_types <- reactive({
-      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+      all_slugs <- get_work_type_slugs(work_type_catalog())
       selected <- all_slugs[sapply(all_slugs, function(s) isTRUE(type_states[[s]]))]
-      # If all types selected or none selected, return NULL (no filter)
-      if (length(selected) == length(all_slugs) || length(selected) == 0) return(NULL)
-      selected
+      selected_work_types_or_null(all_slugs, selected)
     })
 
     # Query preview (reactive)
@@ -2426,14 +2469,15 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         )
       }
 
-      # Count all 16 types (including zeros)
+      # Count runtime catalog types (including observed future/legacy types)
       type_counts <- table(papers$work_type, useNA = "ifany")
-      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
+      catalog <- work_type_catalog()
+      all_slugs <- get_work_type_slugs(catalog)
       counts_list <- lapply(all_slugs, function(slug) {
         list(
           slug = slug,
           count = if (slug %in% names(type_counts)) type_counts[[slug]] else 0L,
-          badge = get_type_badge(slug)
+          badge = get_type_badge(slug, catalog)
         )
       })
 
@@ -2496,9 +2540,10 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
         NULL
       }
 
-      # Render chips for all 16 types
-      chips <- lapply(seq_along(OPENALEX_WORK_TYPES), function(i) {
-        type_info <- OPENALEX_WORK_TYPES[[i]]
+      # Render chips for the runtime OpenAlex catalog plus observed unknowns
+      catalog <- work_type_catalog()
+      chips <- lapply(seq_along(catalog), function(i) {
+        type_info <- catalog[[i]]
         slug <- type_info$slug
         label <- type_info$label
         badge_class <- type_info$class
@@ -2537,14 +2582,14 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
 
     # Phase 55: Select All / Deselect All observers
     observeEvent(input$select_all_types, {
-      for (t in OPENALEX_WORK_TYPES) {
-        type_states[[t$slug]] <- TRUE
+      for (slug in get_work_type_slugs(work_type_catalog())) {
+        type_states[[slug]] <- TRUE
       }
     })
 
     observeEvent(input$deselect_all_types, {
-      for (t in OPENALEX_WORK_TYPES) {
-        type_states[[t$slug]] <- FALSE
+      for (slug in get_work_type_slugs(work_type_catalog())) {
+        type_states[[slug]] <- FALSE
       }
     })
 
@@ -2650,13 +2695,9 @@ mod_search_notebook_server <- function(id, con, notebook_id, config, notebook_re
       }
 
       # Phase 55: Collect selected work types from chip toggle states
-      all_slugs <- sapply(OPENALEX_WORK_TYPES, function(t) t$slug)
-      work_types <- all_slugs[sapply(all_slugs, function(s) isTRUE(type_states[[s]]))]
-
-      # If all types selected or none selected, store NULL (no filter)
-      if (length(work_types) == length(all_slugs) || length(work_types) == 0) {
-        work_types <- NULL
-      }
+      all_slugs <- get_work_type_slugs(work_type_catalog())
+      selected_types <- all_slugs[sapply(all_slugs, function(s) isTRUE(type_states[[s]]))]
+      work_types <- selected_work_types_or_null(all_slugs, selected_types)
 
       filters <- list(
         from_year = input$edit_from_year,

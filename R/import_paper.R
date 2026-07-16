@@ -35,6 +35,8 @@ import_single_paper <- function(con, notebook_id, abstract_row,
   doc_doi <- if (!is.null(abs$doi) && !is.na(abs$doi)) abs$doi else NA_character_
   doc_authors <- if (!is.null(abs$authors) && !is.na(abs$authors)) abs$authors else NA_character_
   doc_year <- if (!is.null(abs$year) && !is.na(abs$year)) as.integer(abs$year) else NA_integer_
+  doc_work_type <- if (!is.null(abs$work_type) && !is.na(abs$work_type)) abs$work_type else NA_character_
+  doc_work_type_crossref <- if (!is.null(abs$work_type_crossref) && !is.na(abs$work_type_crossref)) abs$work_type_crossref else NA_character_
 
   # Setup storage
   if (is.null(storage_dir)) {
@@ -69,6 +71,7 @@ import_single_paper <- function(con, notebook_id, abstract_row,
       if (isTRUE(dl$success)) {
         pdf_result <- process_and_store_pdf(con, notebook_id, abs, dl$path, safe_name,
                                              doc_authors, doc_year, doc_doi,
+                                             doc_work_type, doc_work_type_crossref,
                                              chunk_size, chunk_overlap)
         if (isTRUE(pdf_result$success)) {
           message("[import] PDF import succeeded via OpenAlex content API")
@@ -89,6 +92,7 @@ import_single_paper <- function(con, notebook_id, abstract_row,
       if (isTRUE(dl$success)) {
         pdf_result <- process_and_store_pdf(con, notebook_id, abs, dl$path, safe_name,
                                              doc_authors, doc_year, doc_doi,
+                                             doc_work_type, doc_work_type_crossref,
                                              chunk_size, chunk_overlap)
         if (isTRUE(pdf_result$success)) {
           message("[import] PDF import succeeded via direct URL")
@@ -114,7 +118,9 @@ import_single_paper <- function(con, notebook_id, abstract_row,
       authors = doc_authors,
       year = doc_year,
       doi = doc_doi,
-      abstract_id = abs$id
+      abstract_id = abs$id,
+      work_type = doc_work_type,
+      work_type_crossref = doc_work_type_crossref
     )
     create_chunk(con, doc_id, "document", 0, abs$abstract, page_number = 1)
     return(list(success = TRUE, doc_id = doc_id, method = "abstract"))
@@ -131,6 +137,8 @@ import_single_paper <- function(con, notebook_id, abstract_row,
 #' @return List with success, doc_id, method
 process_and_store_pdf <- function(con, notebook_id, abs, pdf_path, safe_name,
                                    doc_authors, doc_year, doc_doi,
+                                   doc_work_type = NA_character_,
+                                   doc_work_type_crossref = NA_character_,
                                    chunk_size, chunk_overlap) {
   tryCatch({
     processed <- process_pdf(pdf_path, chunk_size = chunk_size, overlap = chunk_overlap)
@@ -149,7 +157,9 @@ process_and_store_pdf <- function(con, notebook_id, abs, pdf_path, safe_name,
       authors = doc_authors,
       year = doc_year,
       doi = doc_doi,
-      abstract_id = abs$id
+      abstract_id = abs$id,
+      work_type = doc_work_type,
+      work_type_crossref = doc_work_type_crossref
     )
 
     for (ci in seq_len(nrow(processed$chunks))) {

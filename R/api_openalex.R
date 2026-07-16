@@ -225,6 +225,199 @@ perform_oa_request <- function(req, con = NULL, operation = "request") {
   body
 }
 
+#' Current OpenAlex work type fallback records
+#'
+#' Used only when the /types endpoint is unavailable. The UI source of truth is
+#' still the OpenAlex API response fetched at runtime.
+openalex_work_type_fallback_records <- function() {
+  slugs <- c(
+    "article", "book", "book-chapter", "book-review", "conference-abstract",
+    "conference-paper", "data-paper", "dataset", "dissertation", "editorial",
+    "erratum", "letter", "libguides", "other", "paratext", "peer-review",
+    "preprint", "reference-entry", "report", "retraction", "review", "software",
+    "software-paper", "standard", "supplementary-materials"
+  )
+
+  lapply(slugs, function(slug) list(slug = slug, display_name = work_type_label(slug)))
+}
+
+#' Convert an OpenAlex work type slug into a human-readable label
+#' @param slug OpenAlex work type slug
+#' @return Title-cased label
+work_type_label <- function(slug) {
+  if (is.null(slug) || length(slug) == 0 || is.na(slug) || !nzchar(slug)) return("Unknown")
+  tools::toTitleCase(gsub("-", " ", slug))
+}
+
+#' Infer a visual category for a work type slug
+#' @param slug OpenAlex work type slug
+#' @return Category label used for badge styling
+work_type_category <- function(slug) {
+  if (slug %in% c(
+    "article", "book", "book-chapter", "book-review", "conference-abstract",
+    "conference-paper", "data-paper", "dissertation", "software", "software-paper"
+  )) {
+    return("primary")
+  }
+
+  if (slug %in% c("review", "editorial", "letter", "peer-review", "erratum", "retraction")) {
+    return("review")
+  }
+
+  if (slug %in% c("preprint", "report", "standard", "reference-entry")) {
+    return("preprint")
+  }
+
+  "other"
+}
+
+#' Badge class for a work type category
+#' @param category Category from work_type_category()
+#' @param slug OpenAlex work type slug
+#' @return Bootstrap class string
+work_type_badge_class <- function(category, slug = NULL) {
+  if (!is.null(slug) && slug %in% c("book-chapter", "book-review", "conference-abstract", "data-paper", "software-paper")) {
+    return("bg-primary-subtle text-primary-emphasis")
+  }
+  if (!is.null(slug) && slug %in% c("dissertation", "letter", "peer-review", "erratum", "retraction")) {
+    return("bg-info-subtle text-info-emphasis")
+  }
+  if (!is.null(slug) && slug %in% c("report", "standard", "reference-entry")) {
+    return("bg-warning-subtle text-warning-emphasis")
+  }
+
+  switch(category,
+    primary = "bg-primary",
+    review = "bg-info",
+    preprint = "bg-warning text-body",
+    other = "bg-body-tertiary text-body",
+    "bg-body-tertiary text-body"
+  )
+}
+
+#' Parse OpenAlex /types response into normalized work type records
+#' @param body Parsed JSON body from OpenAlex /types
+#' @return List of normalized records with slug and display_name
+parse_openalex_types_response <- function(body) {
+  if (is.null(body$results)) {
+    stop("Unexpected OpenAlex /types response format: missing 'results' field")
+  }
+
+  records <- lapply(body$results, function(item) {
+    slug <- item$slug %||% item$key %||% NULL
+    if (is.null(slug) && !is.null(item$id)) {
+      slug <- sub(".*/", "", item$id)
+    }
+    if (is.null(slug) || is.na(slug) || !nzchar(slug)) return(NULL)
+
+    list(
+      slug = slug,
+      label = item$display_name %||% work_type_label(slug),
+      description = item$description %||% NA_character_,
+      works_count = item$works_count %||% NA_integer_,
+      source = "openalex"
+    )
+  })
+
+  records <- Filter(Negate(is.null), records)
+  records[!duplicated(vapply(records, function(x) x$slug, character(1)))]
+}
+
+#' Build display catalog from OpenAlex records plus observed legacy/future types
+#' @param records Normalized records from parse_openalex_types_response()
+#' @param observed_types Work type slugs observed in loaded data or saved filters
+#' @return List of catalog entries sorted by category then label
+build_work_type_catalog <- function(records = NULL, observed_types = character()) {
+  if (is.null(records) || length(records) == 0) {
+    records <- openalex_work_type_fallback_records()
+  }
+
+  observed_types <- unique(stats::na.omit(as.character(observed_types)))
+  observed_types <- observed_types[nzchar(observed_types)]
+  known_slugs <- vapply(records, function(x) x$slug, character(1))
+  extras <- setdiff(observed_types, known_slugs)
+
+  extra_records <- lapply(extras, function(slug) {
+    list(slug = slug, label = work_type_label(slug), source = "observed")
+  })
+
+  catalog <- c(records, extra_records)
+  catalog <- lapply(catalog, function(item) {
+    slug <- item$slug
+    category <- item$category %||% work_type_category(slug)
+    label <- item$label %||% item$display_name %||% work_type_label(slug)
+    if (identical(label, slug)) label <- work_type_label(slug)
+    list(
+      slug = slug,
+      label = label,
+      category = category,
+      class = item$class %||% work_type_badge_class(category, slug),
+      source = item$source %||% "fallback"
+    )
+  })
+
+  catalog <- catalog[!duplicated(vapply(catalog, function(x) x$slug, character(1)))]
+  sort_key <- paste(
+    match(vapply(catalog, function(x) x$category, character(1)), c("primary", "review", "preprint", "other")),
+    vapply(catalog, function(x) x$label, character(1))
+  )
+  catalog[order(sort_key)]
+}
+
+#' Get slugs from a work type catalog
+#' @param catalog Work type catalog from build_work_type_catalog()
+#' @return Character vector of slugs
+get_work_type_slugs <- function(catalog) {
+  vapply(catalog, function(x) x$slug, character(1))
+}
+
+#' Return selected work types, or NULL when selection means no filter
+#' @param all_slugs All available type slugs
+#' @param selected Selected type slugs
+#' @return Character vector or NULL
+selected_work_types_or_null <- function(all_slugs, selected) {
+  selected <- intersect(as.character(selected), as.character(all_slugs))
+  if (length(selected) == length(all_slugs) || length(selected) == 0) return(NULL)
+  selected
+}
+
+#' Fetch work type records from OpenAlex /types
+#' @param email User email for polite pool
+#' @param api_key Optional OpenAlex API key
+#' @return Normalized records
+fetch_openalex_work_types <- function(email = NULL, api_key = NULL) {
+  req <- build_openalex_request("types", email, api_key) |>
+    req_url_query(per_page = 200)
+  body <- perform_oa_request(req, con = NULL, operation = "types")
+  parse_openalex_types_response(body)
+}
+
+#' Runtime OpenAlex work type catalog with API source and resilient fallback
+#' @param email User email for polite pool
+#' @param api_key Optional OpenAlex API key
+#' @param observed_types Type slugs observed in loaded papers or saved filters
+#' @param refresh Force refetch even if a session cache exists
+#' @return Work type catalog
+get_openalex_work_type_catalog <- function(email = NULL, api_key = NULL,
+                                           observed_types = character(),
+                                           refresh = FALSE) {
+  cached <- getOption("serapeum.openalex_work_type_records")
+  records <- cached
+
+  if (isTRUE(refresh) || is.null(records)) {
+    records <- tryCatch(
+      fetch_openalex_work_types(email, api_key),
+      error = function(e) {
+        message("[OpenAlex API] Falling back to bundled work type catalog: ", e$message)
+        openalex_work_type_fallback_records()
+      }
+    )
+    options(serapeum.openalex_work_type_records = records)
+  }
+
+  build_work_type_catalog(records, observed_types = observed_types)
+}
+
 #' Check whether the OA migration nudge should be shown
 #'
 #' Returns TRUE when the user has an email configured but no API key,

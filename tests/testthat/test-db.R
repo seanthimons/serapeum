@@ -53,7 +53,7 @@ test_that("get_db_connection applies migrations on fresh install and rerun", {
   expect_equal(length(unique(applied)), length(applied))
 
   expect_columns_present(con, "abstracts", c("doi"))
-  expect_columns_present(con, "documents", c("title", "authors", "year", "doi", "abstract_id"))
+  expect_columns_present(con, "documents", c("title", "authors", "year", "doi", "abstract_id", "work_type", "work_type_crossref"))
   expect_columns_present(con, "cost_log", c("duration_ms"))
   expect_columns_present(con, "refiner_embedding_cache", c("paper_id", "embed_model", "abstract_hash", "embedding"))
 
@@ -70,7 +70,7 @@ test_that("get_db_connection applies migrations on fresh install and rerun", {
   expect_true("citation_networks" %in% rerun_tables)
   expect_true("prompt_versions" %in% rerun_tables)
 
-  expect_columns_present(con_rerun, "documents", c("title", "authors", "year", "doi", "abstract_id"))
+  expect_columns_present(con_rerun, "documents", c("title", "authors", "year", "doi", "abstract_id", "work_type", "work_type_crossref"))
   expect_columns_present(con_rerun, "cost_log", c("duration_ms"))
 
   close_db_connection(con_rerun)
@@ -141,6 +141,32 @@ test_that("document operations work", {
   docs <- list_documents(con, nb_id)
   expect_equal(nrow(docs), 1)
   expect_equal(docs$filename[1], "paper.pdf")
+
+  close_db_connection(con)
+  unlink(db_path)
+})
+
+test_that("document operations preserve OpenAlex work type metadata", {
+  tmp_dir <- tempdir()
+  db_path <- file.path(tmp_dir, "test_doc_work_types.duckdb")
+  con <- get_db_connection(db_path)
+  init_schema(con)
+
+  nb_id <- create_notebook(con, "Test", "document")
+  doc_id <- create_document(
+    con, nb_id, "paper.pdf", "storage/paper.pdf", "Full text", 5,
+    work_type = "software-paper",
+    work_type_crossref = "posted-content"
+  )
+
+  doc <- get_document(con, doc_id)
+  expect_equal(doc$work_type, "software-paper")
+  expect_equal(doc$work_type_crossref, "posted-content")
+
+  docs <- list_documents(con, nb_id)
+  expect_true("work_type" %in% names(docs))
+  expect_true("work_type_crossref" %in% names(docs))
+  expect_equal(docs$work_type[1], "software-paper")
 
   close_db_connection(con)
   unlink(db_path)
