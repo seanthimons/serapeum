@@ -251,7 +251,7 @@ get_ragnar_store <- function(path = "data/serapeum.ragnar.duckdb",
   embed_fn <- make_embed_function(provider, embed_model)
 
   if (file.exists(path)) {
-    store <- ragnar::ragnar_store_connect(path)
+    store <- ragnar::ragnar_store_connect(path, read_only = FALSE)
   } else {
     # Store creation eagerly evaluates the embed function to infer
     # embedding_size, so pass the real function here as well.
@@ -610,7 +610,7 @@ ensure_ragnar_store <- function(notebook_id, session = NULL, provider = NULL,
 
   # If store exists, connect and attach embed function
   if (file.exists(store_path)) {
-    store <- ragnar::ragnar_store_connect(store_path)
+    store <- ragnar::ragnar_store_connect(store_path, read_only = FALSE)
     # Attach working embed function (bypasses broken serialized closure)
     if (!is.null(provider) && !is.null(provider$api_key) && nchar(provider$api_key) > 0) {
       store@embed <- make_embed_function(provider, embed_model)

@@ -138,6 +138,32 @@ test_that("get_ragnar_store creates a fresh store without invoking a placeholder
   expect_equal(dim(runtime_result), c(2, 4))
 })
 
+test_that("ensure_ragnar_store reopens existing stores for writes", {
+  skip_if_not(tryCatch({ library(ragnar); TRUE }, error = function(e) FALSE), "ragnar not loadable")
+
+  store_path <- tempfile(fileext = ".ragnar.duckdb")
+  store <- ragnar::ragnar_store_create(
+    store_path,
+    embed = function(texts) matrix(0, nrow = length(texts), ncol = 4),
+    embedding_size = 4L,
+    version = 1
+  )
+  DBI::dbDisconnect(store@con, shutdown = TRUE)
+
+  original_path_fun <- get_notebook_ragnar_path
+  assign("get_notebook_ragnar_path", function(notebook_id) store_path, envir = .GlobalEnv)
+  on.exit({
+    assign("get_notebook_ragnar_path", original_path_fun, envir = .GlobalEnv)
+    if (!is.null(store)) disconnect_ragnar_store(store)
+    unlink(c(store_path, paste0(store_path, ".wal"), paste0(store_path, ".tmp")), force = TRUE)
+  }, add = TRUE)
+
+  provider <- create_provider_config("Test Provider", "http://example.test", api_key = "test-key")
+  store <- ensure_ragnar_store("test-notebook", provider = provider, embed_model = "test-model")
+
+  expect_no_error(DBI::dbExecute(store@con, "CREATE TABLE writable_probe (id INTEGER)"))
+})
+
 test_that("invoke_reindex_progress_callback supports legacy and extended callbacks", {
   legacy_calls <- list()
   legacy_callback <- function(count, total) {

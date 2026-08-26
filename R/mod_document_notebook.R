@@ -370,7 +370,7 @@ mod_document_notebook_server <- function(id, con, notebook_id, config) {
       }
 
       store_healthy(integrity$ok)
-      rag_ready(integrity$ok)
+      rag_ready(integrity$ok && sync_result$documents == sync_result$marked)
       doc_refresh(doc_refresh() + 1)
 
       if (!sync_result$store_exists) {
