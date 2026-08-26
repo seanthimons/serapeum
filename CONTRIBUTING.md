@@ -21,7 +21,7 @@ This project adheres to the Contributor Covenant [Code of Conduct](CODE_OF_CONDU
 
 ### Prerequisites
 
-- R >= 4.0
+- R >= 4.6
 - Required R packages (see `app.R` for dependencies)
 - OpenRouter API key (for LLM access)
 - OpenAlex API key (optional, for enhanced rate limits)
@@ -41,7 +41,10 @@ This project adheres to the Contributor Covenant [Code of Conduct](CODE_OF_CONDU
 
 3. Add your API keys to `config.yml`
 
-4. Install R dependencies (they will be installed automatically when you run the app)
+4. Restore R dependencies:
+   ```bash
+   Rscript setup.R
+   ```
 
 5. Run the app:
    ```r

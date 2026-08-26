@@ -1,0 +1,28 @@
+# boosters.toml - project configuration
+# Edit this file directly or use boosterpak::add_pack() / remove_pack().
+
+[project]
+name = "serapeum"
+boosters_version = "0.9.0"
+
+[packs]
+declared = ["core"]
+
+[extras]
+declared = ["seanthimons/boosterpak"]
+
+[exclude]
+declared = []
+
+[attach]
+enabled = true
+declared = []
+exclude = []
+
+[functions]
+installed = []
+
+[settings]
+air_toml = false
+auto_snapshot = true
+library = "renv"

@@ -2,7 +2,7 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-seanthimons%2Fserapeum-181717?logo=github)](https://github.com/seanthimons/serapeum)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![R](https://img.shields.io/badge/R-%3E%3D%204.5-276DC3?logo=r)](https://www.r-project.org/)
+[![R](https://img.shields.io/badge/R-%3E%3D%204.6-276DC3?logo=r)](https://www.r-project.org/)
 
 A local-first, self-hosted research assistant inspired by NotebookLM. Built with R and Shiny.
 
@@ -148,7 +148,7 @@ Flexible model routing with multi-provider support.
 
 ### Prerequisites
 
-- R (>= 4.5)
+- R (>= 4.6)
 - [Quarto](https://quarto.org/docs/get-started/) (for slide generation)
 - RStudio (optional but recommended)
 
@@ -159,11 +159,11 @@ Flexible model routing with multi-provider support.
 git clone https://github.com/seanthimons/serapeum.git
 cd serapeum
 
-# One-shot setup: installs renv + all R packages
+# One-shot setup: restores all R packages with pak and Posit Package Manager
 Rscript setup.R
 ```
 
-This installs all 106 dependencies from the lockfile. No manual package management needed.
+The committed boosterpak setup configures binary installs through Posit Package Manager and pak automatically. No manual package management is needed.
 
 ### Configuration
 

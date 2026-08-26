@@ -13,6 +13,7 @@ if (!requireNamespace("renv", quietly = TRUE)) {
 # 2. Restore dependencies from lockfile
 cat("Restoring packages from renv.lock...\n")
 renv::restore(prompt = FALSE)
+boosterpak::status()
 
 # 3. Ensure data directories exist
 dir.create("data", showWarnings = FALSE)

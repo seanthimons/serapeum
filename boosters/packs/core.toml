@@ -1,0 +1,6 @@
+name = "core"
+description = "Minimal bootstrap pack for boosterpak projects."
+packages = [
+  "pak",
+  "renv",
+]
