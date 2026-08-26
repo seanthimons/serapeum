@@ -21,6 +21,15 @@ perform_openalex <- function(req) {
 #' @return list(message, details, severity) where severity is "error" or "warning"
 classify_api_error <- function(e, service = "API") {
   msg <- conditionMessage(e)
+  api_message <- tryCatch({
+    response <- e$resp %||% e$response
+    if (is.null(response)) {
+      NULL
+    } else {
+      body <- httr2::resp_body_json(response, simplifyVector = FALSE)
+      body$error$message %||% NULL
+    }
+  }, error = function(e) NULL)
 
   # Extract HTTP status code if present (httr2 pattern)
   status <- NULL
@@ -40,7 +49,13 @@ classify_api_error <- function(e, service = "API") {
         severity = "error"
       ),
       "404" = list(
-        message = paste(service, "resource not found. The requested endpoint may have changed."),
+        message = if (!is.null(api_message) && nzchar(api_message)) {
+          paste(service, "request failed:", api_message)
+        } else if (identical(service, "OpenRouter")) {
+          "OpenRouter could not serve the selected model. Check the model and provider settings."
+        } else {
+          paste(service, "resource not found.")
+        },
         severity = "error"
       ),
       "429" = list(

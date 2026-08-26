@@ -66,6 +66,27 @@ test_that("error classification returns expected structure", {
   expect_true("severity" %in% names(result))
 })
 
+test_that("OpenRouter 404 errors preserve the API reason", {
+  source_app("api_openalex.R")
+
+  response <- httr2::response(
+    status_code = 404,
+    headers = list("content-type" = "application/json"),
+    body = charToRaw('{"error":{"message":"No allowed providers are available for the selected model"}}')
+  )
+  error <- structure(
+    list(message = "HTTP 404 Not Found.", call = NULL, resp = response),
+    class = c("httr2_http_404", "httr2_http", "error", "condition")
+  )
+
+  result <- classify_api_error(error, "OpenRouter")
+
+  expect_equal(
+    result$message,
+    "OpenRouter request failed: No allowed providers are available for the selected model"
+  )
+})
+
 test_that("match.arg validates mode parameter correctly", {
   # Valid refresh mode
   expect_equal(match.arg("refresh", c("refresh", "load_more")), "refresh")
