@@ -1,0 +1,18 @@
+# Caller: lint commit subjects, PR title, and branch name on every pull request.
+# Copy to .github/workflows/commit-lint.yaml. Permissions: contents: read. Secrets: none.
+name: Commit Lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  commit-lint:
+    name: Commit Lint
+    uses: seanthimons/baseline/.github/workflows/commit-lint.yaml@0a6e332d70f7a15520c62870221b35ef040ef933 # v2.0.0
