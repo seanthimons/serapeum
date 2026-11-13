@@ -1,0 +1,12 @@
+title = "gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Per-repo allowlist. Keep entries narrow: one path, one regex, AND-ed.
+# [allowlist]
+# description = "Recorded API fixtures contain public document identifiers"
+# paths = ['''tests/testthat/fixtures/.*\.yml''']
+# regexTarget = "line"
+# regexes = ['''Dockey=[A-Z0-9]{8}\.[A-Z]{3}''']
+# condition = "AND"
