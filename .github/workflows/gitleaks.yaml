@@ -1,0 +1,29 @@
+name: Gitleaks
+
+on:
+  push:
+    branches: [main, integration]
+  pull_request:
+  schedule:
+    # Change the minute per repo to stagger scheduled runs.
+    - cron: "31 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    name: Gitleaks
+    # The shared workflow lists the PR's commits through the API; it fails at startup if the
+    # calling job grants less than this.
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: seanthimons/baseline/.github/workflows/gitleaks.yaml@0a6e332d70f7a15520c62870221b35ef040ef933 # v2.0.0
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
