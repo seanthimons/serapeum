@@ -96,7 +96,7 @@
   - Docker (user-implemented)
 
 **CI Pipeline:**
-- GitHub Actions workflow: `.github/workflows/gitleaks.yml` - Detects leaked secrets
+- GitHub Actions: gitleaks, commit-lint and lint-workflows run through the baseline reusable callers in `.github/workflows/` (`gitleaks.yaml`, `commit-lint.yaml`, `lint-workflows.yaml`); gitleaks detects leaked secrets
 - No automated tests in CI pipeline (tests run locally via `testthat::test_dir("tests/testthat")`)
 
 ## Environment Configuration
